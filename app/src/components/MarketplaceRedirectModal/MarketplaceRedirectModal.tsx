@@ -20,25 +20,43 @@ export function marketplaceTokenUrl(contractAddress: string, tokenId: string): s
 }
 
 /**
- * Hand-off before sending a seller out of the Shop to resell a token they hold (Figma 2230:113615).
+ * The legacy Marketplace's page for an ITEM, which lists every resale of it.
  *
- * An interstitial rather than a bare link because the destination is ANOTHER APPLICATION: the seller is
- * about to lose the page they were on, and a resale listed over there will not appear in the Shop's own
- * manage view. Saying so first is the difference between a hand-off and a page that simply vanished.
+ * A buyer sent from here has not picked a copy yet — seeing what is on offer is the point of the trip —
+ * so this is that app's item route (`locations.item()`), not the single-token route above.
+ */
+export function marketplaceItemUrl(contractAddress: string, itemId: string): string {
+  return `${config.marketplaceUrl}/contracts/${contractAddress}/items/${itemId}`
+}
+
+/**
+ * Hand-off before sending someone out of the Shop to the legacy Marketplace.
+ *
+ * An interstitial rather than a bare link because the destination is ANOTHER APPLICATION: the visitor is
+ * about to lose the page they were on. Saying so first is the difference between a hand-off and a page
+ * that simply vanished.
+ *
+ * Two directions, because resale lives over there in both:
+ *  - `resell` (Figma 2230:113615) — a SELLER listing a token they hold. A resale listed over there will
+ *    not appear in the Shop's own manage view, which is the part worth warning about.
+ *  - `buy` (Figma 3037:447809) — a BUYER after a copy of an item the Shop cannot sell, because the Shop
+ *    only sells primary. The extra warning here is the currency: over there it is MANA, not credits.
  *
  * CONTINUE is an ANCHOR, not a button with a click handler — so the destination is in the status bar on
- * hover, and cmd/middle-click open it in a new tab like any other link. A seller who wants to keep the
+ * hover, and cmd/middle-click open it in a new tab like any other link. Someone who wants to keep the
  * Shop open should not have to lose it.
  */
-export function MarketplaceRedirectModal({
-  contractAddress,
-  tokenId,
-  onClose
-}: {
-  contractAddress: string
-  tokenId: string
-  onClose: () => void
-}) {
+type MarketplaceRedirectModalProps = { onClose: () => void } & (
+  | { variant?: 'resell'; contractAddress: string; tokenId: string }
+  | { variant: 'buy'; contractAddress: string; itemId: string }
+)
+
+export function MarketplaceRedirectModal(props: MarketplaceRedirectModalProps) {
+  const { contractAddress, onClose } = props
+  const isBuy = props.variant === 'buy'
+  const href = isBuy
+    ? marketplaceItemUrl(contractAddress, props.itemId)
+    : marketplaceTokenUrl(contractAddress, props.tokenId)
   const cardRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -82,19 +100,15 @@ export function MarketplaceRedirectModal({
         <S.Info>
           <S.BagArt src={bagArt} alt="" aria-hidden />
           <S.InfoTitle>{t('marketplaceRedirect.heading')}</S.InfoTitle>
-          <S.InfoText>{t('marketplaceRedirect.body')}</S.InfoText>
+          <S.InfoText>{isBuy ? t('marketplaceRedirect.buyBody') : t('marketplaceRedirect.body')}</S.InfoText>
+          {isBuy ? <S.InfoText>{t('marketplaceRedirect.buyCurrencyNote')}</S.InfoText> : null}
         </S.Info>
 
         <S.Ctas>
           <S.Secondary onClick={onClose} data-testid="marketplace-redirect-cancel">
             {t('marketplaceRedirect.cancel')}
           </S.Secondary>
-          <S.Primary
-            href={marketplaceTokenUrl(contractAddress, tokenId)}
-            target="_blank"
-            rel="noreferrer"
-            data-testid="marketplace-redirect-continue"
-          >
+          <S.Primary href={href} target="_blank" rel="noreferrer" data-testid="marketplace-redirect-continue">
             {t('marketplaceRedirect.continue')}
             <S.PrimaryChevron aria-hidden>
               <Icon name="view-all-arrow" className="ico" />

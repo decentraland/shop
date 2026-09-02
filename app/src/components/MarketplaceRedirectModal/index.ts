@@ -1,1 +1,1 @@
-export { MarketplaceRedirectModal, marketplaceTokenUrl } from './MarketplaceRedirectModal'
+export { MarketplaceRedirectModal, marketplaceItemUrl, marketplaceTokenUrl } from './MarketplaceRedirectModal'

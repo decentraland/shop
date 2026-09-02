@@ -12,7 +12,7 @@ import { fetchOwnsItem } from '~/lib/api'
 import { formatCredits, CURRENCY } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { myItemsRouteFor } from '~/lib/routes'
-import { JUMP_URL } from '~/lib/jump'
+import { JUMP_URL, backpackDeepLink } from '~/lib/jump'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
@@ -190,20 +190,6 @@ function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | n
 // Block explorer for the settlement tx — shown ONLY to self-custody wallets (they understand
 // explorers); managed/thirdweb users just get the in-app "View order". See lib/wallet-kind.ts.
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
-
-/**
- * Hands the purchase back to the iOS app: the same deep link the Marketplace already uses for this
- * (`decentraland://open?iap_enabled=true&urn=…`, see its SuccessPage), so the app opens the backpack on
- * what was just bought rather than on whatever it last showed.
- *
- * The urn is best-effort — only some catalog feeds return it (see CatalogItem.urn) — and a basket has
- * several items but the link carries one. First one wins: it is the anchor the backpack opens on, and the
- * rest are in there with it. With no urn at all the link still opens the app, just without a landing spot.
- */
-function backpackDeepLink(items: Array<CatalogItem & { quantity?: number }>): string {
-  const urn = items.find(i => i.urn)?.urn
-  return `decentraland://open?iap_enabled=true${urn ? `&urn=${encodeURIComponent(urn)}` : ''}`
-}
 
 export function Success() {
   const { state: navState, search } = useLocation() as { state?: SuccessNavState; search: string }

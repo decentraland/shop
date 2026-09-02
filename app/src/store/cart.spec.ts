@@ -478,3 +478,54 @@ describe('the fitting room and an emptying cart', () => {
     expect(useCart.getState().open).toBe(true)
   })
 })
+
+/**
+ * THE "N ITEMS ADDED" BANNER.
+ *
+ * `justAddedCount` is what the drawer's green success message counts, and only `setOpen` ever reset it.
+ * So removing the line it had just announced left the banner asserting the add over an empty cart, and
+ * because `add` resumes from the current value while the drawer is open, the next add carried the dead
+ * count forward: add four, delete them all, add one, and the banner claimed five.
+ */
+describe('when the cart is emptied after an add', () => {
+  it('should stop announcing an add once the line it announced is removed', () => {
+    useCart.getState().add(item({ id: 'a' }))
+    expect(useCart.getState().justAddedCount).toBe(1)
+
+    useCart.getState().remove('a')
+
+    expect(useCart.getState().items).toHaveLength(0)
+    expect(useCart.getState().justAddedCount).toBe(0)
+  })
+
+  it('should not carry the old count into the next add', () => {
+    const store = useCart.getState()
+    ;['a', 'b', 'c', 'd'].forEach(id => store.add(item({ id })))
+    expect(useCart.getState().justAddedCount).toBe(4)
+    ;['a', 'b', 'c', 'd'].forEach(id => useCart.getState().remove(id))
+
+    useCart.getState().add(item({ id: 'e' }))
+
+    // One add since the cart was emptied — not five.
+    expect(useCart.getState().justAddedCount).toBe(1)
+  })
+
+  it('should reset the count when the cart is cleared outright', () => {
+    useCart.getState().add(item({ id: 'a' }))
+
+    useCart.getState().clear()
+
+    expect(useCart.getState().justAddedCount).toBe(0)
+  })
+
+  it('should stop announcing an add when one of several lines is removed, since the count is now wrong', () => {
+    useCart.getState().add(item({ id: 'a' }))
+    useCart.getState().add(item({ id: 'b' }))
+    expect(useCart.getState().justAddedCount).toBe(2)
+
+    useCart.getState().remove('a')
+
+    expect(useCart.getState().items).toHaveLength(1)
+    expect(useCart.getState().justAddedCount).toBe(0)
+  })
+})

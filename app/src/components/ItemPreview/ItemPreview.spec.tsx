@@ -93,3 +93,50 @@ describe('the item preview switch', () => {
     expect(screen.getByTestId('emote-frame-input')).toBeTruthy()
   })
 })
+
+/**
+ * How the preview identifies the asset.
+ *
+ * From a bare contract + item the preview app composes
+ * `urn:decentraland:matic:collections-v2:<contract>:<itemId>` and looks THAT up, which only ever resolves
+ * Polygon collections-v2. An Ethereum collections-v1 wearable came back as "Could not find wearable or
+ * emote for urn=…matic:collections-v2…" printed inside the preview box. HoverPreviewLayer already passes
+ * the row's own URN for this reason; the PDP's preview did not.
+ */
+describe('ItemPreview asset identity', () => {
+  beforeEach(() => previewProps.mockClear())
+
+  it('should identify the asset by its own URN when the row carries one', () => {
+    render(
+      <ItemPreview
+        item={item({
+          urn: 'urn:decentraland:ethereum:collections-v1:halloween_2019:spider_earrings',
+          network: 'ETHEREUM'
+        })}
+      />
+    )
+
+    const props = previewProps.mock.calls.at(-1)![0]
+    expect(props.urns).toEqual(['urn:decentraland:ethereum:collections-v1:halloween_2019:spider_earrings'])
+    // the pair that would have composed the wrong URN must not be sent alongside it
+    expect(props.contractAddress).toBeUndefined()
+    expect(props.itemId).toBeUndefined()
+  })
+
+  it('should still fall back to contract and item id for a row with no URN', () => {
+    render(<ItemPreview item={item()} />)
+
+    const props = previewProps.mock.calls.at(-1)![0]
+    expect(props.urns).toBeUndefined()
+    expect(props.contractAddress).toBe('0xc0')
+    expect(props.itemId).toBe('0')
+  })
+
+  it('should keep addressing a secondary listing by its token, which carries no URN', () => {
+    render(<ItemPreview item={item({ tokenId: '7', itemId: null })} />)
+
+    const props = previewProps.mock.calls.at(-1)![0]
+    expect(props.tokenId).toBe('7')
+    expect(props.itemId).toBeUndefined()
+  })
+})

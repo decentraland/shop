@@ -498,9 +498,26 @@ export const Btn = styled.button`
     color: ${colors.softWhite};
     font-size: 13px;
   }
-  &:hover:not(:disabled),
-  &[data-variant='purple']:hover:not(:disabled) {
-    background: ${colors.accentHover};
+  /**
+   * Hover, and ONLY where hovering is a thing.
+   *
+   * Two bugs lived in one selector here. It used to read &:hover, &[data-variant='purple']:hover — the
+   * first half unqualified, so the PURPLE hover fill was painted over every variant that had no hover of
+   * its own. Ruby was the only one, so the post-purchase CTA turned violet the moment it was hovered:
+   * measured rgb(255,45,85) at rest and rgb(122,43,191) hovered.
+   *
+   * And on a phone that is not a hover at all. A tap synthesises :hover and LEAVES it there, so the CTA
+   * that lands under the finger after the buy confirms comes up already violet — which is how this was
+   * reported. Gating on hover: hover is the same fix, for the same reason, that the creators rail uses
+   * on its card lift.
+   */
+  @media (hover: hover) {
+    &[data-variant='purple']:hover:not(:disabled) {
+      background: ${colors.accentHover};
+    }
+    &[data-variant='ruby']:hover:not(:disabled) {
+      filter: brightness(1.08);
+    }
   }
   &:disabled {
     opacity: 0.6;

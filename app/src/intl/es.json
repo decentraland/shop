@@ -427,6 +427,7 @@
     "stock": "Stock",
     "outOfStock": "Agotado",
     "notForSaleHint": "Este artículo no está a la venta en este momento. Recibe una notificación cuando esté disponible.",
+    "buyResale": "Comprar reventa",
     "ownItemPrefix": "Este es tu artículo: gestiónalo en",
     "ownItemSuffix": ".",
     "manageList": "Poner a la venta",
@@ -945,6 +946,8 @@
     "close": "Cerrar",
     "heading": "Continuá en el Marketplace anterior",
     "body": "La reventa está disponible por ahora en el Marketplace anterior. Te vamos a redirigir para que completes la publicación.",
+    "buyBody": "Este item está disponible para reventa en el Marketplace clásico. Te redirigiremos allí para completar tu compra.",
+    "buyCurrencyNote": "Las compras en el Marketplace clásico no se hacen con créditos.",
     "cancel": "Cancelar",
     "continue": "Continuar"
   },

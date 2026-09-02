@@ -22,7 +22,7 @@ describe('cart checkout error path', () => {
     app = await launchApp({
       path: `/item/${COLLECTION}/1`,
       fixtures: { trade: buyTrade },
-      errors: { '/credits/authorize': { status: 500 } }
+      errors: { '/credits/authorize/batch': { status: 500 } }
     })
     const { page } = app
 

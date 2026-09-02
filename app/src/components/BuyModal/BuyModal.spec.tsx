@@ -1115,4 +1115,37 @@ describe('when the purchase completes', () => {
     expect(cta.getAttribute('target')).toBe('_blank')
     expect(cta.getAttribute('rel')).toContain('noreferrer')
   })
+
+  /**
+   * Inside the web view the launcher is a dead end — that page cannot run in there, so a buyer who had just
+   * paid was handed a link that did nothing. The cart's success page already hands off to the app instead,
+   * and both post-purchase surfaces have to offer the same thing for the same purchase.
+   */
+  describe('and the shop is running inside the ios web view', () => {
+    beforeEach(() => {
+      iap.on = true
+    })
+
+    afterEach(() => {
+      iap.on = false
+    })
+
+    it('should hand the purchase to the app instead of the launcher', async () => {
+      completePurchase()
+      expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+
+      const cta = await screen.findByRole('link', { name: /backpack/i })
+      expect(cta.getAttribute('href')).toMatch(/^decentraland:\/\/open\?iap_enabled=true/)
+      expect(screen.queryByRole('link', { name: /try in world/i })).not.toBeInTheDocument()
+    })
+
+    // A custom scheme opened in a new tab leaves an orphaned blank one behind once the app takes over.
+    it('should open the deep link in place, not in a new tab', async () => {
+      completePurchase()
+      expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+
+      const cta = await screen.findByRole('link', { name: /backpack/i })
+      expect(cta.getAttribute('target')).toBeNull()
+    })
+  })
 })

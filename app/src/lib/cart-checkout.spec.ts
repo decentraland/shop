@@ -7,8 +7,12 @@ import {
   purchaseTargetFor,
   centsToCredits,
   partitionReservations,
+  draftPurchase,
+  checkoutLineFor,
+  groupUnitsForAuthorization,
   type StoreResolver,
-  type TradeResolver
+  type TradeResolver,
+  type ResolvedLine
 } from '~/lib/cart-checkout'
 
 const BUYER = '0xBUYER'
@@ -668,4 +672,161 @@ describe('when splitting a failed checkout into what to release and what was bou
    * the map is empty") only had something to assert while the two halves were separate structures the caller
    * had to keep in step by hand. Deleting that possibility is a better guarantee than asserting on it.
    */
+})
+
+/**
+ * Grouping lines the way the transactions will be built, so ONE credit can be authorized per transaction.
+ *
+ * `useCredits()` consumes a list of credits against one call's total cost until it is covered, so a list
+ * whose caps each carry headroom is paid for before its tail is reached — those credits go unconsumed and
+ * unmatchable while the items ship anyway. Authorizing per group removes the list, which requires knowing
+ * the groups BEFORE anything is authorized. That is what these do.
+ */
+describe('when several lines share one credit', () => {
+  // A transaction group is authorized as a whole now, so its lines carry the same salt. Both halves of the
+  // partition have to cope: release it once, and take every line it paid for out of the cart.
+  const shared = [
+    { salt: '0xshared', itemId: 'a' },
+    { salt: '0xshared', itemId: 'b' },
+    { salt: '0xother', itemId: 'c' }
+  ]
+
+  it('should release that salt once, not once per line', () => {
+    const { toRelease } = partitionReservations({ reservations: shared, spent: new Set(), settled: new Set() })
+
+    expect(toRelease).toEqual(['0xshared', '0xother'])
+  })
+
+  it('should take every line the shared credit paid for out of the cart', () => {
+    const { boughtItemIds } = partitionReservations({
+      reservations: shared,
+      spent: new Set(['0xshared']),
+      settled: new Set(['0xshared'])
+    })
+
+    expect(boughtItemIds).toEqual(['a', 'b'])
+  })
+
+  it('should keep the whole group when its credit never went out', () => {
+    const { toRelease, boughtItemIds } = partitionReservations({
+      reservations: shared,
+      spent: new Set(['0xother']),
+      settled: new Set(['0xother'])
+    })
+
+    expect(toRelease).toEqual(['0xshared'])
+    expect(boughtItemIds).toEqual(['c'])
+  })
+})
+
+describe('when preparing a checkout for authorization', () => {
+  const storeLine = (id: string, over: Partial<CatalogItem> = {}): ResolvedLine => ({
+    item: item(id, 10, { contractAddress: '0xcollection', itemId: id, ...over }),
+    usdCents: 100,
+    priceCredits: 10,
+    quantity: 1,
+    acquisition: 'store',
+    priceWei: '1000'
+  })
+
+  const tradeLine = (id: string, contract: string, chainId = 80002): ResolvedLine => ({
+    item: item(id, 10),
+    usdCents: 100,
+    priceCredits: 10,
+    quantity: 1,
+    acquisition: 'trade',
+    trade: { ...trade(1), id: `trade-${id}`, contract, chainId }
+  })
+
+  // The key has to come from the same function the transactions are built from. If the two disagreed, a
+  // credit would be sized for a set of lines other than the one spending it.
+  const keyOf = (draft: ReturnType<typeof draftPurchase>) =>
+    draft.kind === 'store'
+      ? `store:${draft.chainId}`
+      : `trade:${draft.trade.chainId}:${draft.trade.contract.toLowerCase()}`
+
+  describe('and drafting a line into the purchase it becomes', () => {
+    it('should carry the LIVE mint price, which is what the contract re-validates', () => {
+      const draft = draftPurchase(storeLine('a'))
+
+      expect(draft).toEqual({
+        kind: 'store',
+        item: { collection: '0xcollection', itemId: 'a', priceWei: '1000' },
+        chainId: 80002
+      })
+    })
+
+    it('should carry the trade for a secondary line', () => {
+      const draft = draftPurchase(tradeLine('b', '0xmarket'))
+
+      expect(draft.kind).toBe('trade')
+    })
+  })
+
+  describe('and describing a line for the server', () => {
+    // Item identity travels on every line, mint or trade: it is not how the charge settles, but without it
+    // the buyer's history has nothing to name the line with and renders an anonymous "Item".
+    it('should send the item identity for a mint', () => {
+      expect(checkoutLineFor(storeLine('a'))).toEqual({
+        usdPriceCents: 100,
+        contractAddress: '0xcollection',
+        itemId: 'a'
+      })
+    })
+
+    it('should send the trade id as well for a secondary line', () => {
+      expect(checkoutLineFor(tradeLine('b', '0xmarket'))).toEqual({
+        usdPriceCents: 100,
+        tradeId: 'trade-b',
+        contractAddress: '0xcontract',
+        itemId: 'b'
+      })
+    })
+  })
+
+  describe('and grouping the units', () => {
+    it('should put every mint of a chain in one group, whatever collection they come from', () => {
+      const groups = groupUnitsForAuthorization(
+        [storeLine('a'), storeLine('b', { contractAddress: '0xother' }), storeLine('c')],
+        keyOf
+      )
+
+      expect(groups).toHaveLength(1)
+      expect(groups[0].units).toHaveLength(3)
+      expect(groups[0].drafts).toHaveLength(3)
+    })
+
+    it('should keep trades on different marketplaces apart', () => {
+      const groups = groupUnitsForAuthorization([tradeLine('a', '0xmarket'), tradeLine('b', '0xother')], keyOf)
+
+      expect(groups).toHaveLength(2)
+    })
+
+    // A mixed basket is two transactions — a trade settles with accept([...]) and a mint with buy([...]),
+    // and useCredits takes exactly one external call — so it must be two credits, not one.
+    it('should split a basket that mixes mints and trades', () => {
+      const groups = groupUnitsForAuthorization([storeLine('a'), tradeLine('b', '0xmarket'), storeLine('c')], keyOf)
+
+      expect(groups).toHaveLength(2)
+      expect(groups.map(g => g.units.length).sort()).toEqual([1, 2])
+    })
+
+    it('should keep the cart order so lines are reserved as the buyer sees them', () => {
+      const groups = groupUnitsForAuthorization([tradeLine('a', '0xmarket'), storeLine('b')], keyOf)
+
+      expect(groups[0].units[0].item.id).toBe('a')
+      expect(groups[1].units[0].item.id).toBe('b')
+    })
+
+    it('should pair each unit with its own draft, in order', () => {
+      const groups = groupUnitsForAuthorization([storeLine('a'), storeLine('b')], keyOf)
+
+      expect(groups[0].drafts[0]).toEqual(draftPurchase(groups[0].units[0]))
+      expect(groups[0].drafts[1]).toEqual(draftPurchase(groups[0].units[1]))
+    })
+
+    it('should return nothing for an empty basket', () => {
+      expect(groupUnitsForAuthorization([], keyOf)).toEqual([])
+    })
+  })
 })

@@ -44,6 +44,39 @@ describe('when a group of credits has been broadcast', () => {
   })
 })
 
+/**
+ * The report is how the server learns which transaction carried a set of credits, and it is the only
+ * evidence a checkout leaves behind when a credit goes unconsumed. Sourcing the identity solely from the
+ * wallet store made it depend on session state OUTLIVING the broadcast, which is precisely when it is least
+ * guaranteed — so a caller that holds an identity passes it.
+ */
+describe('when the caller passes its own identity', () => {
+  const CALLER_IDENTITY = { authChain: ['caller'] } as never
+
+  it('should use it rather than the wallet store', () => {
+    getState.mockReturnValue({ session: { identity: IDENTITY } })
+
+    reportSubmittedTx({ txHash: TX_HASH, salts: SALTS, identity: CALLER_IDENTITY })
+
+    expect(reportIntentSubmission).toHaveBeenCalledWith(CALLER_IDENTITY, SALTS, TX_HASH)
+  })
+
+  it('should report even when the session is already gone', () => {
+    getState.mockReturnValue({ session: undefined })
+
+    reportSubmittedTx({ txHash: TX_HASH, salts: SALTS, identity: CALLER_IDENTITY })
+
+    expect(reportIntentSubmission).toHaveBeenCalledWith(CALLER_IDENTITY, SALTS, TX_HASH)
+    expect(captureError).not.toHaveBeenCalled()
+  })
+
+  it('should not touch the store at all', () => {
+    reportSubmittedTx({ txHash: TX_HASH, salts: SALTS, identity: CALLER_IDENTITY })
+
+    expect(getState).not.toHaveBeenCalled()
+  })
+})
+
 describe('when there is nothing worth reporting', () => {
   it('should do nothing without salts', () => {
     reportSubmittedTx({ txHash: TX_HASH, salts: [] })

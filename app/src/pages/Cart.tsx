@@ -8,7 +8,7 @@ import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import { detailRouteFor } from '~/lib/routes'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
-import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
+import { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } from '~/lib/credits'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { useManaBalance } from '~/hooks/useManaBalance'
@@ -51,6 +51,8 @@ import {
   type TradeResolver,
   type StoreResolver,
   partitionReservations,
+  groupUnitsForAuthorization,
+  checkoutLineFor,
   type Reservation
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
@@ -349,47 +351,39 @@ export function Cart() {
       // balance, so ordering is what makes the insufficient-credits guard correct — parallel calls
       // would all read the pre-reservation balance and could over-authorize.
       const purchases: AnyPurchase[] = []
-      for (let i = 0; i < units.length; i++) {
-        const line = units[i]
-        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
+      /**
+       * Authorize ONE credit per transaction group, not one per line.
+       *
+       * `useCredits()` consumes a LIST of credits against one call's total cost, in order, until it is
+       * covered — it has no idea which credit was meant for which item. Every credit carries headroom over
+       * its own line, that headroom accumulates down the list, and a long enough list is therefore paid for
+       * before its last entries are reached. Those credits are never consumed, nothing on chain reports them,
+       * and the server cannot settle what the chain never mentions — while every item ships anyway, because
+       * they all rode the same atomic transaction.
+       *
+       * So the lines are grouped FIRST, by the same key the transactions are built from, and each group is
+       * authorized as a whole. One credit per transaction has no tail to leave behind.
+       */
+      const groups = groupUnitsForAuthorization(units, purchaseGroupKey)
+      let reserved = 0
+      for (const group of groups) {
+        setModal({ phase: 'processing', stage: 'reserving', step: reserved + 1, total: units.length })
         try {
-          // Authorize against the freshly RESOLVED listing, not the item's cart snapshot: a stale tradeId may
+          // Authorized against the freshly RESOLVED listings, not the cart's snapshots: a stale tradeId may
           // have been re-signed to a new trade, and the spend below executes against what was resolved —
-          // authorizing the retired one would mismatch what's actually charged (Jarvis P1).
-          //
-          // A mint carries no tradeId (there is no trade), so what ties the charge to the purchase is the
-          // ephemeral credit's salt, which the reconciler matches against the on-chain consumption either way.
-          // But the intent still has to record WHAT was bought, or the buyer's purchase history has nothing to
-          // name the line with and Activity renders it as an anonymous "Item". Sent for every line, mint or
-          // trade: it is the item's identity, not the settlement's.
-          const tradeId = line.acquisition === 'trade' ? line.trade.id : undefined
-          const purchasedItem =
-            line.item.contractAddress && line.item.itemId != null
-              ? { contractAddress: line.item.contractAddress, itemId: String(line.item.itemId) }
-              : undefined
-          const { credit, maxCreditedValue } = await authorizeUsdCredit(
+          // authorizing the retired one would mismatch what is actually charged (Jarvis P1).
+          const { credit, maxCreditedValue } = await authorizeUsdCreditGroup(
             session.identity,
-            line.usdCents,
-            tradeId,
-            purchasedItem
+            group.units.map(checkoutLineFor)
           )
-          reservations.push({ salt: credit.id, itemId: line.item.id })
-          purchases.push(
-            line.acquisition === 'store'
-              ? {
-                  kind: 'store',
-                  item: {
-                    collection: line.item.contractAddress,
-                    itemId: String(line.item.itemId),
-                    // The LIVE price the review re-read, which is what the contract will verify.
-                    priceWei: line.priceWei
-                  },
-                  credits: [credit],
-                  maxCreditedValue,
-                  chainId: line.item.chainId
-                }
-              : { kind: 'trade', trade: line.trade, credits: [credit], maxCreditedValue }
-          )
+          group.units.forEach((line, index) => {
+            // Every line of the group shares the salt, which is what makes them settle together the way they
+            // are delivered together. `partitionReservations` reads them per line, and a shared salt means a
+            // group is released whole or kept whole — never half of each.
+            reservations.push({ salt: credit.id, itemId: line.item.id })
+            purchases.push({ ...group.drafts[index], credits: [credit], maxCreditedValue })
+          })
+          reserved += group.units.length
         } catch (authErr) {
           // Server said not enough credits → release what we already reserved and show the pack picker
           // (top-up → resume), not a bare error. Same behaviour as the PDP BuyModal.
@@ -398,7 +392,9 @@ export function Cart() {
               try {
                 await cancelUsdIntents(
                   session.identity,
-                  reservations.map(r => r.salt)
+                  // De-duplicated: the lines of a group share one salt, and cancelling it once is what the
+                  // server acts on — sending it N times would only make a partial failure harder to read.
+                  [...new Set(reservations.map(r => r.salt))]
                 )
               } catch (relErr) {
                 captureError(relErr, { flow: 'cart_checkout', step: 'release' })
@@ -490,6 +486,9 @@ export function Cart() {
             purchases,
             buyer: session.address,
             signer: session.signer,
+            // Passed rather than left to the wallet store: the report is how the server learns which
+            // transaction carried these credits, and a checkout that outlives its session would lose it.
+            identity: session.identity,
             onSigned: () => processing('settling', Math.min(relayed + 1, sigTotal)),
             onBroadcast: ({ txHash, salts }) => {
               relayed += 1
@@ -1007,6 +1006,16 @@ export function Cart() {
           // so the MANA leg pays for it.
           purchase = purchaseFor(target, [], '0')
         } else {
+          /**
+           * Still one credit per unit here, and deliberately so.
+           *
+           * The credits-only path authorizes one credit per transaction group, because a list of credits
+           * whose caps each carry headroom is covered before its tail is reached — leaving credits unused
+           * and unmatchable. That cannot happen on this rail: every credit here covers only PART of its
+           * line (the rest is the buyer's MANA), so the list's caps sum to less than the call's cost and
+           * the contract has to reach every one of them. The per-unit split is also load-bearing on this
+           * path — each unit gets its own allocation and its own MANA gap.
+           */
           setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
           const unitItem = unit.item
           const { credit, maxCreditedValue } = await authorizeUsdCredit(

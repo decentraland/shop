@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 
 const NFT_V1 = `${config.marketplaceServerUrl}/v1`
 
@@ -100,10 +101,20 @@ type RawCatalogItem = {
   network: string
   chainId: number
   thumbnail?: string
-  /** The CREATOR's mint price (MANA wei). Zero/absent means the creator is no longer selling it. */
+  /**
+   * The CREATOR's mint price. MANA wei on a row with no trade — but USD wei on one that sells through a
+   * trade, which is why `tradeId` has to be read before this field means anything.
+   */
   price?: string | null
   /** Cheapest RESALE (MANA wei) — a different seller, not the creator. */
   minPrice?: string | null
+  /**
+   * Server-computed, asset-type-aware credit price. Only the /v3 feed carries it; absent on /v2, which is
+   * why rows from there still price at the live rate.
+   */
+  priceCredits?: number | null
+  /** Set when the row sells through a trade. Then `price` is USD wei and pricing it as MANA is a 13x error. */
+  tradeId?: string | null
   /** Remaining mintable supply. */
   available?: number
   data?: {
@@ -166,12 +177,24 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     network: r.network,
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
-    // The /v2 catalog prices in MANA, not in USD — so this row carries `manaWei` and NO fixed credit
-    // price. Callers convert at the live rate through `displayCredits`, exactly as the browse grid does
-    // for any other MANA-priced row. (Reading `price` as USD wei is what made a 3-credit item render as
-    // 150: 15 MANA ≠ $15.)
-    manaWei: mintWei ?? r.minPrice ?? null,
-    priceCredits: 0,
+    /**
+     * WHICH PRICE THIS ROW CARRIES, and it is not the same for every row.
+     *
+     * A row that sells through a TRADE is priced in USD: `price` is USD wei, and the server has already
+     * turned it into `priceCredits` knowing the asset type. Handing that number to the live MANA rate is
+     * the bug this comment exists for — a $6.90 item (69 credits) rendered as 6, because 6.9 was read as
+     * MANA and converted at ~$0.076. So a trade row carries NO `manaWei` and `displayCredits` returns the
+     * server's figure untouched.
+     *
+     * A row with no trade really is MANA-denominated (a store mint, a classic order). It carries `manaWei`
+     * and is priced at the LIVE rate, which is what the browse grid does — the server's own conversion uses
+     * its own rate read and drifts: measured in production, a 20-MANA mint arrived as 4 credits while the
+     * live rate made it 14. Same rule as lib/collections.
+     *
+     * The /v2 feed sends neither field, so rows from there keep the MANA path exactly as before.
+     */
+    manaWei: r.tradeId != null ? null : (mintWei ?? r.minPrice ?? null),
+    priceCredits: r.priceCredits ?? 0,
     gender: toGender(r.data?.wearable?.bodyShapes),
     isSmart: r.data?.wearable?.isSmart ?? false,
     emoteLoop: r.data?.emote?.loop,
@@ -221,12 +244,31 @@ export async function fetchCatalogByIds(
       // The server-side filter is a repeated `id` param (getItemsParams reads `params.getList('id')`).
       const qs = new URLSearchParams({ first: String(chunk.length) })
       for (const id of chunk) qs.append('id', id)
-      const res = await fetch(`${baseUrl}/v2/catalog?${qs.toString()}`)
+      // /v3, not /v2: it is the only feed that reports `priceCredits` and `tradeId`, and without those a
+      // USD-pegged row cannot be told from a MANA one — see toCatalogItem.
+      const res = await fetch(`${baseUrl}/v3/catalog/items?${qs.toString()}`)
       if (!res.ok) {
         void res.body?.cancel()
         throw new Error(`fetchCatalogByIds (${res.status})`)
       }
       const { data } = (await res.json()) as { data: RawCatalogItem[] }
+      /**
+       * A trade row with no `priceCredits` has no price this client can compute: `manaWei` is withheld
+       * (its `price` is USD, not MANA) and the credit figure is the server's to give. Every consumer
+       * already fails closed on a zero price — the card shows NOT FOR SALE, the outfit and showcase
+       * filters drop the row — so the item goes quiet rather than free. Quiet is the problem: were the
+       * feed to stop sending the field, stock would vanish from the storefront with nothing to show why.
+       */
+      const unpriced = data.filter(row => row.tradeId != null && row.priceCredits == null)
+      if (unpriced.length > 0) {
+        captureError(new Error('catalog rows sell through a trade but carry no credit price'), {
+          flow: 'catalog',
+          step: 'hydrate_by_ids',
+          rows: unpriced.length,
+          of: data.length,
+          sample: unpriced[0]?.id
+        })
+      }
       return data.map(toCatalogItem)
     })
   )

@@ -568,6 +568,9 @@ export function ItemDetail() {
   // The resale hand-off (see MarketplaceRedirectModal). Separate from `showResellers`, which is the BUYER's
   // list of other people's resales — same word, opposite side of the trade.
   const [showResell, setShowResell] = useState(false)
+  // The BUYER's hand-off to the same place: the Shop only sells primary, so a copy of an item with no
+  // primary left is bought over on the Marketplace.
+  const [showBuyResale, setShowBuyResale] = useState(false)
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -1069,6 +1072,16 @@ export function ItemDetail() {
   // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
   // and market items have no stock concept).
   const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  /**
+   * L1 items credit nobody.
+   *
+   * On Ethereum collections the `creator` is the wallet that deployed the contract, not whoever made the
+   * item: 438 L1 items share about five addresses, and one of them covers 164 items across 27 unrelated
+   * collections. Polygon, where creators publish their own collections, has 1707 distinct creators over
+   * 11347 items. So the block reads as an attribution while pointing at an operator wallet, and it links
+   * to a profile that never made the thing.
+   */
+  const hidesCreator = current.network === 'ETHEREUM'
   // Sold-out primary that still has resellers (Figma 1524-298906): show the original (struck) + resale
   // price block and let the buyer buy the cheapest resale, instead of the plain out-of-stock/notify state.
   const soldOutWithResale = outOfStock && !manage && !!cheapestResaleItem
@@ -1373,9 +1386,9 @@ export function ItemDetail() {
                 </S.DescRow>
               ) : null}
 
-              {current.creator || collection?.name || creatorPending || collectionPending ? (
+              {(!hidesCreator && (current.creator || creatorPending)) || collection?.name || collectionPending ? (
                 <S.Meta>
-                  {current.creator ? (
+                  {hidesCreator ? null : current.creator ? (
                     <S.MetaCol>
                       <S.Label>{t('itemDetail.creator')}</S.Label>
                       <S.DetailCreator address={current.creator} linkToProfile hidePrefix />
@@ -1763,11 +1776,22 @@ export function ItemDetail() {
                         </S.AddCart>
                       </>
                     ) : (
-                      // No buyable listing → hide buy/add-cart and offer "Notify me when available".
+                      // No buyable listing → hide buy/add-cart and offer "Notify me when available", plus
+                      // the way to actually get one today: a resale on the Marketplace (Figma 3037:446009).
+                      // Offered unconditionally rather than gated on known resales — the Shop reads only the
+                      // credit-buyable ones, so "no resale here" is not evidence of none over there, and the
+                      // Marketplace can also take an offer on an item nobody is currently reselling.
                       <>
                         <NotifyMe item={current} />
-                        {/* No secondary sales for now, so there is nothing to make an offer on. */}
-                        {/* <MakeOfferButton item={current} /> */}
+                        {current.itemId ? (
+                          <S.BuyResaleLink
+                            onClick={() => setShowBuyResale(true)}
+                            data-testid="buy-resale"
+                            aria-haspopup="dialog"
+                          >
+                            {t('itemDetail.buyResale')}
+                          </S.BuyResaleLink>
+                        ) : null}
                       </>
                     )}
                   </S.Ctas>
@@ -1859,6 +1883,15 @@ export function ItemDetail() {
           contractAddress={contractAddress ?? ''}
           tokenId={routeTokenId}
           onClose={() => setShowResell(false)}
+        />
+      ) : null}
+
+      {showBuyResale && current.itemId && contractAddress ? (
+        <MarketplaceRedirectModal
+          variant="buy"
+          contractAddress={contractAddress}
+          itemId={current.itemId}
+          onClose={() => setShowBuyResale(false)}
         />
       ) : null}
 

@@ -199,10 +199,10 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
 // A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
 type ErrorMap = Record<string, { status: number; body?: unknown }>
 
-// Map a shop listing (fixtures shape) → a catalog row, serving both /v3/catalog/items (where
-// lib/collections.ts reads the server-computed `priceCredits`) and /v2/catalog?id= (where the app reads
-// `price` as MANA and converts at the live rate). Emitting both keeps each consumer on the field it
-// really uses in production.
+// Map a shop listing (fixtures shape) → a catalog row for /v3/catalog/items, which every consumer now
+// reads: lib/collections for the grids and fetchCatalogByIds for favourites and outfits. The row carries
+// both the server's `priceCredits` and the MANA `price`, plus the `tradeId` that says which of the two
+// applies — the same discriminator the real feed sends.
 function toCatalogRow(l: any) {
   const priceCredits = Math.max(1, Math.round(l.priceCredits ?? 1))
   // The real /v2 catalog prices in MANA, and the app converts to credits at the live oracle rate. Emit
@@ -214,7 +214,12 @@ function toCatalogRow(l: any) {
   // Outfits' discovery row admits a look only while every item is still buyable from its creator, so a
   // fixture that is resale-only or out of stock has to be able to say so here.
   const isResale = l.listingType === 'secondary' || !!l.tokenId
+  // A trade-priced row reports `tradeId`, and that is what tells the app `price` is USD and not MANA.
+  // Without it here, a spec could not tell the two pricing paths apart — which is how a $6.90 item
+  // reached production showing 6 credits on the favourites grid.
+  const tradeId = l.tradeId ?? (isResale ? `trade-${l.contractAddress}-${l.tokenId ?? l.itemId ?? '0'}` : null)
   return {
+    tradeId,
     id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
     name: l.name,
     creator: l.creator,
@@ -402,6 +407,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const authorized = F.authorize as Record<string, unknown>
       return json(req, cents > 0 ? { ...authorized, usdCents: Math.ceil(cents / 10) * 10 } : authorized)
     }
+    if (path === '/credits/authorize/batch') {
+      // ONE credit for the whole checkout, mirroring the real handler: the cap covers the group's total, so
+      // a spec can tell a per-group authorization from a per-line one by the number of credits that come
+      // back, not just by the number of calls.
+      const body = JSON.parse(req.postData() || '{}') as { items?: { usdPriceCents?: number }[] }
+      const items = body.items ?? []
+      const usdCents = items.reduce((sum, item) => sum + Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10, 0)
+      const authorized = F.authorize as Record<string, unknown>
+      return json(req, {
+        ...authorized,
+        usdCents,
+        lines: items.map(item => ({ usdCents: Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10 }))
+      })
+    }
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
     // Fire-and-forget submission report. The buy flows post here right after broadcasting, so it needs a
     // response even though nothing asserts on it — an unmocked POST in the middle of a checkout is noise
@@ -547,6 +566,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       // collection handed it the first row's traits — a different item's isSmart / utility.
       const itemsItemId = u.searchParams.get('itemId')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
+      // Repeated `id` is how fetchCatalogByIds hydrates favourites and outfits. Answering it with the whole
+      // catalogue would make a favourites spec pass while showing rows nobody favourited.
+      const wantedIds = u.searchParams.getAll('id').map(id => id.toLowerCase())
+      if (wantedIds.length) rows = rows.filter(r => wantedIds.includes(String(r.id).toLowerCase()))
       if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
       if (itemsItemId) rows = rows.filter(r => String(r.itemId) === itemsItemId)
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
@@ -741,7 +764,19 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
 // list so the check covers the proxy too, not only the endpoints ad blockers already drop.
 const ANALYTICS_HOSTS = ['evs.e.decentraland.org', 'api.e.decentraland.org', 'cdn.segment.com', 'api.segment.io']
 
-export type App = { browser: Browser; page: Page; close: () => Promise<void> }
+export type App = {
+  browser: Browser
+  page: Page
+  close: () => Promise<void>
+  /**
+   * Pathnames of every POST the app made, in order.
+   *
+   * Some behaviour is only observable in the REQUESTS, not on the page: a checkout that authorizes one
+   * credit per transaction group and one that authorizes one per line reach the same success screen, and
+   * the difference between them is how many times they asked. Counting here is what makes that assertable.
+   */
+  posts: string[]
+}
 
 /**
  * Per-response delays, keyed by a URL pathname SUBSTRING (e.g. `{ '/v1/outfits': 800 }`).
@@ -844,10 +879,18 @@ export async function launchApp(
   if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)
   const delays = opts.delays ?? {}
+  const posts: string[] = []
   const forbidden: string[] = []
   page.on('request', req => {
     const url = req.url()
     if (ANALYTICS_HOSTS.some(host => url.includes(host))) forbidden.push(url)
+    if (req.method() === 'POST') {
+      try {
+        posts.push(new URL(url).pathname)
+      } catch {
+        // A malformed URL is not worth failing a checkout over — the log is a diagnostic, not the test.
+      }
+    }
     const respond = () => {
       try {
         route(req, F, errors, appBase)
@@ -863,6 +906,7 @@ export async function launchApp(
   return {
     browser,
     page,
+    posts,
     // Reported here rather than thrown from the request handler: `route` runs inside a try/catch that
     // turns a throw into a 500 response, which the page ignores and no spec would ever see. Teardown
     // always happens, or a failing run would leak its browser and hang the suite.

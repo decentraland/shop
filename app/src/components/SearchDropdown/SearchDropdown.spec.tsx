@@ -12,7 +12,8 @@ vi.mock('~/lib/search', () => ({
   fetchCreatorSuggestions: vi.fn().mockResolvedValue([])
 }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
-vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined }) }))
+const useManaRate = vi.fn(() => ({ data: undefined }))
+vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => useManaRate() }))
 
 const secondarySales = vi.fn(() => false)
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales() }))
@@ -75,5 +76,56 @@ describe('SearchDropdown suggestions', () => {
     renderDropdown('')
     expect(fetchShopItems).not.toHaveBeenCalled()
     expect(screen.queryByTestId('search-pop')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The suggestions list prices nothing at all.
+ *
+ * It used to show a credit price per row, and rendered the cell empty whenever there wasn't one — a
+ * legacy row with the oracle down, and every row without primary liquidity once those reach the feed.
+ * A list where some rows carry a price and others silently don't reads as broken rather than as
+ * "this one has no price", so the price belongs on the PDP, where there is room to say why.
+ */
+describe('SearchDropdown pricing', () => {
+  it('should not price a suggestion, even when the row carries one', async () => {
+    vi.mocked(fetchShopItems).mockResolvedValue({
+      items: [
+        {
+          tradeId: 'trade-1',
+          listingType: 'primary',
+          contractAddress: '0xabc',
+          itemId: '0',
+          tokenId: null,
+          name: 'Galaxy Hat',
+          thumbnail: '',
+          rarity: 'epic',
+          category: 'wearable',
+          wearableCategory: 'hat',
+          creator: '0xcreator',
+          priceCredits: 270,
+          available: 10,
+          network: 'MATIC',
+          chainId: 80002,
+          source: 'native',
+          manaWei: null,
+          listingCount: 1
+        }
+      ],
+      total: 1
+    } as never)
+
+    renderDropdown('galaxy')
+
+    expect(await screen.findByText('Galaxy Hat')).toBeInTheDocument()
+    // the number the row still carries must not reach the DOM
+    expect(screen.queryByText('270')).not.toBeInTheDocument()
+  })
+
+  it('should not read the mana oracle at all, keeping the eager navbar chunk free of it', async () => {
+    renderDropdown('galaxy')
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    expect(useManaRate).not.toHaveBeenCalled()
   })
 })

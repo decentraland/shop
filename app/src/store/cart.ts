@@ -150,7 +150,11 @@ export const useCart = create<CartState>()(
           // it can only render its own empty state — and, worse, it stayed OPEN behind the scenes. Removing
           // the last line there and then going back to browse and adding something reopened the modal on top
           // of the grid, because `add` raises the cart drawer and never knew to lower this.
-          return items.length === 0 ? { items, fittingOpen: false } : { items }
+          // Clearing the banner with the line it announced: `justAddedCount` drives the "N Item(s) added"
+          // success message, and nothing but `setOpen` used to reset it — so removing what you had just
+          // added left the banner asserting the add over an empty drawer, and the NEXT add resumed from
+          // that stale count instead of starting over (add 4, delete all, add 1 → "5 Items added").
+          return items.length === 0 ? { items, justAddedCount: 0, fittingOpen: false } : { items, justAddedCount: 0 }
         })
         if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
       },
@@ -174,7 +178,7 @@ export const useCart = create<CartState>()(
             i.id === id && isPrimaryLine(i) && i.quantity > 1 ? { ...i, quantity: i.quantity - 1 } : i
           )
         })),
-      clear: () => set({ items: [], fittingOpen: false }),
+      clear: () => set({ items: [], justAddedCount: 0, fittingOpen: false }),
       // The cart is persisted under one global key, so without this a second account on the same device
       // rehydrates the first one's cart (the account-switch handler reloads the page rather than purging
       // stores). Three cases, and only one of them empties the cart:

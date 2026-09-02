@@ -231,6 +231,51 @@ describe('when buying several listings on the same marketplace with credits', ()
     expect(useCreditsCalls[0].maxCreditedValue).toBe('300')
     expect(useCreditsCalls[0].maxUncreditedValue).toBe('0')
   })
+
+  /**
+   * A checkout now authorizes ONE credit for a whole transaction group, so the lines of that group hand back
+   * the same credit and the same cap. Both have to be counted once.
+   */
+  describe('when the lines of a group share one authorized credit', () => {
+    const shared = credit(B32('7'), '300')
+    const purchases: CreditPurchase[] = [
+      { trade: fakeTrade('0xmarket'), credits: [shared], maxCreditedValue: '300' },
+      { trade: fakeTrade('0xmarket'), credits: [shared], maxCreditedValue: '300' },
+      { trade: fakeTrade('0xmarket'), credits: [shared], maxCreditedValue: '300' }
+    ]
+
+    // Three entries backed by one signature and one salt is at best redundant and at worst rejected.
+    it('passes that credit to the contract exactly once', async () => {
+      await buyManyWithCredits({ purchases, buyer: BUYER, signer })
+
+      expect(useCreditsCalls).toHaveLength(1)
+      expect(useCreditsCalls[0].credits).toHaveLength(1)
+      expect(useCreditsCalls[0].creditsSignatures).toHaveLength(1)
+    })
+
+    // Summing per line would ask for 900 against a cap the server signed for 300 — three times the credit
+    // that actually exists.
+    it('asks for the group cap once rather than once per line', async () => {
+      await buyManyWithCredits({ purchases, buyer: BUYER, signer })
+
+      expect(useCreditsCalls[0].maxCreditedValue).toBe('300')
+    })
+
+    // The old shape must keep working while anything is still authorized a credit at a time.
+    it('still sums caps when the lines hold distinct credits', async () => {
+      await buyManyWithCredits({
+        purchases: [
+          { trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+          { trade: fakeTrade('0xmarket'), credits: [credit(B32('2'), '200')], maxCreditedValue: '200' }
+        ],
+        buyer: BUYER,
+        signer
+      })
+
+      expect(useCreditsCalls[0].credits).toHaveLength(2)
+      expect(useCreditsCalls[0].maxCreditedValue).toBe('300')
+    })
+  })
 })
 
 /**

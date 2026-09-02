@@ -64,12 +64,14 @@ vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) 
 const secondarySales = { on: false }
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales.on }))
 
-const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
+const { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } = vi.hoisted(() => ({
   authorizeUsdCredit: vi.fn(),
+  authorizeUsdCreditGroup: vi.fn(),
   cancelUsdIntents: vi.fn().mockResolvedValue(0)
 }))
 vi.mock('~/lib/credits', () => ({
   authorizeUsdCredit,
+  authorizeUsdCreditGroup,
   cancelUsdIntents,
   getUsdBalance: vi.fn(),
   devMintUsd: vi.fn()
@@ -199,10 +201,23 @@ const storeLine = (i: CatalogItem) => ({
   quantity: 1
 })
 
-function renderCart(items: CatalogItem[], toLine: (i: CatalogItem) => unknown = line) {
+/**
+ * A line on its OWN marketplace, so each one is a separate transaction — and therefore its own credit.
+ *
+ * Needed by every "one group went out, the other did not" scenario. A checkout authorizes ONE credit per
+ * transaction group, so two lines that settle together now share a salt and cannot have different fates:
+ * they ride the same atomic call. Splitting them across marketplaces is what makes a partial outcome
+ * representable at all, and it is also the only shape it takes in production.
+ */
+const lineInOwnGroup = (i: CatalogItem, index: number) => ({
+  ...line(i),
+  trade: { id: i.tradeId, chainId: 80002, contract: `0xmarket-${index}`, signer: '0xseller' }
+})
+
+function renderCart(items: CatalogItem[], toLine: (i: CatalogItem, index: number) => unknown = line) {
   useCart.setState({ items: items.map(i => ({ ...i, quantity: 1 })), open: false })
   const review = {
-    buyable: items.map(toLine),
+    buyable: items.map((i, index) => toLine(i, index)),
     unavailable: [],
     own: [],
     liveTotalCredits: 20 * items.length,
@@ -219,15 +234,28 @@ function renderCart(items: CatalogItem[], toLine: (i: CatalogItem) => unknown = 
   )
 }
 
-// One credit per authorize, salt = `salt-<n>`, in the order the lines are authorized.
+/**
+ * One credit per AUTHORIZE CALL, salt = `salt-<n>`.
+ *
+ * The credits-only cart authorizes once per transaction group, so `n` counts groups rather than lines and
+ * every line of a group comes back holding the same salt — which is the shape the checkout has to handle,
+ * and what makes a shared-salt release or cleanup observable here. The single-item stub stays for the mixed
+ * MANA rail, which still authorizes per unit (each of its credits covers only part of its line, so the
+ * contract has to reach all of them).
+ */
 function stubAuthorize() {
   let n = 0
-  authorizeUsdCredit.mockImplementation(async () => {
+  const nextCredit = () => {
     n += 1
     return {
       credit: { id: `salt-${n}`, value: '200', expiresAt: 0, salt: `salt-${n}`, signature: '0x' },
       maxCreditedValue: '200'
     }
+  }
+  authorizeUsdCredit.mockImplementation(async () => nextCredit())
+  authorizeUsdCreditGroup.mockImplementation(async (_identity: unknown, lines: unknown[]) => {
+    const { credit, maxCreditedValue } = nextCredit()
+    return { credit, maxCreditedValue, usdCents: 0, oracleRate: '0', lines: (lines ?? []).map(() => ({})) }
   })
 }
 
@@ -268,6 +296,67 @@ describe('the Purchase Summary CTA', () => {
   })
 })
 
+/**
+ * How many credits a checkout asks for, which is the whole point of authorizing per group.
+ *
+ * `useCredits()` consumes a LIST of credits against one call's total cost until it is covered, and each
+ * credit carries headroom over its own line — so a list can be paid for before its tail is reached, leaving
+ * credits unconsumed and unmatchable while every item still ships on that one atomic transaction. A single
+ * credit per transaction has no tail. Nothing on screen distinguishes the two, so it is asserted here.
+ */
+describe('when the basket settles in one transaction', () => {
+  it('should authorize ONE credit for every line in it', async () => {
+    buyManyWithCredits.mockResolvedValue(['0xhash'])
+
+    renderCart([item('a'), item('b'), item('c')])
+    await pay()
+
+    await waitFor(() => expect(authorizeUsdCreditGroup).toHaveBeenCalledTimes(1))
+    // And it asked for all three lines at once, rather than three times for one line each.
+    expect(authorizeUsdCreditGroup.mock.calls[0][1]).toHaveLength(3)
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should spend that one credit across the whole basket', async () => {
+    buyManyWithCredits.mockResolvedValue(['0xhash'])
+
+    renderCart([item('a'), item('b')])
+    await pay()
+
+    await waitFor(() => expect(buyManyWithCredits).toHaveBeenCalled())
+    const { purchases } = buyManyWithCredits.mock.calls[0][0] as { purchases: { credits: { id: string }[] }[] }
+    expect(purchases.map(p => p.credits[0].id)).toEqual(['salt-1', 'salt-1'])
+  })
+
+  // Releasing has to follow the credit, not the line: sending the same salt twice would make a partial
+  // failure harder to read for no benefit, and the server acts on it once either way.
+  it('should release that credit once when the purchase fails before broadcast', async () => {
+    buyManyWithCredits.mockImplementation(async () => {
+      throw new Error('user rejected transaction')
+    })
+
+    renderCart([item('a'), item('b')])
+    await pay()
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalled())
+    expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['salt-1'])
+  })
+})
+
+describe('when the basket spans two transactions', () => {
+  // One credit per GROUP, never one per checkout: a mixed basket is two calls and each needs its own.
+  it('should authorize one credit for each of them', async () => {
+    buyManyWithCredits.mockResolvedValue(['0xhash-1', '0xhash-2'])
+
+    renderCart([item('a'), item('b')], lineInOwnGroup)
+    await pay()
+
+    await waitFor(() => expect(authorizeUsdCreditGroup).toHaveBeenCalledTimes(2))
+    expect(authorizeUsdCreditGroup.mock.calls[0][1]).toHaveLength(1)
+    expect(authorizeUsdCreditGroup.mock.calls[1][1]).toHaveLength(1)
+  })
+})
+
 describe('when the buyer confirms the first wallet prompt and rejects the second', () => {
   /**
    * The money assertion. Group 1 is BROADCAST, so its credits are spent whatever happens next; releasing
@@ -281,7 +370,7 @@ describe('when the buyer confirms the first wallet prompt and rejects the second
       throw new Error('user rejected transaction')
     })
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalled())
@@ -296,7 +385,7 @@ describe('when the buyer confirms the first wallet prompt and rejects the second
       throw new Error('user rejected transaction')
     })
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     // THE ASSERTION THAT WAS MISSING. With the salt -> line pairing unpopulated this stayed ['a','b'] — the
@@ -311,7 +400,7 @@ describe('when the buyer confirms the first wallet prompt and rejects the second
       throw new Error('user rejected transaction')
     })
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     // Rendered, not merely passed as a prop: the modal declared `message` and never read it, so this copy
@@ -327,7 +416,7 @@ describe('when the buyer confirms the first wallet prompt and rejects the second
       throw new Error('user rejected transaction')
     })
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     await waitFor(() => expect(track.mock.calls.some(c => c[0] === 'Shop Completed Purchase')).toBe(true))
@@ -428,7 +517,7 @@ describe('when the gasless rail relays one group and another hard-reverts', () =
       if (hash === '0xrelayed2') throw new Error('transaction reverted')
     })
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     // salt-1 was consumed on-chain and must survive; salt-2 reverted and must be handed back.
@@ -452,7 +541,7 @@ describe('when the gasless rail relays one group and another hard-reverts', () =
     })
     waitForSettlement.mockResolvedValue(undefined)
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     // The relayed line settled, so it leaves the cart; the unsigned one keeps its place for a retry and its
@@ -477,7 +566,7 @@ describe('when the gasless rail relays one group and another hard-reverts', () =
       if (hash === '0xrelayed2') throw new SettlementPendingError('still pending')
     })
 
-    renderCart([item('a'), item('b')])
+    renderCart([item('a'), item('b')], lineInOwnGroup)
     await pay()
 
     // Pending is NOT a failure: the reconciler settles it against the indexed CreditUsed event, so the

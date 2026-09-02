@@ -14,6 +14,7 @@
 // decentraland-transactions' sendMetaTransaction() exactly (same types/selectors), but taking
 // an explicit ethers Signer + a configurable relayer URL so it stays feature-flaggable.
 
+import type { AuthIdentity } from '@dcl/crypto'
 import { ethers } from 'ethers'
 import { type Trade } from '@dcl/schemas'
 import { ContractName, ErrorCode, MetaTransactionError, getContract } from 'decentraland-transactions'
@@ -443,6 +444,11 @@ export async function buyManyGasless(opts: {
    * confirmation — so without a signal the UI would sit on the same frame with nothing to say for it.
    */
   onGroupSettling?: (progress: { settled: number; total: number }) => void
+  /**
+   * The buyer's identity, so the submission report does not depend on the wallet store still holding a
+   * session when the transaction goes out. Optional: callers without one fall back to the store.
+   */
+  identity?: AuthIdentity
 }): Promise<string[]> {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
   const { purchases, buyer, signer, onSigned, onBroadcast, onGroupSettling } = opts
@@ -461,7 +467,7 @@ export async function buyManyGasless(opts: {
     onBroadcast?.({ txHash, salts })
     // See the same call in buy.ts: reported once here, next to the broadcast, so no checkout path can omit
     // it. This rail needs it most — the relayed mint is where the expired-credit reverts came from.
-    reportSubmittedTx({ txHash, salts })
+    reportSubmittedTx({ txHash, salts, identity: opts.identity })
     hashes.push(txHash)
 
     // A mixed basket signs once per group, and each signature is only verifiable while the contract still

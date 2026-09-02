@@ -427,6 +427,7 @@
     "stock": "Stock",
     "outOfStock": "Out of stock",
     "notForSaleHint": "This item isn't listed for sale right now. Get notified when it becomes available.",
+    "buyResale": "Buy resale",
     "ownItemPrefix": "This is your item — manage it in",
     "ownItemSuffix": ".",
     "manageList": "Put up for sale",
@@ -945,6 +946,8 @@
     "close": "Close",
     "heading": "Continue in the Legacy Marketplace",
     "body": "Reselling is currently available in the Legacy Marketplace. You'll be redirected to complete your listing.",
+    "buyBody": "This item is available for resale in the Legacy Marketplace. You'll be redirected there to complete your purchase.",
+    "buyCurrencyNote": "Purchases in the Legacy Marketplace are not made with credits.",
     "cancel": "Cancel",
     "continue": "Continue"
   },

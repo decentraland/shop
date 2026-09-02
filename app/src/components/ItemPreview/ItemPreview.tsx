@@ -94,6 +94,22 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   // no explanation. Emotes are shape-agnostic, so never flagged.
   const incompatible = hasAvatar && !compatibleAvatar && !isEmote
 
+  // Identify the asset by its URN when the row carries one, exactly as HoverPreviewLayer does and for the
+  // same reason: from a bare contract + item the preview app builds
+  // `urn:decentraland:matic:collections-v2:<contract>:<itemId>` and looks THAT up, so it only ever
+  // resolves Polygon collections-v2. An Ethereum collections-v1 wearable answers "Could not find wearable
+  // or emote for urn=…matic:collections-v2…" right inside the preview box. The hover previews were fixed
+  // for this; the PDP's own preview was left composing the wrong URN.
+  // A tokenId row comes from the unified feed, which carries no `urn` — so that branch still wins there.
+  const urnOptions = item.urn
+    ? { urns: [item.urn] }
+    : {
+        contractAddress: item.contractAddress,
+        // secondary listings carry tokenId; catalog/mint items carry itemId — never both.
+        tokenId: item.tokenId ?? undefined,
+        itemId: item.tokenId ? undefined : (item.itemId ?? undefined)
+      }
+
   return (
     <>
       {/* Zero-footprint sentinel that spans the preview box; the IntersectionObserver watches it so the
@@ -105,10 +121,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
       {previewMounted ? (
         <WearablePreview
           id={PREVIEW_ID}
-          contractAddress={item.contractAddress}
-          // secondary listings carry tokenId; catalog/mint items carry itemId — never both.
-          tokenId={item.tokenId ?? undefined}
-          itemId={item.tokenId ? undefined : (item.itemId ?? undefined)}
+          {...urnOptions}
           profile={itemAlone ? undefined : compatibleAvatar ? profile : 'default'}
           bodyShape={itemAlone || compatibleAvatar ? undefined : mannequinShape}
           type={isEmote ? undefined : itemAlone ? PreviewType.WEARABLE : PreviewType.AVATAR}

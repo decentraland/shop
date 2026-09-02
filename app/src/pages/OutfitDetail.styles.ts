@@ -4,6 +4,7 @@ import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import { ringHover, ringLit } from '~/styles/card.styles'
 import { Chip } from '~/styles/chip.styles'
+import { crumbGutter } from '~/styles/crumbs.styles'
 import { theme } from '~/styles/theme'
 
 const { colors, radius, media, gradients } = theme
@@ -23,6 +24,7 @@ export const Crumbs = styled.nav`
   font-size: 13px;
   color: ${colors.gray4};
   margin-bottom: 18px;
+  ${crumbGutter};
 `
 
 export const Crumb = styled(Link)`

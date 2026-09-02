@@ -225,6 +225,33 @@ export const Search = styled.div`
       font-size: 14px;
     }
   }
+
+  /**
+   * 16px on touch, and the number is not a design choice — it is iOS's threshold.
+   *
+   * Safari ZOOMS the page when a field smaller than 16px takes focus, and it does not zoom back out on
+   * blur: tapping search left the whole Shop scaled up with the layout shifted sideways, and the way back
+   * was a manual pinch. Every size this field carries is under that line (15 on the web, 14 on a phone, 12
+   * in the iOS web view), so the tap that opens search is the one that breaks the page.
+   *
+   * Gated on pointer: coarse rather than on a width, because the trigger is the INPUT METHOD, not the
+   * viewport: an iPad in landscape is wider than any mobile breakpoint and still zooms, while a narrow
+   * desktop window never does and should keep the design's 15px.
+   *
+   * The alternative fix — maximum-scale=1 on the viewport meta — stops the zoom by forbidding zoom
+   * altogether, for everyone, everywhere. That is a documented accessibility failure (WCAG 1.4.4), and a
+   * font size is a much smaller price than taking pinch-to-zoom away from the whole site.
+   *
+   * Last in the block on purpose: it has to win over the [data-iap] rule above, which is equally
+   * specific, and between equals the later one applies. The iOS web view is a touch device by definition,
+   * so its field is exactly the one that must not be left at 12px.
+   */
+  @media (pointer: coarse) {
+    & input,
+    &[data-iap] input {
+      font-size: 16px;
+    }
+  }
 `
 
 export const MobileDivider = styled.hr`
