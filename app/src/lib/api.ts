@@ -1273,6 +1273,9 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
 /** Null rather than 0 for anything unparseable: "we were not told" must not render as "none left". */
 function toSupply(raw: string | number | undefined): number | null {
   if (raw == null) return null
+  // Number('') and Number('   ') are 0, not NaN — so an empty field would slip through as "none left",
+  // which is the one reading this function exists to prevent.
+  if (typeof raw === 'string' && raw.trim() === '') return null
   const n = typeof raw === 'number' ? raw : Number(raw)
   return Number.isFinite(n) && n >= 0 ? n : null
 }
