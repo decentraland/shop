@@ -6,11 +6,17 @@ import { BrowserRouter } from 'react-router-dom'
 import { App } from '~/App'
 import { config } from '~/config'
 import { I18nProvider } from '~/intl/I18nProvider'
+import { getAnalyticsProxyProps } from '~/lib/analytics-proxy'
 import { initSentry } from '~/lib/monitoring'
 import './styles/index.css'
 
 // Start error monitoring before the first render (no-op unless VITE_SENTRY_DSN is set).
 initSentry()
+
+// Whether analytics goes through our first party proxy or straight to Segment. Read from what the last
+// page load persisted rather than awaited, so nothing about the flag service can delay or silence the
+// provider that mounts below — see lib/analytics-proxy.
+const analyticsProxy = getAnalyticsProxyProps(config.segmentCdnUrl, config.segmentApiHost)
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } }
@@ -24,7 +30,7 @@ const routerBasename = pathname === '/shop' || pathname.startsWith('/shop/') ? '
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <AnalyticsProvider writeKey={config.segmentWriteKey} cdnUrl={config.segmentCdnUrl} apiHost={config.segmentApiHost}>
+    <AnalyticsProvider writeKey={config.segmentWriteKey} {...analyticsProxy}>
       <QueryClientProvider client={queryClient}>
         <I18nProvider>
           <BrowserRouter basename={routerBasename}>
