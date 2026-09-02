@@ -9,7 +9,7 @@ import {
   type ContractData,
   type Provider
 } from 'decentraland-transactions'
-import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
+import { getDeployedOffChainMarketplaceContracts, getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -406,6 +406,28 @@ export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthoriza
     spenderAddress: market.address,
     chainId
   }
+}
+
+/**
+ * The same permission on every marketplace version EXCEPT the newest.
+ *
+ * Grants always target the newest version, so these rows exist only to surface and revoke something granted
+ * before it shipped. Their ids carry the spender: the row's react-query cache entry and its test id are both
+ * keyed on `id` alone, so an unqualified duplicate would make two versions read and overwrite each other's
+ * state. The newest version keeps the bare id, which is what the page and its tests already address.
+ */
+export function getLegacyMarketplaceAuthorizations(
+  latest: ShopAuthorizationDescriptor,
+  chainId: ChainId
+): ShopAuthorizationDescriptor[] {
+  const latestSpender = latest.spenderAddress.toLowerCase()
+  return getDeployedOffChainMarketplaceContracts(chainId)
+    .filter(contract => contract.address.toLowerCase() !== latestSpender)
+    .map(contract => ({
+      ...latest,
+      id: `${latest.id}@${contract.address.toLowerCase()}`,
+      spenderAddress: contract.address
+    }))
 }
 
 // The per-collection selling authorization: letting the marketplace transfer collectibles from this

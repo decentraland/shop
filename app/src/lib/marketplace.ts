@@ -27,3 +27,22 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
   }
   throw new Error(`No off-chain marketplace contract exists on chain ${chainId}`)
 }
+
+/**
+ * Every off-chain marketplace version deployed on the chain, newest first.
+ *
+ * Separate from {@link getLatestOffChainMarketplaceContract}, which answers where a NEW listing goes. This
+ * answers where a wallet might ALREADY have granted something: an allowance, approval or minter right given
+ * to an older version stays live on chain after a newer one ships, and the Approvals page is the only place
+ * it can be seen or taken back.
+ */
+export function getDeployedOffChainMarketplaceContracts(chainId: ChainId) {
+  return OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES.reduce<ReturnType<typeof getContract>[]>((deployed, contractName) => {
+    try {
+      deployed.push(getContract(contractName, chainId))
+    } catch {
+      // Not deployed on this chain.
+    }
+    return deployed
+  }, [])
+}

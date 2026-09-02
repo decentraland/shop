@@ -16,6 +16,7 @@ import { ChainId } from '@dcl/schemas'
 
 export enum ContractName {
   OffChainMarketplaceV2 = 'OffChainMarketplaceV2',
+  OffChainMarketplaceV3 = 'OffChainMarketplaceV3',
   MANAToken = 'MANAToken',
 }
 
@@ -80,9 +81,47 @@ const MANA_TOKEN: Partial<Record<ChainId, ContractConfig>> = {
   },
 }
 
+/**
+ * V3, deployed on the testnets only so far. Values verified against
+ * decentraland-transactions@3.1.1 (cjs/contracts/offChainMarketplaceV3.js).
+ */
+const OFFCHAIN_MARKETPLACE_V3: Partial<Record<ChainId, ContractConfig>> = {
+  [ChainId.ETHEREUM_SEPOLIA]: {
+    address: '0x257db44ac97789c16ab277eae87dcde0c246cc9f',
+    name: 'DecentralandMarketplaceEthereum',
+    version: '1.0.0',
+    chainId: ChainId.ETHEREUM_SEPOLIA,
+  },
+  [ChainId.MATIC_AMOY]: {
+    address: '0x36fd1434a6c4b8ade80c9847c1d15033ce34488c',
+    name: 'DecentralandMarketplacePolygon',
+    version: '1.0.0',
+    chainId: ChainId.MATIC_AMOY,
+  },
+}
+
 const TABLES: Record<ContractName, Partial<Record<ChainId, ContractConfig>>> = {
   [ContractName.OffChainMarketplaceV2]: OFFCHAIN_MARKETPLACE_V2,
+  [ContractName.OffChainMarketplaceV3]: OFFCHAIN_MARKETPLACE_V3,
   [ContractName.MANAToken]: MANA_TOKEN,
+}
+
+/** Off-chain marketplace versions, newest first. Mirrors the app's ~/lib/marketplace. */
+const OFFCHAIN_MARKETPLACE_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
+
+/**
+ * The newest off-chain marketplace deployed on a chain.
+ *
+ * A migrated listing has to be signed against the same version the app grants minter rights to, or the
+ * app authorises one contract while the CLI signs for another and the mint reverts. Falls back through
+ * the list because a version that is not deployed on a chain simply has no entry.
+ */
+export function getLatestOffChainMarketplace(chainId: ChainId | number): ContractConfig {
+  for (const name of OFFCHAIN_MARKETPLACE_NAMES) {
+    const cfg = TABLES[name]?.[chainId as ChainId]
+    if (cfg) return cfg
+  }
+  throw new Error(`No off-chain marketplace config for chainId ${chainId}. Add it to src/dcl-transactions.ts.`)
 }
 
 /** Drop-in for decentraland-transactions' getContract, scoped to the two contracts this tool uses. */

@@ -41,6 +41,9 @@ const getAuthorizationStatus = vi.fn()
 const setAuthorization = vi.fn()
 vi.mock('~/lib/authorizations', () => ({
   AuthorizationKind: { Allowance: 'allowance', Approval: 'approval', Minter: 'minter' },
+  // No superseded versions on the chain these tests run against, so every permission renders exactly one
+  // row — the same shape the page had before legacy rows existed.
+  getLegacyMarketplaceAuthorizations: () => [],
   getAuthorizationStatus: (...args: unknown[]) => getAuthorizationStatus(...args),
   setAuthorization: (...args: unknown[]) => setAuthorization(...args),
   getCreditsAuthorization: (chainId: number) => ({
