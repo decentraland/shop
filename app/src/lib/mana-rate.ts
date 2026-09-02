@@ -1,5 +1,4 @@
 import { ethers } from 'ethers'
-import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import type { ManaRate } from '~/lib/mana-convert'
 
@@ -36,11 +35,24 @@ type AggregatorContract = ethers.Contract & {
 // genuinely stuck feed.
 const MAX_STALENESS_SECONDS = 90000
 
-// Read the MANA/USD Chainlink-style aggregator off the marketplace contract (decoupled from the
-// wallet's network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so
-// callers can disable Buy Now with a message instead of pricing off a bad rate.
-export async function readManaUsdRate(chainId: number = config.chainId): Promise<ManaRate> {
-  const market = getLatestOffChainMarketplaceContract(chainId)
+/**
+ * Read the MANA/USD Chainlink-style aggregator off a marketplace contract (decoupled from the wallet's
+ * network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so callers can
+ * disable Buy Now with a message instead of pricing off a bad rate.
+ *
+ * Takes the marketplace address rather than a chain id: the address is what determines the aggregator,
+ * and the RPC is a single configured chain. It is REQUIRED and not defaulted. Each marketplace version holds its own
+ * `manaUsdAggregator`, so a function that picked a version for itself would silently price one contract's
+ * listing at another contract's rate the moment a second version exists. Making the caller name it keeps
+ * that choice visible and reviewable.
+ *
+ * This is a REFERENCE rate — for converting a legacy MANA-priced listing to credits for display, sizing a
+ * name reservation, or suggesting a starting price. Pricing what a USD-pegged trade will actually SETTLE
+ * at is a different question with a different answer, and it lives in `readTradeManaPriceWei`
+ * (lib/mana.ts), which resolves the aggregator from that trade's own `contract`.
+ */
+export async function readManaUsdRate(marketplaceAddress: string): Promise<ManaRate> {
+  const market = { address: marketplaceAddress }
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
   const mkt = new ethers.Contract(
     market.address,

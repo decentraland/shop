@@ -13,6 +13,7 @@ import {
 } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { getIsSecondarySalesEnabled } from '~/lib/featureFlags'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 // "Import your listings": bring a seller's OLD classic (MANA-priced) listings into the Shop as
 // credit-buyable. The server returns the raw price; we convert MANA→credits here via the oracle
@@ -50,7 +51,8 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
   if (listings.length === 0) return { creations: [], owned: [] }
 
   const chainId = listings[0].chainId || config.chainId
-  const rate = await readManaUsdRate(chainId)
+  // These listings do not exist yet; they will be created against the newest marketplace.
+  const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(chainId).address)
   // Fall back to 1 for a malformed manaWei — this is only a suggested starting price the creator edits.
   const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: manaWeiToCredits(l.manaWei, rate) ?? 1 }))
 

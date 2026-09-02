@@ -5,6 +5,11 @@ vi.mock('~/config', () => ({
   config: { marketplaceServerUrl: 'http://server', chainId: 80002 }
 }))
 
+const getLatestOffChainMarketplaceContract = vi.fn((_chainId: number) => ({
+  address: '0xmarket',
+  name: 'DecentralandMarketplacePolygon',
+  version: '1.0.0'
+}))
 const postTrade = vi.fn()
 const fetchTrade = vi.fn()
 // Hoisted with the mock: vi.mock is lifted to the top of the file, so a plain top-level class would
@@ -27,6 +32,12 @@ const getIsSecondarySalesEnabled = vi.fn()
 vi.mock('~/lib/featureFlags', () => ({
   getIsSecondarySalesEnabled: () => getIsSecondarySalesEnabled()
 }))
+// Stubbed at the lib level like the rest of this file: the real module pulls decentraland-transactions,
+// whose ESM build cannot be resolved under vitest.
+vi.mock('~/lib/marketplace', () => ({
+  getLatestOffChainMarketplaceContract: (chainId: number) => getLatestOffChainMarketplaceContract(chainId)
+}))
+
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: (...args: unknown[]) => readManaUsdRate(...args),
   manaWeiToCredits: (...args: unknown[]) => manaWeiToCredits(...args)
@@ -159,7 +170,9 @@ describe("when fetching a seller's importable listings", () => {
 
     const result = await fetchImportable('0xseller')
 
-    expect(readManaUsdRate).toHaveBeenCalledWith(1)
+    // The chain picks the marketplace, and the marketplace is what the aggregator is read from.
+    expect(getLatestOffChainMarketplaceContract).toHaveBeenCalledWith(1)
+    expect(readManaUsdRate).toHaveBeenCalledWith('0xmarket')
     expect(result.owned[0].suggestedCredits).toBe(42)
   })
 
@@ -168,7 +181,7 @@ describe("when fetching a seller's importable listings", () => {
 
     await fetchImportable('0xseller')
 
-    expect(readManaUsdRate).toHaveBeenCalledWith(80002)
+    expect(getLatestOffChainMarketplaceContract).toHaveBeenCalledWith(80002)
   })
 
   it('and the conversion returns null it should default suggestedCredits to 1', async () => {

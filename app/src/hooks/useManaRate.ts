@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { config } from '~/config'
 import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 // The live MANA→USD market rate, read from the on-chain oracle (see lib/mana-rate). Used by the
 // Market tab to DISPLAY legacy (MANA-priced) listings in fluctuating credits. Refetched periodically
@@ -9,9 +10,11 @@ import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
 // When the oracle is stale/down this query errors — the Market UI shows a notice and disables Buy Now
 // rather than pricing off a bad rate.
 export function useManaRate(enabled = true) {
+  // Named explicitly rather than resolved inside the reader — see readManaUsdRate.
+  const referenceMarketplace = getLatestOffChainMarketplaceContract(config.chainId).address
   return useQuery<ManaRate>({
-    queryKey: ['mana-rate', config.chainId],
-    queryFn: () => readManaUsdRate(config.chainId),
+    queryKey: ['mana-rate', config.chainId, referenceMarketplace],
+    queryFn: () => readManaUsdRate(referenceMarketplace),
     enabled, // the PDP only reads the oracle for a market-mode (legacy) item
     staleTime: 60_000, // the rate moves slowly; one read per minute is plenty
     refetchInterval: 60_000,

@@ -57,6 +57,7 @@ import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import { JUMP_URL, backpackDeepLink } from '~/lib/jump'
 import * as M from './modal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
 
@@ -139,9 +140,13 @@ export function BuyModal({
    */
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     try {
+      // The newest marketplace, named explicitly: this is the reference MANA/USD rate for converting a
+      // legacy MANA-priced line to credits, not the rate a USD-pegged trade settles at (that is
+      // readTradeManaPriceWei, which uses the trade's own contract). Keyed by it so the two never share.
+      const referenceMarketplace = getLatestOffChainMarketplaceContract(config.chainId).address
       return await qc.fetchQuery({
-        queryKey: ['mana-rate', config.chainId],
-        queryFn: () => readManaUsdRate(config.chainId),
+        queryKey: ['mana-rate', config.chainId, referenceMarketplace],
+        queryFn: () => readManaUsdRate(referenceMarketplace),
         staleTime: 60_000
       })
     } catch {
