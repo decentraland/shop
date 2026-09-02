@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, afterEach } from 'vitest'
 import { t, setActiveLocale, MESSAGES } from './i18n'
 
@@ -146,5 +148,36 @@ describe('web2-first copy rule', () => {
     const stale = [...BASELINE].filter(key => !offending.has(key))
 
     expect(stale).toEqual([])
+  })
+})
+
+/**
+ * A key that does not exist renders as the key ITSELF — `t()` falls back to the id rather than throwing,
+ * so a typo ships as a tooltip reading `itemDetail.browseByRarity` and nothing catches it: types cannot,
+ * because the argument is a plain string, and the parity test above only compares the catalogs to each
+ * other. Three such keys were live on the item detail page, all pointing at `itemDetail.*` for strings
+ * that live under `filter.*`.
+ */
+describe('every key the code asks for', () => {
+  // `i18n.ts` documents the API with illustrative ids ('a.b.c') that are deliberately not real.
+  const SELF = 'src/intl/i18n.ts'
+
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) return sourceFiles(full)
+      return /\.tsx?$/.test(entry.name) && !/\.spec\./.test(entry.name) && full !== SELF ? [full] : []
+    })
+  }
+
+  it('exists in the catalog', () => {
+    const missing: string[] = []
+    for (const file of sourceFiles('src')) {
+      for (const [, key] of readFileSync(file, 'utf8').matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'/g)) {
+        if (!(key in MESSAGES.en)) missing.push(`${file} → ${key}`)
+      }
+    }
+
+    expect(missing).toEqual([])
   })
 })

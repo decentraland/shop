@@ -82,11 +82,11 @@ export function rarityDescription(rarity?: string | null): string {
   const name = rarityLabel(rarity ?? 'common')
   try {
     const max = Rarity.getMaxSupply((rarity ?? 'common').toLowerCase() as Rarity)
-    if (max > 0) return `${name} rarity — only ${max.toLocaleString()} can ever be minted`
+    if (max > 0) return t('rarity.supply', { rarity: name, max: max.toLocaleString() })
   } catch {
     /* unknown rarity → name only */
   }
-  return `${name} rarity`
+  return t('rarity.plain', { rarity: name })
 }
 
 export function rarityGradient(rarity?: string | null): string {

@@ -1274,30 +1274,33 @@ export function ItemDetail() {
                 {/* The filterable attributes are LINKS to the browse page — clicking one shows everything
                     that shares it. Only these three are linked because only these three are things the
                     grid can filter by; see lib/chip-links. */}
+                {/* A rarity IS its scarcity, so the chip explains itself with the number: how many of this
+                    item can ever exist. Both variants say it — the linked one used to promise "browse all
+                    {rarity} items" instead, and did it through a key that does not exist, so what actually
+                    rendered was the literal `itemDetail.browseByRarity`. */}
                 {rarityLink ? (
-                  <S.DetailChipLink
-                    to={rarityLink}
-                    data-variant="rarity"
-                    data-testid="detail-rarity-link"
-                    style={{ background: rarityColor(rarity) }}
-                    title={t('itemDetail.browseByRarity', { rarity: current.rarity })}
-                  >
-                    {current.rarity}
-                  </S.DetailChipLink>
+                  <Tooltip content={rarityDescription(current.rarity)}>
+                    <S.DetailChipLink
+                      to={rarityLink}
+                      data-variant="rarity"
+                      data-testid="detail-rarity-link"
+                      style={{ background: rarityColor(rarity) }}
+                    >
+                      {current.rarity}
+                    </S.DetailChipLink>
+                  </Tooltip>
                 ) : (
-                  <S.DetailChip
-                    data-variant="rarity"
-                    style={{ background: rarityColor(rarity) }}
-                    title={rarityDescription(current.rarity)}
-                  >
-                    {current.rarity}
-                  </S.DetailChip>
+                  <Tooltip content={rarityDescription(current.rarity)}>
+                    <S.DetailChip data-variant="rarity" style={{ background: rarityColor(rarity) }}>
+                      {current.rarity}
+                    </S.DetailChip>
+                  </Tooltip>
                 )}
                 {categoryLink ? (
                   <S.DetailChipLink
                     to={categoryLink}
                     data-testid="detail-category-link"
-                    title={t('itemDetail.browseByCategory', { category: categoryLabel(chipItem) })}
+                    title={t('filter.browseByCategory', { category: categoryLabel(chipItem) })}
                   >
                     {catIco ? <Icon name={catIco} size={18} /> : null}
                     {categoryLabel(chipItem)}
@@ -1323,7 +1326,7 @@ export function ItemDetail() {
                 {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
                 {isSmart ? (
-                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('itemDetail.browseBySmart')}>
+                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('filter.browseBySmart')}>
                     <Icon name="smart" size={18} />
                     {t('itemDetail.smart')}
                   </S.DetailChipLink>

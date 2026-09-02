@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -738,5 +738,39 @@ describe('when an item has no listing', () => {
     // 50 of 50 still mintable: nothing sold, so this is emphatically NOT the sold-out state above.
     expect(await screen.findByText('50/50')).toBeInTheDocument()
     expect(screen.queryByTestId('out-of-stock')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * A rarity IS its scarcity, so the chip that names one should say how many can exist. It used to carry a
+ * native `title` promising to "browse all {rarity} items" — through a key that does not exist, so what
+ * actually appeared on hover was the literal string `itemDetail.browseByRarity`.
+ */
+describe('when hovering the rarity chip', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', rarity: 'exotic' })],
+      total: 1
+    })
+  })
+
+  it('should say how many copies can ever exist', async () => {
+    renderPdp('1')
+
+    const chip = await screen.findByTestId('detail-rarity-link')
+    fireEvent.mouseEnter(chip.parentElement as HTMLElement)
+
+    expect(await screen.findByText(/only 50 will ever exist/i)).toBeInTheDocument()
+  })
+
+  it('should not leak an untranslated key', async () => {
+    renderPdp('1')
+
+    const chip = await screen.findByTestId('detail-rarity-link')
+    fireEvent.mouseEnter(chip.parentElement as HTMLElement)
+
+    expect(screen.queryByText(/itemDetail\./)).not.toBeInTheDocument()
   })
 })
