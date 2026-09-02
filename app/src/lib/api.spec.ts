@@ -1840,6 +1840,7 @@ describe('when reading the remaining supply off an item row', () => {
     ['an empty string', ''],
     ['a whitespace-only string', '   '],
     ['a non-numeric string', 'many'],
+    ['a fractional count, which is malformed rather than small', '1.5'],
     ['an absent field', undefined]
   ])('should report %s as unknown, never as none left', async (_label, available) => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))

@@ -1277,7 +1277,9 @@ function toSupply(raw: string | number | undefined): number | null {
   // which is the one reading this function exists to prevent.
   if (typeof raw === 'string' && raw.trim() === '') return null
   const n = typeof raw === 'number' ? raw : Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : null
+  // Integer, not merely finite: this is a count of items, so 1.5 is not a smaller supply — it is a
+  // malformed one, and it would render as "1.5/50". `isInteger` rejects NaN and both infinities too.
+  return Number.isInteger(n) && n >= 0 ? n : null
 }
 
 // A purchase-history row's display info, resolved from its trade: what was bought + what it cost.
