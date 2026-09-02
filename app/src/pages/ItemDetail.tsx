@@ -1073,11 +1073,19 @@ export function ItemDetail() {
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
-  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
+  /**
+   * Remaining supply, backfilled from the item row when no listing carried it.
+   *
+   * Without the fallback an item with nothing listed reports `undefined`, so neither branch below fires and
+   * the page shows "Not for sale" with no numbers — which reads the same whether the mint sold out or the
+   * creator never put it up. The item row knows, and the chip query above already fetched it.
+   */
+  const supply = current.available ?? itemTraits?.available ?? null
+  const showStock = typeof supply === 'number' && supply > 0 && !current.tokenId && !isMarket
   // Primary (mint) listing whose supply is exhausted → surface "OUT OF STOCK" next to the not-for-sale
   // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
   // and market items have no stock concept).
-  const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  const outOfStock = !isMarket && !current.tokenId && supply === 0
   /**
    * L1 items credit nobody.
    *
@@ -1576,7 +1584,7 @@ export function ItemDetail() {
                           <S.StockCol>
                             <S.PriceLabel>{t('itemDetail.stock')}</S.PriceLabel>
                             <S.StockValue>
-                              {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                              {(supply ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
                             </S.StockValue>
                           </S.StockCol>
                         ) : outOfStock ? (
