@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -684,5 +684,93 @@ describe('ItemDetail — an item id arriving with a query fragment stuck to it',
     renderPdp('1&utm_source=client')
 
     expect(await screen.findByRole('heading', { name: 'Anchor Hat' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * A mint with nothing listed says only "Not for sale", which is the same sentence for two opposite stories:
+ * the mint sold out, or its creator never put it up. The supply tells them apart and the item row already
+ * carries it — the page just never read it, because it only ever looked at the listing.
+ */
+describe('when an item has no listing', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', rarity: 'exotic' })],
+      total: 1
+    })
+  })
+
+  it('should report a mint that ran out as out of stock', async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchItemMeta).mockResolvedValue({
+      name: 'Anchor Hat',
+      thumbnail: '',
+      isSmart: false,
+      utility: null,
+      urn: null,
+      wearableCategory: 'hat',
+      gender: 'unisex',
+      available: 0
+    })
+
+    renderPdp('1')
+
+    expect(await screen.findByTestId('out-of-stock')).toBeInTheDocument()
+  })
+
+  it('should show the untouched supply of one its creator never put up for sale', async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchItemMeta).mockResolvedValue({
+      name: 'Anchor Hat',
+      thumbnail: '',
+      isSmart: false,
+      utility: null,
+      urn: null,
+      wearableCategory: 'hat',
+      gender: 'unisex',
+      available: 50
+    })
+
+    renderPdp('1')
+
+    // 50 of 50 still mintable: nothing sold, so this is emphatically NOT the sold-out state above.
+    expect(await screen.findByText('50/50')).toBeInTheDocument()
+    expect(screen.queryByTestId('out-of-stock')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * A rarity IS its scarcity, so the chip that names one should say how many can exist. It used to carry a
+ * native `title` promising to "browse all {rarity} items" — through a key that does not exist, so what
+ * actually appeared on hover was the literal string `itemDetail.browseByRarity`.
+ */
+describe('when hovering the rarity chip', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', rarity: 'exotic' })],
+      total: 1
+    })
+  })
+
+  it('should say how many copies can ever exist', async () => {
+    renderPdp('1')
+
+    const chip = await screen.findByTestId('detail-rarity-link')
+    fireEvent.mouseEnter(chip.parentElement as HTMLElement)
+
+    expect(await screen.findByText(/only 50 will ever exist/i)).toBeInTheDocument()
+  })
+
+  it('should not leak an untranslated key', async () => {
+    renderPdp('1')
+
+    const chip = await screen.findByTestId('detail-rarity-link')
+    fireEvent.mouseEnter(chip.parentElement as HTMLElement)
+
+    expect(screen.queryByText(/itemDetail\./)).not.toBeInTheDocument()
   })
 })

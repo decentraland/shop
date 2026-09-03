@@ -54,7 +54,8 @@ import {
   fetchAssetDisplay,
   fetchUserSales,
   TradeNotFoundError,
-  postTrade
+  postTrade,
+  fetchItemMeta
 } from '~/lib/api'
 
 // $1 in USD wei.
@@ -1816,5 +1817,34 @@ describe('when an item has more than one open listing', () => {
 
   it('should answer null for an item with nothing open', () => {
     expect(pickItemListing([])).toBeNull()
+  })
+})
+
+/**
+ * The supply this reads decides whether the detail page prints OUT OF STOCK, so the one value it must never
+ * invent is zero. `Number('')` is 0 rather than NaN, which is the trap: an empty field would read as a mint
+ * that sold out.
+ */
+describe('when reading the remaining supply off an item row', () => {
+  it.each([
+    ['a number', 7, 7],
+    ['a numeric string, which is what this feed sends', '7', 7],
+    ['zero, genuinely none left', '0', 0]
+  ])('should read %s', async (_label, available, expected) => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))
+
+    expect((await fetchItemMeta('0xabc', '1'))?.available).toBe(expected)
+  })
+
+  it.each([
+    ['an empty string', ''],
+    ['a whitespace-only string', '   '],
+    ['a non-numeric string', 'many'],
+    ['a fractional count, which is malformed rather than small', '1.5'],
+    ['an absent field', undefined]
+  ])('should report %s as unknown, never as none left', async (_label, available) => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))
+
+    expect((await fetchItemMeta('0xabc', '1'))?.available).toBeNull()
   })
 })

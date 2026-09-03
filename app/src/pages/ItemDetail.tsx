@@ -1073,11 +1073,19 @@ export function ItemDetail() {
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
-  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
+  /**
+   * Remaining supply, backfilled from the item row when no listing carried it.
+   *
+   * Without the fallback an item with nothing listed reports `undefined`, so neither branch below fires and
+   * the page shows "Not for sale" with no numbers — which reads the same whether the mint sold out or the
+   * creator never put it up. The item row knows, and the chip query above already fetched it.
+   */
+  const supply = current.available ?? itemTraits?.available ?? null
+  const showStock = typeof supply === 'number' && supply > 0 && !current.tokenId && !isMarket
   // Primary (mint) listing whose supply is exhausted → surface "OUT OF STOCK" next to the not-for-sale
   // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
   // and market items have no stock concept).
-  const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  const outOfStock = !isMarket && !current.tokenId && supply === 0
   /**
    * L1 items credit nobody.
    *
@@ -1266,30 +1274,33 @@ export function ItemDetail() {
                 {/* The filterable attributes are LINKS to the browse page — clicking one shows everything
                     that shares it. Only these three are linked because only these three are things the
                     grid can filter by; see lib/chip-links. */}
+                {/* A rarity IS its scarcity, so the chip explains itself with the number: how many of this
+                    item can ever exist. Both variants say it — the linked one used to promise "browse all
+                    {rarity} items" instead, and did it through a key that does not exist, so what actually
+                    rendered was the literal `itemDetail.browseByRarity`. */}
                 {rarityLink ? (
-                  <S.DetailChipLink
-                    to={rarityLink}
-                    data-variant="rarity"
-                    data-testid="detail-rarity-link"
-                    style={{ background: rarityColor(rarity) }}
-                    title={t('itemDetail.browseByRarity', { rarity: current.rarity })}
-                  >
-                    {current.rarity}
-                  </S.DetailChipLink>
+                  <Tooltip content={rarityDescription(current.rarity)}>
+                    <S.DetailChipLink
+                      to={rarityLink}
+                      data-variant="rarity"
+                      data-testid="detail-rarity-link"
+                      style={{ background: rarityColor(rarity) }}
+                    >
+                      {current.rarity}
+                    </S.DetailChipLink>
+                  </Tooltip>
                 ) : (
-                  <S.DetailChip
-                    data-variant="rarity"
-                    style={{ background: rarityColor(rarity) }}
-                    title={rarityDescription(current.rarity)}
-                  >
-                    {current.rarity}
-                  </S.DetailChip>
+                  <Tooltip content={rarityDescription(current.rarity)}>
+                    <S.DetailChip data-variant="rarity" style={{ background: rarityColor(rarity) }}>
+                      {current.rarity}
+                    </S.DetailChip>
+                  </Tooltip>
                 )}
                 {categoryLink ? (
                   <S.DetailChipLink
                     to={categoryLink}
                     data-testid="detail-category-link"
-                    title={t('itemDetail.browseByCategory', { category: categoryLabel(chipItem) })}
+                    title={t('filter.browseByCategory', { category: categoryLabel(chipItem) })}
                   >
                     {catIco ? <Icon name={catIco} size={18} /> : null}
                     {categoryLabel(chipItem)}
@@ -1315,7 +1326,7 @@ export function ItemDetail() {
                 {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
                 {isSmart ? (
-                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('itemDetail.browseBySmart')}>
+                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('filter.browseBySmart')}>
                     <Icon name="smart" size={18} />
                     {t('itemDetail.smart')}
                   </S.DetailChipLink>
@@ -1576,7 +1587,7 @@ export function ItemDetail() {
                           <S.StockCol>
                             <S.PriceLabel>{t('itemDetail.stock')}</S.PriceLabel>
                             <S.StockValue>
-                              {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                              {(supply ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
                             </S.StockValue>
                           </S.StockCol>
                         ) : outOfStock ? (

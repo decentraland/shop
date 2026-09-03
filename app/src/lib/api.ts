@@ -1235,6 +1235,8 @@ export type ItemMeta = {
    */
   wearableCategory: string | null
   gender: CatalogItem['gender']
+  /** Remaining mintable supply. Null when the row omits it, which is not the same as none left. */
+  available: number | null
 }
 
 export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
@@ -1247,6 +1249,7 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
       thumbnail?: string
       utility?: string | null
       urn?: string
+      available?: string | number
       data?: { wearable?: { isSmart?: boolean; category?: string; bodyShapes?: string[] } }
     }>
   }
@@ -1261,8 +1264,22 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
     urn: row.urn ?? null,
     wearableCategory: row.data?.wearable?.category ?? null,
     // Same derivation the catalog uses, so the two never disagree about who can wear an item.
-    gender: toGender(row.data?.wearable?.bodyShapes)
+    gender: toGender(row.data?.wearable?.bodyShapes),
+    // This feed sends it as a STRING, unlike the catalog's number, so it cannot be passed straight through.
+    available: toSupply(row.available)
   }
+}
+
+/** Null rather than 0 for anything unparseable: "we were not told" must not render as "none left". */
+function toSupply(raw: string | number | undefined): number | null {
+  if (raw == null) return null
+  // Number('') and Number('   ') are 0, not NaN — so an empty field would slip through as "none left",
+  // which is the one reading this function exists to prevent.
+  if (typeof raw === 'string' && raw.trim() === '') return null
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  // Integer, not merely finite: this is a count of items, so 1.5 is not a smaller supply — it is a
+  // malformed one, and it would render as "1.5/50". `isInteger` rejects NaN and both infinities too.
+  return Number.isInteger(n) && n >= 0 ? n : null
 }
 
 // A purchase-history row's display info, resolved from its trade: what was bought + what it cost.

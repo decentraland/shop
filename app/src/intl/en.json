@@ -270,7 +270,9 @@
     "legendary": "Legendary",
     "exotic": "Exotic",
     "mythic": "Mythic",
-    "unique": "Unique"
+    "unique": "Unique",
+    "supply": "{rarity} rarity — only {max} will ever exist",
+    "plain": "{rarity} rarity"
   },
   "assetCard": {
     "sale": "SALE",
