@@ -12,11 +12,15 @@ import {
   itemProps,
   purchaseItemsProps,
   errorCode,
-  isUserRejection,
-  initAnalytics
+  isUserRejection
 } from './analytics'
 import { useWallet } from '~/store/wallet'
 import type { CatalogItem } from '~/lib/api'
+
+// The provider in main.tsx owns loading Segment; the wrapper only reads the instance back through
+// @dcl/hooks, so that read is the seam these tests drive.
+const segment = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+vi.mock('@dcl/hooks', () => ({ getAnalytics: () => segment.current }))
 
 const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
   id: 't1',
@@ -36,7 +40,7 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
 })
 
 beforeEach(() => {
-  ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  segment.current = null
   useWallet.setState({ session: null })
 })
 
@@ -48,7 +52,7 @@ describe('analytics wrapper', () => {
 
   it('sends the event with the injected context when Segment is loaded', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
+    segment.current = { track: spy, identify: vi.fn(), page: vi.fn() }
     useWallet.setState({ session: { address: '0xBUYER' } as never })
 
     track('Shop Viewed Item', { item_id: '5' })
@@ -68,14 +72,14 @@ describe('analytics wrapper', () => {
 
   it('marks anonymous events with a null address / is_signed_in false', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
+    segment.current = { track: spy, identify: vi.fn(), page: vi.fn() }
     track('Shop Viewed Page', { page: 'overview' })
     expect(spy.mock.calls[0][1]).toMatchObject({ address: null, is_signed_in: false })
   })
 
   it('reset drops the Segment identity when loaded, and never throws when it is not', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = {
+    segment.current = {
       track: vi.fn(),
       identify: vi.fn(),
       page: vi.fn(),
@@ -84,7 +88,7 @@ describe('analytics wrapper', () => {
     reset()
     expect(spy).toHaveBeenCalledTimes(1)
 
-    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+    segment.current = null
     expect(() => reset()).not.toThrow()
   })
 
@@ -178,9 +182,20 @@ describe('analytics wrapper', () => {
     expect(isUserRejection({ message: 'boom' })).toBe(false)
   })
 
+  it('trackPage never emits a Segment page call, the funnel keys on the Track event', () => {
+    const track = vi.fn()
+    const page = vi.fn()
+    segment.current = { track, identify: vi.fn(), page }
+
+    trackPage('overview')
+
+    expect(track).toHaveBeenCalledWith('Shop Viewed Page', expect.objectContaining({ page: 'overview' }))
+    expect(page).not.toHaveBeenCalled()
+  })
+
   it('trackPage sends the Shop Viewed Page event with the page prop', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
+    segment.current = { track: spy, identify: vi.fn(), page: vi.fn() }
 
     trackPage('overview')
 
@@ -192,7 +207,7 @@ describe('analytics wrapper', () => {
 
   it('identify lowercases the address when Segment is loaded', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: vi.fn(), identify: spy, page: vi.fn() }
+    segment.current = { track: vi.fn(), identify: spy, page: vi.fn() }
 
     identify('0xABCdef', { plan: 'free' })
 
@@ -201,7 +216,7 @@ describe('analytics wrapper', () => {
 
   it('track swallows a store read that throws and still sends the event', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
+    segment.current = { track: spy, identify: vi.fn(), page: vi.fn() }
     const getState = vi.spyOn(useWallet, 'getState').mockImplementation(() => {
       throw new Error('store exploded')
     })
@@ -267,49 +282,5 @@ describe('markAddressSeen', () => {
     expect(markAddressSeen('0xdead')).toBe(false)
 
     getItem.mockRestore()
-  })
-})
-
-describe('initAnalytics', () => {
-  it('no-ops when no Segment write key is configured (test env)', () => {
-    const appendChild = vi.spyOn(document.head, 'appendChild')
-
-    expect(() => initAnalytics()).not.toThrow()
-    // With an empty VITE_SEGMENT_WRITE_KEY the loader never runs → no analytics stub, no script.
-    expect((window as unknown as { analytics?: unknown }).analytics).toBeUndefined()
-    expect(appendChild).not.toHaveBeenCalled()
-
-    appendChild.mockRestore()
-  })
-
-  it('is idempotent — a second call is still a no-op', () => {
-    const appendChild = vi.spyOn(document.head, 'appendChild')
-
-    initAnalytics()
-    initAnalytics()
-
-    expect(appendChild).not.toHaveBeenCalled()
-    appendChild.mockRestore()
-  })
-
-  it('loads the Segment script (positive path) when a write key IS present', async () => {
-    // The other tests exercise the empty-key path (test env blanks the key). Here we force a key via
-    // a scoped config mock + a fresh module import so `initialized` is reset, and assert the loader runs.
-    vi.resetModules()
-    vi.doMock('~/config', () => ({
-      config: { segmentWriteKey: 'wk_test', chainId: 80002, network: 'polygon', appEnv: 'test' }
-    }))
-    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation(n => n)
-
-    const mod = await import('./analytics')
-    mod.initAnalytics()
-
-    expect(appendChild).toHaveBeenCalledTimes(1)
-    expect((window as unknown as { analytics?: unknown }).analytics).toBeDefined()
-
-    appendChild.mockRestore()
-    vi.doUnmock('~/config')
-    vi.resetModules()
-    ;(window as unknown as { analytics?: unknown }).analytics = undefined
   })
 })

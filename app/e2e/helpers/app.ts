@@ -31,6 +31,10 @@ export function hermeticViteEnv(extra: Record<string, string> = {}): Record<stri
     // The resolved 'dev' config ships a real Stripe publishable key, but the mocks don't cover
     // Stripe's hosted redirect — an empty key keeps isMockPayments() true.
     VITE_STRIPE_PK: '',
+    // Same story for Segment: the dev config carries a real write key, and an e2e run must never load
+    // analytics or reach the proxy. Empty key → the AnalyticsProvider stays a no-op. The guard in
+    // launch() is what proves it, since a silently stubbed request would look identical to no request.
+    VITE_SEGMENT_WRITE_KEY: '',
     // No shop-server unless a spec asks for one (outfits.e2e.ts): the notify-me and
     // secondary-sales specs assert the feature is dark when it is unconfigured.
     VITE_SHOP_SERVER_URL: '',
@@ -756,6 +760,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   return json(req, { data: [] })
 }
 
+// Segment's own hosts plus our first party proxy: an e2e run must not talk to any of them. Kept as a
+// list so the check covers the proxy too, not only the endpoints ad blockers already drop.
+const ANALYTICS_HOSTS = ['evs.e.decentraland.org', 'api.e.decentraland.org', 'cdn.segment.com', 'api.segment.io']
+
 export type App = {
   browser: Browser
   page: Page
@@ -872,10 +880,13 @@ export async function launchApp(
   await page.setRequestInterception(true)
   const delays = opts.delays ?? {}
   const posts: string[] = []
+  const forbidden: string[] = []
   page.on('request', req => {
+    const url = req.url()
+    if (ANALYTICS_HOSTS.some(host => url.includes(host))) forbidden.push(url)
     if (req.method() === 'POST') {
       try {
-        posts.push(new URL(req.url()).pathname)
+        posts.push(new URL(url).pathname)
       } catch {
         // A malformed URL is not worth failing a checkout over — the log is a diagnostic, not the test.
       }
@@ -887,10 +898,24 @@ export async function launchApp(
         if (!req.response()) req.respond({ status: 500, headers: CORS, body: String(e) }).catch(() => {})
       }
     }
-    const ms = delayFor(new URL(req.url()).pathname, delays)
+    const ms = delayFor(new URL(url).pathname, delays)
     if (ms > 0) setTimeout(respond, ms)
     else respond()
   })
   await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: opts.waitUntil ?? 'networkidle2', timeout: 45000 })
-  return { browser, page, close: () => browser.close(), posts }
+  return {
+    browser,
+    page,
+    posts,
+    // Reported here rather than thrown from the request handler: `route` runs inside a try/catch that
+    // turns a throw into a 500 response, which the page ignores and no spec would ever see. Teardown
+    // always happens, or a failing run would leak its browser and hang the suite.
+    close: async () => {
+      const reached = forbidden.slice()
+      await browser.close()
+      if (reached.length > 0) {
+        throw new Error(`e2e run reached analytics hosts that must stay unreachable: ${reached.join(', ')}`)
+      }
+    }
+  }
 }
