@@ -7,6 +7,7 @@ import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
+import { RarityLab } from '~/components/RarityLab'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
@@ -151,6 +152,7 @@ export function App() {
   return (
     <>
       <ScrollReset />
+      <RarityLab />
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />

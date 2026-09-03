@@ -44,8 +44,12 @@ export const Card = styled.article`
     box-shadow 0.15s ease,
     transform 0.15s ease;
 
+  /* The resting ring is structural only. Its hairline read evenly around a pale grey card, but over the
+     rarity wash it vanishes on the media and shows only against the dark footer, so it lands as a
+     contour starting halfway down. The pseudo-element stays: ringHover reuses it. */
   &::after {
     ${ringHairline};
+    border-color: transparent;
   }
 
   @media (hover: hover) {
@@ -191,10 +195,6 @@ export const Media = styled.div`
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   place-items: center;
-  /* Figma 1480:256712: a hairline on the three outer edges only, never on the seam with the footer. */
-  border-top: 0.25px solid ${colors.gray4};
-  border-left: 0.25px solid ${colors.gray4};
-  border-right: 0.25px solid ${colors.gray4};
 `
 
 // Corner ribbon on the media (fav sits top-right, so this anchors top-left).

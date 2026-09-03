@@ -2,6 +2,7 @@ import { t } from '~/intl/i18n'
 import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
 import { rarities } from '~/styles/theme'
+import { RARITY_LAB, labVariant } from '~/lib/rarityLab'
 
 // Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
 // item's image background. Falls back to a neutral grey wash for unknown rarities.
@@ -99,4 +100,13 @@ export function rarityGradient(rarity?: string | null): string {
   } catch {
     return FALLBACK_GRADIENT
   }
+}
+
+// Rarity background for an item's media area, replacing the flat neutral fill so a grid of cards reads
+// as coloured the way unity-explorer does.
+//
+// TEMPORARY: delegates to the A/B scaffold in lib/rarityLab so the team can pick a treatment on the
+// preview deploy. Once the verdict is in, inline the winning formula here and delete rarityLab.
+export function rarityMedia(rarity?: string | null): string {
+  return RARITY_LAB[labVariant()]?.build(rarity) ?? 'none'
 }
