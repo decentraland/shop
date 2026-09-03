@@ -286,7 +286,9 @@ export const NameValue = styled.span`
  * cell, so its width varies (276px here, 306 in the frame) while the band stays 188.
  */
 export const Img = styled.img`
-  height: 72.5%;
+  /* TEMPORARY: --card-art is set by <RarityLab> so the team can compare sizes on the preview.
+     The fallback is the shipped Figma value, so removing the scaffold restores it. */
+  height: var(--card-art, 72.5%);
   aspect-ratio: 1;
   width: auto;
   max-width: 100%;

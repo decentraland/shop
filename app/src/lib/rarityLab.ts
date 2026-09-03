@@ -7,6 +7,7 @@
  * winning formula becomes rarityMedia's body.
  *
  * `?rg=a|b` pins a variant to THAT TAB (sessionStorage), so two windows can sit side by side.
+ * `?sz=75|85|90` does the same for how much of the media band the artwork fills.
  */
 import { Rarity } from '@dcl/schemas'
 import { rarities } from '~/styles/theme'
@@ -69,5 +70,33 @@ export function labVariant(): string {
     return stored && RARITY_LAB[stored] ? stored : RARITY_LAB_DEFAULT
   } catch {
     return RARITY_LAB_DEFAULT
+  }
+}
+
+/**
+ * How much of the media band's height the artwork fills, as a percent.
+ *
+ * The shipped value is 72.5% (Figma 1480:256689 — 136.3px of artwork in a 188px band). That was tuned
+ * against a flat grey field where the margin was invisible; over a rarity background the same margin is
+ * two thirds of the band in colour, so the artwork reads stranded. NOTE 75 is the nearest option to
+ * today's 72.5, not exactly it.
+ */
+export const RARITY_LAB_SIZES = ['75', '85', '90'] as const
+export const RARITY_LAB_SIZE_DEFAULT = '75'
+const SIZE_KEY = 'shop:sz'
+
+/** The artwork size pinned to THIS TAB, same mechanism as labVariant. */
+export function labSize(): string {
+  if (typeof window === 'undefined') return RARITY_LAB_SIZE_DEFAULT
+  try {
+    const q = new URLSearchParams(window.location.search).get('sz')
+    if (q && (RARITY_LAB_SIZES as readonly string[]).includes(q)) {
+      window.sessionStorage.setItem(SIZE_KEY, q)
+      return q
+    }
+    const stored = window.sessionStorage.getItem(SIZE_KEY)
+    return stored && (RARITY_LAB_SIZES as readonly string[]).includes(stored) ? stored : RARITY_LAB_SIZE_DEFAULT
+  } catch {
+    return RARITY_LAB_SIZE_DEFAULT
   }
 }
