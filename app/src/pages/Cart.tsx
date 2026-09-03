@@ -1393,13 +1393,13 @@ export function Cart() {
                           ) : (
                             <>
                               {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
-                          (floored at 1 — the trash button removes), plus increments up to remaining stock.
+                          (and at 1 removes the line), plus increments up to remaining stock.
                           SECONDARY lines are a single unique token, so the stepper is hidden (qty is 1). */}
                               {isPrimary ? (
                                 <S.Stepper>
                                   <S.Step
                                     onClick={() => editCart(() => decrement(item.id))}
-                                    disabled={working || qty <= 1}
+                                    disabled={working}
                                     aria-label={t('cart.decreaseQuantity', { name: item.name })}
                                   >
                                     <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">

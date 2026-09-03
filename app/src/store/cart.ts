@@ -51,11 +51,12 @@ type CartState = {
   /** `outfitId` is set only when source is 'outfit' — it is what makes an outfit sale countable. */
   add: (item: CatalogItem, source?: AddToCartSource, outfitId?: string) => void
   remove: (id: string) => void
-  /** Set an exact quantity for a PRIMARY line (clamped to 1..stock). No-op for secondary lines. */
+  /** Set an exact quantity: <= 0 removes the line (any kind); >= 1 is clamped to 1..stock on a
+   *  PRIMARY line and is a no-op for secondary lines (locked at 1). */
   setQuantity: (id: string, quantity: number) => void
   /** +1 unit on a PRIMARY line, capped at remaining stock. No-op for secondary lines / at the cap. */
   increment: (id: string) => void
-  /** -1 unit on a PRIMARY line, floored at 1 (removal is the trash button, not the stepper). */
+  /** -1 unit on a PRIMARY line; stepping down from 1 removes the line (any kind), same as `remove`. */
   decrement: (id: string) => void
   clear: () => void
   /** Point the cart at a session (address, or null when signed out) — see the action for the policy. */
@@ -158,26 +159,41 @@ export const useCart = create<CartState>()(
         })
         if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
       },
-      setQuantity: (id, quantity) =>
+      // Reaching zero means removal (through `remove`, so the tracking and drawer bookkeeping ride
+      // along); a NaN/unparseable quantity is treated as "keep 1", not as zero.
+      setQuantity: (id, quantity) => {
+        const target = Math.floor(quantity)
+        if (target <= 0) {
+          get().remove(id)
+          return
+        }
         set(s => ({
           items: s.items.map(i => {
             if (i.id !== id || !isPrimaryLine(i)) return i
-            const n = Math.max(1, Math.min(Math.floor(quantity), stockCap(i)))
+            const n = Math.max(1, Math.min(target, stockCap(i)))
             return { ...i, quantity: Number.isFinite(n) ? n : 1 }
           })
-        })),
+        }))
+      },
       increment: id =>
         set(s => ({
           items: s.items.map(i =>
             i.id === id && isPrimaryLine(i) && i.quantity < stockCap(i) ? { ...i, quantity: i.quantity + 1 } : i
           )
         })),
-      decrement: id =>
+      decrement: id => {
+        const line = get().items.find(i => i.id === id)
+        if (!line) return
+        if (line.quantity <= 1) {
+          get().remove(id)
+          return
+        }
         set(s => ({
           items: s.items.map(i =>
             i.id === id && isPrimaryLine(i) && i.quantity > 1 ? { ...i, quantity: i.quantity - 1 } : i
           )
-        })),
+        }))
+      },
       clear: () => set({ items: [], justAddedCount: 0, fittingOpen: false }),
       // The cart is persisted under one global key, so without this a second account on the same device
       // rehydrates the first one's cart (the account-switch handler reloads the page rather than purging
