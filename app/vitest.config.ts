@@ -27,7 +27,10 @@ export default defineConfig({
     env: { VITE_STRIPE_PK: '', VITE_SEGMENT_WRITE_KEY: '', VITE_SENTRY_DSN: '' },
     // @dcl/ui-env ships extensionless internal imports (dist/index.js → './config') that Vitest's
     // resolver can't follow; inlining it routes the dep through Vite's resolver, which can.
-    server: { deps: { inline: ['@dcl/ui-env'] } },
+    // decentraland-transactions has the same shape — its ESM entry re-exports a DIRECTORY — which is why
+    // every spec touching it has had to mock it. Inlining lets the lockstep guard use the real registry,
+    // which is the one thing a mock cannot stand in for.
+    server: { deps: { inline: ['@dcl/ui-env', 'decentraland-transactions'] } },
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html'],

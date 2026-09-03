@@ -1147,6 +1147,7 @@
     "creditsName": "Top up a purchase with MANA",
     "creditsDesc": "Lets the Shop take MANA to cover the part your credits don’t reach, when you pay with both.",
     "manaName": "Pay a whole purchase with MANA",
+    "previousVersion": "(previous version)",
     "manaDesc": "Lets the Shop take MANA when you pay for an item entirely in MANA, spending no credits.",
     "sellingDesc": "Lets the Shop transfer items from this collection when they sell. It covers the whole collection, not a single item.",
     "sellingEmpty": "Nothing to approve yet. Approvals for selling appear here once you own collectibles.",

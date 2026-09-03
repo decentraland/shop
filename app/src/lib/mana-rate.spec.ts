@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ManaRate } from '~/lib/mana-rate'
 
+/** The marketplace whose aggregator the rate is read from. Named by the caller, never chosen inside. */
+const MARKETPLACE = '0xmarket'
+/** A second version on the same chain, to prove the aggregator is read from the one that was named. */
+const OTHER_MARKETPLACE = '0xothermarket'
+
 // Values the mocked on-chain aggregator returns; tweaked per-test to drive readManaUsdRate branches.
 let aggAddr = '0xaggregator'
 let aggDecimals = 8
@@ -10,11 +15,8 @@ let aggAnswer = '50000000' // int256 latestRoundData answer (rate)
 let aggUpdatedAt: number | null = null
 let aggRoundId = 1
 let aggAnsweredInRound = 1
-
-vi.mock('decentraland-transactions', () => ({
-  ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
-  getContract: () => ({ address: '0xmarket', name: 'DecentralandMarketplacePolygon', version: '1', abi: [] })
-}))
+/** Addresses `manaUsdAggregator()` was called on, so a test can assert WHICH marketplace was read. */
+const marketplaceReads: string[] = []
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
@@ -30,6 +32,7 @@ vi.mock('ethers', async importOriginal => {
       public provider: unknown
     ) {}
     async manaUsdAggregator() {
+      marketplaceReads.push(this.address)
       return aggAddr
     }
     async decimals() {
@@ -69,57 +72,63 @@ describe('when reading the MANA/USD rate off the marketplace oracle', () => {
     aggUpdatedAt = null // fresh by default
     aggRoundId = 1
     aggAnsweredInRound = 1
+    marketplaceReads.length = 0
   })
 
   it('should return the aggregator answer and decimals as a ManaRate', async () => {
-    const result = await readManaUsdRate()
+    const result = await readManaUsdRate(MARKETPLACE)
     expect(result).toEqual({ rate: 50000000n, decimals: 8 })
   })
 
   it('should coerce the returned decimals to a number', async () => {
     aggDecimals = 18
-    const result = await readManaUsdRate()
+    const result = await readManaUsdRate(MARKETPLACE)
     expect(result.decimals).toBe(18)
     expect(typeof result.decimals).toBe('number')
   })
 
   it('and the oracle answer is zero it should throw so callers can disable Buy Now', async () => {
     aggAnswer = '0'
-    await expect(readManaUsdRate()).rejects.toThrow(/mana rate unavailable/)
+    await expect(readManaUsdRate(MARKETPLACE)).rejects.toThrow(/mana rate unavailable/)
   })
 
   it('and the oracle answer is negative it should throw', async () => {
     aggAnswer = '-1'
-    await expect(readManaUsdRate()).rejects.toThrow(/mana rate unavailable/)
+    await expect(readManaUsdRate(MARKETPLACE)).rejects.toThrow(/mana rate unavailable/)
   })
 
-  it('should accept an explicit chainId argument', async () => {
-    const result = await readManaUsdRate(137)
-    expect(result).toEqual({ rate: 50000000n, decimals: 8 })
+  /**
+   * Each marketplace version holds its own manaUsdAggregator, so the read has to happen against the
+   * contract the caller named — otherwise one version's listing gets quoted at another's rate.
+   */
+  it('should read the aggregator off the marketplace it was given', async () => {
+    await readManaUsdRate(OTHER_MARKETPLACE)
+
+    expect(marketplaceReads).toContain(OTHER_MARKETPLACE)
   })
 
   it('and the round has not updated within the heartbeat it should throw stale', async () => {
     // Updated two days ago (> 24h max staleness) → a stuck feed we must not price off.
     aggUpdatedAt = Math.floor(Date.now() / 1000) - 2 * 86400
-    await expect(readManaUsdRate()).rejects.toThrow(/stale/)
+    await expect(readManaUsdRate(MARKETPLACE)).rejects.toThrow(/stale/)
   })
 
   it('and updatedAt is zero (never set) it should throw stale', async () => {
     aggUpdatedAt = 0
-    await expect(readManaUsdRate()).rejects.toThrow(/stale/)
+    await expect(readManaUsdRate(MARKETPLACE)).rejects.toThrow(/stale/)
   })
 
   it('and the answer was carried over from an earlier round it should throw incomplete', async () => {
     aggRoundId = 10
     aggAnsweredInRound = 9 // answeredInRound < roundId → not fresh for this round
-    await expect(readManaUsdRate()).rejects.toThrow(/incomplete/)
+    await expect(readManaUsdRate(MARKETPLACE)).rejects.toThrow(/incomplete/)
   })
 
   it('should accept a fresh, complete round', async () => {
     aggUpdatedAt = Math.floor(Date.now() / 1000) - 60 // a minute ago, well within the heartbeat
     aggRoundId = 5
     aggAnsweredInRound = 5
-    const result = await readManaUsdRate()
+    const result = await readManaUsdRate(MARKETPLACE)
     expect(result).toEqual({ rate: 50000000n, decimals: 8 })
   })
 })

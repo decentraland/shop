@@ -11,6 +11,7 @@ import {
   getManaMarketplaceAuthorization,
   getCollectionSellingAuthorization,
   getCollectionMintingAuthorization,
+  getLegacyMarketplaceAuthorizations,
   type ShopAuthorizationDescriptor
 } from '~/lib/authorizations'
 import { fetchCreatorCollections, type CreatorCollection } from '~/lib/builder'
@@ -39,7 +40,8 @@ function AuthorizationRow({
   name,
   description,
   image,
-  icon
+  icon,
+  revokeOnly = false
 }: {
   descriptor: ShopAuthorizationDescriptor
   owner: string
@@ -48,6 +50,12 @@ function AuthorizationRow({
   description: string
   image?: string
   icon?: ReactNode
+  /**
+   * Render nothing unless the grant is live. Used for superseded marketplace versions: they can no longer
+   * receive a grant, so a row for one nobody holds is noise — but a row for one somebody DOES hold is the
+   * only way to take it back.
+   */
+  revokeOnly?: boolean
 }) {
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
@@ -79,6 +87,13 @@ function AuthorizationRow({
     } finally {
       setBusy(false)
     }
+  }
+
+  // Hidden only when the read SUCCEEDED and came back false. While it is loading, or if it errored, `active`
+  // is undefined — and hiding then would drop the row of the one user who actually holds a legacy grant at
+  // exactly the moment the RPC is unhealthy, with nothing shown to say so.
+  if (revokeOnly && active === false) {
+    return null
   }
 
   const statusText = isLoading
@@ -290,6 +305,23 @@ export function Authorizations() {
             description={t('authorizations.manaDesc')}
             icon={<S.ThumbMark src={manaSymbol} alt="" aria-hidden />}
           />
+          {/* Superseded marketplace versions. An allowance granted before the current one shipped stays live
+              on chain, and buying an older listing still grants one at checkout, so without these rows it
+              could never be seen or revoked. Shown only when actually granted. */}
+          {getLegacyMarketplaceAuthorizations(manaSpend).map(legacy => (
+            <AuthorizationRow
+              key={legacy.id}
+              descriptor={legacy}
+              owner={session.address}
+              signer={session.signer}
+              // The current row's own name plus a qualifier, rather than a second name string: the base copy
+              // is grandfathered past the web2-first rule, and duplicating it would introduce a new offence.
+              name={`${t('authorizations.manaName')} ${t('authorizations.previousVersion')}`}
+              description={t('authorizations.manaDesc')}
+              icon={<S.ThumbMark src={manaSymbol} alt="" aria-hidden />}
+              revokeOnly
+            />
+          ))}
         </S.List>
       </S.Group>
 
@@ -310,18 +342,22 @@ export function Authorizations() {
           </S.List>
         ) : owned && owned.collections.length > 0 ? (
           <S.List>
-            {owned.collections.map(asset => (
-              <AuthorizationRow
-                key={asset.contractAddress}
-                descriptor={getCollectionSellingAuthorization(asset.contractAddress, chainId)}
-                owner={session.address}
-                signer={session.signer}
-                name={collectionLabel(asset.contractAddress, registry)}
-                description={t('authorizations.sellingDesc')}
-                image={asset.image}
-                icon={<Icon name="pen" size={18} />}
-              />
-            ))}
+            {owned.collections.flatMap(asset => {
+              const current = getCollectionSellingAuthorization(asset.contractAddress, chainId)
+              return [current, ...getLegacyMarketplaceAuthorizations(current)].map((descriptor, index) => (
+                <AuthorizationRow
+                  key={descriptor.id}
+                  descriptor={descriptor}
+                  owner={session.address}
+                  signer={session.signer}
+                  name={collectionLabel(asset.contractAddress, registry)}
+                  description={t('authorizations.sellingDesc')}
+                  image={asset.image}
+                  icon={<Icon name="pen" size={18} />}
+                  revokeOnly={index > 0}
+                />
+              ))
+            })}
           </S.List>
         ) : (
           <S.EmptyHint>{t('authorizations.sellingEmpty')}</S.EmptyHint>
@@ -338,17 +374,21 @@ export function Authorizations() {
           </S.List>
         ) : publishableCollections && publishableCollections.length > 0 ? (
           <S.List>
-            {publishableCollections.map(collection => (
-              <AuthorizationRow
-                key={collection.contractAddress}
-                descriptor={getCollectionMintingAuthorization(collection.contractAddress, chainId)}
-                owner={session.address}
-                signer={session.signer}
-                name={collection.name || t('authorizations.collectionFallback')}
-                description={t('authorizations.mintingDesc')}
-                icon={<Icon name="pen" size={18} />}
-              />
-            ))}
+            {publishableCollections.flatMap(collection => {
+              const current = getCollectionMintingAuthorization(collection.contractAddress, chainId)
+              return [current, ...getLegacyMarketplaceAuthorizations(current)].map((descriptor, index) => (
+                <AuthorizationRow
+                  key={descriptor.id}
+                  descriptor={descriptor}
+                  owner={session.address}
+                  signer={session.signer}
+                  name={collection.name || t('authorizations.collectionFallback')}
+                  description={t('authorizations.mintingDesc')}
+                  icon={<Icon name="pen" size={18} />}
+                  revokeOnly={index > 0}
+                />
+              ))
+            })}
           </S.List>
         ) : (
           <S.EmptyHint>{t('authorizations.mintingEmpty')}</S.EmptyHint>

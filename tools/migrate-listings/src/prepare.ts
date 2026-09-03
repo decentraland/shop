@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 import { TradeAssetType, TradeType, type TradeCreation } from '@dcl/schemas'
-import { ContractName, getContract } from './dcl-transactions'
+import { ContractName, getContract, getLatestOffChainMarketplace } from './dcl-transactions'
 import { readProvider } from './oracle'
 import type { ClassicListing } from './types'
 
@@ -110,7 +110,7 @@ const INDEX_ABI = [
 ]
 
 export function eip712Domain(chainId: number) {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplace(chainId)
   return {
     name: market.name,
     version: market.version,
@@ -125,7 +125,9 @@ async function readSignatureIndices(
   chainId: number,
   signer: string
 ): Promise<{ contractIdx: number; signerIdx: number }> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  // The same contract the domain names: signerSignatureIndex is storage on each deployment, so reading a
+  // different version's counter would sign checks the settling contract never agrees with.
+  const market = getLatestOffChainMarketplace(chainId)
   const c = new ethers.Contract(market.address, INDEX_ABI, readProvider())
   const contractIdx: ethers.BigNumber = await c.contractSignatureIndex()
   const signerIdx: ethers.BigNumber = await c.signerSignatureIndex(signer)

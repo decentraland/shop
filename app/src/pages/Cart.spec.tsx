@@ -36,7 +36,7 @@ vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session, signIn: vi.fn() 
 // decentraland-transactions ships an ESM directory import that vitest's node resolver cannot follow, so it is
 // mocked wholesale (the same workaround MarketCheckout.spec.tsx documents). Nothing here reaches a contract.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
+  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore', OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: ['function accept(uint256[] x)'] }),
   sendMetaTransaction: vi.fn(),
@@ -117,6 +117,8 @@ vi.mock('~/lib/api', async orig => ({
 const { manaQuote } = vi.hoisted(() => ({ manaQuote: { wei: 0n } }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
+  // The shared options the callers now use. Same stubbed rate, resolved without touching a chain.
+  manaRateQueryOptions: () => ({ queryKey: ['mana-rate', 80002], queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }), staleTime: 60_000 }),
   usdCentsToManaWei: () => manaQuote.wei,
   manaWeiToUsdCents: () => 0,
   manaWeiToCredits: () => 0,

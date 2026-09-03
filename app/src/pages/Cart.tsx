@@ -9,12 +9,11 @@ import { detailRouteFor } from '~/lib/routes'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } from '~/lib/credits'
-import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { useManaRate } from '~/hooks/useManaRate'
 import type { ManaRate } from '~/lib/mana-convert'
-import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
+import { manaRateQueryOptions, usdCentsToManaWei } from '~/lib/mana-rate'
 import { buyManyWithMana, manaSpenderFor, purchaseFor, targetChainId } from '~/lib/buy-mana'
 import {
   computePaymentOptions,
@@ -754,11 +753,7 @@ export function Cart() {
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     if (manaRate) return manaRate
     try {
-      return await qc.fetchQuery({
-        queryKey: ['mana-rate', config.chainId],
-        queryFn: () => readManaUsdRate(config.chainId),
-        staleTime: 60_000
-      })
+      return await qc.fetchQuery(manaRateQueryOptions())
     } catch {
       return undefined
     }

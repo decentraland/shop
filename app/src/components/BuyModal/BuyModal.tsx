@@ -10,8 +10,7 @@ import { isIapMode } from '~/lib/iap'
 import { readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
-import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
-import { config } from '~/config'
+import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
@@ -139,11 +138,9 @@ export function BuyModal({
    */
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     try {
-      return await qc.fetchQuery({
-        queryKey: ['mana-rate', config.chainId],
-        queryFn: () => readManaUsdRate(config.chainId),
-        staleTime: 60_000
-      })
+      // The REFERENCE rate — for converting a legacy MANA-priced line to credits. What a USD-pegged trade
+      // settles at is readTradeManaPriceWei, from the trade's own contract, and never comes through here.
+      return await qc.fetchQuery(manaRateQueryOptions())
     } catch {
       return undefined
     }

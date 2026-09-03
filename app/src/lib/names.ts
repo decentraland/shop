@@ -45,6 +45,7 @@ import { sendUseCredits } from '~/lib/buy'
 import { idToSalt } from '~/lib/trade-encoding'
 import { readManaUsdRate, manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { friendlyError } from '~/lib/errors'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 // 100 MANA — the fixed DCLControllerV2.register cost and the useCredits maxCreditedValue. Matches the
 // credits-server's NAME_PRICE_IN_WEI and the marketplace webapp's PRICE_IN_WEI.
@@ -384,7 +385,11 @@ export async function registerNameWithUsdCredits(opts: {
   progress('preparing')
   try {
     // 1) Size the USD reservation from the fixed name price at the live oracle rate.
-    const rate = await readManaUsdRate(chainId)
+    // A name registration settles on the DCLRegistrar, not a marketplace, so there is no trade contract to
+    // price against — this is purely the reference MANA/USD rate. Resolved on config.chainId rather than the
+    // caller's, because readManaUsdRate dials config.rpcUrl and a marketplace from another chain has no
+    // contract there to answer.
+    const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address)
     const usdCents = sizeNameUsdCents(rate)
     console.info('[names] step 1/6 sized reservation', { usdCents, manaRate: rate })
 

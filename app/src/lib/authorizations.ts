@@ -9,6 +9,7 @@ import {
   type ContractData,
   type Provider
 } from 'decentraland-transactions'
+import { getDeployedOffChainMarketplaceContracts, getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -396,7 +397,7 @@ export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDesc
  */
 export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
   const mana = getContract(ContractName.MANAToken, chainId)
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: 'mana-marketplace',
     group: 'buying',
@@ -407,13 +408,34 @@ export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthoriza
   }
 }
 
+/**
+ * The same permission on every marketplace version EXCEPT the newest.
+ *
+ * Grants always target the newest version, so these rows exist only to surface and revoke something granted
+ * before it shipped. Their ids carry the spender: the row's react-query cache entry and its test id are both
+ * keyed on `id` alone, so an unqualified duplicate would make two versions read and overwrite each other's
+ * state. The newest version keeps the bare id, which is what the page and its tests already address.
+ */
+export function getLegacyMarketplaceAuthorizations(latest: ShopAuthorizationDescriptor): ShopAuthorizationDescriptor[] {
+  // The chain comes from the descriptor rather than a second argument: passing both let a caller hand in a
+  // chain the descriptor was not built for, and the rows would then be for a different network's contracts.
+  const latestSpender = latest.spenderAddress.toLowerCase()
+  return getDeployedOffChainMarketplaceContracts(latest.chainId)
+    .filter(contract => contract.address.toLowerCase() !== latestSpender)
+    .map(contract => ({
+      ...latest,
+      id: `${latest.id}@${contract.address.toLowerCase()}`,
+      spenderAddress: contract.address
+    }))
+}
+
 // The per-collection selling authorization: letting the marketplace transfer collectibles from this
 // collection when they sell. One row per collection the user owns collectibles in.
 export function getCollectionSellingAuthorization(
   contractAddress: string,
   chainId: ChainId
 ): ShopAuthorizationDescriptor {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: `selling:${contractAddress.toLowerCase()}`,
     group: 'selling',
@@ -432,7 +454,7 @@ export function getCollectionMintingAuthorization(
   contractAddress: string,
   chainId: ChainId
 ): ShopAuthorizationDescriptor {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: `minting:${contractAddress.toLowerCase()}`,
     group: 'minting',
