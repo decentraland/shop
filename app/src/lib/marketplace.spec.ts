@@ -18,7 +18,7 @@ vi.mock('decentraland-transactions', () => ({
   }
 }))
 
-const { getLatestOffChainMarketplaceContract } = await import('./marketplace')
+const { getDeployedOffChainMarketplaceContracts, getLatestOffChainMarketplaceContract } = await import('./marketplace')
 
 describe('when getting the latest off-chain marketplace contract', () => {
   describe('and the chain has a V3 deployment', () => {
@@ -56,6 +56,55 @@ describe('when getting the latest off-chain marketplace contract', () => {
       expect(() => getLatestOffChainMarketplaceContract(chainId)).toThrowError(
         'No off-chain marketplace contract exists on chain 42161'
       )
+    })
+  })
+})
+
+/**
+ * The companion to the resolver above, and a different question: not "where does a NEW listing go" but
+ * "where might a wallet ALREADY have granted something". A grant on a superseded version stays live on
+ * chain, so anything that has to show or revoke one needs the whole list, not just the newest.
+ */
+describe('when listing every off-chain marketplace deployed on a chain', () => {
+  describe('and the chain has both a V3 and a V2 deployment', () => {
+    let chainId: number
+
+    beforeEach(() => {
+      chainId = 11155111
+    })
+
+    it('should return both, newest first', () => {
+      expect(getDeployedOffChainMarketplaceContracts(chainId).map(contract => contract.name)).toEqual([
+        'OffChainMarketplaceV3',
+        'OffChainMarketplaceV2'
+      ])
+    })
+  })
+
+  describe('and the chain has only one deployment', () => {
+    let chainId: number
+
+    beforeEach(() => {
+      chainId = 1
+    })
+
+    it('should return just that one, so a single-version chain renders a single row per permission', () => {
+      expect(getDeployedOffChainMarketplaceContracts(chainId).map(contract => contract.name)).toEqual([
+        'OffChainMarketplaceV2'
+      ])
+    })
+  })
+
+  describe('and the chain has no off-chain marketplace at all', () => {
+    let chainId: number
+
+    beforeEach(() => {
+      chainId = 42161
+    })
+
+    // Every candidate throws here, so this also pins that the guard swallows rather than propagates.
+    it('should return nothing instead of throwing', () => {
+      expect(getDeployedOffChainMarketplaceContracts(chainId)).toEqual([])
     })
   })
 })

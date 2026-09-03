@@ -8,6 +8,9 @@ import { ContractName, getContract } from 'decentraland-transactions'
  * what the seller signed — and every allowance, approval and minter right the shop asks for has to name
  * that same contract, or the listing cannot settle. V3 is testnet-only for now, so mainnet has to keep
  * using V2 rather than fail.
+ *
+ * KEEP IN LOCKSTEP with OFFCHAIN_MARKETPLACE_NAMES in `tools/migrate-listings/src/dcl-transactions.ts`,
+ * which vendors the same order for the CLI. See that file for why the list cannot simply be imported.
  */
 const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
 

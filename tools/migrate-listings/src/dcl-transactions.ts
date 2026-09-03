@@ -106,7 +106,15 @@ const TABLES: Record<ContractName, Partial<Record<ChainId, ContractConfig>>> = {
   [ContractName.MANAToken]: MANA_TOKEN,
 }
 
-/** Off-chain marketplace versions, newest first. Mirrors the app's ~/lib/marketplace. */
+/**
+ * Off-chain marketplace versions, newest first.
+ *
+ * KEEP IN LOCKSTEP with OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES in `app/src/lib/marketplace.ts`. The two lists
+ * cannot be shared — this tool vendors its own contract table precisely because importing
+ * decentraland-transactions drags in an optional `@0xsquid/sdk` peer a lean CLI install does not have — so
+ * when a new version ships, both have to be edited. A CLI signing against a version the app does not
+ * authorise produces listings the app can neither settle nor take down.
+ */
 const OFFCHAIN_MARKETPLACE_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
 
 /**

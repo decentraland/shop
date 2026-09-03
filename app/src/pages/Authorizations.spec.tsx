@@ -38,12 +38,15 @@ vi.mock('~/lib/api', () => ({
 }))
 
 const getAuthorizationStatus = vi.fn()
+/**
+ * The superseded-version rows. Empty by default so the existing tests see exactly one row per permission,
+ * which is what a chain with a single deployed marketplace renders.
+ */
+const getLegacyMarketplaceAuthorizations = vi.fn<() => unknown[]>(() => [])
 const setAuthorization = vi.fn()
 vi.mock('~/lib/authorizations', () => ({
   AuthorizationKind: { Allowance: 'allowance', Approval: 'approval', Minter: 'minter' },
-  // No superseded versions on the chain these tests run against, so every permission renders exactly one
-  // row — the same shape the page had before legacy rows existed.
-  getLegacyMarketplaceAuthorizations: () => [],
+  getLegacyMarketplaceAuthorizations: () => getLegacyMarketplaceAuthorizations(),
   getAuthorizationStatus: (...args: unknown[]) => getAuthorizationStatus(...args),
   setAuthorization: (...args: unknown[]) => setAuthorization(...args),
   getCreditsAuthorization: (chainId: number) => ({
@@ -138,6 +141,7 @@ beforeEach(() => {
   fetchContractRegistry.mockResolvedValue(new Map<string, string>())
   fetchCreatorCollections.mockResolvedValue([])
   getAuthorizationStatus.mockResolvedValue(false)
+  getLegacyMarketplaceAuthorizations.mockReturnValue([])
   setAuthorization.mockResolvedValue(undefined)
 })
 
@@ -271,5 +275,60 @@ describe('when the visitor uses a self-custody (web3) wallet', () => {
     fetchCreatorCollections.mockResolvedValueOnce([])
     renderPage()
     expect(await screen.findByText(/Approvals for minting appear here/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * Superseded marketplace versions. Grants only ever target the newest, so a row for an older one exists
+ * for exactly one reason: something granted before the newer version shipped is still live on chain and
+ * has to be revocable. A row for a version nobody holds is noise, which is what `revokeOnly` decides.
+ */
+describe('when a superseded marketplace version is still deployed on the chain', () => {
+  const LEGACY_ID = 'mana-marketplace@0xlegacymarketplace'
+
+  beforeEach(() => {
+    getLegacyMarketplaceAuthorizations.mockReturnValue([
+      {
+        id: LEGACY_ID,
+        group: 'buying',
+        kind: 'allowance',
+        contractAddress: '0xmana',
+        spenderAddress: '0xlegacymarketplace',
+        chainId: 80002
+      }
+    ])
+  })
+
+  describe('and the wallet still holds a grant on it', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockResolvedValue(true)
+    })
+
+    it('should render a row for it, so the grant can be taken back', async () => {
+      renderPage()
+
+      expect(await screen.findByTestId(`authorization-toggle-${LEGACY_ID}`)).toBeInTheDocument()
+    })
+  })
+
+  describe('and the wallet holds no grant on it', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockResolvedValue(false)
+    })
+
+    it('should render no row for it', async () => {
+      renderPage()
+      // Wait for the page to settle on a row that is always present, so this is not asserting on an
+      // unrendered page.
+      await screen.findByTestId('authorization-toggle-credits')
+
+      expect(screen.queryByTestId(`authorization-toggle-${LEGACY_ID}`)).not.toBeInTheDocument()
+    })
+
+    it('should still render the current version row', async () => {
+      renderPage()
+
+      expect(await screen.findByTestId('authorization-toggle-mana-marketplace')).toBeInTheDocument()
+    })
   })
 })
