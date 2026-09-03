@@ -2,9 +2,9 @@ import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 
-// The pre-action authorization STEP shown before a buy/sell for self-custody wallets. Its visual
-// language mirrors the Approvals page (Authorizations.styles): a bordered row card for the thing being
-// authorized, muted supporting copy, and the shop's modal shell (Scrim/Card ≈ SellModal.styles).
+// The pre-action authorization STEP shown before a buy/sell for self-custody wallets: a bordered row
+// card for the thing being authorized, muted supporting copy, and the shop's modal shell
+// (Scrim/Card ≈ SellModal.styles).
 
 const spin = keyframes`
   to { transform: rotate(360deg); }
@@ -79,7 +79,7 @@ export const Close = styled.button`
   }
 `
 
-// The row card describing what's being authorized — same footprint/tone as an Approvals-page Row.
+// The row card describing what's being authorized.
 // Sits beside the heading: the buyer needs the count BEFORE they read what they are granting, so it goes
 // in the head rather than under the row.
 export const StepCount = styled.span`
@@ -141,7 +141,7 @@ export const RowDesc = styled.span`
   color: ${theme.colors.muted};
 `
 
-// Reassuring, jargon-light footnote (no gas, revocable from Approvals).
+// Reassuring, jargon-light footnote (no gas, revocable anytime).
 export const Note = styled.p`
   margin: 0;
   font-size: 12px;

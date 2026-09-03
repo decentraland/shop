@@ -83,9 +83,9 @@ function ethCall(params: any[], rpcPath = ''): string {
       return abi.encode(['uint256'], [isEthereumRpc(rpcPath) ? ethereumManaBalanceWei : manaBalanceWei])
     case SELECTORS.allowance:
       // Already approved (max uint256) by default → the MANA rails never need an approve in the happy
-      // path, and any screen that READS an approval state sees it as granted. Leaving this unmocked
-      // returned '0x', which ethers cannot decode, so the Approvals page rendered "Off" for an approval
-      // that is in fact granted. Override per test via launchApp({ manaAllowanceWei }).
+      // path, and any screen that READS an approval state sees it as granted. Must be mocked: an
+      // unmocked selector returns '0x', which ethers cannot decode, so approval reads would fail
+      // instead of reporting granted. Override per test via launchApp({ manaAllowanceWei }).
       return abi.encode(['uint256'], [manaAllowanceWei ?? ethers.constants.MaxUint256])
     case SELECTORS.globalMinters:
     case SELECTORS.isApprovedForAll:

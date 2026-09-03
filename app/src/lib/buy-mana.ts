@@ -53,8 +53,8 @@ export type PurchaseTarget = { kind: 'trade'; trade: Trade } | { kind: 'store'; 
  * hold MANA. Reuses the shop's existing on-chain machinery instead of reinventing settlement:
  *
  *   1. ensureAuthorization(ALLOWANCE) lets the marketplace pull the buyer's MANA (gasless meta-tx for
- *      every wallet, no-op when already approved) — the same allowance helper the Authorizations page
- *      and credit top-ups use, only the SPENDER is the marketplace (not the CreditsManager).
+ *      every wallet, no-op when already approved) — the same allowance helper the credit top-ups use,
+ *      only the SPENDER is the marketplace (not the CreditsManager).
  *   2. marketplace.accept([trade]) fulfils the trade: the marketplace transfers MANA buyer→seller (for
  *      a USD_PEGGED_MANA trade it reads its own oracle at settlement to size the exact MANA) and the
  *      NFT seller→buyer. This is the classic offchain-marketplace fulfilment the CreditsManager wraps

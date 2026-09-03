@@ -121,9 +121,7 @@ import {
   AuthorizationKind,
   ensureAuthorization,
   getAuthorizationStatus,
-  getCollectionMintingAuthorization,
   getCollectionSellingAuthorization,
-  getCreditsAuthorization,
   metaTxProviderShim,
   needsApprovalStep,
   setAuthorization,
@@ -540,32 +538,12 @@ describe('when deciding whether to surface a first-time approval step', () => {
   })
 })
 
-describe('when building the shop authorization descriptors', () => {
-  it('should point the credits authorization at the CreditsManager as a MANA allowance', () => {
-    const auth = getCreditsAuthorization(ChainId.MATIC_AMOY)
-    expect(auth.kind).toBe(AuthorizationKind.Allowance)
-    expect(auth.contractAddress).toBe(MANA)
-    expect(auth.spenderAddress).toBe(CREDITS_MANAGER)
-    expect(auth.group).toBe('buying')
-    expect(auth.id).toBe('credits')
-  })
-
+describe('when building the shop authorizations', () => {
   it('should point a selling authorization at the marketplace as an approval', () => {
     const auth = getCollectionSellingAuthorization(COLLECTION, ChainId.MATIC_AMOY)
     expect(auth.kind).toBe(AuthorizationKind.Approval)
     expect(auth.contractAddress).toBe(COLLECTION)
     expect(auth.spenderAddress).toBe(MARKET)
-    expect(auth.group).toBe('selling')
-    expect(auth.id).toBe(`selling:${COLLECTION.toLowerCase()}`)
-  })
-
-  it('should point a minting authorization at the marketplace as a minter grant', () => {
-    const auth = getCollectionMintingAuthorization(COLLECTION, ChainId.MATIC_AMOY)
-    expect(auth.kind).toBe(AuthorizationKind.Minter)
-    expect(auth.contractAddress).toBe(COLLECTION)
-    expect(auth.spenderAddress).toBe(MARKET)
-    expect(auth.group).toBe('minting')
-    expect(auth.id).toBe(`minting:${COLLECTION.toLowerCase()}`)
   })
 })
 
