@@ -385,9 +385,11 @@ export async function registerNameWithUsdCredits(opts: {
   progress('preparing')
   try {
     // 1) Size the USD reservation from the fixed name price at the live oracle rate.
-    // A name registration settles on the DCLRegistrar, not a marketplace, so there is no trade contract
-    // to price against — this is purely the reference MANA/USD rate.
-    const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(chainId).address)
+    // A name registration settles on the DCLRegistrar, not a marketplace, so there is no trade contract to
+    // price against — this is purely the reference MANA/USD rate. Resolved on config.chainId rather than the
+    // caller's, because readManaUsdRate dials config.rpcUrl and a marketplace from another chain has no
+    // contract there to answer.
+    const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address)
     const usdCents = sizeNameUsdCents(rate)
     console.info('[names] step 1/6 sized reservation', { usdCents, manaRate: rate })
 

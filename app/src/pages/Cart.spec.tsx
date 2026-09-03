@@ -117,6 +117,8 @@ vi.mock('~/lib/api', async orig => ({
 const { manaQuote } = vi.hoisted(() => ({ manaQuote: { wei: 0n } }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
+  // The shared options the callers now use. Same stubbed rate, resolved without touching a chain.
+  manaRateQueryOptions: () => ({ queryKey: ['mana-rate', 80002], queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }), staleTime: 60_000 }),
   usdCentsToManaWei: () => manaQuote.wei,
   manaWeiToUsdCents: () => 0,
   manaWeiToCredits: () => 0,

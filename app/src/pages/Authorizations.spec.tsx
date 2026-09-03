@@ -311,6 +311,29 @@ describe('when a superseded marketplace version is still deployed on the chain',
     })
   })
 
+  describe('and the user revokes it', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockResolvedValue(true)
+    })
+
+    // The whole reason these rows exist. Revoking has to target the SUPERSEDED spender — targeting the
+    // current one would leave the old grant live while claiming to have removed it.
+    it('should revoke against the superseded marketplace, not the current one', async () => {
+      renderPage()
+      const toggle = await screen.findByTestId(`authorization-toggle-${LEGACY_ID}`)
+
+      await userEvent.click(toggle)
+
+      await waitFor(() => expect(setAuthorization).toHaveBeenCalledTimes(1))
+      expect(setAuthorization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auth: expect.objectContaining({ id: LEGACY_ID, spenderAddress: '0xlegacymarketplace' }),
+          active: false
+        })
+      )
+    })
+  })
+
   describe('and the status read fails', () => {
     beforeEach(() => {
       getAuthorizationStatus.mockRejectedValue(new Error('rpc down'))

@@ -7,9 +7,10 @@ import { ChainId } from '@dcl/schemas'
 // the barrel + `./crossChain`, and the barrel transitively requires the crossChain provider
 // (`@0xsquid/sdk`, a PEER dependency that isn't present in a lean install). Both facts make the
 // package unusable from a plain-Node CLI without pulling a heavy, unrelated dep. The tool only needs
-// `{ address, name, version }` for OffChainMarketplaceV2 + MANAToken to build the EIP-712 domain and
-// the received asset's contractAddress — no ABI (ethers calls use inline ABIs). Values verified
-// against decentraland-transactions@3 (cjs/contracts/offChainMarketplaceV2.js, manaToken.js).
+// `{ address, name, version }` for the off-chain marketplace versions + MANAToken to build the EIP-712
+// domain and the received asset's contractAddress — no ABI (ethers calls use inline ABIs). Values verified
+// against decentraland-transactions@3.1.1 (cjs/contracts/offChainMarketplaceV2.js, offChainMarketplaceV3.js,
+// manaToken.js), and pinned there by app/src/lib/migrateListingsLockstep.spec.ts.
 //
 // If the marketplace/MANA addresses change, update this table (or restore the package import once its
 // crossChain peer dep is installed).
@@ -109,13 +110,13 @@ const TABLES: Record<ContractName, Partial<Record<ChainId, ContractConfig>>> = {
 /**
  * Off-chain marketplace versions, newest first.
  *
- * KEEP IN LOCKSTEP with OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES in `app/src/lib/marketplace.ts`. The two lists
+ * KEEP IN LOCKSTEP with the identically-named list in `app/src/lib/marketplace.ts`. The two lists
  * cannot be shared — this tool vendors its own contract table precisely because importing
  * decentraland-transactions drags in an optional `@0xsquid/sdk` peer a lean CLI install does not have — so
  * when a new version ships, both have to be edited. A CLI signing against a version the app does not
  * authorise produces listings the app can neither settle nor take down.
  */
-const OFFCHAIN_MARKETPLACE_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
+const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
 
 /**
  * The newest off-chain marketplace deployed on a chain.
@@ -125,14 +126,14 @@ const OFFCHAIN_MARKETPLACE_NAMES = [ContractName.OffChainMarketplaceV3, Contract
  * the list because a version that is not deployed on a chain simply has no entry.
  */
 export function getLatestOffChainMarketplace(chainId: ChainId | number): ContractConfig {
-  for (const name of OFFCHAIN_MARKETPLACE_NAMES) {
+  for (const name of OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES) {
     const cfg = TABLES[name]?.[chainId as ChainId]
     if (cfg) return cfg
   }
   throw new Error(`No off-chain marketplace config for chainId ${chainId}. Add it to src/dcl-transactions.ts.`)
 }
 
-/** Drop-in for decentraland-transactions' getContract, scoped to the two contracts this tool uses. */
+/** Drop-in for decentraland-transactions' getContract, scoped to the contracts this tool uses. */
 export function getContract(name: ContractName, chainId: ChainId | number): ContractConfig {
   const cfg = TABLES[name]?.[chainId as ChainId]
   if (!cfg) throw new Error(`No ${name} config for chainId ${chainId}. Add it to src/dcl-transactions.ts.`)

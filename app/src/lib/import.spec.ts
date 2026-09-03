@@ -164,14 +164,16 @@ describe("when fetching a seller's importable listings", () => {
     expect(result.owned.map(i => i.oldTradeId)).toEqual(['b'])
   })
 
-  it('should read the rate on the chain of the first listing and attach suggestedCredits', async () => {
+  // The rate is read over config.rpcUrl, a single chain, so the marketplace has to be the one deployed
+  // THERE — a listing from another chain names a contract that address cannot answer for.
+  it('should read the rate on the configured chain even when the listing is from another one', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(okResponse([listing({ chainId: 1 })]))
     manaWeiToCredits.mockReturnValue(42)
 
     const result = await fetchImportable('0xseller')
 
-    // The chain picks the marketplace, and the marketplace is what the aggregator is read from.
-    expect(getLatestOffChainMarketplaceContract).toHaveBeenCalledWith(1)
+    expect(getLatestOffChainMarketplaceContract).toHaveBeenCalledWith(80002)
+    expect(getLatestOffChainMarketplaceContract).not.toHaveBeenCalledWith(1)
     expect(readManaUsdRate).toHaveBeenCalledWith('0xmarket')
     expect(result.owned[0].suggestedCredits).toBe(42)
   })

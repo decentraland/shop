@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import type { ManaRate } from '~/lib/mana-convert'
 
@@ -51,6 +52,26 @@ const MAX_STALENESS_SECONDS = 90000
  * at is a different question with a different answer, and it lives in `readTradeManaPriceWei`
  * (lib/mana.ts), which resolves the aggregator from that trade's own `contract`.
  */
+/**
+ * The react-query options for the reference MANA/USD rate, shared by every caller.
+ *
+ * One definition on purpose: three call sites each spelling out their own key drifted into two different
+ * ones, which silently split the cache and cost an extra oracle read per surface. The marketplace is
+ * resolved INSIDE the query — during render a chain with no deployment would throw all the way to the
+ * ErrorBoundary, while in here it is just a failed query the callers already handle.
+ *
+ * Keyed by chain alone: the address is a pure function of it. The rate a USD-pegged trade SETTLES at is a
+ * different number entirely (readTradeManaPriceWei, from the trade's own contract) and never enters this
+ * cache, so there is nothing here for it to collide with.
+ */
+export function manaRateQueryOptions() {
+  return {
+    queryKey: ['mana-rate', config.chainId],
+    queryFn: () => readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address),
+    staleTime: 60_000
+  }
+}
+
 export async function readManaUsdRate(marketplaceAddress: string): Promise<ManaRate> {
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
   const mkt = new ethers.Contract(

@@ -10,8 +10,7 @@ import { isIapMode } from '~/lib/iap'
 import { readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
-import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
-import { config } from '~/config'
+import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
@@ -57,7 +56,6 @@ import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import { JUMP_URL, backpackDeepLink } from '~/lib/jump'
 import * as M from './modal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
 
@@ -140,15 +138,9 @@ export function BuyModal({
    */
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     try {
-      // The newest marketplace, named explicitly: this is the reference MANA/USD rate for converting a
-      // legacy MANA-priced line to credits, not the rate a USD-pegged trade settles at (that is
-      // readTradeManaPriceWei, which uses the trade's own contract). Keyed by it so the two never share.
-      const referenceMarketplace = getLatestOffChainMarketplaceContract(config.chainId).address
-      return await qc.fetchQuery({
-        queryKey: ['mana-rate', config.chainId, referenceMarketplace],
-        queryFn: () => readManaUsdRate(referenceMarketplace),
-        staleTime: 60_000
-      })
+      // The REFERENCE rate — for converting a legacy MANA-priced line to credits. What a USD-pegged trade
+      // settles at is readTradeManaPriceWei, from the trade's own contract, and never comes through here.
+      return await qc.fetchQuery(manaRateQueryOptions())
     } catch {
       return undefined
     }

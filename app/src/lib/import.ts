@@ -50,9 +50,11 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
   const listings = data ?? []
   if (listings.length === 0) return { creations: [], owned: [] }
 
-  const chainId = listings[0].chainId || config.chainId
-  // These listings do not exist yet; they will be created against the newest marketplace.
-  const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(chainId).address)
+  // The marketplace is resolved on config.chainId, NOT on the listing's: readManaUsdRate dials
+  // config.rpcUrl, a single chain, so a marketplace from anywhere else has no contract at that address to
+  // answer. V2 shared one address across chains and hid this; V3's are per-chain. The rate is a reference
+  // price for a suggestion the creator edits, so config's chain is the right one to quote it from.
+  const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address)
   // Fall back to 1 for a malformed manaWei — this is only a suggested starting price the creator edits.
   const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: manaWeiToCredits(l.manaWei, rate) ?? 1 }))
 

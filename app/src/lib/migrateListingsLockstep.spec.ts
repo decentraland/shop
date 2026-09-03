@@ -24,8 +24,8 @@ const CLI_SOURCE = readFileSync(resolve(process.cwd(), '../tools/migrate-listing
 
 /** The ordered candidate list the CLI resolves "latest" from. */
 function cliVersionOrder(): string[] {
-  const match = CLI_SOURCE.match(/const OFFCHAIN_MARKETPLACE_NAMES = \[([^\]]+)\]/)
-  expect(match, 'OFFCHAIN_MARKETPLACE_NAMES not found — the CLI table was restructured, update this guard').toBeTruthy()
+  const match = CLI_SOURCE.match(/const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = \[([^\]]+)\]/)
+  expect(match, 'OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES not found — the CLI table was restructured, update this guard').toBeTruthy()
   return [...(match as RegExpMatchArray)[1].matchAll(/ContractName\.(\w+)/g)].map(name => name[1])
 }
 
