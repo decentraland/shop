@@ -140,19 +140,6 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* The iframe renders on transparent, so the only thing painted here is the floor pool — a squashed,
-     soft-edged ellipse under the feet, so the avatar reads as standing on a lit surface rather than
-     floating. It belongs on the panel because it is small and must sit exactly under the feet; the
-     broader glow lives on Main::before instead, since that one needs to spill past this clip.
-
-     Two dials: the 86% is how far down the pool sits (match it to where the feet actually render — the
-     aang camera decides that, not CSS), and the alpha is how lit it looks. */
-  background: radial-gradient(
-    var(--tw-pool-w, 38%) var(--tw-pool-h, 11%) at 50% var(--tw-pool-y, 86%),
-    rgb(var(--tw-pool-rgb, 236 248 249) / var(--tw-pool-a, 0.15)) 0%,
-    rgb(var(--tw-pool-rgb, 236 248 249) / calc(var(--tw-pool-a, 0.15) * 0.4)) 45%,
-    transparent 78%
-  );
 
   /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
      shell's gutter instead of sitting inside it. No transform, which would make this the containing block
