@@ -36,7 +36,7 @@ vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session, signIn: vi.fn() 
 // decentraland-transactions ships an ESM directory import that vitest's node resolver cannot follow, so it is
 // mocked wholesale (the same workaround MarketCheckout.spec.tsx documents). Nothing here reaches a contract.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
+  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore', OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: ['function accept(uint256[] x)'] }),
   sendMetaTransaction: vi.fn(),

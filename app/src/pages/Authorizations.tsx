@@ -89,7 +89,10 @@ function AuthorizationRow({
     }
   }
 
-  if (revokeOnly && !active) {
+  // Hidden only when the read SUCCEEDED and came back false. While it is loading, or if it errored, `active`
+  // is undefined — and hiding then would drop the row of the one user who actually holds a legacy grant at
+  // exactly the moment the RPC is unhealthy, with nothing shown to say so.
+  if (revokeOnly && active === false) {
     return null
   }
 
@@ -305,13 +308,15 @@ export function Authorizations() {
           {/* Superseded marketplace versions. An allowance granted before the current one shipped stays live
               on chain, and buying an older listing still grants one at checkout, so without these rows it
               could never be seen or revoked. Shown only when actually granted. */}
-          {getLegacyMarketplaceAuthorizations(manaSpend, chainId).map(legacy => (
+          {getLegacyMarketplaceAuthorizations(manaSpend).map(legacy => (
             <AuthorizationRow
               key={legacy.id}
               descriptor={legacy}
               owner={session.address}
               signer={session.signer}
-              name={t('authorizations.manaName')}
+              // The current row's own name plus a qualifier, rather than a second name string: the base copy
+              // is grandfathered past the web2-first rule, and duplicating it would introduce a new offence.
+              name={`${t('authorizations.manaName')} ${t('authorizations.previousVersion')}`}
               description={t('authorizations.manaDesc')}
               icon={<S.ThumbMark src={manaSymbol} alt="" aria-hidden />}
               revokeOnly
@@ -339,7 +344,7 @@ export function Authorizations() {
           <S.List>
             {owned.collections.flatMap(asset => {
               const current = getCollectionSellingAuthorization(asset.contractAddress, chainId)
-              return [current, ...getLegacyMarketplaceAuthorizations(current, chainId)].map((descriptor, index) => (
+              return [current, ...getLegacyMarketplaceAuthorizations(current)].map((descriptor, index) => (
                 <AuthorizationRow
                   key={descriptor.id}
                   descriptor={descriptor}
@@ -371,7 +376,7 @@ export function Authorizations() {
           <S.List>
             {publishableCollections.flatMap(collection => {
               const current = getCollectionMintingAuthorization(collection.contractAddress, chainId)
-              return [current, ...getLegacyMarketplaceAuthorizations(current, chainId)].map((descriptor, index) => (
+              return [current, ...getLegacyMarketplaceAuthorizations(current)].map((descriptor, index) => (
                 <AuthorizationRow
                   key={descriptor.id}
                   descriptor={descriptor}

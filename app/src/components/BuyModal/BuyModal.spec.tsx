@@ -44,7 +44,7 @@ vi.mock('decentraland-ui2', () => ({
 
 // decentraland-transactions ships an ESM directory import vitest's resolver cannot follow.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager', MANAToken: 'MANAToken' },
+  ContractName: { CreditsManager: 'CreditsManager', MANAToken: 'MANAToken', OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: [] })
 }))

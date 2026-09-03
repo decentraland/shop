@@ -416,12 +416,11 @@ export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthoriza
  * keyed on `id` alone, so an unqualified duplicate would make two versions read and overwrite each other's
  * state. The newest version keeps the bare id, which is what the page and its tests already address.
  */
-export function getLegacyMarketplaceAuthorizations(
-  latest: ShopAuthorizationDescriptor,
-  chainId: ChainId
-): ShopAuthorizationDescriptor[] {
+export function getLegacyMarketplaceAuthorizations(latest: ShopAuthorizationDescriptor): ShopAuthorizationDescriptor[] {
+  // The chain comes from the descriptor rather than a second argument: passing both let a caller hand in a
+  // chain the descriptor was not built for, and the rows would then be for a different network's contracts.
   const latestSpender = latest.spenderAddress.toLowerCase()
-  return getDeployedOffChainMarketplaceContracts(chainId)
+  return getDeployedOffChainMarketplaceContracts(latest.chainId)
     .filter(contract => contract.address.toLowerCase() !== latestSpender)
     .map(contract => ({
       ...latest,

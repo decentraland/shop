@@ -38,7 +38,7 @@ describe('when listing the marketplace versions a permission may still be grante
     })
 
     it('should return the superseded version as its own descriptor', () => {
-      expect(getLegacyMarketplaceAuthorizations(latest as never, CHAIN_WITH_TWO_VERSIONS)).toEqual([
+      expect(getLegacyMarketplaceAuthorizations(latest as never)).toEqual([
         expect.objectContaining({ spenderAddress: '0xoffchainmarketplacev2' })
       ])
     })
@@ -48,13 +48,13 @@ describe('when listing the marketplace versions a permission may still be grante
      * sharing an id would read and overwrite each other's active state.
      */
     it('should qualify the superseded descriptor id with its spender', () => {
-      const [legacy] = getLegacyMarketplaceAuthorizations(latest as never, CHAIN_WITH_TWO_VERSIONS)
+      const [legacy] = getLegacyMarketplaceAuthorizations(latest as never)
 
       expect(legacy.id).toBe('selling:0xcollection@0xoffchainmarketplacev2')
     })
 
     it('should leave the current version its unqualified id, which the page and its tests address', () => {
-      const ids = getLegacyMarketplaceAuthorizations(latest as never, CHAIN_WITH_TWO_VERSIONS).map(auth => auth.id)
+      const ids = getLegacyMarketplaceAuthorizations(latest as never).map(auth => auth.id)
 
       expect(ids).not.toContain('selling:0xcollection')
     })
@@ -68,7 +68,7 @@ describe('when listing the marketplace versions a permission may still be grante
     })
 
     it('should return nothing, so exactly one row is rendered per permission', () => {
-      expect(getLegacyMarketplaceAuthorizations(latest as never, CHAIN_WITH_ONE_VERSION)).toEqual([])
+      expect(getLegacyMarketplaceAuthorizations(latest as never)).toEqual([])
     })
   })
 })

@@ -18,11 +18,6 @@ let aggAnsweredInRound = 1
 /** Addresses `manaUsdAggregator()` was called on, so a test can assert WHICH marketplace was read. */
 const marketplaceReads: string[] = []
 
-vi.mock('decentraland-transactions', () => ({
-  ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
-  getContract: () => ({ address: '0xmarket', name: 'DecentralandMarketplacePolygon', version: '1', abi: [] })
-}))
-
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
 // Keep real ethers (BigNumber etc.); swap Contract so oracle reads don't hit a chain, and stub the

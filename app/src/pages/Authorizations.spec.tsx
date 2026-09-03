@@ -311,18 +311,33 @@ describe('when a superseded marketplace version is still deployed on the chain',
     })
   })
 
+  describe('and the status read fails', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockRejectedValue(new Error('rpc down'))
+    })
+
+    // The row is the only way to revoke. Hiding it because the read failed would take it away from the one
+    // user who actually holds the grant, at exactly the moment the chain is hard to reach.
+    it('should keep the row rather than hide a grant it could not read', async () => {
+      renderPage()
+
+      expect(await screen.findByTestId(`authorization-toggle-${LEGACY_ID}`)).toBeInTheDocument()
+    })
+  })
+
   describe('and the wallet holds no grant on it', () => {
     beforeEach(() => {
       getAuthorizationStatus.mockResolvedValue(false)
     })
 
-    it('should render no row for it', async () => {
+    // waitFor, not a bare assertion: the row is only hidden once the status read RESOLVES false. While it is
+    // in flight `active` is undefined and the row stays — deliberately, so an RPC error cannot silently drop
+    // the row of the one user who actually holds the grant.
+    it('should render no row for it once the status resolves', async () => {
       renderPage()
-      // Wait for the page to settle on a row that is always present, so this is not asserting on an
-      // unrendered page.
       await screen.findByTestId('authorization-toggle-credits')
 
-      expect(screen.queryByTestId(`authorization-toggle-${LEGACY_ID}`)).not.toBeInTheDocument()
+      await waitFor(() => expect(screen.queryByTestId(`authorization-toggle-${LEGACY_ID}`)).not.toBeInTheDocument())
     })
 
     it('should still render the current version row', async () => {

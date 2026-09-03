@@ -52,10 +52,9 @@ const MAX_STALENESS_SECONDS = 90000
  * (lib/mana.ts), which resolves the aggregator from that trade's own `contract`.
  */
 export async function readManaUsdRate(marketplaceAddress: string): Promise<ManaRate> {
-  const market = { address: marketplaceAddress }
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
   const mkt = new ethers.Contract(
-    market.address,
+    marketplaceAddress,
     ['function manaUsdAggregator() view returns (address)'],
     provider
   ) as OracleReaderContract
