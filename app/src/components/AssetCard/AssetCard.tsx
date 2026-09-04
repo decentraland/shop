@@ -6,7 +6,7 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
-import { rarityColor, rarityDescription, rarityLabel } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -358,7 +358,13 @@ export function AssetCard(props: AssetCardProps) {
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
           rect to position over. The card does NOT mount its own WearablePreview — it just asks the store
           to point the one warm iframe here, and the thumbnail crossfades out once that preview is ready. */}
-      <S.Media ref={mediaRef} data-testid="card-media">
+      <S.Media
+        ref={mediaRef}
+        data-testid="card-media"
+        /* A NAME has no rarity, so it keeps the neutral fill under its violet "@name" tile —
+           without this it falls back to common's colour and reads as a rarity it doesn't have. */
+        style={isNameItem ? undefined : { backgroundImage: rarityMedia(item.rarity) }}
+      >
         {onSale ? (
           <S.SaleBadge data-testid="card-sale-badge">
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
