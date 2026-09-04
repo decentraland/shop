@@ -279,16 +279,19 @@ export const NameValue = styled.span`
 
 // The flat thumbnail crossfades out once the shared 3D preview (HoverPreviewLayer) has this item ready.
 /**
- * The artwork is 136.3px square inside a 188px media band (Figma 1480:256689) — 72.5% of the band, not
- * the whole box. Filling the box drew every wearable about a third larger than the design, and next to
- * it the 24px favourite badge read as undersized: the badge was right all along, the artwork was not.
- * Stated as a share of the HEIGHT because that is what the design holds constant — the card is a grid
- * cell, so its width varies (276px here, 306 in the frame) while the band stays 188.
+ * The artwork fills 85% of the media band's height. Stated as a share of the HEIGHT because that is what
+ * the design holds constant — the card is a grid cell, so its width varies (276px here, 306 in the
+ * frame) while the band stays 188.
+ *
+ * This DEVIATES from Figma 1480:256689, which specifies 136.3px in a 188px band (72.5%). That number was
+ * tuned against a flat grey field, where the margin around the artwork was invisible; over the rarity
+ * background it is two thirds of the band in colour and the artwork reads stranded in it. 85% was picked
+ * over the alternatives after review. Note the earlier finding still holds at the extreme: filling the
+ * band outright drew wearables about a third larger than the design and made the 24px favourite badge
+ * read undersized, so this is a middle ground, not a removal of the constraint.
  */
 export const Img = styled.img`
-  /* TEMPORARY: --card-art is set by <RarityLab> so the team can compare sizes on the preview.
-     The fallback is the shipped Figma value, so removing the scaffold restores it. */
-  height: var(--card-art, 72.5%);
+  height: 85%;
   aspect-ratio: 1;
   width: auto;
   max-width: 100%;

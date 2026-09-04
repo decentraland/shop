@@ -2,7 +2,6 @@ import { t } from '~/intl/i18n'
 import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
 import { rarities } from '~/styles/theme'
-import { RARITY_LAB, labVariant } from '~/lib/rarityLab'
 
 // Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
 // item's image background. Falls back to a neutral grey wash for unknown rarities.
@@ -103,10 +102,15 @@ export function rarityGradient(rarity?: string | null): string {
 }
 
 // Rarity background for an item's media area, replacing the flat neutral fill so a grid of cards reads
-// as coloured the way unity-explorer does.
+// as coloured the way unity-explorer does. Light at the centre so the artwork still recuts against it,
+// the colour gathering toward the edges.
 //
-// TEMPORARY: delegates to the A/B scaffold in lib/rarityLab so the team can pick a treatment on the
-// preview deploy. Once the verdict is in, inline the winning formula here and delete rarityLab.
+// Tinted from rarityColor — the design palette — rather than the schema's own gradient, so the
+// background and the card's rarity chip are the same hue. The schema gradient was the alternative and
+// was rejected: it is more saturated than this whole surface wants, and it disagrees with the chip.
 export function rarityMedia(rarity?: string | null): string {
-  return RARITY_LAB[labVariant()]?.build(rarity) ?? 'none'
+  const rgb = parseHex(rarityColor(rarity))
+  if (!rgb) return 'none'
+  const [r, g, b] = rgb
+  return `radial-gradient(circle at 50% 38%, rgba(${r}, ${g}, ${b}, 0.04) 0%, rgba(${r}, ${g}, ${b}, 0.3) 50%, rgba(${r}, ${g}, ${b}, 0.62) 100%)`
 }
