@@ -72,8 +72,8 @@ body {
   padding-top: var(--nav-h);
   /* Figma "New Shop 2026" page field, taken verbatim from the design's radial fill: ellipse
      1183.5x1279.9px centred at (960, 636.45) on the 1920x1168 artboard — i.e. 61.64% x 109.58% at
-     50% / 54.49% — with the design's exact five stops. Left as-is: the avatar glow is a separate layer
-     (pages/ItemDetail.styles.ts), so where it fades out this is exactly the specified field. */
+     50% / 54.49% — with the design's exact five stops. Left as-is: the glow and the symbols are both
+     separate layers over it, so this stays the field the design specifies. */
   background: radial-gradient(
       61.64% 109.58% at 50% 54.49%,
       #952dc6 0%,
@@ -89,9 +89,11 @@ body {
 }
 /* DCL symbols drifting over the purple field — the same sheet the auth screen and fitting room use.
 
-   A separate fixed layer rather than a second background-image on the body: the sheet is 8-bit grayscale
-   with no alpha and background layers have no per-layer opacity, so as a plain layer it would paint flat
-   grey over the gradient. z-index -1 keeps it above the body background but under everything in #root.
+   A separate fixed layer rather than a second background-image on the body, because background layers
+   have no per-layer opacity and the sheet is 8-bit grayscale with no alpha. Opacity scales that opaque
+   tile rather than removing it, so the rim takes a faint uniform wash along with the symbols — fine at
+   0.03, and the reason not to raise it much. z-index -1 keeps it above the body background but under
+   everything in #root.
 
    The mask is an inverse vignette — transparent in the middle, opaque at the rim — so the symbols stay in
    the periphery and the centre, where the item preview sits, stays clean purple. */

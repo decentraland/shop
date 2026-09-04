@@ -1122,7 +1122,7 @@ export function ItemDetail() {
             <ItemPreview item={current} />
           ) : (
             <S.PreviewLoading aria-busy="true" aria-label={t('itemPreview.loading')}>
-              <span className="skeleton" aria-hidden />
+              <S.PreviewSkeleton className="skeleton" aria-hidden />
             </S.PreviewLoading>
           )}
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).

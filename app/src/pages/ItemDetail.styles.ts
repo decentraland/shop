@@ -54,6 +54,9 @@ export const CrumbCurrent = styled.span`
 // Two-column hero: preview left (1045), info right (514), 48px gap. Inset vs the full-width breadcrumb.
 export const Main = styled.div`
   position: relative;
+  /* Confines the glow's negative z-index; without it the layer escapes to the root stacking context
+     and survives only while every ancestor happens to be background-less. */
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
@@ -68,11 +71,9 @@ export const Main = styled.div`
   /* Avatar glow, centred on the preview frame but hung off the grid container: the frame clips
      (overflow:hidden for the rounded corners) and this has to reach past it onto the page.
 
-     Two things stop it painting as a hard-edged rectangle. The end stop is the same colour at zero alpha
-     rather than the transparent keyword — that keyword is rgba(0,0,0,0), so interpolating to it drags
-     the mix through black and leaves a grey halo. And the radii cannot exceed 50%: they are radii, not
-     diameters, measured against the box, so anything larger ends outside it and only the opaque middle
-     shows. --glow-box buys the reach back.
+     The radii cannot exceed 50%, which is what stops it painting as a hard-edged rectangle: they are
+     radii, not diameters, measured against the box, so anything larger ends outside it and only the
+     opaque middle shows. --glow-box buys the reach back.
 
      z-index -1 sits under the frame, and above the body symbols (also -1) by document order. */
   &::before {
@@ -85,7 +86,12 @@ export const Main = styled.div`
     width: calc(var(--preview-col-w) * var(--glow-box));
     aspect-ratio: 1045 / 752;
     transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
-    background: radial-gradient(50% 50% at 50% 52%, rgb(41 230 255 / 0.56) 0%, 35%, rgb(41 230 255 / 0) 100%);
+    background: radial-gradient(
+      50% 50% at 50% 52%,
+      rgb(${colors.glowCyanRgb} / 0.56) 0%,
+      35%,
+      rgb(${colors.glowCyanRgb} / 0) 100%
+    );
   }
 
   ${media.maxWidth('lg')} {
