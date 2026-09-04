@@ -104,15 +104,15 @@ body {
    mask it is the ALPHA that counts, so `transparent` hides and any opaque colour shows; the black is
    just a carrier. The element is fixed, so the gradient is measured against the VIEWPORT, not the page.
 
-   Four dials: `opacity` for strength, `background-size` for density, the mask's first stop (25%) for
-   how wide the clean centre is, and `animation-duration` for how fast it drifts. */
+   To retune: `opacity` for strength, `background-size` for density, the mask's first stop for how wide
+   the clean centre is, `animation-duration` for how fast it drifts. */
 
-/* The drift: one whole tile toward the top left, then repeat. The distance is deliberately NOT a dial —
+/* The drift: one whole tile toward the top left, then repeat. The distance is deliberately not adjustable —
    the sheet repeats on exactly `background-size`, so travelling one tile lands on a frame pixel-identical
    to the first and the loop has no seam. Any other amplitude would visibly snap on the wrap, which is
    also why this pans continuously rather than easing back and forth: a shorter throw can only be bought
-   with a reversal, and a reversal reads as a pendulum instead of drift. Speed is the dial instead, and
-   at the default it covers ~4px/s — present, but under the threshold where the eye tracks it.
+   with a reversal, and a reversal reads as a pendulum instead of drift. Speed is the thing to change
+   instead, and at 150s it covers ~4px/s — present, but under the threshold where the eye tracks it.
 
    It moves `background-position` rather than the element, because the mask lives on the same element and
    a transform would drag the vignette along with the tiles. That means a repaint of this layer per frame
@@ -123,7 +123,7 @@ body {
     background-position: 0 0;
   }
   to {
-    background-position: calc(var(--tw-sym-size, 610px) * -1) calc(var(--tw-sym-size, 610px) * -1);
+    background-position: -610px -610px;
   }
 }
 body::before {
@@ -133,15 +133,11 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background: url("../images/background/DCL_LogoPattern.png") 0 0 repeat;
-  background-size: var(--tw-sym-size, 610px) var(--tw-sym-size, 610px);
-  opacity: var(--tw-sym-opacity, 0.03);
-  animation: symbol-drift var(--tw-sym-drift, 150s) linear infinite;
-  -webkit-mask-image: radial-gradient(
-    75% 70% at 50% 45%,
-    transparent var(--tw-sym-hole, 25%),
-    #000 var(--tw-sym-edge, 85%)
-  );
-  mask-image: radial-gradient(75% 70% at 50% 45%, transparent var(--tw-sym-hole, 25%), #000 var(--tw-sym-edge, 85%));
+  background-size: 610px 610px;
+  opacity: 0.03;
+  animation: symbol-drift 150s linear infinite;
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, transparent 25%, #000 85%);
+  mask-image: radial-gradient(75% 70% at 50% 45%, transparent 25%, #000 85%);
 }
 /* Ambient motion nobody asked for is exactly what this setting is for, and the layer is decorative — so
    it stops outright rather than slowing down, unlike the spinner (which still has to read as busy). */

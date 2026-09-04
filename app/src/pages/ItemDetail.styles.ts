@@ -82,19 +82,17 @@ export const Main = styled.div`
      rgba(0,0,0,0), so interpolating to it drags the mix through black and leaves a dirty grey halo on
      the way out. Same-colour-zero-alpha fades clean.
 
-     That end stop is fixed, not a dial, and that is half of what stops the bleed. A radial gradient
-     does not stop at its ending shape — it holds the final stop's colour out to fill the whole box — so
-     any end alpha above 0 would paint the entire box and show as a hard-edged rectangle over the page.
+     That end stop is half of what stops the bleed. A radial gradient does not stop at its ending shape
+     — it holds the final stop's colour out to fill the whole box — so any end alpha above 0 would paint
+     the entire box and show as a hard-edged rectangle over the page.
 
      The other half is the RADII, and this is the easy one to get wrong: the two percentages are radii,
-     not diameters, and each is measured against the box's own width/height. So 62% does not mean "62%
+     not diameters, and each is measured against the box's own width/height. So 62% would not mean "62%
      of the box" — it means an ellipse 124% of the box wide, whose transparent end stop falls outside
      the box entirely, leaving only the opaque middle visible. That renders as a solid rectangle no
-     matter what the end stop says. Anything at or under 50% finishes inside the box and fades cleanly,
-     which is why both radii are clamped with min(). The clamp lives HERE rather than only on the tweak
-     panel's sliders, because a stale value in that panel's localStorage sails straight past a slider max
-     and brings the rectangle back. --glow-box buys the range back: 50% of a 2.2x box is still a glow
-     2.2x the frame.
+     matter what the end stop says. 50% is the ceiling that still finishes inside the box and fades
+     cleanly, and --glow-box is what buys the reach back: 50% of a 2.2x box is still a glow 2.2x the
+     frame.
 
      The failure is also asymmetric, which makes it easy to misread. The box is centred on the preview
      column, which sits left of the page centre, so its left edge is off-screen and only the right one
@@ -112,12 +110,7 @@ export const Main = styled.div`
     width: calc(var(--preview-col-w) * var(--glow-box));
     aspect-ratio: 1045 / 752;
     transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
-    background: radial-gradient(
-      min(var(--tw-glow-w, 50%), 50%) min(var(--tw-glow-h, 50%), 50%) at 50% var(--tw-glow-y, 52%),
-      rgb(var(--tw-glow1-rgb, 41 230 255) / var(--tw-glow1-a, 0.56)) 0%,
-      var(--tw-glow-mid, 35%),
-      rgb(var(--tw-glow1-rgb, 41 230 255) / 0) 100%
-    );
+    background: radial-gradient(50% 50% at 50% 52%, rgb(41 230 255 / 0.56) 0%, 35%, rgb(41 230 255 / 0) 100%);
   }
 
   ${media.maxWidth('lg')} {
@@ -171,36 +164,12 @@ export const Preview = styled.div`
      narrow (3%) so they never reach the controls aang draws inside its own canvas, which sit ~40px in. */
   & iframe {
     -webkit-mask-image:
-      linear-gradient(
-        to bottom,
-        transparent 0%,
-        #000 var(--tw-fade-top, 3%),
-        #000 var(--tw-fade-bot, 92%),
-        transparent 100%
-      ),
-      linear-gradient(
-        to right,
-        transparent 0%,
-        #000 var(--tw-fade-side, 3%),
-        #000 calc(100% - var(--tw-fade-side, 3%)),
-        transparent 100%
-      );
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
     -webkit-mask-composite: source-in;
     mask-image:
-      linear-gradient(
-        to bottom,
-        transparent 0%,
-        #000 var(--tw-fade-top, 3%),
-        #000 var(--tw-fade-bot, 92%),
-        transparent 100%
-      ),
-      linear-gradient(
-        to right,
-        transparent 0%,
-        #000 var(--tw-fade-side, 3%),
-        #000 calc(100% - var(--tw-fade-side, 3%)),
-        transparent 100%
-      );
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
     mask-composite: intersect;
   }
 
