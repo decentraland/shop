@@ -100,3 +100,17 @@ export function rarityGradient(rarity?: string | null): string {
     return FALLBACK_GRADIENT
   }
 }
+
+// Rarity background for an item's media area, replacing the flat neutral fill so a grid of cards reads
+// as coloured the way unity-explorer does. Light at the centre so the artwork still recuts against it,
+// the colour gathering toward the edges.
+//
+// Tinted from rarityColor — the design palette — rather than the schema's own gradient, so the
+// background and the card's rarity chip are the same hue. The schema gradient was the alternative and
+// was rejected: it is more saturated than this whole surface wants, and it disagrees with the chip.
+export function rarityMedia(rarity?: string | null): string {
+  const rgb = parseHex(rarityColor(rarity))
+  if (!rgb) return 'none'
+  const [r, g, b] = rgb
+  return `radial-gradient(circle at 50% 38%, rgba(${r}, ${g}, ${b}, 0.04) 0%, rgba(${r}, ${g}, ${b}, 0.3) 50%, rgba(${r}, ${g}, ${b}, 0.62) 100%)`
+}

@@ -55,14 +55,55 @@ export const CrumbCurrent = styled.span`
 
 // Two-column hero: preview left (1045), info right (514), 48px gap. Inset vs the full-width breadcrumb.
 export const Main = styled.div`
+  position: relative;
+  /* Confines the glow's negative z-index; without it the layer escapes to the root stacking context
+     and survives only while every ancestor happens to be background-less. */
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
   align-items: start;
 
+  /* Preview column width, re-derived from the tracks above so the glow's pivot cannot drift. */
+  --preview-col-w: calc((100% - 48px) * 1045 / 1559);
+  /* Glow box size relative to the frame: roomy enough to spill onto the page, and for the gradient to
+     finish fading inside it (see below). */
+  --glow-box: 2.2;
+
+  /* Avatar glow, centred on the preview frame but hung off the grid container: the frame clips
+     (overflow:hidden for the rounded corners) and this has to reach past it onto the page.
+
+     The radii cannot exceed 50%, which is what stops it painting as a hard-edged rectangle: they are
+     radii, not diameters, measured against the box, so anything larger ends outside it and only the
+     opaque middle shows. --glow-box buys the reach back.
+
+     z-index -1 sits under the frame, and above the body symbols (also -1) by document order. */
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    top: 0;
+    left: calc(var(--preview-col-w) / 2);
+    width: calc(var(--preview-col-w) * var(--glow-box));
+    aspect-ratio: 1045 / 752;
+    transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
+    background: radial-gradient(
+      50% 50% at 50% 52%,
+      rgb(${colors.glowCyanRgb} / 0.56) 0%,
+      35%,
+      rgb(${colors.glowCyanRgb} / 0) 100%
+    );
+  }
+
   ${media.maxWidth('lg')} {
     grid-template-columns: 1fr;
     gap: 24px;
+
+    /* The track maths is desktop-only; one column puts the pivot nowhere meaningful. */
+    &::before {
+      display: none;
+    }
   }
 `
 
@@ -74,10 +115,6 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* Light surface, deliberately AGAINST the Figma's translucent black (1052:151284): the dark violet
-     backdrop muted every item, so the preview keeps the light stage. The iframe is transparent — this
-     is the scene's backdrop. */
-  background: ${colors.media};
 
   /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
      shell's gutter instead of sitting inside it. No transform, which would make this the containing block
@@ -95,6 +132,21 @@ export const Preview = styled.div`
     height: 100%;
     border: 0;
     display: block;
+  }
+
+  /* Soft edges so legs and the cast shadow dissolve instead of being sliced by the overflow clip. On the
+     iframe, not the panel, so the pills and note stay crisp. Two intersected linear gradients rather than
+     one radial, which would round the corners. The bottom band is widest because that is where the cut
+     shows; 3% elsewhere stays clear of the controls aang draws ~40px inside its canvas. */
+  & iframe {
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
+    mask-composite: intersect;
   }
 
   /* Invisible viewport sentinel for the IntersectionObserver that pauses the preview off-screen.
