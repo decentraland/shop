@@ -590,3 +590,43 @@ describe('AssetCard provenance (which surface the card was rendered on)', () => 
     expect(call?.[1]).toMatchObject({ source: 'grid', position: null })
   })
 })
+
+/**
+ * An emote's play mode is on the Marketplace's card and was missing from ours. `loop === false` is a real
+ * answer (it plays once), so the badge has to key on the field being PRESENT — a truthiness check would
+ * silently drop every play-once emote, which is the half most likely to go unnoticed.
+ */
+describe('AssetCard emote play mode', () => {
+  const emote = (overrides: Partial<CatalogItem> = {}) =>
+    makeItem({ category: 'emote', name: 'Macarena', ...overrides })
+
+  it('marks a looping emote', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={emote({ emoteLoop: true })} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelector('[data-testid="chip-play-mode"]')).toHaveAttribute('title', 'Play loop')
+  })
+
+  it('marks one that plays once, which a truthiness check would drop', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={emote({ emoteLoop: false })} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelector('[data-testid="chip-play-mode"]')).toHaveAttribute('title', 'Play once')
+  })
+
+  it('shows nothing for a wearable, which has no play mode at all', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelector('[data-testid="chip-play-mode"]')).toBeNull()
+  })
+})
