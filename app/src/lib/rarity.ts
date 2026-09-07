@@ -42,6 +42,46 @@ export function rarityTint(rarity?: string | null, alpha = 0.3): string {
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`
 }
 
+// The rarity color as a bare "r g b" triple, for rgb(R G B / a) gradients that need the same hue at
+// more than one alpha (the item preview's glow). Neutral grey when the hex can't be parsed.
+export function rarityRgb(rarity?: string | null): string {
+  const rgb = parseHex(rarityColor(rarity))
+  return rgb ? rgb.join(' ') : '160 155 168'
+}
+
+// The hot centre of the item preview's glow: the rarity's own hue pushed to near-max saturation at a
+// fixed lightness. Levels the rarities out — legendary and epic sit close to the page's purple and sink
+// into it at their token value, while exotic and unique are already bright — so every item is backlit
+// with the same strength and only the hue changes.
+export function rarityVividRgb(rarity?: string | null, lightness = 0.66, saturation = 0.95): string {
+  const rgb = parseHex(rarityColor(rarity))
+  if (!rgb) return '160 155 168'
+  const [r, g, b] = rgb.map(c => c / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const delta = max - min
+  // Achromatic (the neutral fallback color): there is no hue to saturate, and pretending otherwise
+  // would invent one — grey has a hue angle of 0, i.e. red.
+  if (!delta) return rgb.join(' ')
+  let hue: number
+  if (max === r) hue = (g - b) / delta
+  else if (max === g) hue = (b - r) / delta + 2
+  else hue = (r - g) / delta + 4
+  hue = (((hue * 60) % 360) + 360) % 360
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
+  const second = chroma * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const lift = lightness - chroma / 2
+  const sector = [
+    [chroma, second, 0],
+    [second, chroma, 0],
+    [0, chroma, second],
+    [0, second, chroma],
+    [second, 0, chroma],
+    [chroma, 0, second]
+  ][Math.floor(hue / 60) % 6]
+  return sector.map(channel => Math.round((channel + lift) * 255)).join(' ')
+}
+
 // Ink color for the TINTED rarity chip: the rarity's own hue, but darkened enough to stay legible on
 // its pale (30% alpha over white) background. Light rarities — exotic (#CAFF73 lime), unique (#FFB626
 // amber), common (#ABC1C1 grey) — are near-white and would vanish as text at full saturation, so we
