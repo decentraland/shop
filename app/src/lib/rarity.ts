@@ -42,19 +42,28 @@ export function rarityTint(rarity?: string | null, alpha = 0.3): string {
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`
 }
 
-// The rarity color as a bare "r g b" triple, for rgb(R G B / a) gradients that need the same hue at
-// more than one alpha (the item preview's glow). Neutral grey when the hex can't be parsed.
-export function rarityRgb(rarity?: string | null): string {
-  const rgb = parseHex(rarityColor(rarity))
+// The glow reads the rarity palette, with the two greens swapped and exotic's retuned: its #9cd71e is a
+// yellow-green that goes radioactive blown up to a page-sized light, and browns where the fade crosses
+// the purple field, so it takes rare's green and rare takes a cooler jade. Chips, filters and links keep
+// their tokens — this is the glow only.
+const GLOW_COLORS: Record<string, string> = { exotic: '#34ce76', rare: '#3fd39a' }
+
+function glowColor(rarity?: string | null): string {
+  return GLOW_COLORS[(rarity ?? '').toLowerCase()] || rarityColor(rarity)
+}
+
+// The glow's outer halo, as a bare "r g b" triple for the rgb(R G B / a) stops that need the same hue
+// at more than one alpha. Neutral grey when the hex can't be parsed.
+export function rarityGlowRgb(rarity?: string | null): string {
+  const rgb = parseHex(glowColor(rarity))
   return rgb ? rgb.join(' ') : '160 155 168'
 }
 
-// The hot centre of the item preview's glow: the rarity's own hue pushed to near-max saturation at a
-// fixed lightness. Levels the rarities out — legendary and epic sit close to the page's purple and sink
-// into it at their token value, while exotic and unique are already bright — so every item is backlit
-// with the same strength and only the hue changes.
-export function rarityVividRgb(rarity?: string | null, lightness = 0.66, saturation = 0.95): string {
-  const rgb = parseHex(rarityColor(rarity))
+// The glow's hot centre: the same hue pushed to near-max saturation at a fixed lightness. Levels the
+// rarities out — legendary and epic sit close to the page's purple and sink into it at their token
+// value, while unique is already bright — so every item is backlit as strongly and only the hue changes.
+export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, saturation = 0.95): string {
+  const rgb = parseHex(glowColor(rarity))
   if (!rgb) return '160 155 168'
   const [r, g, b] = rgb.map(c => c / 255)
   const max = Math.max(r, g, b)

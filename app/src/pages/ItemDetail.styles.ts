@@ -66,7 +66,7 @@ export const Main = styled.div`
   --preview-col-w: calc((100% - 48px) * 1045 / 1559);
   /* Glow box size relative to the frame: roomy enough to spill onto the page, and for the gradient to
      finish fading inside it (see below). */
-  --glow-box: 2.2;
+  --glow-box: 1.76;
 
   /* Avatar glow, centred on the preview frame but hung off the grid container: the frame clips
      (overflow:hidden for the rounded corners) and this has to reach past it onto the page.
