@@ -77,6 +77,10 @@ export const Main = styled.div`
      radii, not diameters, measured against the box, so anything larger ends outside it and only the
      opaque middle shows. --glow-box buys the reach back.
 
+     The hue is the item's rarity color: --glow-rgb is the token, --glow-core the saturated centre, both
+     set by the page (the cyan token is the fallback). Opaque at the centre so the avatar reads backlit
+     rather than washed — the frame's own mask keeps the edges soft.
+
      z-index -1 sits under the frame, and above the body symbols (also -1) by document order. */
   &::before {
     content: '';
@@ -90,9 +94,10 @@ export const Main = styled.div`
     transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
     background: radial-gradient(
       50% 50% at 50% 52%,
-      rgb(${colors.glowCyanRgb} / 0.56) 0%,
-      35%,
-      rgb(${colors.glowCyanRgb} / 0) 100%
+      rgb(var(--glow-core, ${colors.glowCyanRgb})) 0%,
+      rgb(var(--glow-rgb, ${colors.glowCyanRgb}) / 0.9) 20%,
+      45%,
+      rgb(var(--glow-rgb, ${colors.glowCyanRgb}) / 0) 100%
     );
   }
 
