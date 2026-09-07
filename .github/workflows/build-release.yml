@@ -100,6 +100,10 @@ jobs:
           branch-to-custom-tag: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || '' }}
           gitlab-token: ${{ secrets.GITLAB_CDN_DEPLOYER_TOKEN }}
           gitlab-pipeline-url: ${{ secrets.GITLAB_CDN_DEPLOYER_URL }}
+          # 15min, not the 5 the defaults give: a publish the registry is slow to serve skips the CDN
+          # trigger, and a re-run can't recover it (the snapshot version is keyed on the run id).
+          registry-wait-attempts: '60'
+          registry-wait-delay: '15'
 
   rollout:
     # Only for manual branch deploys. Auto-deploys (push/release) trigger set-rollout.yml via the
