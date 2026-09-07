@@ -221,6 +221,24 @@ export function AssetCard(props: AssetCardProps) {
       nfs
     )
 
+  /**
+   * Whether an emote loops or plays once, the same badge the Marketplace card carries.
+   *
+   * `undefined` is a wearable, not an emote with an unknown mode — the feed only sends `data.emote.loop`
+   * for emotes, so the check has to be for the field's PRESENCE rather than its truthiness (`false` is a
+   * real answer: it means it plays once).
+   */
+  const playModeChip =
+    item.emoteLoop === undefined ? null : (
+      <S.CardChip
+        data-variant="icon"
+        data-testid="chip-play-mode"
+        title={item.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
+      >
+        <Icon name={item.emoteLoop ? 'play-loop' : 'play-once'} />
+      </S.CardChip>
+    )
+
   const chips = (
     <S.Chips data-chips>
       <S.CardChip
@@ -235,6 +253,7 @@ export function AssetCard(props: AssetCardProps) {
           <Icon name={catIco} />
         </S.CardChip>
       ) : null}
+      {playModeChip}
     </S.Chips>
   )
 
@@ -285,6 +304,7 @@ export function AssetCard(props: AssetCardProps) {
           <Icon name={genderIco} />
         </S.CardChip>
       ) : null}
+      {playModeChip}
     </S.Chips>
   )
 
