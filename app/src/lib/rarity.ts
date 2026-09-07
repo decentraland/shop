@@ -42,14 +42,22 @@ export function rarityTint(rarity?: string | null, alpha = 0.3): string {
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`
 }
 
-// The glow reads the rarity palette, with the two greens swapped and exotic's retuned: its #9cd71e is a
-// yellow-green that goes radioactive blown up to a page-sized light, and browns where the fade crosses
-// the purple field, so it takes rare's green and rare takes a cooler jade. Chips, filters and links keep
-// their tokens — this is the glow only.
-const GLOW_COLORS: Record<string, string> = { exotic: '#34ce76', rare: '#3fd39a' }
+// Glow-only palette. Exotic's #9cd71e is a yellow-green that goes radioactive blown up to a page-sized
+// light, and browns as it fades: the purple field's complement sits at hue ~100, so a color near it
+// mixes to mud on the way out. Exotic moves to a green clear of that and takes 15% off the shared core
+// saturation — the hue is what keeps it out of the mud, the punch is what made it glare — and rare to a
+// jade far enough round to stay distinct from it. Chips, filters and links keep their tokens.
+const GLOW_COLORS: Record<string, { color: string; saturation?: number }> = {
+  exotic: { color: '#44c75b', saturation: 0.81 },
+  rare: { color: '#3fd39a' }
+}
+
+function glowEntry(rarity?: string | null) {
+  return GLOW_COLORS[(rarity ?? '').toLowerCase()]
+}
 
 function glowColor(rarity?: string | null): string {
-  return GLOW_COLORS[(rarity ?? '').toLowerCase()] || rarityColor(rarity)
+  return glowEntry(rarity)?.color || rarityColor(rarity)
 }
 
 // The glow's outer halo, as a bare "r g b" triple for the rgb(R G B / a) stops that need the same hue
@@ -62,9 +70,10 @@ export function rarityGlowRgb(rarity?: string | null): string {
 // The glow's hot centre: the same hue pushed to near-max saturation at a fixed lightness. Levels the
 // rarities out — legendary and epic sit close to the page's purple and sink into it at their token
 // value, while unique is already bright — so every item is backlit as strongly and only the hue changes.
-export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, saturation = 0.95): string {
+export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, saturation?: number): string {
   const rgb = parseHex(glowColor(rarity))
   if (!rgb) return '160 155 168'
+  const sat = saturation ?? glowEntry(rarity)?.saturation ?? 0.95
   const [r, g, b] = rgb.map(c => c / 255)
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
@@ -77,7 +86,7 @@ export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, satu
   else if (max === g) hue = (b - r) / delta + 2
   else hue = (r - g) / delta + 4
   hue = (((hue * 60) % 360) + 360) % 360
-  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * sat
   const second = chroma * (1 - Math.abs(((hue / 60) % 2) - 1))
   const lift = lightness - chroma / 2
   const sector = [

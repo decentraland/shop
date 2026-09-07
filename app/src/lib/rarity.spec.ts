@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, rarityGradient, rarityInk, rarityGlowRgb, rarityTint, rarityGlowCoreRgb } from '~/lib/rarity'
+import { rarityColor, rarityGlowCoreRgb, rarityGlowRgb, rarityGradient, rarityInk, rarityTint } from '~/lib/rarity'
 import { rarities } from '~/styles/theme'
 
 // Neutral fallback color rarity.ts returns for a missing/unknown rarity.
@@ -69,10 +69,10 @@ describe('when resolving the rgb triple for a rarity', () => {
     expect(rarityGlowRgb('not-a-real-rarity')).toBe('230 230 230')
   })
 
-  it('and the rarity is one of the two greens it should use the swapped glow color', () => {
+  it('and the rarity is one of the greens it should use the glow color, not the token', () => {
     // Glow-only: exotic's token lime reads radioactive at page scale and browns as it fades over the
-    // purple, so the two greens trade places. Everything else that paints a rarity keeps the token.
-    expect(rarityGlowRgb('exotic')).toBe('52 206 118')
+    // purple, and rare moves clear of the green that replaces it. Everything else keeps the token.
+    expect(rarityGlowRgb('exotic')).toBe('68 199 91')
     expect(rarityGlowRgb('rare')).toBe('63 211 154')
     expect(rarityColor('exotic')).toBe(rarities.exotic)
     expect(rarityColor('rare')).toBe(rarities.rare)
@@ -94,8 +94,8 @@ describe('when resolving the vivid glow core for a rarity', () => {
     for (const l of spread) expect(l).toBeCloseTo(0.66, 2)
   })
 
-  it('and the rarity is one of the two greens it should saturate the swapped color', () => {
-    expect(rarityGlowCoreRgb('exotic')).toBe('86 251 157')
+  it('and the rarity is one of the greens it should saturate the glow color', () => {
+    expect(rarityGlowCoreRgb('exotic')).toBe('98 239 123')
     expect(rarityGlowCoreRgb('rare')).toBe('86 251 187')
   })
 
