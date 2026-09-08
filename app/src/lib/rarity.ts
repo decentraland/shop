@@ -42,11 +42,9 @@ export function rarityTint(rarity?: string | null, alpha = 0.3): string {
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`
 }
 
-// Glow-only palette. Exotic's #9cd71e is a yellow-green that goes radioactive blown up to a page-sized
-// light, and browns as it fades: the purple field's complement sits at hue ~100, so a color near it
-// mixes to mud on the way out. Exotic moves to a green clear of that and takes 15% off the shared core
-// saturation — the hue is what keeps it out of the mud, the punch is what made it glare — and rare to a
-// jade far enough round to stay distinct from it. Chips, filters and links keep their tokens.
+// Glow-only overrides; chips, filters and links keep their tokens. The purple field's complement sits
+// near hue 100, so exotic's yellow-green token muds as it fades — it moves clear of that and drops some
+// core saturation, and rare moves far enough round to stay distinct from it.
 const GLOW_COLORS: Record<string, { color: string; saturation?: number }> = {
   exotic: { color: '#44c75b', saturation: 0.81 },
   rare: { color: '#3fd39a' }
@@ -61,15 +59,14 @@ function glowColor(rarity?: string | null): string {
 }
 
 // The glow's outer halo, as a bare "r g b" triple for the rgb(R G B / a) stops that need the same hue
-// at more than one alpha. Neutral grey when the hex can't be parsed.
+// at more than one alpha.
 export function rarityGlowRgb(rarity?: string | null): string {
   const rgb = parseHex(glowColor(rarity))
   return rgb ? rgb.join(' ') : '160 155 168'
 }
 
-// The glow's hot centre: the same hue pushed to near-max saturation at a fixed lightness. Levels the
-// rarities out — legendary and epic sit close to the page's purple and sink into it at their token
-// value, while unique is already bright — so every item is backlit as strongly and only the hue changes.
+// The glow's hot centre: the same hue at a fixed saturation and lightness, so every item is backlit as
+// strongly and only the hue changes. Legendary and epic would otherwise sink into the purple page.
 export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, saturation?: number): string {
   const rgb = parseHex(glowColor(rarity))
   if (!rgb) return '160 155 168'
@@ -78,8 +75,7 @@ export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, satu
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
   const delta = max - min
-  // Achromatic (the neutral fallback color): there is no hue to saturate, and pretending otherwise
-  // would invent one — grey has a hue angle of 0, i.e. red.
+  // Achromatic: no hue to saturate, and grey's hue angle of 0 would invent red.
   if (!delta) return rgb.join(' ')
   let hue: number
   if (max === r) hue = (g - b) / delta

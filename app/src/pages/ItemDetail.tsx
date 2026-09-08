@@ -1113,7 +1113,6 @@ export function ItemDetail() {
         <S.CrumbCurrent>{current.name || t('itemDetail.itemFallback')}</S.CrumbCurrent>
       </S.Crumbs>
 
-      {/* The avatar glow behind the preview takes the item's rarity color (see ItemDetail.styles.ts). */}
       <S.Main
         style={{ '--glow-rgb': rarityGlowRgb(rarity), '--glow-core': rarityGlowCoreRgb(rarity) } as CSSProperties}
       >

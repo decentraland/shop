@@ -70,8 +70,6 @@ describe('when resolving the rgb triple for a rarity', () => {
   })
 
   it('and the rarity is one of the greens it should use the glow color, not the token', () => {
-    // Glow-only: exotic's token lime reads radioactive at page scale and browns as it fades over the
-    // purple, and rare moves clear of the green that replaces it. Everything else keeps the token.
     expect(rarityGlowRgb('exotic')).toBe('68 199 91')
     expect(rarityGlowRgb('rare')).toBe('63 211 154')
     expect(rarityColor('exotic')).toBe(rarities.exotic)
@@ -81,7 +79,6 @@ describe('when resolving the rgb triple for a rarity', () => {
 
 describe('when resolving the vivid glow core for a rarity', () => {
   it('should keep the hue but push it to the fixed saturation and lightness', () => {
-    // legendary #a24bf3 (a violet that sinks into the purple page) comes back as a burning violet.
     expect(rarityGlowCoreRgb('legendary')).toBe('171 86 251')
     expect(rarityGlowCoreRgb('mythic')).toBe('251 86 234')
   })
@@ -100,8 +97,6 @@ describe('when resolving the vivid glow core for a rarity', () => {
   })
 
   it('and the color is achromatic it should stay grey rather than invent a hue', () => {
-    // An unknown rarity resolves to the neutral #E6E6E6; hue-angle 0 on a grey is red, so the
-    // saturation push has to be skipped entirely.
     expect(rarityGlowCoreRgb('not-a-real-rarity')).toBe('230 230 230')
   })
 })
