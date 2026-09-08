@@ -56,8 +56,7 @@ export const CrumbCurrent = styled.span`
 // Two-column hero: preview left (1045), info right (514), 48px gap. Inset vs the full-width breadcrumb.
 export const Main = styled.div`
   position: relative;
-  /* Confines the glow's negative z-index; without it the layer escapes to the root stacking context
-     and survives only while every ancestor happens to be background-less. */
+  /* Confines the glow's negative z-index, which would otherwise escape to the root stacking context. */
   isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
@@ -66,22 +65,12 @@ export const Main = styled.div`
 
   /* Preview column width, re-derived from the tracks above so the glow's pivot cannot drift. */
   --preview-col-w: calc((100% - 48px) * 1045 / 1559);
-  /* Glow box size relative to the frame: roomy enough to spill onto the page, and for the gradient to
-     finish fading inside it (see below). */
-  --glow-box: 2.2;
+  /* Oversized so the glow reaches past the frame while the gradient still finishes fading inside its
+     own box: the radii cannot exceed 50% without ending outside the box and painting a hard rectangle. */
+  --glow-box: 1.76;
 
-  /* Avatar glow, centred on the preview frame but hung off the grid container: the frame clips
-     (overflow:hidden for the rounded corners) and this has to reach past it onto the page.
-
-     The radii cannot exceed 50%, which is what stops it painting as a hard-edged rectangle: they are
-     radii, not diameters, measured against the box, so anything larger ends outside it and only the
-     opaque middle shows. --glow-box buys the reach back.
-
-     The hue is the item's rarity color: --glow-rgb is the token, --glow-core the saturated centre, both
-     set by the page (the cyan token is the fallback). Opaque at the centre so the avatar reads backlit
-     rather than washed — the frame's own mask keeps the edges soft.
-
-     z-index -1 sits under the frame, and above the body symbols (also -1) by document order. */
+  /* Avatar glow, hung off the grid container because the preview frame clips its own overflow. Sits
+     under the frame and, by document order, above the body symbols on the same z-index. */
   &::before {
     content: '';
     position: absolute;
@@ -139,10 +128,9 @@ export const Preview = styled.div`
     display: block;
   }
 
-  /* Soft edges so legs and the cast shadow dissolve instead of being sliced by the overflow clip. On the
-     iframe, not the panel, so the pills and note stay crisp. Two intersected linear gradients rather than
-     one radial, which would round the corners. The bottom band is widest because that is where the cut
-     shows; 3% elsewhere stays clear of the controls aang draws ~40px inside its canvas. */
+  /* Soft edges so legs and the cast shadow dissolve instead of being sliced by the overflow clip — on the
+     iframe alone, so the pills and note stay crisp, and intersected linears rather than one radial, which
+     would round the corners. The bands stay clear of the controls aang draws ~40px inside its canvas. */
   & iframe {
     -webkit-mask-image:
       linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, rarityGradient, rarityInk, rarityRgb, rarityTint, rarityVividRgb } from '~/lib/rarity'
+import { rarityColor, rarityGlowCoreRgb, rarityGlowRgb, rarityGradient, rarityInk, rarityTint } from '~/lib/rarity'
 import { rarities } from '~/styles/theme'
 
 // Neutral fallback color rarity.ts returns for a missing/unknown rarity.
@@ -57,38 +57,47 @@ describe('when resolving the color for a rarity', () => {
 describe('when resolving the rgb triple for a rarity', () => {
   it('should return the design color as space-separated channels', () => {
     // #a24bf3 — the triple feeds `rgb(R G B / a)`, so the channels stay unbracketed and alpha-less.
-    expect(rarityRgb('legendary')).toBe('162 75 243')
+    expect(rarityGlowRgb('legendary')).toBe('162 75 243')
   })
 
   it('and the rarity casing differs it should still resolve by lowercasing', () => {
-    expect(rarityRgb('EPIC')).toBe('40 156 255')
+    expect(rarityGlowRgb('EPIC')).toBe('40 156 255')
   })
 
   it('should fall back to a neutral grey when the rarity is missing or unknown', () => {
-    expect(rarityRgb()).toBe('230 230 230')
-    expect(rarityRgb('not-a-real-rarity')).toBe('230 230 230')
+    expect(rarityGlowRgb()).toBe('230 230 230')
+    expect(rarityGlowRgb('not-a-real-rarity')).toBe('230 230 230')
+  })
+
+  it('and the rarity is one of the greens it should use the glow color, not the token', () => {
+    expect(rarityGlowRgb('exotic')).toBe('68 199 91')
+    expect(rarityGlowRgb('rare')).toBe('63 211 154')
+    expect(rarityColor('exotic')).toBe(rarities.exotic)
+    expect(rarityColor('rare')).toBe(rarities.rare)
   })
 })
 
 describe('when resolving the vivid glow core for a rarity', () => {
   it('should keep the hue but push it to the fixed saturation and lightness', () => {
-    // legendary #a24bf3 (a violet that sinks into the purple page) comes back as a burning violet.
-    expect(rarityVividRgb('legendary')).toBe('171 86 251')
-    expect(rarityVividRgb('mythic')).toBe('251 86 234')
+    expect(rarityGlowCoreRgb('legendary')).toBe('171 86 251')
+    expect(rarityGlowCoreRgb('mythic')).toBe('251 86 234')
   })
 
   it('should land every rarity on the same lightness so none out-glows the rest', () => {
     const spread = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'exotic', 'mythic', 'unique'].map(r => {
-      const [max, min] = [Math.max, Math.min].map(f => f(...rarityVividRgb(r).split(' ').map(Number)))
+      const [max, min] = [Math.max, Math.min].map(f => f(...rarityGlowCoreRgb(r).split(' ').map(Number)))
       return (max + min) / 2 / 255
     })
     for (const l of spread) expect(l).toBeCloseTo(0.66, 2)
   })
 
+  it('and the rarity is one of the greens it should saturate the glow color', () => {
+    expect(rarityGlowCoreRgb('exotic')).toBe('98 239 123')
+    expect(rarityGlowCoreRgb('rare')).toBe('86 251 187')
+  })
+
   it('and the color is achromatic it should stay grey rather than invent a hue', () => {
-    // An unknown rarity resolves to the neutral #E6E6E6; hue-angle 0 on a grey is red, so the
-    // saturation push has to be skipped entirely.
-    expect(rarityVividRgb('not-a-real-rarity')).toBe('230 230 230')
+    expect(rarityGlowCoreRgb('not-a-real-rarity')).toBe('230 230 230')
   })
 })
 

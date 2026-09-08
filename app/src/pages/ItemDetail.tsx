@@ -62,7 +62,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
-import { rarityColor, rarityDescription, rarityRgb, rarityVividRgb } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
@@ -1208,8 +1208,9 @@ export function ItemDetail() {
         <S.CrumbCurrent>{current.name || t('itemDetail.itemFallback')}</S.CrumbCurrent>
       </S.Crumbs>
 
-      {/* The avatar glow behind the preview takes the item's rarity color (see ItemDetail.styles.ts). */}
-      <S.Main style={{ '--glow-rgb': rarityRgb(rarity), '--glow-core': rarityVividRgb(rarity) } as CSSProperties}>
+      <S.Main
+        style={{ '--glow-rgb': rarityGlowRgb(rarity), '--glow-core': rarityGlowCoreRgb(rarity) } as CSSProperties}
+      >
         <S.Preview data-testid="item-preview">
           {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
               stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
