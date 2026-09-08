@@ -17,6 +17,7 @@ const jsonRpcProviderCtor = vi.fn()
 // deps don't get loaded when importing ~/lib/trades.
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
+    OffChainMarketplaceV3: 'OffChainMarketplaceV3',
     OffChainMarketplaceV2: 'OffChainMarketplaceV2',
     MANAToken: 'MANAToken',
     ERC721CollectionV2: 'ERC721CollectionV2'

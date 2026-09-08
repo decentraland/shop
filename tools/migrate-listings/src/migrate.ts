@@ -9,6 +9,11 @@ import type { MigrationSigner } from './signer'
 import type { ClassicListing, MigrationEntry, OracleSnapshot } from './types'
 
 // Stable idempotency key per (item, seller, chain) — independent of price/salt (MIGRATION_SPEC §8).
+//
+// Deliberately pinned to V2 rather than following the newest marketplace: this key is what says "already
+// migrated". Letting it move with the version would change every key the day a new marketplace ships, and
+// the tool would re-migrate everything it had already done. The address here is a dedupe token, not the
+// contract anything is signed against — that comes from getLatestOffChainMarketplace in prepare.ts.
 function idempotencyKey(l: ClassicListing): string {
   const market = getContract(ContractName.OffChainMarketplaceV2, l.chainId)
   const target = l.tokenId ?? l.itemId ?? ''

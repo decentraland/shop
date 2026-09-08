@@ -9,6 +9,7 @@ import {
   readProvider,
   type ShopAuthorization
 } from '~/lib/authorizations'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import { getIsProceedsToTreasuryEnabled, getIsSecondarySalesEnabled } from '~/lib/featureFlags'
 
@@ -149,7 +150,7 @@ type IndexContract = ethers.Contract & {
 // offchain marketplace is a minter of the collection — the trade signature alone doesn't grant mint
 // rights (BUILDER_LISTING_SPEC §4.2).
 function minterAuthorization(contractAddress: string, chainId: ChainId): ShopAuthorization {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     kind: AuthorizationKind.Minter,
     contractAddress,
@@ -185,7 +186,7 @@ export async function createUsdPeggedListing(opts: {
   const { signer, nft, usdPrice, expiresAtMs, fingerprint = '' } = opts
   const seller = (await signer.getAddress()).toLowerCase()
 
-  const market = getContract(ContractName.OffChainMarketplaceV2, nft.chainId)
+  const market = getLatestOffChainMarketplaceContract(nft.chainId)
   const mana = getContract(ContractName.MANAToken, nft.chainId)
 
   // Read signature indices from the target-chain RPC (not the wallet's network).
@@ -289,7 +290,7 @@ export async function createPrimaryUsdPeggedListing(opts: {
   const { signer, item, usdPrice, expiresAtMs } = opts
   const creator = (await signer.getAddress()).toLowerCase()
 
-  const market = getContract(ContractName.OffChainMarketplaceV2, item.chainId)
+  const market = getLatestOffChainMarketplaceContract(item.chainId)
   const mana = getContract(ContractName.MANAToken, item.chainId)
 
   // Read signature indices from the target-chain RPC (not the wallet's network).

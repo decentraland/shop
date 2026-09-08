@@ -390,6 +390,12 @@ type ShopListingRaw = {
   network: string
   chainId: number
   isSmart?: boolean
+  /**
+   * Whether an emote loops. Absent until the marketplace-server change ships: the unified feed flattens
+   * its rows and does not carry `data.emote` today, so the card simply shows no play-mode badge until it
+   * does. The column exists (`item.search_emote_loop`) — only the SELECT is missing it.
+   */
+  emoteLoop?: boolean
   // Secondary (per-token) rows only: the token's current owner (the reseller) + its mint index. Added
   // to the shop feed so the PDP resale list can show who's selling + the serial number WITHOUT an N+1
   // /v1/nfts lookup per row. Absent until the marketplace-server change ships — the PDP falls back to
@@ -439,6 +445,9 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     priceCredits: l.priceCredits,
     gender: l.gender ?? null,
     isSmart: l.isSmart ?? false,
+    // Passed through undefined rather than defaulted: `false` means "plays once", so a default would
+    // invent a play mode for every wearable.
+    emoteLoop: l.emoteLoop,
     // Only meaningful for primary listings; secondary rows carry a per-token value the PDP ignores.
     available: l.listingType === 'primary' ? l.available : undefined,
     // Per-token secondary fields (reseller + mint index), when the feed provides them. The PDP prefers

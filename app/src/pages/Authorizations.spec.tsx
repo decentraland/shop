@@ -38,9 +38,15 @@ vi.mock('~/lib/api', () => ({
 }))
 
 const getAuthorizationStatus = vi.fn()
+/**
+ * The superseded-version rows. Empty by default so the existing tests see exactly one row per permission,
+ * which is what a chain with a single deployed marketplace renders.
+ */
+const getLegacyMarketplaceAuthorizations = vi.fn<() => unknown[]>(() => [])
 const setAuthorization = vi.fn()
 vi.mock('~/lib/authorizations', () => ({
   AuthorizationKind: { Allowance: 'allowance', Approval: 'approval', Minter: 'minter' },
+  getLegacyMarketplaceAuthorizations: () => getLegacyMarketplaceAuthorizations(),
   getAuthorizationStatus: (...args: unknown[]) => getAuthorizationStatus(...args),
   setAuthorization: (...args: unknown[]) => setAuthorization(...args),
   getCreditsAuthorization: (chainId: number) => ({
@@ -135,6 +141,7 @@ beforeEach(() => {
   fetchContractRegistry.mockResolvedValue(new Map<string, string>())
   fetchCreatorCollections.mockResolvedValue([])
   getAuthorizationStatus.mockResolvedValue(false)
+  getLegacyMarketplaceAuthorizations.mockReturnValue([])
   setAuthorization.mockResolvedValue(undefined)
 })
 
@@ -268,5 +275,98 @@ describe('when the visitor uses a self-custody (web3) wallet', () => {
     fetchCreatorCollections.mockResolvedValueOnce([])
     renderPage()
     expect(await screen.findByText(/Approvals for minting appear here/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * Superseded marketplace versions. Grants only ever target the newest, so a row for an older one exists
+ * for exactly one reason: something granted before the newer version shipped is still live on chain and
+ * has to be revocable. A row for a version nobody holds is noise, which is what `revokeOnly` decides.
+ */
+describe('when a superseded marketplace version is still deployed on the chain', () => {
+  const LEGACY_ID = 'mana-marketplace@0xlegacymarketplace'
+
+  beforeEach(() => {
+    getLegacyMarketplaceAuthorizations.mockReturnValue([
+      {
+        id: LEGACY_ID,
+        group: 'buying',
+        kind: 'allowance',
+        contractAddress: '0xmana',
+        spenderAddress: '0xlegacymarketplace',
+        chainId: 80002
+      }
+    ])
+  })
+
+  describe('and the wallet still holds a grant on it', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockResolvedValue(true)
+    })
+
+    it('should render a row for it, so the grant can be taken back', async () => {
+      renderPage()
+
+      expect(await screen.findByTestId(`authorization-toggle-${LEGACY_ID}`)).toBeInTheDocument()
+    })
+  })
+
+  describe('and the user revokes it', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockResolvedValue(true)
+    })
+
+    // The whole reason these rows exist. Revoking has to target the SUPERSEDED spender — targeting the
+    // current one would leave the old grant live while claiming to have removed it.
+    it('should revoke against the superseded marketplace, not the current one', async () => {
+      renderPage()
+      const toggle = await screen.findByTestId(`authorization-toggle-${LEGACY_ID}`)
+
+      await userEvent.click(toggle)
+
+      await waitFor(() => expect(setAuthorization).toHaveBeenCalledTimes(1))
+      expect(setAuthorization).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auth: expect.objectContaining({ id: LEGACY_ID, spenderAddress: '0xlegacymarketplace' }),
+          active: false
+        })
+      )
+    })
+  })
+
+  describe('and the status read fails', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockRejectedValue(new Error('rpc down'))
+    })
+
+    // The row is the only way to revoke. Hiding it because the read failed would take it away from the one
+    // user who actually holds the grant, at exactly the moment the chain is hard to reach.
+    it('should keep the row rather than hide a grant it could not read', async () => {
+      renderPage()
+
+      expect(await screen.findByTestId(`authorization-toggle-${LEGACY_ID}`)).toBeInTheDocument()
+    })
+  })
+
+  describe('and the wallet holds no grant on it', () => {
+    beforeEach(() => {
+      getAuthorizationStatus.mockResolvedValue(false)
+    })
+
+    // waitFor, not a bare assertion: the row is only hidden once the status read RESOLVES false. While it is
+    // in flight `active` is undefined and the row stays — deliberately, so an RPC error cannot silently drop
+    // the row of the one user who actually holds the grant.
+    it('should render no row for it once the status resolves', async () => {
+      renderPage()
+      await screen.findByTestId('authorization-toggle-credits')
+
+      await waitFor(() => expect(screen.queryByTestId(`authorization-toggle-${LEGACY_ID}`)).not.toBeInTheDocument())
+    })
+
+    it('should still render the current version row', async () => {
+      renderPage()
+
+      expect(await screen.findByTestId('authorization-toggle-mana-marketplace')).toBeInTheDocument()
+    })
   })
 })

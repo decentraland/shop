@@ -1147,6 +1147,7 @@
     "creditsName": "Completar una compra con MANA",
     "creditsDesc": "Permite que el Shop tome MANA para cubrir la parte que tus créditos no alcanzan, cuando pagas con los dos.",
     "manaName": "Pagar una compra entera con MANA",
+    "previousVersion": "(versión anterior)",
     "manaDesc": "Permite que el Shop tome MANA cuando pagas un artículo enteramente en MANA, sin gastar créditos.",
     "sellingDesc": "Permite que el Shop transfiera artículos de esta colección cuando se vendan. Abarca la colección completa, no un solo artículo.",
     "sellingEmpty": "Todavía no hay nada que autorizar. Las autorizaciones para vender aparecen aquí cuando tienes coleccionables.",

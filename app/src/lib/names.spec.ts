@@ -33,6 +33,7 @@ vi.mock('ethers', async importOriginal => {
 // load; stub it so its ESM/cross-chain deps don't get evaluated. Real ethers stays.
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
+    OffChainMarketplaceV3: 'OffChainMarketplaceV3',
     OffChainMarketplaceV2: 'OffChainMarketplaceV2',
     MANAToken: 'MANAToken',
     CreditsManager: 'CreditsManager'

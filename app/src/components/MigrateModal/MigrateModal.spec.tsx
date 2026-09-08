@@ -8,7 +8,7 @@ import type { Session } from '~/lib/auth'
 // The modal pulls decentraland-transactions transitively through ~/lib/import; stub it so the module
 // graph resolves under jsdom.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
+  ContractName: { OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
   getContract: () => ({ address: '0xmarket', name: 'DecentralandMarketplacePolygon', version: '1', abi: [] })
 }))
 
