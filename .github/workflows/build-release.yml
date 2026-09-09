@@ -23,23 +23,11 @@ on:
         required: true
         default: '100'
 
-# Only ONE release run at a time, repo-wide.
-#
-# This workflow calls oddish TWICE and each call derives the version from the REGISTRY, independently:
-# `Set package.json version` writes it into package.json, the Build bakes it into every asset URL
-# (vite.config's `base`), and `Publish` then recomputes it. The two agree only as long as nothing
-# publishes @dcl/shop in between.
-#
-# On 2026-09-09 something did. Merging #419 (push) and cutting release 1.12.1 started two runs 13s
-# apart: the push run computed 1.12.1-<runId> and baked that path into index.html, the release run
-# published stable 1.12.1 while the push run was still building, and the push run's Publish step then
-# recomputed to 1.12.2-<runId> and published there. The result was a package whose HTML pointed at a
-# path that was never published — every asset 404, a blank shop on zone and today, and a green run,
-# because nothing had failed.
-#
-# `cancel-in-progress: false` because these runs publish: a release must wait, never be dropped for
-# being slower. Note GitHub keeps at most one PENDING run per group, so a third run queued while one is
-# already waiting cancels the waiting one — visible as a cancelled run, unlike the silent breakage above.
+# One release run at a time, repo-wide. The version is derived from the REGISTRY twice — `Set
+# package.json version` writes it, the Build bakes it into every asset URL (vite.config's `base`), and
+# `Publish` recomputes it — so anything publishing @dcl/shop in between leaves the HTML pointing at a
+# path that was never published. `cancel-in-progress: false` because these runs publish: a release must
+# wait, never be dropped for being slower.
 concurrency:
   group: build-release
   cancel-in-progress: false
@@ -58,6 +46,8 @@ concurrency:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    # ~4min to build, plus the Publish step's registry poll (registry-wait-attempts 60 x 15s = 15min).
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
@@ -132,6 +122,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     needs: build-and-publish
     runs-on: ubuntu-latest
+    # The CDN propagation poll below is 60 attempts x 15s = 15min; the rollout itself is immediate.
+    timeout-minutes: 20
     steps:
       - name: Wait for CDN propagation
         env:
