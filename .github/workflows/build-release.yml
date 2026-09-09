@@ -23,6 +23,15 @@ on:
         required: true
         default: '100'
 
+# One release run at a time, repo-wide. The version is derived from the REGISTRY twice — `Set
+# package.json version` writes it, the Build bakes it into every asset URL (vite.config's `base`), and
+# `Publish` recomputes it — so anything publishing @dcl/shop in between leaves the HTML pointing at a
+# path that was never published. `cancel-in-progress: false` because these runs publish: a release must
+# wait, never be dropped for being slower.
+concurrency:
+  group: build-release
+  cancel-in-progress: false
+
 # The frontend lives in app/. We publish the built app/ as the @dcl/shop npm package; the DCL CDN
 # serves it and the `shop` site in the definitions repo maps it to a domain (see definitions PR).
 #
@@ -37,6 +46,8 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    # ~4min to build, plus the Publish step's registry poll (registry-wait-attempts 60 x 15s = 15min).
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
@@ -111,6 +122,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     needs: build-and-publish
     runs-on: ubuntu-latest
+    # The CDN propagation poll below is 60 attempts x 15s = 15min; the rollout itself is immediate.
+    timeout-minutes: 20
     steps:
       - name: Wait for CDN propagation
         env:
