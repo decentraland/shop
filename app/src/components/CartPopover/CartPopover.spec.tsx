@@ -79,3 +79,16 @@ describe('the cart popover CTAs', () => {
     expect(screen.getByRole('button', { name: /continue shopping/i })).toBeInTheDocument()
   })
 })
+
+// The minus button stays live at quantity 1: the store turns that last step into a removal, so the
+// stepper must never park disabled and leave the trash button as the only way out.
+describe('the quantity stepper', () => {
+  it('should keep minus enabled at quantity 1 and hand the step to the store', () => {
+    renderPopover()
+
+    const minus = screen.getByRole('button', { name: /decrease quantity of cool hat/i })
+    expect(minus).toBeEnabled()
+    minus.click()
+    expect(cart.decrement).toHaveBeenCalledWith('item-1')
+  })
+})
