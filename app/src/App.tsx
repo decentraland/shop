@@ -93,6 +93,20 @@ function RenamedPathRedirect({ to }: { to: string }) {
   return <Navigate to={`${to}${rest ? `/${rest}` : ''}${search}${hash}`} replace />
 }
 
+// Alias to a fixed path, carrying the incoming query and hash. The root alias needs it most: every
+// in-world entry point opens `/?utm_source=client`, and Segment resolves the landing page view when
+// analytics.js finishes loading — long after a plain <Navigate> would have dropped the tag.
+//
+// `to`'s own params win a collision, since they are what the alias exists to point at.
+export function AliasRedirect({ to }: { to: string }) {
+  const { search, hash } = useLocation()
+  const [path, ownQuery] = to.split('?')
+  const params = new URLSearchParams(search)
+  for (const [key, value] of new URLSearchParams(ownQuery)) params.set(key, value)
+  const query = params.toString()
+  return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
+}
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
@@ -165,12 +179,12 @@ export function App() {
                 path prefix, so on hosts that serve the app at the root (Vercel previews, localhost)
                 that URL would be read as the app's mount point, not as a route. */}
             <Routes>
-              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route path="/" element={<AliasRedirect to="/overview" />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/items" element={<Assets />} />
               {/* Items is the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
-              <Route path="/market" element={<Navigate to="/items" replace />} />
+              <Route path="/market" element={<AliasRedirect to="/items" />} />
               {/* Two detail routes so the id is never ambiguous (an itemId and a tokenId can collide —
                   item 0's tokens have small tokenIds). /item is the generic buy view; /token is a
                   specific owned/listed copy. Both render ItemDetail, which branches on the param. */}
@@ -189,7 +203,7 @@ export function App() {
               <Route path="/activity" element={<Activity />} />
               {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
                   existing links (e.g. the Success page, bookmarks) don't 404. */}
-              <Route path="/my-purchases" element={<Navigate to="/activity" replace />} />
+              <Route path="/my-purchases" element={<AliasRedirect to="/activity" />} />
               {/* /assets and /my-assets were renamed to /items and /my-items when the user-facing noun
                   became "item". The old paths MUST stay: /assets is published in public/sitemap.xml, so it
                   is indexed, and creator storefronts (/assets/creator/:address) and outfit pages
@@ -202,7 +216,7 @@ export function App() {
               {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
                   it has been the target of the My Items nudge for months, so it is in histories and
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}
-              <Route path="/import" element={<Navigate to="/activity?section=listings" replace />} />
+              <Route path="/import" element={<AliasRedirect to="/activity?section=listings" />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/authorizations" element={<Authorizations />} />
               {/* Selling credits is the one thing the Shop cannot do inside the iOS app's web view — the

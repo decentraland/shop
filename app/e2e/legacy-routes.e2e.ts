@@ -45,3 +45,33 @@ describe('the renamed browse routes', () => {
     }
   })
 })
+
+// [alias url, expected pathname, expected search].
+const ALIASES: ReadonlyArray<readonly [string, string, string]> = [
+  ['/', '/overview', ''],
+  // THE one that matters. Every in-world entry point opens `/?utm_source=client`, so a redirect that
+  // dropped the query discarded the whole client surface's attribution — and it could only ever be caught
+  // here, in a real browser: the landing page view is resolved by Segment when analytics.js finishes
+  // loading, by which time the redirect has long since run.
+  ['/?utm_source=client', '/overview', '?utm_source=client'],
+  ['/?utm_source=client&utm_campaign=sidebar', '/overview', '?utm_source=client&utm_campaign=sidebar'],
+  ['/market?q=hat', '/items', '?q=hat'],
+  ['/my-purchases', '/activity', ''],
+  // The only alias whose target carries its own query, so the two get merged rather than concatenated.
+  ['/import', '/activity', '?section=listings'],
+  ['/import?utm_source=client', '/activity', '?utm_source=client&section=listings']
+]
+
+describe('the aliases that forward to a fixed path', () => {
+  it('keeps the query across the hop', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    for (const [from, pathname, search] of ALIASES) {
+      await page.goto(`${BASE}${from}`, { waitUntil: 'networkidle2', timeout: 45000 })
+      await page.waitForFunction(p => window.location.pathname === p, { timeout: 20000 }, pathname)
+      const landed = await page.evaluate(() => window.location.pathname + window.location.search)
+      expect([from, landed]).toEqual([from, `${pathname}${search}`])
+    }
+  })
+})
