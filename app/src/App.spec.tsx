@@ -74,5 +74,20 @@ describe('AliasRedirect', () => {
 
       expect(getByTestId('location').textContent).toBe('/activity?section=listings')
     })
+
+    // Splitting on every '?' would drop `b=2` here, and so would split('?', 2) — its limit caps the array
+    // rather than stopping the split.
+    it('keeps everything past a second question mark', () => {
+      const { getByTestId } = render(
+        <MemoryRouter initialEntries={['/import']}>
+          <Routes>
+            <Route path="/import" element={<AliasRedirect to="/activity?a=1?b=2" />} />
+            <Route path="/activity" element={<Probe />} />
+          </Routes>
+        </MemoryRouter>
+      )
+
+      expect(getByTestId('location').textContent).toBe('/activity?a=1%3Fb%3D2')
+    })
   })
 })

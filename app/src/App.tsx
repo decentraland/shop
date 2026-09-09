@@ -100,9 +100,12 @@ function RenamedPathRedirect({ to }: { to: string }) {
 // `to`'s own params win a collision, since they are what the alias exists to point at.
 export function AliasRedirect({ to }: { to: string }) {
   const { search, hash } = useLocation()
-  const [path, ownQuery] = to.split('?')
+  // Split on the FIRST '?' only and keep the rest verbatim: `split('?')` would discard everything past a
+  // second one, and `split('?', 2)` is not a maxsplit in JS — it caps the array, dropping the tail all the same.
+  const mark = to.indexOf('?')
+  const path = mark === -1 ? to : to.slice(0, mark)
   const params = new URLSearchParams(search)
-  for (const [key, value] of new URLSearchParams(ownQuery)) params.set(key, value)
+  for (const [key, value] of new URLSearchParams(mark === -1 ? '' : to.slice(mark + 1))) params.set(key, value)
   const query = params.toString()
   return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
 }
