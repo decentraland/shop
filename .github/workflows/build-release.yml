@@ -23,6 +23,27 @@ on:
         required: true
         default: '100'
 
+# Only ONE release run at a time, repo-wide.
+#
+# This workflow calls oddish TWICE and each call derives the version from the REGISTRY, independently:
+# `Set package.json version` writes it into package.json, the Build bakes it into every asset URL
+# (vite.config's `base`), and `Publish` then recomputes it. The two agree only as long as nothing
+# publishes @dcl/shop in between.
+#
+# On 2026-09-09 something did. Merging #419 (push) and cutting release 1.12.1 started two runs 13s
+# apart: the push run computed 1.12.1-<runId> and baked that path into index.html, the release run
+# published stable 1.12.1 while the push run was still building, and the push run's Publish step then
+# recomputed to 1.12.2-<runId> and published there. The result was a package whose HTML pointed at a
+# path that was never published — every asset 404, a blank shop on zone and today, and a green run,
+# because nothing had failed.
+#
+# `cancel-in-progress: false` because these runs publish: a release must wait, never be dropped for
+# being slower. Note GitHub keeps at most one PENDING run per group, so a third run queued while one is
+# already waiting cancels the waiting one — visible as a cancelled run, unlike the silent breakage above.
+concurrency:
+  group: build-release
+  cancel-in-progress: false
+
 # The frontend lives in app/. We publish the built app/ as the @dcl/shop npm package; the DCL CDN
 # serves it and the `shop` site in the definitions repo maps it to a domain (see definitions PR).
 #
