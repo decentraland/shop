@@ -42,6 +42,60 @@ export function rarityTint(rarity?: string | null, alpha = 0.3): string {
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`
 }
 
+// Glow-only overrides; chips, filters and links keep their tokens. The purple field's complement sits
+// near hue 100, so exotic's yellow-green token muds as it fades — it moves clear of that and drops some
+// core saturation, and rare moves far enough round to stay distinct from it.
+const GLOW_COLORS: Record<string, { color: string; saturation?: number }> = {
+  exotic: { color: '#44c75b', saturation: 0.81 },
+  rare: { color: '#3fd39a' }
+}
+
+function glowEntry(rarity?: string | null) {
+  return GLOW_COLORS[(rarity ?? '').toLowerCase()]
+}
+
+function glowColor(rarity?: string | null): string {
+  return glowEntry(rarity)?.color || rarityColor(rarity)
+}
+
+// The glow's outer halo, as a bare "r g b" triple for the rgb(R G B / a) stops that need the same hue
+// at more than one alpha.
+export function rarityGlowRgb(rarity?: string | null): string {
+  const rgb = parseHex(glowColor(rarity))
+  return rgb ? rgb.join(' ') : '160 155 168'
+}
+
+// The glow's hot centre: the same hue at a fixed saturation and lightness, so every item is backlit as
+// strongly and only the hue changes. Legendary and epic would otherwise sink into the purple page.
+export function rarityGlowCoreRgb(rarity?: string | null, lightness = 0.66, saturation?: number): string {
+  const rgb = parseHex(glowColor(rarity))
+  if (!rgb) return '160 155 168'
+  const sat = saturation ?? glowEntry(rarity)?.saturation ?? 0.95
+  const [r, g, b] = rgb.map(c => c / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const delta = max - min
+  // Achromatic: no hue to saturate, and grey's hue angle of 0 would invent red.
+  if (!delta) return rgb.join(' ')
+  let hue: number
+  if (max === r) hue = (g - b) / delta
+  else if (max === g) hue = (b - r) / delta + 2
+  else hue = (r - g) / delta + 4
+  hue = (((hue * 60) % 360) + 360) % 360
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * sat
+  const second = chroma * (1 - Math.abs(((hue / 60) % 2) - 1))
+  const lift = lightness - chroma / 2
+  const sector = [
+    [chroma, second, 0],
+    [second, chroma, 0],
+    [0, chroma, second],
+    [0, second, chroma],
+    [second, 0, chroma],
+    [chroma, 0, second]
+  ][Math.floor(hue / 60) % 6]
+  return sector.map(channel => Math.round((channel + lift) * 255)).join(' ')
+}
+
 // Ink color for the TINTED rarity chip: the rarity's own hue, but darkened enough to stay legible on
 // its pale (30% alpha over white) background. Light rarities — exotic (#CAFF73 lime), unique (#FFB626
 // amber), common (#ABC1C1 grey) — are near-white and would vanish as text at full saturation, so we
@@ -99,4 +153,18 @@ export function rarityGradient(rarity?: string | null): string {
   } catch {
     return FALLBACK_GRADIENT
   }
+}
+
+// Rarity background for an item's media area, replacing the flat neutral fill so a grid of cards reads
+// as coloured the way unity-explorer does. Light at the centre so the artwork still recuts against it,
+// the colour gathering toward the edges.
+//
+// Tinted from rarityColor — the design palette — rather than the schema's own gradient, so the
+// background and the card's rarity chip are the same hue. The schema gradient was the alternative and
+// was rejected: it is more saturated than this whole surface wants, and it disagrees with the chip.
+export function rarityMedia(rarity?: string | null): string {
+  const rgb = parseHex(rarityColor(rarity))
+  if (!rgb) return 'none'
+  const [r, g, b] = rgb
+  return `radial-gradient(circle at 50% 38%, rgba(${r}, ${g}, ${b}, 0.04) 0%, rgba(${r}, ${g}, ${b}, 0.3) 50%, rgba(${r}, ${g}, ${b}, 0.62) 100%)`
 }

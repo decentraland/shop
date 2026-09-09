@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
@@ -62,7 +62,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
-import { rarityColor, rarityDescription } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
@@ -1208,7 +1208,9 @@ export function ItemDetail() {
         <S.CrumbCurrent>{current.name || t('itemDetail.itemFallback')}</S.CrumbCurrent>
       </S.Crumbs>
 
-      <S.Main>
+      <S.Main
+        style={{ '--glow-rgb': rarityGlowRgb(rarity), '--glow-core': rarityGlowCoreRgb(rarity) } as CSSProperties}
+      >
         <S.Preview data-testid="item-preview">
           {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
               stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
@@ -1217,7 +1219,7 @@ export function ItemDetail() {
             <ItemPreview item={current} />
           ) : (
             <S.PreviewLoading aria-busy="true" aria-label={t('itemPreview.loading')}>
-              <span className="skeleton" aria-hidden />
+              <S.PreviewSkeleton className="skeleton" aria-hidden />
             </S.PreviewLoading>
           )}
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).

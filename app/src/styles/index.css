@@ -107,6 +107,37 @@ body {
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
 }
+/* Travels exactly one tile, so the wrap is seamless. Moves background-position rather than the element,
+   whose mask a transform would drag along with the tiles. */
+@keyframes symbol-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -610px -610px;
+  }
+}
+/* DCL symbols drifting over the purple field, kept to the periphery by an inverse vignette. Its own
+   layer rather than a second body background-image: the sheet is grayscale with no alpha, and background
+   layers have no per-layer opacity — hence the faint wash the low opacity leaves over the rim. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("../images/background/DCL_LogoPattern.png") 0 0 repeat;
+  background-size: 610px 610px;
+  opacity: 0.03;
+  animation: symbol-drift 150s linear infinite;
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 45%, transparent 25%, #000 85%);
+  mask-image: radial-gradient(75% 70% at 50% 45%, transparent 25%, #000 85%);
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+}
 /* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
    panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
    BAND behind the panels (Figma draws it as a rect over the artboard, not as a page background), which

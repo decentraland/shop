@@ -40,6 +40,23 @@ const Wrap = styled.div`
 // cross-origin iframe never surfaces its internal content-URL tooltip.
 const IFRAME_ID = 'hover-preview'
 
+// Poses a hovered WEARABLE can strike. It used to be FASHION and only FASHION, so every card in the
+// grid played the identical animation and the rail read as one avatar copy-pasted. Restricted to poses
+// that keep the avatar planted and framed inside a card-sized viewport — walk/run/jump translate it out
+// of frame, and idle is what the shopper is hovering to get away from.
+const HOVER_POSES = [
+  PreviewEmote.FASHION,
+  PreviewEmote.FASHION_2,
+  PreviewEmote.FASHION_3,
+  PreviewEmote.FASHION_4,
+  PreviewEmote.DANCE,
+  PreviewEmote.LOVE,
+  PreviewEmote.MONEY,
+  PreviewEmote.WAVE,
+  PreviewEmote.CLAP,
+  PreviewEmote.FIST_PUMP
+]
+
 // Path prefixes of the surfaces that mount a heavy WearablePreview of their own: the item PDP
 // (/item/*, /token/*), the outfit detail page and the outfit studio. Prefixes rather than exact
 // routes, so anything nested under them counts too. None of these show card hover previews.
@@ -73,6 +90,10 @@ export function HoverPreviewLayer() {
   // The token we last asked the engine to load — a LOAD only means "ready" if it still matches.
   const loadingTokenRef = useRef(-1)
   const [rect, setRect] = useState<DOMRect | null>(null)
+  // The pose is drawn ONCE per hover and held for it: the UPDATE effect re-runs on boot/avatar changes
+  // too, and re-rolling there would snap the avatar into a different animation mid-hover. Keyed on the
+  // store's hover token, which bumps on show() and ignores re-entering the same card.
+  const poseRef = useRef({ token: -1, emote: HOVER_POSES[0] })
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === 'function') {
@@ -115,6 +136,15 @@ export function HoverPreviewLayer() {
     }
   }, [anchor])
 
+  // A fresh pose per hover, never the same one twice running — a repeat reads as the feature not working.
+  function poseFor(hoverToken: number) {
+    if (poseRef.current.token !== hoverToken) {
+      const options = HOVER_POSES.filter(e => e !== poseRef.current.emote)
+      poseRef.current = { token: hoverToken, emote: options[Math.floor(Math.random() * options.length)] }
+    }
+    return poseRef.current.emote
+  }
+
   // Point the warm engine at the hovered item. Re-runs when the item/token changes, and once more when
   // the engine boots (so an item hovered before boot still loads). UPDATE is dropped by the app before
   // it's READY, hence the boot gate + resend.
@@ -147,10 +177,10 @@ export function HoverPreviewLayer() {
       options: {
         ...urnOptions,
         profile: onAvatar ? address : 'default',
-        // Load straight into the fashion pose (like the per-card previews) so the avatar doesn't flash
-        // a T-pose; emotes auto-detect + play their own animation.
+        // Load straight into a pose so the avatar doesn't flash a T-pose; emotes auto-detect + play
+        // their own animation.
         type: isEmote ? undefined : PreviewType.AVATAR,
-        emote: isEmote ? undefined : PreviewEmote.FASHION,
+        emote: isEmote ? undefined : poseFor(token),
         disableBackground: true,
         disableFadeEffect: true
       }

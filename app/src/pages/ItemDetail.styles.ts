@@ -55,14 +55,49 @@ export const CrumbCurrent = styled.span`
 
 // Two-column hero: preview left (1045), info right (514), 48px gap. Inset vs the full-width breadcrumb.
 export const Main = styled.div`
+  position: relative;
+  /* Confines the glow's negative z-index, which would otherwise escape to the root stacking context. */
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
   align-items: start;
 
+  /* Preview column width, re-derived from the tracks above so the glow's pivot cannot drift. */
+  --preview-col-w: calc((100% - 48px) * 1045 / 1559);
+  /* Oversized so the glow reaches past the frame while the gradient still finishes fading inside its
+     own box: the radii cannot exceed 50% without ending outside the box and painting a hard rectangle. */
+  --glow-box: 1.76;
+
+  /* Avatar glow, hung off the grid container because the preview frame clips its own overflow. Sits
+     under the frame and, by document order, above the body symbols on the same z-index. */
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    top: 0;
+    left: calc(var(--preview-col-w) / 2);
+    width: calc(var(--preview-col-w) * var(--glow-box));
+    aspect-ratio: 1045 / 752;
+    transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
+    background: radial-gradient(
+      50% 50% at 50% 52%,
+      rgb(var(--glow-core, ${colors.glowCyanRgb})) 0%,
+      rgb(var(--glow-rgb, ${colors.glowCyanRgb}) / 0.9) 20%,
+      45%,
+      rgb(var(--glow-rgb, ${colors.glowCyanRgb}) / 0) 100%
+    );
+  }
+
   ${media.maxWidth('lg')} {
     grid-template-columns: 1fr;
     gap: 24px;
+
+    /* The track maths is desktop-only; one column puts the pivot nowhere meaningful. */
+    &::before {
+      display: none;
+    }
   }
 `
 
@@ -74,10 +109,6 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* Light surface, deliberately AGAINST the Figma's translucent black (1052:151284): the dark violet
-     backdrop muted every item, so the preview keeps the light stage. The iframe is transparent — this
-     is the scene's backdrop. */
-  background: ${colors.media};
 
   /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
      shell's gutter instead of sitting inside it. No transform, which would make this the containing block
@@ -95,6 +126,20 @@ export const Preview = styled.div`
     height: 100%;
     border: 0;
     display: block;
+  }
+
+  /* Soft edges so legs and the cast shadow dissolve instead of being sliced by the overflow clip — on the
+     iframe alone, so the pills and note stay crisp, and intersected linears rather than one radial, which
+     would round the corners. The bands stay clear of the controls aang draws ~40px inside its canvas. */
+  & iframe {
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
+    mask-composite: intersect;
   }
 
   /* Invisible viewport sentinel for the IntersectionObserver that pauses the preview off-screen.
