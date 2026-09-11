@@ -1229,7 +1229,7 @@ export function ItemDetail() {
             <S.Fav
               data-fav-preview
               data-on={faved || undefined}
-              onClick={() => toggleFav(current)}
+              onClick={() => toggleFav(current, 'item_detail')}
               aria-pressed={faved}
               aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
             >
@@ -1263,7 +1263,7 @@ export function ItemDetail() {
                   <S.Fav
                     data-fav-title
                     data-on={faved || undefined}
-                    onClick={() => toggleFav(current)}
+                    onClick={() => toggleFav(current, 'item_detail')}
                     aria-pressed={faved}
                     aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                   >
