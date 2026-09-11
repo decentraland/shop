@@ -237,15 +237,20 @@ export const ImportBanner = styled(ManaPricingBanner)`
 `
 
 // The creator's sales, above the creations grid: a header with the one action, then the running sales.
+/**
+ * Shaped like the page's other in-page nudge, `ManaPricingBanner`: a tinted strip with no border, not a
+ * bordered grey slab. Both sit in the same column on My Items and ask the creator to do something, so they
+ * should read as the same kind of thing — the plain `panel` fill made this one look like an unstyled box
+ * next to it.
+ */
 export const SalesPanel = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid ${theme.colors.line};
-  border-radius: ${theme.radius.card};
-  background: ${theme.colors.panel};
+  padding: 12px 8px 12px 16px;
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.promptLilac};
 `
 
 export const SalesHead = styled.div`
