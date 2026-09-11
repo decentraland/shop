@@ -30,8 +30,11 @@ export type SaleableCollection = {
   contractAddress: string
   name: string
   listedCount: number
-  /** The cheapest listed price, for the example line. Null when unknown. */
-  minPriceCredits: number | null
+  /**
+   * The highest listed price, for the example line. The highest rather than the cheapest because a 1-credit
+   * item rounds any discount away and the example would read "1 credit sells for 1 credit". Null when unknown.
+   */
+  examplePriceCredits: number | null
 }
 
 const PCT_PRESETS = [10, 20, 30, 50]
@@ -129,9 +132,10 @@ export function CreatorSaleModal({
   const example = useMemo(() => {
     const prices = collections
       .filter(c => selected.includes(c.contractAddress))
-      .map(c => c.minPriceCredits ?? 0)
+      .map(c => c.examplePriceCredits ?? 0)
       .filter(p => p > 0)
-    const price = prices.length ? Math.min(...prices) : 10
+    const price = prices.length ? Math.max(...prices) : 100
+    // Whole credits, rounded up: the same rule the checkout applies to the discounted amount.
     const sale = Math.max(1, Math.ceil((price * (100 - (Number.isFinite(pct) ? pct : 0))) / 100))
     return { price, sale }
   }, [collections, selected, pct])
@@ -447,7 +451,9 @@ export function CreatorSaleModal({
         </S.Field>
 
         <S.Preview data-testid="creator-sale-preview">
-          {t('creatorSale.preview', { price: example.price, sale: example.sale })}
+          {example.sale < example.price
+            ? t('creatorSale.preview', { price: example.price, sale: example.sale })
+            : t('creatorSale.previewNoChange', { price: example.price })}
         </S.Preview>
 
         {status ? <S.Status>{status}</S.Status> : null}

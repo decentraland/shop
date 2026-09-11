@@ -327,11 +327,10 @@ export function MyAssets() {
         contractAddress: key,
         name: item.collectionName,
         listedCount: 0,
-        minPriceCredits: null
+        examplePriceCredits: null
       }
       entry.listedCount += 1
-      entry.minPriceCredits =
-        entry.minPriceCredits === null ? sale.priceCredits : Math.min(entry.minPriceCredits, sale.priceCredits)
+      entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
       byAddress.set(key, entry)
     }
     return [...byAddress.values()]
