@@ -19,8 +19,19 @@ vi.mock('~/lib/favorites', async importOriginal => ({
 vi.mock('~/lib/api', () => ({ fetchCatalogByIds }))
 vi.mock('~/lib/monitoring', () => ({ captureError }))
 
+// Analytics is mocked so the tracking side-effects can be asserted without Segment; the two pure
+// helpers keep their real behaviour so price_usd and is_primary assertions mean something.
+vi.mock('~/lib/analytics', () => ({
+  track: vi.fn(),
+  creditsToUsd: (credits: number) => Math.round(credits * 10) / 100,
+  isPrimaryItem: (item: { tokenId?: string }) => !item.tokenId
+}))
+
 import { useFavorites } from '~/store/favorites'
 import { useToast } from '~/store/toast'
+import { track } from '~/lib/analytics'
+
+const trackMock = vi.mocked(track)
 
 const IDENTITY = {} as AuthIdentity
 
@@ -323,5 +334,61 @@ describe('when signed in (server-backed)', () => {
     useFavorites.getState().retry()
     await vi.waitFor(() => expect(useFavorites.getState().status).toBe('ready'))
     expect(useFavorites.getState().items[keyOf('a')]).toBeUndefined()
+  })
+})
+
+describe('tracking', () => {
+  it('should track an add with the item, the click source and the resulting size', () => {
+    useFavorites.getState().toggle(makeItem('a'), 'grid')
+    expect(trackMock).toHaveBeenCalledWith('Shop Added To Favorites', {
+      item_id: 'a',
+      contract_address: '0xcontract',
+      price_credits: 100,
+      price_usd: 10,
+      category: 'wearable',
+      is_smart: false,
+      is_primary: true,
+      source: 'grid',
+      favorites_size: 1
+    })
+  })
+
+  it('should track a removal when the same item is toggled off', () => {
+    const a = makeItem('a')
+    useFavorites.getState().toggle(a, 'grid')
+    useFavorites.getState().toggle(a, 'item_detail')
+    expect(trackMock).toHaveBeenLastCalledWith('Shop Removed From Favorites', {
+      item_id: 'a',
+      source: 'item_detail',
+      favorites_size: 0
+    })
+  })
+
+  it('should carry a null source when the caller does not name one', () => {
+    useFavorites.getState().toggle(makeItem('a'))
+    expect(trackMock.mock.calls[0][1]).toMatchObject({ source: undefined })
+  })
+
+  it('should track a secondary listing as not primary', () => {
+    useFavorites.getState().toggle(makeItem('a', { tokenId: '7' }), 'grid')
+    expect(trackMock.mock.calls[0][1]).toMatchObject({ is_primary: false })
+  })
+
+  it('should not track an item that has no derivable favorite key', () => {
+    useFavorites.getState().toggle(makeItem('a', { itemId: undefined }), 'grid')
+    expect(trackMock).not.toHaveBeenCalled()
+  })
+
+  it('should track on the optimistic toggle, before the server write settles', async () => {
+    fetchFavoriteIds.mockResolvedValueOnce([])
+    fetchCatalogByIds.mockResolvedValueOnce([])
+    useFavorites.getState().reloadFor('0xAAA', IDENTITY)
+    await vi.waitFor(() => expect(useFavorites.getState().status).toBe('ready'))
+
+    let settle: () => void = () => {}
+    setFavorite.mockReturnValueOnce(new Promise<void>(r => (settle = r)))
+    useFavorites.getState().toggle(makeItem('a'), 'grid')
+    expect(trackMock).toHaveBeenCalledWith('Shop Added To Favorites', expect.objectContaining({ item_id: 'a' }))
+    settle()
   })
 })

@@ -365,7 +365,7 @@ export function AssetCard(props: AssetCardProps) {
           data-testid="card-fav"
           onClick={e => {
             e.stopPropagation()
-            toggleFav(item)
+            toggleFav(item, source)
           }}
           aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
         >
