@@ -1,5 +1,5 @@
 import { config } from '~/config'
-import type { CatalogItem } from '~/lib/api'
+import { fetchPeggedPrimaryPrices, type CatalogItem } from '~/lib/api'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
 // full storefront. Data source: GET /v3/catalog/items (same full-catalog semantics as the classic
@@ -79,6 +79,94 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     ...(r.tradeId == null && r.isOnSale && r.price ? { manaWei: r.price, available: toAvailable(r.available) } : {}),
     gender: toGender(r.data?.wearable?.bodyShapes)
   }
+}
+
+export type CollectionSaleState = {
+  isOnSale: boolean
+  /**
+   * Exact credits for a USD-pegged listing. For a MANA-denominated one this is the SERVER's conversion
+   * (see RawCollectionItem.priceCredits) and stands in only until the live rate resolves — price those
+   * with `manaWei` through `displayCredits`, as the browse grid and the item page do.
+   */
+  priceCredits: number
+  /** MANA wei when the listing is MANA-denominated, so callers can convert at the live rate. */
+  manaWei?: string
+  /** Absent for a collection-store mint, which is on sale with no trade behind it. */
+  tradeId?: string
+}
+
+/** One page of a collection's catalogue rows. */
+async function fetchCollectionRowsPage(
+  contractAddress: string,
+  first: number,
+  skip: number
+): Promise<{ data: RawCollectionItem[]; total: number }> {
+  const qs = new URLSearchParams({
+    contractAddress,
+    first: String(first),
+    skip: String(skip),
+    includeSocialEmotes: 'false'
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
+  if (!res.ok) {
+    // Release the stream: nothing reads the body on this path, and leaving it unconsumed leaks it.
+    await res.body?.cancel()
+    throw new Error(`fetchCollectionSaleState ${res.status}`)
+  }
+  const { data, total } = (await res.json()) as { data?: RawCollectionItem[]; total?: number }
+  return { data: data ?? [], total: total ?? 0 }
+}
+
+const SALE_STATE_PAGE = 200
+
+/**
+ * Per-ITEM primary sale state for a collection, keyed by itemId.
+ *
+ * Composed from BOTH feeds, because neither answers on its own:
+ *
+ * - `/v3/catalog/shop` carries only USD-pegged rows, but for those its credit price is exact.
+ * - `/v3/catalog/items` carries every item whatever its pricing, but cannot say whether a row's `price`
+ *   is USD or MANA wei — a MANA trade and a pegged one arrive with the same `tradeContractAddress`.
+ *
+ * Being on sale and ABSENT from the shop feed is therefore the discriminator: that row is MANA-denominated,
+ * so its `price` is MANA wei and its credit price is a live conversion, never a stored number.
+ *
+ * This is what My Creations got wrong: reading only the shop feed, a creator's un-migrated MANA listing
+ * had no row, so the card priced it at 0 and said NOT FOR SALE while its item page showed it on sale.
+ *
+ * `isOnSale` comes from the catalogue row, not from the presence of a `tradeId` — a collection-store mint
+ * has no trade and never will, yet it is on sale. That assumption, made once before, is what
+ * `lib/pricing`'s isListingForSale exists to undo.
+ */
+export async function fetchCollectionSaleState(contractAddress: string): Promise<Record<string, CollectionSaleState>> {
+  const [pegged, rows] = await Promise.all([
+    fetchPeggedPrimaryPrices(contractAddress),
+    (async () => {
+      // Page to the end: the catalogue returns every item, on sale or not, so a collection past one page
+      // would silently drop listed items out of the map and My Creations would call them not for sale.
+      const all: RawCollectionItem[] = []
+      for (let skip = 0; ; skip += SALE_STATE_PAGE) {
+        const { data, total } = await fetchCollectionRowsPage(contractAddress, SALE_STATE_PAGE, skip)
+        all.push(...data)
+        // A short page is the end. Checked BEFORE `total`, which a response may omit — trusting it alone
+        // would stop after one page and drop exactly the listings this pagination exists to keep.
+        if (data.length < SALE_STATE_PAGE) break
+        if (total > 0 && all.length >= total) break
+      }
+      return all
+    })()
+  ])
+
+  const map: Record<string, CollectionSaleState> = {}
+  for (const r of rows) {
+    if (r.itemId == null || !r.isOnSale) continue
+    const itemId = String(r.itemId)
+    const peg = pegged[itemId]
+    map[itemId] = peg
+      ? { isOnSale: true, priceCredits: peg.priceCredits, ...(peg.tradeId ? { tradeId: peg.tradeId } : {}) }
+      : { isOnSale: true, priceCredits: r.priceCredits ?? 0, ...(r.price ? { manaWei: r.price } : {}) }
+  }
+  return map
 }
 
 function toAvailable(value: string | number | null | undefined): number | undefined {
