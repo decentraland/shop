@@ -98,6 +98,15 @@ export type CatalogItem = {
    * `accept`. Absent on a listing with no live discount, and on every row saved before this existed.
    */
   coupon?: ListingCoupon
+   /**
+   * How many units are still buyable AT THE SALE PRICE: the sale's remaining uses capped by the listing's
+   * own stock, whichever runs out first. Absent when the listing is not on sale.
+   *
+   * Resolved by the server rather than derived here. It already holds all three inputs, and the "no unit
+   * cap" case needs no sentinel on its side — an uncapped sale's remaining uses dwarf the stock, so the
+   * minimum is the stock, which is the true answer anyway.
+   */
+  saleUnitsLeft?: number
 }
 
 type RawCatalogItem = {
@@ -434,7 +443,9 @@ type ShopListingRaw = {
    * for THIS listing's collection, so the buy side applies it without rebuilding the tree. Its `checks`
    * timestamps arrive in MILLISECONDS like a trade's; `trade-encoding` converts them at the boundary.
    */
-  coupon?: ListingCoupon | null
+  coupon?: ListingCoupon | null,
+  /** Units still buyable at the sale price — see CatalogItem.saleUnitsLeft. Null when not on sale. */
+  saleUnitsLeft?: number | null
 }
 
 /**
@@ -487,7 +498,8 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
     saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
-    coupon: l.coupon ?? undefined
+    coupon: l.coupon ?? undefined,
+    saleUnitsLeft: l.saleUnitsLeft ?? undefined
   }
 }
 
