@@ -44,7 +44,12 @@ vi.mock('decentraland-ui2', () => ({
 
 // decentraland-transactions ships an ESM directory import vitest's resolver cannot follow.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager', MANAToken: 'MANAToken', OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
+  ContractName: {
+    CreditsManager: 'CreditsManager',
+    MANAToken: 'MANAToken',
+    OffChainMarketplaceV3: 'OffChainMarketplaceV3',
+    OffChainMarketplaceV2: 'OffChainMarketplaceV2'
+  },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: [] })
 }))
@@ -127,7 +132,9 @@ const { resolveLiveTrade, fetchStoreMintState } = vi.hoisted(() => ({
 vi.mock('~/lib/api', async orig => ({
   ...(await orig<Record<string, unknown>>()),
   resolveLiveTrade,
-  fetchStoreMintState
+  fetchStoreMintState,
+  // Stubbed, or the real one reaches the catalogue over the network for every on-sale line.
+  resolveLiveCoupon: async () => undefined
 }))
 const { readTradeManaPriceWei, readManaBalanceWei } = vi.hoisted(() => ({
   readTradeManaPriceWei: vi.fn(async () => 0n),
@@ -135,11 +142,21 @@ const { readTradeManaPriceWei, readManaBalanceWei } = vi.hoisted(() => ({
   // below, and was the bug: an unresolved balance used to read as "holds no MANA".
   readManaBalanceWei: vi.fn(async () => 0n)
 }))
-vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei, readManaBalanceWei }))
+// Spread rather than replaced: the module also exports the discount the MANA quote is built from, and a
+// missing one would read as "no discount" instead of failing loudly.
+vi.mock('~/lib/mana', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  readTradeManaPriceWei,
+  readManaBalanceWei
+}))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
   // The shared options the callers now use. Same stubbed rate, resolved without touching a chain.
-  manaRateQueryOptions: () => ({ queryKey: ['mana-rate', 80002], queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }), staleTime: 60_000 }),
+  manaRateQueryOptions: () => ({
+    queryKey: ['mana-rate', 80002],
+    queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }),
+    staleTime: 60_000
+  }),
   manaWeiToUsdCents: () => 0
 }))
 vi.mock('~/lib/ownership', () => ({ isOwnTrade: () => false }))

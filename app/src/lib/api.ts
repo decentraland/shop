@@ -3,6 +3,7 @@ import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
 import { captureError } from '~/lib/monitoring'
+import type { ListingCoupon } from '~/lib/trade-encoding'
 
 const NFT_V1 = `${config.marketplaceServerUrl}/v1`
 
@@ -88,6 +89,14 @@ export type CatalogItem = {
   // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
   compareAtCredits?: number
   saleEndsAt?: number
+  /**
+   * The creator discount that makes `priceCredits` the sale price, when one applies.
+   *
+   * Lives on CatalogItem because the CART persists these rows: a line has to still carry the coupon when
+   * checkout settles it, possibly in a later session, or it would be paid at the list price through plain
+   * `accept`. Absent on a listing with no live discount, and on every row saved before this existed.
+   */
+  coupon?: ListingCoupon
 }
 
 type RawCatalogItem = {
@@ -407,6 +416,12 @@ type ShopListingRaw = {
   // Checks.expiration). Absent for regular listings. See marketplace-server shop-catalog.
   compareAtCredits?: number | null
   saleEndsAt?: number | null
+  /**
+   * The creator coupon discounting this listing: everything the marketplace hashes plus the Merkle proof
+   * for THIS listing's collection, so the buy side applies it without rebuilding the tree. Its `checks`
+   * timestamps arrive in MILLISECONDS like a trade's; `trade-encoding` converts them at the boundary.
+   */
+  coupon?: ListingCoupon | null
 }
 
 /**
@@ -458,7 +473,8 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
-    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined
+    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
+    coupon: l.coupon ?? undefined
   }
 }
 
@@ -1213,6 +1229,31 @@ export async function resolveLiveTrade(item: {
   }
   if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
   return null
+}
+
+/**
+ * The creator discount currently on an item's listing, or undefined when it is no longer on sale.
+ *
+ * Read from the same live feed the item page prices from, so a purchase can never settle against a coupon
+ * the catalogue has already stopped advertising — the cart persists its rows, and a stored coupon outlives
+ * the sale that produced it.
+ *
+ * A failed lookup returns undefined rather than throwing: the line then settles at its LIST price, which the
+ * checkout surfaces as a changed price and asks the buyer to confirm. Keeping the stored coupon instead
+ * would submit `acceptWithCoupon` against a sale that may be over, and revert after they confirmed.
+ */
+export async function resolveLiveCoupon(item: {
+  contractAddress: string
+  itemId?: string | null
+}): Promise<ListingCoupon | undefined> {
+  if (!item.itemId) return undefined
+  try {
+    const listing = await fetchUnifiedListingForItem(item.contractAddress, item.itemId)
+    return listing?.coupon
+  } catch (e) {
+    captureError(e, { flow: 'resolve_live_coupon', contractAddress: item.contractAddress, itemId: item.itemId })
+    return undefined
+  }
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).

@@ -1540,12 +1540,12 @@ export function ItemDetail() {
                                     <Price credits={current.priceCredits} />
                                   </S.PriceValue>
                                 </S.Price>
-                                <S.PriceWas>
+                                <S.PriceWas data-testid="detail-price-was">
                                   <S.Diamond data-was />
                                   <Price credits={current.compareAtCredits!} />
                                 </S.PriceWas>
                                 {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                                  <S.SaleBadge>
+                                  <S.SaleBadge data-testid="detail-sale-badge">
                                     {t('assetCard.saleWithDiscount', {
                                       pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
                                     })}

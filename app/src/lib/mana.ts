@@ -81,6 +81,26 @@ export async function readManaBalancesWei(address: string): Promise<{ ethereum: 
 // the figure the user sees and the balance is checked against; the on-chain accept recomputes the
 // exact settlement amount from the oracle at that block. (buy.ts applies a +2% buffer only for the
 // credit-settled cap, which is a different concern; kept separate to avoid touching that path.)
+/** Parts per million, the unit a rate coupon's discount is expressed in. */
+const PPM = 1_000_000n
+
+/**
+ * A listing's MANA price with the creator's discount applied — what the marketplace will really pull.
+ *
+ * A trade is signed at the LIST price and the coupon lowers it at settlement, so every consumer of the raw
+ * figure is wrong for an item on sale: the button quotes more MANA than the buyer pays, the rail is hidden
+ * from someone whose balance covers the real price, and the mixed rail's MANA leg is scaled up by the same
+ * factor. They all read this instead so there is one number.
+ *
+ * Rounded UP, because the figure also sizes the allowance, and an allowance a wei short of what `accept`
+ * pulls reverts the purchase.
+ */
+export function discountedManaWei(listWei: bigint, coupon?: { discount: number }): bigint {
+  if (!coupon) return listWei
+  const rate = PPM - BigInt(coupon.discount)
+  return (listWei * rate + PPM - 1n) / PPM
+}
+
 export async function readTradeManaPriceWei(trade: Trade, chainId: number = trade.chainId): Promise<bigint> {
   const priceAsset = trade.received[0] as { assetType: number; amount?: string }
   const amount = priceAsset.amount ?? '0'

@@ -38,8 +38,8 @@ import manaLight from '~/assets/mana-matic-light.svg'
 import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { EmptyState } from '~/components/EmptyState'
 import { ContractName, getContract } from 'decentraland-transactions'
-import { resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
-import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase } from '~/lib/buy'
+import { resolveLiveCoupon, resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
+import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase, type ListingCoupon } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import {
   purchaseTargetFor,
@@ -250,6 +250,13 @@ export function Cart() {
     })
 
   const tradesIn = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'trade' ? [l.trade] : []))
+  // The creator discounts in the basket, by trade id — what buyManyWithMana needs to settle the discounted
+  // lines through acceptWithCoupon instead of paying their list price. Read off the RESOLVED line, which
+  // carries the coupon re-read at review time, never the one the cart stored.
+  const couponsIn = (lines: ResolvedLine[]): Record<string, ListingCoupon> =>
+    Object.fromEntries(
+      lines.flatMap(l => (l.acquisition === 'trade' && l.coupon ? [[l.trade.id, l.coupon] as const] : []))
+    )
 
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
@@ -934,6 +941,7 @@ export function Cart() {
         // Both kinds, each batched into its own call by lib/buy-mana. A basket mixing them costs one signature
         // per kind, the same as it does on the credits rail (see groupPurchases).
         trades: tradesIn(units),
+        coupons: couponsIn(units),
         mints: mintsIn(units),
         buyer: session.address,
         signer: session.signer,
@@ -1122,7 +1130,14 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      const rev = await reviewCart(cartItems, session.address, resolveTrade, await ensureManaRate(), resolveStore)
+      const rev = await reviewCart(
+        cartItems,
+        session.address,
+        resolveTrade,
+        await ensureManaRate(),
+        resolveStore,
+        resolveLiveCoupon
+      )
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]
