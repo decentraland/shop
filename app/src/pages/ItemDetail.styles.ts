@@ -243,12 +243,13 @@ export const Preview = styled.div`
       overflow: hidden;
     }
     & > [data-fav-preview] {
-      display: grid;
+      display: inline-flex;
       position: absolute;
       top: 12px;
       right: 12px;
       z-index: 3;
-      width: 40px;
+      width: auto;
+      min-width: 40px;
       height: 40px;
       background: rgba(255, 255, 255, 0.92);
       box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
@@ -301,22 +302,29 @@ export const Title = styled.h1`
 `
 
 // Favourite heart. `data-fav-title` (in the title row, hidden on mobile) or `data-fav-preview`
-// (overlaid on the preview, shown only on mobile — positioned by `Preview`).
+// (overlaid on the preview, shown only on mobile — positioned by `Preview`). A circle on its own,
+// a pill once `data-count` adds the save count beside the icon.
 export const Fav = styled.button`
   flex: none;
-  width: 40px;
+  min-width: 40px;
   height: 40px;
-  border-radius: 50%;
+  padding: 0;
+  border-radius: ${radius.pill};
   border: 0;
   background: rgba(255, 255, 255, 0.16);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   color: ${colors.softWhite};
   cursor: pointer;
   transition:
     color 0.12s ease,
     background 0.12s ease;
 
+  &[data-count] {
+    padding: 0 14px 0 12px;
+  }
   &:hover {
     background: rgba(255, 255, 255, 0.28);
   }
@@ -329,6 +337,19 @@ export const Fav = styled.button`
     &[data-fav-title] {
       display: none;
     }
+  }
+`
+
+// How many people saved the item, inside the heart button. Keeps its own colour rather than
+// inheriting: the button turns red once saved, which leaves a red number on the translucent pill.
+export const FavCount = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: ${colors.softWhite};
+
+  ${media.maxWidth('lg')} {
+    color: ${colors.text};
   }
 `
 

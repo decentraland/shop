@@ -413,6 +413,8 @@
     "notAvailableBody": "Puede que se haya retirado o movido. Explora los coleccionables para encontrar otra cosa.",
     "breadcrumbAria": "Ruta de navegación",
     "itemFallback": "Artículo",
+    "savedCount": "Guardado por {count, plural, one {# persona} other {# personas}}",
+    "favoriteAria": "{action}, {count, plural, one {guardado por # persona} other {guardado por # personas}}",
     "description": "Descripción",
     "showLess": "Ver menos",
     "readMore": "Leer más",
