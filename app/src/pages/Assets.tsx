@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useUrlFilters } from '~/hooks/useUrlFilters'
 import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
@@ -87,7 +88,10 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
   const defaultStatus = defaultStatusFor(!!q)
   // Read from the URL rather than from filterState because the sort default depends on it, and that
   // default is an input to the very hook that would report it.
-  const dealsRequested = searchParams.get('deals') === 'true'
+  // Creator sales ship dark: with the flag off the grid must not even offer to filter by them, or a buyer
+  // turns on Deals and gets an empty grid for a feature that is not live yet.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const dealsRequested = creatorSalesEnabled && searchParams.get('deals') === 'true'
   // EVERY filter lives in the URL, through one owner. A refresh, a shared link and the back button used
   // to keep only Category and Status; the rest was local state and vanished.
   const filterDefaults = useMemo(
@@ -108,7 +112,10 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
     [defaultStatus, dealsRequested]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
-  const { subCategory, rarities, priceMin, priceMax, smart, deals, sort } = filterState
+  const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  // Read through the flag rather than straight off the URL: `?deals=true` typed by hand must not reach the
+  // query either.
+  const deals = creatorSalesEnabled && filterState.deals
   // Validated the same way `status` is, and against the categories this instance actually offers. The URL
   // is user-editable: without this, `?category=names` renders the NAMEs page inside a surface whose filter
   // panel never offered it.
@@ -367,7 +374,11 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
                 smart={smart}
                 onSmart={v => setFilters({ smart: v })}
                 deals={deals}
-                onDeals={v => setFilters(v ? { deals: true, sort: 'discount' } : { deals: false, sort: 'newest' })}
+                onDeals={
+                  creatorSalesEnabled
+                    ? v => setFilters(v ? { deals: true, sort: 'discount' } : { deals: false, sort: 'newest' })
+                    : undefined
+                }
               />
             </S.SidebarScroll>
 
