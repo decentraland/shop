@@ -11,6 +11,13 @@ vi.mock('~/config', () => ({
 
 const captureErrorMock = vi.fn()
 vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
+// The catalogue primes the creator-sales flag before mapping a row. Stubbed so these specs exercise the
+// MAPPING rather than the flag service — and so the flag's fetch does not consume a queued response.
+const { getIsFeatureEnabled } = vi.hoisted(() => ({ getIsFeatureEnabled: vi.fn(async () => true) }))
+vi.mock('~/lib/featureFlags', () => ({
+  getIsFeatureEnabled,
+  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales' }
+}))
 
 // postTrade dynamically imports TradeService only when creating a listing. Stub it so importing the
 // module (and calling postTrade) never drags in decentraland-dapps' ui2/@mui barrel.
@@ -589,6 +596,59 @@ describe('when fetching the shop browse listings', () => {
     const { items } = await fetchListings()
     expect(items[0].compareAtCredits).toBe(10)
     expect(items[0].saleEndsAt).toBe(1_700_000_000 * 1000)
+  })
+
+  /**
+   * The kill switch for sales that already exist. It has to erase the discount from the WHOLE row: the
+   * catalogue keeps serving sale prices while the coupons are live on chain, so hiding only the badge — or
+   * only the settlement — would quote the buyer one number and charge them another.
+   */
+  describe('and creator sales are switched off', () => {
+    const onSaleRow = {
+      tradeId: 's',
+      listingType: 'primary',
+      contractAddress: '0x1',
+      itemId: '1',
+      tokenId: null,
+      name: 'S',
+      thumbnail: '',
+      rarity: 'common',
+      category: 'wearable',
+      wearableCategory: null,
+      creator: '0xa',
+      priceCredits: 7,
+      available: 1,
+      network: 'MATIC',
+      chainId: 80002,
+      compareAtCredits: 10,
+      saleEndsAt: 1_700_000_000,
+      saleUnitsLeft: 3
+    }
+
+    beforeEach(() => getIsFeatureEnabled.mockResolvedValue(false))
+    afterEach(() => getIsFeatureEnabled.mockResolvedValue(true))
+
+    it('should quote the list price, so what is shown is what is charged', async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [onSaleRow] }))
+
+      const { items } = await fetchListings()
+
+      expect(items[0].priceCredits).toBe(10)
+      expect(items[0].compareAtCredits).toBeUndefined()
+      expect(items[0].saleEndsAt).toBeUndefined()
+      expect(items[0].saleUnitsLeft).toBeUndefined()
+    })
+
+    it('should leave a listing that was never on sale exactly as it was', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonOk({ total: 1, data: [{ ...onSaleRow, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }] })
+      )
+
+      const { items } = await fetchListings()
+
+      expect(items[0].priceCredits).toBe(7)
+      expect(items[0].compareAtCredits).toBeUndefined()
+    })
   })
 
   it('should drop a compare-at that does not beat the sale price (no phantom discount)', async () => {

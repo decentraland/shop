@@ -37,7 +37,7 @@ afterEach(async () => {
 
 describe('the browse grid while a creator has items on sale', () => {
   it('shows the sale price, the struck list price and the discount badge on the card', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -59,7 +59,7 @@ describe('the browse grid while a creator has items on sale', () => {
    * it — both of which this card shipped with. So these two measure geometry and contrast instead.
    */
   it('keeps the countdown inside its card at phone width, on every side', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
     await page.setViewport({ width: 390, height: 844 })
 
@@ -85,7 +85,7 @@ describe('the browse grid while a creator has items on sale', () => {
   })
 
   it('keeps the countdown readable against its own fill, on the light card and the dark one alike', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -117,7 +117,7 @@ describe('the browse grid while a creator has items on sale', () => {
   })
 
   it('counts down to the end of the sale, from a timestamp the catalogue sends in seconds', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -215,7 +215,11 @@ const withUnitsLeft = (saleUnitsLeft: number) => ({
 describe('how many units are left at the sale price', () => {
   describe('and only a handful remain', () => {
     it('should tell the buyer on the item page', async () => {
-      app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { unifiedListings: withUnitsLeft(3) } })
+      app = await launchApp({
+        path: `/item/${COLLECTION}/0`,
+        creatorSales: true,
+        fixtures: { unifiedListings: withUnitsLeft(3) }
+      })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
@@ -226,7 +230,11 @@ describe('how many units are left at the sale price', () => {
 
   describe('and there are plenty', () => {
     it('should say nothing, because a large number is not scarcity', async () => {
-      app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { unifiedListings: withUnitsLeft(40) } })
+      app = await launchApp({
+        path: `/item/${COLLECTION}/0`,
+        creatorSales: true,
+        fixtures: { unifiedListings: withUnitsLeft(40) }
+      })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
@@ -257,7 +265,10 @@ describe('the Deals filter before the release turns it on', () => {
 
     await waitForText(page, 'Galaxy Hat')
     expect(await page.$('[data-testid="deals-toggle"]')).toBeNull()
-    // The sale itself still renders — it is the FILTER that is dark, not the discount.
-    await page.waitForSelector('[data-testid="card-sale-badge"]', { timeout: 15000 })
+    // And the discount itself is gone with it: the card shows the LIST price, with no badge and no
+    // countdown. Anything less would quote a sale price the checkout would not honour.
+    expect(await page.$('[data-testid="card-sale-badge"]')).toBeNull()
+    expect(await page.$('[data-testid="card-countdown"]')).toBeNull()
+    expect(await page.evaluate(() => document.body.innerText)).toContain('270')
   })
 })

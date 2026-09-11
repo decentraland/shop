@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
+import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
 import { captureError } from '~/lib/monitoring'
 
 const NFT_V1 = `${config.marketplaceServerUrl}/v1`
@@ -438,7 +439,35 @@ function listingRowId(l: ShopListingRaw): string {
   return `${(l.contractAddress ?? '').toLowerCase()}-${suffix}`
 }
 
-function shopListingToItem(l: ShopListingRaw): CatalogItem {
+/**
+ * Whether the Shop honours creator sales at all, cached so the row mapper can read it synchronously.
+ *
+ * `false` until primed, and primed by every catalogue fetch before it maps a row, so a listing is never
+ * rendered at a discount the flag has not allowed — and never flickers from list price to sale price either.
+ */
+let creatorSalesLive = false
+
+async function primeCreatorSales(): Promise<void> {
+  creatorSalesLive = await getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/**
+ * The listing as the Shop should treat it while creator sales are switched off: not on sale, at its LIST
+ * price.
+ *
+ * The kill switch has to erase the discount from the WHOLE row, not just from checkout. The catalogue keeps
+ * serving sale prices while the coupons exist — turning off only the settlement half would show a buyer the
+ * discounted price and then charge them the list price, which reverts after they have confirmed. Stripping
+ * it here is what keeps every surface saying the same number: the card, the item page, the cart and the
+ * transaction all see a listing that simply is not on sale.
+ */
+function withoutSale(l: ShopListingRaw): ShopListingRaw {
+  if (l.compareAtCredits == null) return { ...l, saleUnitsLeft: null }
+  return { ...l, priceCredits: l.compareAtCredits, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }
+}
+
+function shopListingToItem(raw: ShopListingRaw): CatalogItem {
+  const l = creatorSalesLive ? raw : withoutSale(raw)
   return {
     id: listingRowId(l),
     tradeId: l.tradeId ?? undefined,
@@ -561,6 +590,7 @@ export async function fetchStoreMintState(
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
 // page on deep-link/refresh, where the route segment is the itemId. Null if it's not on sale.
 export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
+  await primeCreatorSales()
   const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
@@ -585,6 +615,7 @@ export async function fetchUnifiedListingForItem(
   contractAddress: string,
   itemId: string
 ): Promise<UnifiedListing | null> {
+  await primeCreatorSales()
   const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
   return pickItemListing(items)
 }
@@ -623,6 +654,7 @@ export async function fetchListings({ first = 100, ...filters }: ShopListingFilt
   items: CatalogItem[]
   total: number
 }> {
+  await primeCreatorSales()
   const { listings, total } = await fetchShopListingsRaw({ ...filters, first })
   return { items: listings.map(shopListingToItem), total }
 }
@@ -762,6 +794,7 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   items: UnifiedListing[]
   total: number
 }> {
+  await primeCreatorSales()
   const qs = unifiedSearchParams(first, filters)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
@@ -786,6 +819,7 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
   items: UnifiedListing[]
   total: number
 }> {
+  await primeCreatorSales()
   const qs = unifiedSearchParams(first, filters, 'item')
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopItems ${res.status}`)
