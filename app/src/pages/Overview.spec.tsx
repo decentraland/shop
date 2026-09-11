@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { UnifiedListing } from '~/lib/api'
@@ -87,6 +87,30 @@ function trendingItem(overrides: Partial<UnifiedListing> = {}): UnifiedListing {
 /** A listing for the New Creations rail, named by index so an offset slice is visible in the assertion. */
 function listing(i: number): UnifiedListing {
   return trendingItem({ id: `listing-${i}`, tradeId: `listing-${i}`, itemId: String(i), name: `Item ${i}` })
+}
+
+/** A live creator sale for the Best Deals rail: `pct` off a 100-credit compare-at, ending tomorrow. */
+function deal(i: number, pct = 30 - i * 5): UnifiedListing {
+  return trendingItem({
+    id: `deal-${i}`,
+    tradeId: `deal-${i}`,
+    itemId: `deal-${i}`,
+    name: `Deal ${i}`,
+    priceCredits: 100 - pct,
+    compareAtCredits: 100,
+    saleEndsAt: Date.now() + 86_400_000
+  })
+}
+
+/**
+ * The listings feed answers two rails from one fetcher: New Creations (newest primaries) and Best Deals
+ * (`discounted: true`). Route each to its own rows so a spec can fill one rail without filling the other.
+ */
+function feeds({ creations = [], deals = [] }: { creations?: UnifiedListing[]; deals?: UnifiedListing[] }) {
+  fetchShopItems.mockImplementation((filters: { discounted?: boolean } = {}) => {
+    const items = filters.discounted ? deals : creations
+    return Promise.resolve({ items, total: items.length })
+  })
 }
 
 /** A promise that never settles: the page stays in the state the loading specs are about. */
@@ -249,7 +273,7 @@ describe('the overview while its feeds are in flight', () => {
 
 describe('the overview once its feeds land', () => {
   it('replaces every placeholder with a card, on both rails', async () => {
-    fetchShopItems.mockResolvedValue({ items: Array.from({ length: 12 }, (_, i) => listing(i)), total: 12 })
+    feeds({ creations: Array.from({ length: 12 }, (_, i) => listing(i)) })
     fetchTrendingItems.mockResolvedValue([trendingItem({ id: 't1', tradeId: 't1' })])
 
     renderOverview()
@@ -264,7 +288,7 @@ describe('the overview once its feeds land', () => {
   // first twelve. With Featured replaced by Trending — which has its own query — that offset left the twelve
   // NEWEST creations rendered nowhere, and a catalogue of twelve rows showed no rail at all.
   it('shows the newest listings rather than an offset slice of them', async () => {
-    fetchShopItems.mockResolvedValue({ items: Array.from({ length: 12 }, (_, i) => listing(i)), total: 12 })
+    feeds({ creations: Array.from({ length: 12 }, (_, i) => listing(i)) })
 
     renderOverview()
 
@@ -279,7 +303,89 @@ describe('the overview once its feeds land', () => {
     renderOverview()
 
     await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
-    expect(fetchShopItems.mock.calls.at(-1)![0]).toMatchObject({ first: 12, sortBy: 'newest', listingType: 'primary' })
+    expect(fetchShopItems).toHaveBeenCalledWith(
+      expect.objectContaining({ first: 12, sortBy: 'newest', listingType: 'primary' })
+    )
+  })
+})
+
+describe('when the home page renders its best deals row', () => {
+  it('should ask the listings feed for live sales, biggest discount first, primaries only', async () => {
+    renderOverview()
+
+    // The filter and the order are the server's, so this rail and the grid's Deals filter agree. Resales are
+    // excluded not as a rule of the rail but as a fact: a creator sets a sale on their own collection.
+    await waitFor(() =>
+      expect(fetchShopItems).toHaveBeenCalledWith(
+        expect.objectContaining({ first: 12, discounted: true, sortBy: 'discount', listingType: 'primary' })
+      )
+    )
+  })
+
+  it('should show the row once there are enough deals to fill it, each card striking its old price', async () => {
+    feeds({ deals: [deal(0), deal(1), deal(2)] })
+
+    renderOverview()
+
+    const rail = await screen.findByTestId('best-deals-rail')
+    expect(within(rail).getByText('Best Deals')).toBeTruthy()
+    expect(within(rail).getAllByTestId('card')).toHaveLength(3)
+    expect(within(rail).getAllByTestId('card-price-was')).toHaveLength(3)
+  })
+
+  it('should keep the server order instead of reordering the cards', async () => {
+    feeds({ deals: [deal(2), deal(0), deal(1)] })
+
+    renderOverview()
+
+    const rail = await screen.findByTestId('best-deals-rail')
+    const names = within(rail)
+      .getAllByText(/^Deal \d$/)
+      .map(el => el.textContent)
+    expect(names).toEqual(['Deal 2', 'Deal 0', 'Deal 1'])
+  })
+
+  it('should send "View all" to the grid already filtered to deals', async () => {
+    feeds({ deals: [deal(0), deal(1), deal(2)] })
+
+    renderOverview()
+
+    const rail = await screen.findByTestId('best-deals-rail')
+    expect(within(rail).getByRole('link', { name: /view all/i })).toHaveAttribute('href', '/items?deals=true')
+  })
+
+  it('should hide the row under three deals: two cards do not make a rail', async () => {
+    feeds({ deals: [deal(0), deal(1)] })
+
+    renderOverview()
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText('Trending Products')).toBeTruthy())
+    expect(screen.queryByText('Best Deals')).toBeNull()
+  })
+
+  it('should hide the row when the request fails rather than showing an empty one', async () => {
+    fetchShopItems.mockImplementation((filters: { discounted?: boolean } = {}) =>
+      filters.discounted ? Promise.reject(new Error('fetchShopItems 503')) : Promise.resolve({ items: [], total: 0 })
+    )
+
+    renderOverview()
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText('Trending Products')).toBeTruthy())
+    expect(screen.queryByText('Best Deals')).toBeNull()
+  })
+
+  it('should reserve no placeholders while the deals are in flight', () => {
+    fetchShopItems.mockReturnValue(pending())
+    fetchTrendingItems.mockReturnValue(pending())
+
+    renderOverview()
+
+    // Most days nothing is on sale; a placeholder rail that vanished on most home loads would be the very
+    // jump the other rails' placeholders exist to prevent. Two rails' worth of skeletons, not three.
+    expect(screen.queryByTestId('best-deals-rail')).toBeNull()
+    expect(screen.getAllByTestId('skeleton-card')).toHaveLength(PER_RAIL * 2)
   })
 })
 

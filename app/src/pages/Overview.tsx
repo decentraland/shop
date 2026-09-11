@@ -30,6 +30,8 @@ import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
+// Fewer live sales than this and the Best Deals rail stays hidden: two cards do not make a rail.
+const MIN_DEALS = 3
 
 // Horizontal card rail (Figma nodes 913:135571 "Featured Products" / 913:135593 "New Creations").
 // The track is a CSS grid showing a FIXED whole number of cards per view (5 desktop → 4 → 3 → 2 mobile,
@@ -41,7 +43,9 @@ function Carousel({
   title,
   items,
   loading,
-  source
+  source,
+  viewAllTo = '/items',
+  testId
 }: {
   title: string
   items: CatalogItem[]
@@ -49,6 +53,9 @@ function Carousel({
   // Which rail this is, so the cards' click and add-to-cart events name it. Without it every card in
   // every rail reported 'grid' and the rails could not be compared against the browse grid or each other.
   source: AddToCartSource
+  // Where "View all" lands. A rail fed by a filter sends it to the grid with that filter already applied.
+  viewAllTo?: string
+  testId?: string
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -98,10 +105,10 @@ function Carousel({
   const showControls = !loading && pageCount > 1
 
   return (
-    <S.Carousel>
+    <S.Carousel data-testid={testId}>
       <Row.Head>
         <Row.Title>{title}</Row.Title>
-        <Row.ViewAll to="/items">
+        <Row.ViewAll to={viewAllTo}>
           {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
         </Row.ViewAll>
       </Row.Head>
@@ -196,6 +203,19 @@ export function Overview() {
   })
   const trendingItems = trending ?? []
 
+  // The Best Deals rail: creators' live sales, biggest discount first and soonest-ending among equals. Both
+  // the filter and the order are the server's (`discounted` + `sortBy=discount` on the same feed the grid
+  // reads), so the rail shows exactly what the grid's Deals filter shows. Primaries only: a sale is set by a
+  // creator on their own collection, so a resale never carries one.
+  // Unlike Trending it reserves NO placeholders: there is nearly always something to rank, but most days
+  // there is nothing on sale, and a rail of placeholders that vanishes on most home loads is the very jump
+  // the placeholders exist to prevent. It appears once the feed answers with enough deals to fill a rail.
+  const { data: deals } = useQuery({
+    queryKey: ['overview-deals'],
+    queryFn: () => fetchShopItems({ first: 12, discounted: true, sortBy: 'discount', listingType: 'primary' })
+  })
+  const dealItems = deals?.items ?? []
+
   return (
     <S.Overview className="overview">
       <S.Hero>
@@ -223,6 +243,17 @@ export function Overview() {
           )}
         </S.HeroInner>
       </S.Hero>
+
+      {dealItems.length >= MIN_DEALS ? (
+        <Carousel
+          title={t('overview.bestDeals')}
+          items={dealItems}
+          loading={false}
+          source="deals"
+          viewAllTo="/items?deals=true"
+          testId="best-deals-rail"
+        />
+      ) : null}
 
       {/* Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
           it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales

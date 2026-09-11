@@ -81,3 +81,61 @@ describe('the overview rails', () => {
     expect(cardNames.every(n => n.trim().length > 0)).toBe(true)
   })
 })
+
+/**
+ * The Best Deals rail: creators' live sales, filtered and ordered by the server (`discounted=true`,
+ * `sortBy=discount` on the unified feed). The harness applies both the way the real handler does, so what
+ * is observed here is which rows the page shows, in what order, and that it hides when there are too few.
+ */
+describe('the best deals rail', () => {
+  const NOW_S = Math.floor(Date.now() / 1000)
+  // `pct` off a 100-credit compare-at, ending in `i + 1` days. `saleEndsAt` is unix SECONDS, like the server.
+  const onSale = (row: Row, i: number, pct: number): Row => ({
+    ...row,
+    tradeId: `deal-${i}`,
+    itemId: `deal-${i}`,
+    tokenId: null,
+    name: `Deal ${pct} Off`,
+    priceCredits: 100 - pct,
+    compareAtCredits: 100,
+    saleEndsAt: NOW_S + 86_400 * (i + 1)
+  })
+  // The fixture holds two primaries; a sale is a copy of one under its own trade and item id.
+  const primary = (i: number) => {
+    const rows = unifiedRows().filter(r => !r.tokenId)
+    return rows[i % rows.length]
+  }
+
+  it('shows the live sales biggest discount first, each with its old price and countdown', async () => {
+    app = await launchApp({
+      path: '/overview',
+      fixtures: {
+        unifiedListings: {
+          data: [onSale(primary(0), 0, 20), onSale(primary(1), 1, 50), onSale(primary(2), 2, 35), ...unifiedRows()]
+        }
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Best Deals')
+    const rail = await page.waitForSelector('[data-testid="best-deals-rail"]')
+    const names = await rail!.$$eval('[data-testid="card-name"]', els => els.map(e => e.textContent))
+    expect(names).toEqual(['Deal 50 Off', 'Deal 35 Off', 'Deal 20 Off'])
+    expect(await rail!.$$('[data-testid="card-price-was"]')).toHaveLength(3)
+    expect(await rail!.$$('[data-testid="card-countdown"]')).toHaveLength(3)
+    // "View all" lands on the grid already filtered to deals.
+    expect(await rail!.$('a[href="/items?deals=true"]')).toBeTruthy()
+  })
+
+  it('stays hidden under three deals, and reserves no placeholders for them', async () => {
+    app = await launchApp({
+      path: '/overview',
+      fixtures: { unifiedListings: { data: [onSale(primary(0), 0, 20), onSale(primary(1), 1, 50), ...unifiedRows()] } }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Trending Products')
+    expect(await bodyText(page)).not.toMatch(/best deals/i)
+    expect(await page.$('[data-testid="best-deals-rail"]')).toBeNull()
+  })
+})

@@ -822,10 +822,12 @@ describe('when fetching the item-unified browse feed', () => {
       maxPriceCredits: 100,
       search: 'dragon',
       sortBy: 'cheapest',
-      isSmart: true
+      isSmart: true,
+      discounted: true
     })
     const url = lastUrl()
     expect(url).toContain('groupBy=item')
+    expect(url).toContain('discounted=true')
     expect(url).toContain('category=wearable')
     expect(url).toContain('first=12')
     expect(url).toContain('skip=24')
