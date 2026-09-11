@@ -462,7 +462,9 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
   }
 }
 
-export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name'
+// `discount` orders by the sale's percentage off (largest first), then by soonest-ending; rows without a
+// live sale trail. Only meaningful together with `discounted: true`.
+export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name' | 'discount'
 
 export type ShopListingFilters = {
   category?: string
@@ -481,6 +483,9 @@ export type ShopListingFilters = {
   isSmart?: boolean
   // Listing status (Figma "Status" filter): true = on sale, false = not for sale, undefined = all.
   onSale?: boolean
+  // Creator sale: true = only listings with a live discount (a struck compare-at price and an end time),
+  // false = only listings without one, undefined = both. Distinct from `onSale`, which means "listed".
+  discounted?: boolean
   /**
    * Restrict to mint listings or to resales. Omitted = both.
    *
@@ -509,6 +514,7 @@ async function fetchShopListingsRaw(
   if (params.sortBy) qs.set('sortBy', params.sortBy)
   if (params.isSmart) qs.set('isSmart', 'true')
   if (params.onSale != null) qs.set('onSale', String(params.onSale))
+  if (params.discounted != null) qs.set('discounted', String(params.discounted))
   if (params.listingType) qs.set('listingType', params.listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
@@ -730,6 +736,7 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
   if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
+  if (filters.discounted != null) qs.set('discounted', String(filters.discounted))
   if (filters.listingType) qs.set('listingType', filters.listingType)
   if (groupBy) qs.set('groupBy', groupBy)
   return qs

@@ -258,6 +258,27 @@ let couponStore: any[] = []
 // publish, delete) survive navigation within a test without leaking across runs.
 let outfitStore: any[] = []
 
+// A live creator sale, the way the real feeds decide it: a compare-at price above the price and an end time
+// (unix SECONDS) still ahead. `discounted=true|false` filters on it and `sortBy=discount` orders by it.
+function isDiscountedRow(i: any): boolean {
+  return (
+    typeof i.compareAtCredits === 'number' &&
+    i.compareAtCredits > i.priceCredits &&
+    typeof i.saleEndsAt === 'number' &&
+    i.saleEndsAt * 1000 > Date.now()
+  )
+}
+function applyDealsParams(items: any[], u: URL): any[] {
+  const discounted = u.searchParams.get('discounted')
+  if (discounted === 'true') items = items.filter(isDiscountedRow)
+  if (discounted === 'false') items = items.filter(i => !isDiscountedRow(i))
+  if (u.searchParams.get('sortBy') === 'discount') {
+    const pct = (i: any) => (isDiscountedRow(i) ? 1 - i.priceCredits / i.compareAtCredits : -1)
+    items.sort((a, b) => pct(b) - pct(a) || (a.saleEndsAt ?? Infinity) - (b.saleEndsAt ?? Infinity))
+  }
+  return items
+}
+
 function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: string = BASE) {
   const u = new URL(req.url())
   const method = req.method()
@@ -465,6 +486,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => a.priceCredits - b.priceCredits)
+      items = applyDealsParams(items, u)
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/legacy') {
@@ -534,6 +556,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }
+      items = applyDealsParams(items, u)
       // `total` is the unpaginated count (what the real server reports); `first` bounds the page.
       const total = items.length
       const first = Number(u.searchParams.get('first') ?? 0)

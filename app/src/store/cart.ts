@@ -9,7 +9,8 @@ import { track, creditsToUsd } from '~/lib/analytics'
 // 'grid' wherever it was rendered, so an add from Trending was indistinguishable from one off the browse
 // grid and the rails' contribution read as zero. 'carousel' is NOT one of them — it belongs to the avatar
 // showcase's bulk add.
-export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'outfit' | 'trending' | 'new_creations'
+export type AddToCartSource =
+  'grid' | 'item_detail' | 'carousel' | 'upsell' | 'outfit' | 'trending' | 'new_creations' | 'deals'
 
 /**
  * Where the line came from, stamped when it enters the cart and carried through to the purchase event.
