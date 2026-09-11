@@ -768,6 +768,14 @@ export type App = {
    * the difference between them is how many times they asked. Counting here is what makes that assertable.
    */
   posts: string[]
+  /**
+   * The raw bodies of every meta-transaction POSTed to the relayer, in order.
+   *
+   * The only place the CALLDATA of a gasless purchase is observable: the page reaches the same success
+   * screen whether it settled through `accept` or `acceptWithCoupon`, and which one it called is the whole
+   * difference between paying the sale price and paying the list price.
+   */
+  metaTxBodies: string[]
 }
 
 /**
@@ -872,10 +880,15 @@ export async function launchApp(
   await page.setRequestInterception(true)
   const delays = opts.delays ?? {}
   const posts: string[] = []
+  const metaTxBodies: string[] = []
   page.on('request', req => {
     if (req.method() === 'POST') {
       try {
-        posts.push(new URL(req.url()).pathname)
+        const url = new URL(req.url())
+        posts.push(url.pathname)
+        if (url.hostname.includes('transactions-api') && url.pathname.endsWith('/transactions')) {
+          metaTxBodies.push(req.postData() ?? '')
+        }
       } catch {
         // A malformed URL is not worth failing a checkout over — the log is a diagnostic, not the test.
       }
@@ -892,5 +905,5 @@ export async function launchApp(
     else respond()
   })
   await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: opts.waitUntil ?? 'networkidle2', timeout: 45000 })
-  return { browser, page, close: () => browser.close(), posts }
+  return { browser, page, close: () => browser.close(), posts, metaTxBodies }
 }
