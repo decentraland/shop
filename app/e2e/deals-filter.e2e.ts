@@ -131,7 +131,7 @@ describe('the browse grid while a creator has items on sale', () => {
 
 describe('the Deals filter on the browse grid', () => {
   it('narrows the grid to what a creator is discounting, and says so in the URL', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
 
     // Both items are listed; only the Galaxy Hat is discounted.
@@ -146,7 +146,11 @@ describe('the Deals filter on the browse grid', () => {
   })
 
   it('restores the full grid when the filter is turned back off', async () => {
-    app = await launchApp({ path: '/items?deals=true', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({
+      path: '/items?deals=true',
+      creatorSales: true,
+      fixtures: { unifiedListings: unifiedListingsOnSale }
+    })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -164,7 +168,7 @@ const PHONE = { width: 375, height: 812 }
 
 describe('the Deals filter on a phone', () => {
   it('lives in the Filters sheet, next to the other filters, and narrows the grid from there', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
     await page.setViewport(PHONE)
 
@@ -182,7 +186,7 @@ describe('the Deals filter on a phone', () => {
   })
 
   it('keeps the switch tappable, at the row height the other filters use', async () => {
-    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
     await page.setViewport(PHONE)
 
@@ -242,5 +246,18 @@ describe('how many units are left at the sale price', () => {
       await waitForText(page, 'Galaxy Hat')
       expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
     })
+  })
+})
+
+describe('the Deals filter before the release turns it on', () => {
+  it('is not offered at all, so nobody meets an empty grid for a feature that is not live', async () => {
+    // No `creatorSales` — the shipped default, where the flag reads false.
+    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    expect(await page.$('[data-testid="deals-toggle"]')).toBeNull()
+    // The sale itself still renders — it is the FILTER that is dark, not the discount.
+    await page.waitForSelector('[data-testid="card-sale-badge"]', { timeout: 15000 })
   })
 })
