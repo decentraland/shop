@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
-import { unifiedListings } from './fixtures'
+import { COLLECTION, unifiedListings } from './fixtures'
 
 /**
  * The browse feed with the first item on sale: 270 struck through, 189 to pay, ending a day out.
@@ -199,5 +199,48 @@ describe('the Deals filter on a phone', () => {
     // rather than as a smaller afterthought — and it clears the ~44px touch target either way.
     expect(row.height).toBeGreaterThanOrEqual(44)
     expect(row.right).toBeLessThanOrEqual(PHONE.width)
+  })
+})
+
+/** The same on-sale row, plus however many units are left at the sale price. */
+const withUnitsLeft = (saleUnitsLeft: number) => ({
+  ...unifiedListingsOnSale,
+  data: [{ ...unifiedListingsOnSale.data[0], saleUnitsLeft }, ...unifiedListingsOnSale.data.slice(1)]
+})
+
+describe('how many units are left at the sale price', () => {
+  describe('and only a handful remain', () => {
+    it('should tell the buyer on the item page', async () => {
+      app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { unifiedListings: withUnitsLeft(3) } })
+      const { page } = app
+
+      await waitForText(page, 'Galaxy Hat')
+      const hint = await page.$eval('[data-testid="detail-units-left"]', el => el.textContent ?? '')
+      expect(hint).toMatch(/3/)
+    })
+  })
+
+  describe('and there are plenty', () => {
+    it('should say nothing, because a large number is not scarcity', async () => {
+      app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { unifiedListings: withUnitsLeft(40) } })
+      const { page } = app
+
+      await waitForText(page, 'Galaxy Hat')
+      // The sale itself still shows — both prices are on the page — and it is only the unit count that is
+      // withheld. Asserted on the rendered figures rather than on a test hook the buy-side branch owns.
+      await waitForText(page, '189')
+      await waitForText(page, '270')
+      expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
+    })
+  })
+
+  describe('and the listing is not on sale at all', () => {
+    it('should say nothing, since there is no sale price to run out of', async () => {
+      app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { unifiedListings } })
+      const { page } = app
+
+      await waitForText(page, 'Galaxy Hat')
+      expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
+    })
   })
 })

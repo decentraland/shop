@@ -289,7 +289,8 @@
     "inCart": "In cart",
     "addToCart": "Add to cart",
     "notForSale": "Not for Sale",
-    "view": "View"
+    "view": "View",
+    "unitsLeftAtThisPrice": "Only {count} left at this price"
   },
   "notifyMe": {
     "label": "Notify me when available",

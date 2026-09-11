@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { isSaleActive, saleDiscountPct, saleTimeLeft, formatCountdown, countdownTickMs } from './sale'
+import {
+  isSaleActive,
+  saleDiscountPct,
+  saleTimeLeft,
+  formatCountdown,
+  countdownTickMs,
+  saleUnitsHint,
+  SALE_UNITS_HINT_MAX
+} from './sale'
 
 const NOW = 1_000_000_000_000 // fixed epoch ms for deterministic time math
 
@@ -103,5 +111,46 @@ describe('countdownTickMs', () => {
   it('returns 0 (no ticking) when finished or open-ended', () => {
     expect(countdownTickMs(0)).toBe(0)
     expect(countdownTickMs(Infinity)).toBe(0)
+  })
+})
+
+describe('when deciding whether to tell the buyer how few units are left', () => {
+  describe('and only a handful remain', () => {
+    it('should surface the count, which is what makes it urgency', () => {
+      expect(saleUnitsHint(1)).toBe(1)
+      expect(saleUnitsHint(3)).toBe(3)
+      expect(saleUnitsHint(SALE_UNITS_HINT_MAX)).toBe(SALE_UNITS_HINT_MAX)
+    })
+  })
+
+  describe('and there are plenty', () => {
+    it('should say nothing, because a large number is noise dressed as pressure', () => {
+      expect(saleUnitsHint(SALE_UNITS_HINT_MAX + 1)).toBeNull()
+      expect(saleUnitsHint(40)).toBeNull()
+      // An uncapped sale reaches the client as its whole remaining stock; it must not read as scarcity.
+      expect(saleUnitsHint(999_997)).toBeNull()
+    })
+  })
+
+  describe('and nothing is left, or the server said nothing', () => {
+    it('should say nothing rather than advertise zero', () => {
+      expect(saleUnitsHint(0)).toBeNull()
+      expect(saleUnitsHint(-2)).toBeNull()
+    })
+
+    it('should treat a missing count as no hint, for a listing that is not on sale', () => {
+      expect(saleUnitsHint(undefined)).toBeNull()
+    })
+
+    it('should ignore a value that is not a real number', () => {
+      expect(saleUnitsHint(Number.NaN)).toBeNull()
+      expect(saleUnitsHint(Number.POSITIVE_INFINITY)).toBeNull()
+    })
+  })
+
+  describe('and the count arrives fractional', () => {
+    it('should floor it, so the buyer is never promised a unit that is not there', () => {
+      expect(saleUnitsHint(2.9)).toBe(2)
+    })
   })
 })
