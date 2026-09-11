@@ -42,8 +42,14 @@ export enum FeatureFlag {
    * Whether creators can put their collections on sale from the Shop (a signed discount coupon the catalogue
    * applies to their listings) and whether the Shop shows them their running sales.
    *
-   * Gates the creator surfaces only. Applying a coupon at checkout is not gated: a coupon only reaches a
-   * buyer once the catalogue serves it, and the catalogue only serves what a creator signed.
+   * Also the kill switch for sales that ALREADY EXIST. Off, the catalogue's discounts are stripped from every
+   * row as it is mapped: the Shop shows and charges the list price, and the Deals filter is not offered.
+   * That has to be all-or-nothing — turning off only the settlement half would show a buyer a sale price and
+   * then ask them for the list price, which reverts after they confirm.
+   *
+   * It does NOT retract the coupons themselves. They stay signed and valid on chain, and any other client
+   * reading the same catalogue still sees the discount; making a sale stop existing is the creator's own
+   * `cancelSignature`, not a flag.
    */
   SHOP_CREATOR_SALES = 'shop-creator-sales',
   /**

@@ -24,6 +24,10 @@ const { useManaRate } = vi.hoisted(() => ({
   }))
 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate }))
+// Creator sales are flagged off until the release turns them on, so the grid's default in these tests is
+// the shipped one and each Deals case opts in explicitly.
+const { useCreatorSalesEnabled } = vi.hoisted(() => ({ useCreatorSalesEnabled: vi.fn(() => false) }))
+vi.mock('~/hooks/useCreatorSalesEnabled', () => ({ useCreatorSalesEnabled }))
 vi.mock('~/lib/buy', () => ({ buyWithCredits: vi.fn() }))
 vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => false }))
 vi.mock('~/lib/buy-gasless', () => ({
@@ -103,6 +107,7 @@ async function lastShopItemsCall() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useCreatorSalesEnabled.mockReturnValue(false)
   useManaRate.mockReturnValue({ data: undefined, isError: false, isPending: false })
   vi.mocked(fetchShopItems).mockResolvedValue({ items: [], total: 0 })
 })
@@ -380,5 +385,95 @@ describe('Assets — the status a search runs under', () => {
     await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
     expect(vi.mocked(fetchShopItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'torso' })
     expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The Deals filter asks the server for the half of the catalogue a creator is discounting right now.
+ *
+ * It is NOT `onSale`, which this grid already sends to mean "listed at all" — the two read alike and
+ * select opposite halves, so a test pins which one goes out.
+ */
+describe('Assets — the Deals filter', () => {
+  beforeEach(() => useCreatorSalesEnabled.mockReturnValue(true))
+
+  describe('and it is off, which is the default', () => {
+    it('should not narrow the grid to discounted listings', async () => {
+      renderAssets()
+      const call = (await lastShopItemsCall())!
+
+      expect(call.discounted).toBeUndefined()
+      expect(call.onSale).toBe(true)
+      expect(call.sortBy).toBe('newest')
+    })
+  })
+
+  describe('and the URL asks for it', () => {
+    it('should ask the server for discounted listings only', async () => {
+      renderAssets('/items?deals=true')
+      const call = (await lastShopItemsCall())!
+
+      expect(call.discounted).toBe(true)
+      // Still "listed": a discount narrows the listed set, it does not replace the condition.
+      expect(call.onSale).toBe(true)
+    })
+
+    it('should rank by the size of the discount, which is the only useful default here', async () => {
+      renderAssets('/items?deals=true')
+      const call = (await lastShopItemsCall())!
+
+      expect(call.sortBy).toBe('discount')
+    })
+
+    it('should let an explicitly chosen sort win over that default', async () => {
+      renderAssets('/items?deals=true&sort=price-asc')
+      const call = (await lastShopItemsCall())!
+
+      expect(call.discounted).toBe(true)
+      expect(call.sortBy).toBe('cheapest')
+    })
+  })
+
+  describe('and the buyer turns it on', () => {
+    it('should spell the filter out in the URL, so the grid survives a refresh or a shared link', async () => {
+      renderAssets()
+      await userEvent.click(await screen.findByTestId('deals-toggle'))
+
+      await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deals=true'))
+    })
+  })
+
+  describe('and the buyer clears the applied filter', () => {
+    it('should drop the discount sort with it, rather than rank a grid where nothing is discounted', async () => {
+      renderAssets('/items?deals=true')
+      await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deals=true'))
+
+      await userEvent.click(await screen.findByTestId('deals-toggle'))
+
+      await waitFor(() => expect(screen.getByTestId('location-search').textContent).not.toContain('deals=true'))
+      const call = (await lastShopItemsCall())!
+      expect(call.discounted).toBeUndefined()
+      expect(call.sortBy).toBe('newest')
+    })
+  })
+})
+
+describe('Assets — the Deals filter before the release turns it on', () => {
+  beforeEach(() => useCreatorSalesEnabled.mockReturnValue(false))
+
+  it('should not offer the switch at all', async () => {
+    renderAssets()
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+
+    expect(screen.queryByTestId('deals-toggle')).toBeNull()
+  })
+
+  it('should ignore a hand-typed ?deals=true, so the URL cannot reach the feature either', async () => {
+    renderAssets('/items?deals=true')
+    const call = (await lastShopItemsCall())!
+
+    expect(call.discounted).toBeUndefined()
+    // And the discount ranking does not leak in through the sort default.
+    expect(call.sortBy).toBe('newest')
   })
 })

@@ -260,7 +260,8 @@
     "browseByCategory": "Ver todos los {category}",
     "browseBySmart": "Ver todos los smart wearables",
     "smart": "Smart",
-    "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo."
+    "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo.",
+    "deals": "Ofertas"
   },
   "rarity": {
     "common": "Común",
@@ -288,7 +289,8 @@
     "inCart": "En el carrito",
     "addToCart": "Añadir al carrito",
     "notForSale": "No en venta",
-    "view": "Ver"
+    "view": "Ver",
+    "unitsLeftAtThisPrice": "Solo quedan {count} a este precio"
   },
   "notifyMe": {
     "label": "Avísame cuando esté disponible",
@@ -723,7 +725,8 @@
     "clearAll": "Borrar todo",
     "filters": "Filtros",
     "sortBy": "Ordenar por",
-    "removeFilter": "Quitar el filtro {filter}"
+    "removeFilter": "Quitar el filtro {filter}",
+    "sortBiggestDiscount": "Mayor descuento"
   },
   "outfits": {
     "rowTitle": "Compra el look",

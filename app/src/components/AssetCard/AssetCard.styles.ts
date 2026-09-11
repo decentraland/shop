@@ -31,9 +31,16 @@ export const Card = styled.article`
   background: transparent;
 
   /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
-     250px tall over 300, split 136 media / 114 info. */
+     250px tall over 300, split 136 media / 114 info. A card on sale carries one more line of price
+     information than the 114px info block was drawn for, so it is allowed to grow rather than push the
+     countdown out through its own bottom edge; the grid stretches the row, so neighbours stay level. */
   ${media.maxWidth('sm')} {
     height: 250px;
+
+    &[data-sale] {
+      height: auto;
+      min-height: 250px;
+    }
   }
   border-radius: ${radius.card};
   position: relative;
@@ -185,6 +192,13 @@ export const Media = styled.div`
   isolation: isolate;
   flex: 1;
   min-height: 0;
+
+  /* The compact card is a drawn 136/114 split, so the media keeps its height and the footer is the part
+     that flexes. Left to absorb the slack, it gave 23px back to a sale card's taller price block and that
+     card's artwork came out shorter than its neighbours' in the same row. */
+  ${media.maxWidth('sm')} {
+    flex: 0 0 136px;
+  }
   background: ${colors.media};
   overflow: hidden;
   /* Its own top corners — the card doesn't clip. */
@@ -352,6 +366,14 @@ export const Body = styled.div`
     row-gap: 6px;
     padding: 16px;
 
+    /* The sale card's price block is three lines — price, struck price, countdown — and 114px was drawn
+       for two. Growing with its content is what keeps the pill inside the card; the root grows with it. */
+    &[data-sale] {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 114px;
+    }
+
     // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
     // stacked column so the mobile layout stays tidy.
     &[data-name] {
@@ -484,6 +506,16 @@ export const Price = styled.div`
     align-self: center;
     justify-self: start;
     gap: 2px;
+
+    /* The 58% cap keeps room for the NAME on the wide card, where the two share one flex row. Here the
+       price has a grid cell of its own, so the cap only squeezed the sale block below the width of the
+       countdown pill inside it: the pill spilled past the card's left edge, and the extra wrapped line
+       pushed the block out through the bottom of the fixed-height body. */
+    &[data-variant='sale'] {
+      max-width: none;
+      justify-content: flex-start;
+      row-gap: 2px;
+    }
   }
 `
 
@@ -523,12 +555,16 @@ export const Approx = styled.span`
   color: ${colors.muted2};
 `
 
+// Opaque on purpose. A translucent chip takes the colour of whatever is behind it, and this pill rides
+// cards on two very different surfaces — the browse grid and the home rail — so the same tokens that read
+// on one washed out on the other: accent purple over a 30%-purple fill measured 2.6:1 against the grid's
+// card, below even the 3:1 floor for UI text. A solid fill is the same everywhere (15.4:1 with softWhite).
 export const Countdown = styled(SaleCountdown)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: ${colors.rarityBg};
-  color: ${colors.accent};
+  background: ${colors.blackBtn};
+  color: ${colors.softWhite};
   font-size: 11px;
   font-weight: 700;
   border-radius: 6px;

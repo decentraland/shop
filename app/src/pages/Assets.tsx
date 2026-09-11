@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useUrlFilters } from '~/hooks/useUrlFilters'
 import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
@@ -9,7 +10,7 @@ import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
-import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
+import { FilterBar, DEALS_SORTS, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
@@ -61,6 +62,12 @@ export function Assets() {
   })
 
   const defaultStatus = defaultStatusFor(!!q)
+  // Read from the URL rather than from filterState because the sort default depends on it, and that
+  // default is an input to the very hook that would report it.
+  // Creator sales ship dark: with the flag off the grid must not even offer to filter by them, or a buyer
+  // turns on Deals and gets an empty grid for a feature that is not live yet.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const dealsRequested = creatorSalesEnabled && searchParams.get('deals') === 'true'
   // EVERY filter lives in the URL, through one owner. A refresh, a shared link and the back button used
   // to keep only Category and Status; the rest was local state and vanished.
   const filterDefaults = useMemo(
@@ -72,12 +79,19 @@ export function Assets() {
       priceMin: '',
       priceMax: '',
       smart: false,
-      sort: 'newest'
+      deals: false,
+      // Ranking by discount is the useful default once the grid IS the deals, and only there — see
+      // DEALS_SORTS. A sort the buyer picks by hand differs from this default, so it lands in the URL
+      // and survives, exactly as an explicitly chosen status does.
+      sort: dealsRequested ? 'discount' : 'newest'
     }),
-    [defaultStatus]
+    [defaultStatus, dealsRequested]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  // Read through the flag rather than straight off the URL: `?deals=true` typed by hand must not reach the
+  // query either.
+  const deals = creatorSalesEnabled && filterState.deals
   const category = filterState.category
   // Validated on read: the URL is user-editable, and an unknown status must not reach the query.
   const status: FilterStatus = STATUSES.includes(filterState.status) ? filterState.status : defaultStatus
@@ -114,7 +128,8 @@ export function Assets() {
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const secondarySales = useSecondarySales()
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
-  const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
+  const sortOptions = deals ? DEALS_SORTS : SORTS
+  const sortBy = (sortOptions.find(s => s.key === sort) ?? sortOptions[0]).server
   // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
   // + search, one card per item.
   const filters = {
@@ -127,6 +142,9 @@ export function Assets() {
     sortBy,
     isSmart: smart || undefined,
     onSale: true,
+    // `onSale` above means "listed"; this one means "a creator is discounting it right now". Two
+    // different halves of the catalogue, which is why the server named them apart.
+    discounted: deals || undefined,
     // Resales are hidden unless the flag says otherwise. Filtered server-side: this grid is paginated and
     // shows a result count, so dropping rows here would give short pages and a count that lies. Note this
     // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
@@ -261,6 +279,14 @@ export function Assets() {
   for (const r of RARITIES)
     if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
+  // Clearing the filter also drops the discount sort, which would otherwise rank a grid where nothing is
+  // discounted — every row tied at zero, in an order the buyer cannot read.
+  if (deals)
+    chips.push({
+      key: 'deals',
+      label: t('filter.deals'),
+      onRemove: () => setFilters({ deals: false, sort: 'newest' })
+    })
   // Against the default in force, not against the literal On Sale: while searching, All IS the default,
   // and offering to "remove" the state the page is already in reads as a filter the reader never applied.
   if (status !== defaultStatus)
@@ -305,6 +331,12 @@ export function Assets() {
                 onStatus={setStatus}
                 smart={smart}
                 onSmart={v => setFilters({ smart: v })}
+                deals={deals}
+                onDeals={
+                  creatorSalesEnabled
+                    ? v => setFilters(v ? { deals: true, sort: 'discount' } : { deals: false, sort: 'newest' })
+                    : undefined
+                }
               />
             </S.SidebarScroll>
 
@@ -327,6 +359,7 @@ export function Assets() {
           <>
             <FilterBar
               sort={sort}
+              sortOptions={sortOptions}
               onSort={v => setFilters({ sort: v })}
               total={total}
               loading={isLoading || isPlaceholderData}

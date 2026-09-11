@@ -709,6 +709,18 @@ export const MarketNote = styled.div`
   color: ${colors.gray4};
 `
 
+/**
+ * "Only 3 left at this price" — scarcity, next to the price rather than in the stock line, because it is
+ * about the SALE running out, not the item. Full width so it sits on its own line under the price row
+ * instead of squeezing in beside the countdown.
+ */
+export const UnitsLeft = styled.div`
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${colors.dclRed};
+`
+
 export const PriceWas = styled.span`
   display: inline-flex;
   align-items: center;
