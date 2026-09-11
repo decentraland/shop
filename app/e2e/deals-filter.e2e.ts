@@ -53,6 +53,69 @@ describe('the browse grid while a creator has items on sale', () => {
     expect(badge).toMatch(/30/)
   })
 
+  /**
+   * Reading the countdown's TEXT proves the timestamp arrived in the right unit and nothing else. It does
+   * not notice a pill drawn outside its own card, or one whose text is the same colour as what is behind
+   * it — both of which this card shipped with. So these two measure geometry and contrast instead.
+   */
+  it('keeps the countdown inside its card at phone width, on every side', async () => {
+    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    const { page } = app
+    await page.setViewport({ width: 390, height: 844 })
+
+    await waitForText(page, 'Galaxy Hat')
+    const box = await page.evaluate(() => {
+      const pill = document.querySelector('[data-testid="card-countdown"]') as HTMLElement
+      const card = pill.closest('[data-testid="card"]') as HTMLElement
+      const p = pill.getBoundingClientRect()
+      const c = card.getBoundingClientRect()
+      return {
+        overBottom: p.bottom - c.bottom,
+        overTop: c.top - p.top,
+        overLeft: c.left - p.left,
+        overRight: p.right - c.right
+      }
+    })
+
+    // Half a pixel of slack for sub-pixel rounding; anything past that is the pill escaping the card.
+    expect(box.overBottom).toBeLessThanOrEqual(0.5)
+    expect(box.overTop).toBeLessThanOrEqual(0.5)
+    expect(box.overLeft).toBeLessThanOrEqual(0.5)
+    expect(box.overRight).toBeLessThanOrEqual(0.5)
+  })
+
+  it('keeps the countdown readable against its own fill, on the light card and the dark one alike', async () => {
+    app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    const ratio = await page.evaluate(() => {
+      const pill = document.querySelector('[data-testid="card-countdown"]') as HTMLElement
+      const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number)
+      // Composite every layer up the tree: a translucent fill takes the colour of whatever is behind it,
+      // which is how the same tokens read on one surface and vanished on another.
+      let bg = [255, 255, 255]
+      const chain: number[][] = []
+      for (let el: HTMLElement | null = pill; el; el = el.parentElement)
+        chain.push(parse(getComputedStyle(el).backgroundColor))
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const [r, g, b, a = 1] = chain[i]
+        if (a === 0 || r === undefined) continue
+        bg = [r * a + bg[0] * (1 - a), g * a + bg[1] * (1 - a), b * a + bg[2] * (1 - a)]
+      }
+      const fg = parse(getComputedStyle(pill).color)
+      const lum = (c: number[]) => {
+        const f = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4)
+        return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2])
+      }
+      const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a)
+      return (hi + 0.05) / (lo + 0.05)
+    })
+
+    // WCAG AA for text this size. The pill shipped at 2.6:1 — below even the 3:1 floor for UI text.
+    expect(ratio).toBeGreaterThanOrEqual(4.5)
+  })
+
   it('counts down to the end of the sale, from a timestamp the catalogue sends in seconds', async () => {
     app = await launchApp({ path: '/items', fixtures: { unifiedListings: unifiedListingsOnSale } })
     const { page } = app
