@@ -43,6 +43,14 @@ vi.mock('~/lib/collections', async importOriginal => ({
   fetchCollectionSaleState: (...args: unknown[]) => fetchCollectionSaleState(...args)
 }))
 
+// 0.28 USD per MANA, so 5 MANA is $1.40 = 14 credits.
+vi.mock('~/lib/mana-rate', () => ({
+  manaRateQueryOptions: () => ({
+    queryKey: ['mana-rate', 'test'],
+    queryFn: async () => ({ rate: 28_000_000n, decimals: 8 })
+  })
+}))
+
 const cancelListing = vi.fn()
 vi.mock('~/lib/buy', () => ({ cancelListing: (...args: unknown[]) => cancelListing(...args) }))
 
@@ -334,6 +342,23 @@ describe('when viewing My Creations', () => {
     expect(manage.textContent).toMatch(/manage/i)
     expect(screen.queryByTestId('card-list')).not.toBeInTheDocument()
     expect(screen.queryByTestId('card-unlist')).not.toBeInTheDocument()
+  })
+
+  // Jarvis P1: the server converts a MANA price with ITS own rate, which drifts from the live one the
+  // browse grid and the item page use. The card must show the live number, not the stored snapshot.
+  it('should price a MANA listing at the live rate, not the server snapshot', async () => {
+    const user = userEvent.setup()
+    fetchPublishableItems.mockResolvedValue([creation])
+    fetchCollectionSaleState.mockResolvedValue({
+      '4': { isOnSale: true, priceCredits: 4, manaWei: '5000000000000000000' }
+    })
+    renderPageWithRoutes()
+    await screen.findByText('Cool Hat')
+
+    await user.click(screen.getByRole('button', { name: /my creations/i }))
+    await screen.findByTestId('card-manage')
+
+    expect(await screen.findByTestId('card-price')).toHaveTextContent('14')
   })
 
   // The reported bug: the creator's own MANA-priced listing is absent from the credit-only shop feed, so

@@ -293,6 +293,34 @@ export async function fetchItemDescription(contractAddress: string, itemId: stri
   }
 }
 
+// Per-ITEM credit prices for a collection's USD-pegged PRIMARY listings, keyed by itemId.
+//
+// The shop feed carries ONLY credit-priced rows, so a MANA-denominated listing is simply absent here.
+// That is why this is not a complete answer to "is it on sale": lib/collections' fetchCollectionSaleState
+// layers the collection catalogue on top to find the rows this feed omits.
+export async function fetchPeggedPrimaryPrices(
+  contractAddress: string
+): Promise<Record<string, { priceCredits: number; tradeId?: string }>> {
+  const map: Record<string, { priceCredits: number; tradeId?: string }> = {}
+  // Paged to the end on purpose: a pegged row missing from this map is read as MANA-denominated by
+  // fetchCollectionSaleState, which would then convert its USD-wei price as if it were MANA.
+  const PAGE = 200
+  for (let skip = 0; ; skip += PAGE) {
+    const { listings, total } = await fetchShopListingsRaw({
+      contractAddress,
+      first: PAGE,
+      skip,
+      listingType: 'primary'
+    })
+    for (const l of listings) {
+      if (l.listingType !== 'primary' || l.itemId == null) continue
+      map[String(l.itemId)] = { priceCredits: l.priceCredits, ...(l.tradeId ? { tradeId: l.tradeId } : {}) }
+    }
+    if (listings.length < PAGE || (total > 0 && skip + listings.length >= total)) break
+  }
+  return map
+}
+
 // Per-TOKEN secondary sale state for a collection, from the v3 shop feed. Keyed by tokenId, carrying
 // the credit price + tradeId. The indexer's /v1/nfts `order` is a legacy on-chain (MANA) field and is
 // absent for a shop (USD-pegged, off-chain trade) resale, so an on-sale owned token has no credit price
