@@ -34,7 +34,12 @@ const fetchCollectionSaleState = vi.fn()
 vi.mock('~/lib/api', () => ({
   fetchMyAssets: (...args: unknown[]) => fetchMyAssets(...args),
   postTrade: (...args: unknown[]) => postTrade(...args),
-  fetchTrade: (...args: unknown[]) => fetchTrade(...args),
+  fetchTrade: (...args: unknown[]) => fetchTrade(...args)
+}))
+
+// Partial mock: CollectionThumb and friends still need the real exports from this module.
+vi.mock('~/lib/collections', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/collections')>()),
   fetchCollectionSaleState: (...args: unknown[]) => fetchCollectionSaleState(...args)
 }))
 
@@ -329,6 +334,24 @@ describe('when viewing My Creations', () => {
     expect(manage.textContent).toMatch(/manage/i)
     expect(screen.queryByTestId('card-list')).not.toBeInTheDocument()
     expect(screen.queryByTestId('card-unlist')).not.toBeInTheDocument()
+  })
+
+  // The reported bug: the creator's own MANA-priced listing is absent from the credit-only shop feed, so
+  // the card priced it at 0 and said NOT FOR SALE while its item page showed it on sale at 14 credits.
+  it('should show the listed price, not NOT FOR SALE, for a creation on sale', async () => {
+    const user = userEvent.setup()
+    fetchPublishableItems.mockResolvedValue([creation])
+    // Keyed by itemId: the page prefixes the contract itself when merging across collections.
+    fetchCollectionSaleState.mockResolvedValue({ '4': { isOnSale: true, priceCredits: 14 } })
+    renderPageWithRoutes()
+    await screen.findByText('Cool Hat')
+
+    await user.click(screen.getByRole('button', { name: /my creations/i }))
+    await screen.findByTestId('card-manage')
+
+    // findBy, not getBy: the sale state is a second query, so the card first renders unpriced.
+    expect(await screen.findByTestId('card-price')).toHaveTextContent('14')
+    expect(screen.queryByTestId('card-nfs')).not.toBeInTheDocument()
   })
 
   it('should navigate to the creation’s item detail page when MANAGE is clicked', async () => {

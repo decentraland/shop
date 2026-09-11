@@ -8,6 +8,7 @@ import {
   fetchCatalogItems,
   fetchCreatorItems,
   fetchCreatorCollections,
+  fetchCollectionSaleState,
   sanitizeCollectionName
 } from '~/lib/collections'
 
@@ -564,5 +565,49 @@ describe('sanitizeCollectionName', () => {
 
   it('should leave empty string unchanged', () => {
     expect(sanitizeCollectionName('')).toBe('')
+  })
+})
+
+describe("when resolving a collection's primary sale state", () => {
+  it('should key on-sale items by itemId and skip the ones not for sale', async () => {
+    mockFetchOk([
+      rawItem({ itemId: '0', isOnSale: true, priceCredits: 14, tradeId: 't-mana' }),
+      rawItem({ itemId: '1', isOnSale: false, priceCredits: 0, tradeId: null }),
+      rawItem({ itemId: '2', isOnSale: true, priceCredits: 1, tradeId: 't-credits' })
+    ])
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(Object.keys(map)).toEqual(['0', '2'])
+    expect(map['0']).toEqual({ isOnSale: true, priceCredits: 14, tradeId: 't-mana' })
+  })
+
+  it('should keep a MANA-priced listing on sale, which the credit-only shop feed omits entirely', async () => {
+    mockFetchOk([rawItem({ itemId: '0', isOnSale: true, priceCredits: 14, price: '5000000000000000000' })])
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['0'].isOnSale).toBe(true)
+    expect(map['0'].priceCredits).toBe(14)
+  })
+
+  it('should keep a store mint on sale even though it has no trade to cancel', async () => {
+    mockFetchOk([rawItem({ itemId: '4', isOnSale: true, priceCredits: 7, tradeId: null })])
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['4']).toEqual({ isOnSale: true, priceCredits: 7 })
+  })
+
+  it('should skip a row with no itemId', async () => {
+    mockFetchOk([rawItem({ itemId: null, isOnSale: true, priceCredits: 5 })])
+    expect(await fetchCollectionSaleState('0xcol')).toEqual({})
+  })
+
+  it('should read the collection catalogue, not the credit-only shop feed', async () => {
+    const fetchMock = mockFetchOk([])
+    await fetchCollectionSaleState('0xcol')
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('/v3/catalog/items?')
+    expect(url).toContain('contractAddress=0xcol')
+  })
+
+  it('should propagate a failed request', async () => {
+    mockFetchNotOk(500)
+    await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchCollectionSaleState 500')
   })
 })

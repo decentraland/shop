@@ -3,13 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
-import {
-  fetchCollectionSaleState,
-  fetchMyAssets,
-  fetchSecondarySaleState,
-  type CatalogItem,
-  type MyAsset
-} from '~/lib/api'
+import { fetchMyAssets, fetchSecondarySaleState, type CatalogItem, type MyAsset } from '~/lib/api'
+import { fetchCollectionSaleState } from '~/lib/collections'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
@@ -299,7 +294,9 @@ export function MyAssets() {
       const maps = await Promise.all(
         contractAddresses.map(async ca => [ca, await fetchCollectionSaleState(ca)] as const)
       )
-      const merged: Record<string, { isOnSale: boolean; priceCredits: number; tradeId: string }> = {}
+      // tradeId is optional: a collection-store mint is on sale with no trade behind it. Creations only
+      // read isOnSale/priceCredits, so nothing here depends on it.
+      const merged: Record<string, { isOnSale: boolean; priceCredits: number; tradeId?: string }> = {}
       for (const [ca, m] of maps) {
         for (const [itemId, v] of Object.entries(m)) merged[`${ca}-${itemId}`] = v
       }

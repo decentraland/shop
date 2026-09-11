@@ -81,6 +81,42 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
   }
 }
 
+/**
+ * Per-ITEM primary sale state for a collection, keyed by itemId.
+ *
+ * Reads `/v3/catalog/items` — the collection's own catalogue — and NOT the `/v3/catalog/shop` feed, which
+ * only carries USD-pegged (credit-priced) listings. A creator who has not migrated an item to credit
+ * pricing still has a live MANA-denominated listing, and that item is simply absent from the shop feed:
+ * My Creations then priced it at 0 and the card rendered NOT FOR SALE while the item page, reading this
+ * catalogue, showed it on sale at the same price a buyer would pay.
+ *
+ * `isOnSale` comes from the row rather than from the presence of a `tradeId`. A collection-store mint has
+ * no trade and never will, yet it is on sale — the same assumption, made once before, is what
+ * `lib/pricing`'s isListingForSale exists to undo.
+ */
+export async function fetchCollectionSaleState(
+  contractAddress: string
+): Promise<Record<string, { isOnSale: boolean; priceCredits: number; tradeId?: string }>> {
+  const qs = new URLSearchParams({
+    contractAddress,
+    first: '200',
+    includeSocialEmotes: 'false'
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchCollectionSaleState ${res.status}`)
+  const { data } = (await res.json()) as { data?: RawCollectionItem[] }
+  const map: Record<string, { isOnSale: boolean; priceCredits: number; tradeId?: string }> = {}
+  for (const r of data ?? []) {
+    if (r.itemId == null || !r.isOnSale) continue
+    map[String(r.itemId)] = {
+      isOnSale: true,
+      priceCredits: r.priceCredits ?? 0,
+      ...(r.tradeId ? { tradeId: r.tradeId } : {})
+    }
+  }
+  return map
+}
+
 function toAvailable(value: string | number | null | undefined): number | undefined {
   const n = Number(value)
   return Number.isFinite(n) && n > 0 ? n : undefined

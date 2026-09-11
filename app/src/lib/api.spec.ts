@@ -31,7 +31,6 @@ import {
   usdWeiToCents,
   fetchCatalog,
   fetchCatalogByIds,
-  fetchCollectionSaleState,
   fetchSecondarySaleState,
   fetchShopListingForItem,
   fetchListings,
@@ -351,32 +350,6 @@ describe('when hydrating catalog items by their marketplace item ids', () => {
   it('should throw when a chunk request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
     await expect(fetchCatalogByIds(['0xa-1'])).rejects.toThrow('fetchCatalogByIds (500)')
-  })
-})
-
-describe('when resolving a collection sale state from the shop feed', () => {
-  it('should key primary listings by itemId and skip secondary / itemId-less rows', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({
-        total: 3,
-        data: [
-          { tradeId: 't1', listingType: 'primary', itemId: '1', priceCredits: 10 },
-          { tradeId: 't2', listingType: 'secondary', itemId: '2', priceCredits: 20 },
-          { tradeId: 't3', listingType: 'primary', itemId: null, priceCredits: 30 }
-        ]
-      })
-    )
-    const map = await fetchCollectionSaleState('0xcol')
-    expect(Object.keys(map)).toEqual(['1'])
-    expect(map['1']).toEqual({ isOnSale: true, priceCredits: 10, tradeId: 't1' })
-    // filters by contractAddress against the v3 shop endpoint.
-    expect(lastUrl()).toContain('https://market.test/v3/catalog/shop?')
-    expect(lastUrl()).toContain('contractAddress=0xcol')
-  })
-
-  it('should propagate the shop-feed error', async () => {
-    fetchMock.mockResolvedValueOnce(httpError(500))
-    await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchShopListings 500')
   })
 })
 
