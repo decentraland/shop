@@ -26,7 +26,12 @@ export function useFavoriteCount(item: Pick<CatalogItem, 'contractAddress' | 'it
 
   const { data } = useQuery({
     queryKey: ['favorite-count', key, address ?? null],
-    queryFn: () => fetchFavoriteStats(key as string, identity),
+    queryFn: () => {
+      // `enabled` already keeps this from running without a key; the guard is what keeps the two in step,
+      // and it is what lets the call stay free of a cast.
+      if (!key) throw new Error('favorite count asked for without an item key')
+      return fetchFavoriteStats(key, identity)
+    },
     enabled: !!key,
     // Saves accumulate slowly and the viewer's own is already applied below, so re-reading this per
     // mount buys nothing.
