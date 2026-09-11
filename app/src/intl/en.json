@@ -260,7 +260,8 @@
     "browseByCategory": "Browse all {category}",
     "browseBySmart": "Browse all smart wearables",
     "smart": "Smart",
-    "smartHint": "Smart wearables add interactive, in-world utility."
+    "smartHint": "Smart wearables add interactive, in-world utility.",
+    "deals": "Deals"
   },
   "rarity": {
     "common": "Common",
@@ -723,7 +724,8 @@
     "clearAll": "Clear all",
     "filters": "Filters",
     "sortBy": "Sort by",
-    "removeFilter": "Remove {filter} filter"
+    "removeFilter": "Remove {filter} filter",
+    "sortBiggestDiscount": "Biggest discount"
   },
   "outfits": {
     "rowTitle": "Buy the Look",
