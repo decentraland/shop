@@ -109,6 +109,8 @@ describe('the best deals rail', () => {
   it('shows the live sales biggest discount first, each with its old price and countdown', async () => {
     app = await launchApp({
       path: '/overview',
+      // The catalogue's discounts are stripped while creator sales are off, so a rail OF discounts needs
+      // the flag on to have anything to show.
       creatorSales: true,
       fixtures: {
         unifiedListings: {
