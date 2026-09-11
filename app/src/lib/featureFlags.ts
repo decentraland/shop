@@ -39,6 +39,14 @@ export enum FeatureFlag {
    */
   SECONDARY_SALES = 'shop-secondary-sales',
   /**
+   * Whether creators can put their collections on sale from the Shop (a signed discount coupon the catalogue
+   * applies to their listings) and whether the Shop shows them their running sales.
+   *
+   * Gates the creator surfaces only. Applying a coupon at checkout is not gated: a coupon only reaches a
+   * buyer once the catalogue serves it, and the catalogue only serves what a creator signed.
+   */
+  SHOP_CREATOR_SALES = 'shop-creator-sales',
+  /**
    * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
    * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
    *
@@ -329,4 +337,9 @@ export async function getIsProceedsToTreasuryEnabled(): Promise<boolean> {
  */
 export async function getIsSecondarySalesEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SECONDARY_SALES)
+}
+
+/** Whether creators can put their collections on sale from the Shop. Fails closed like every other accessor. */
+export async function getIsCreatorSalesEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
 }

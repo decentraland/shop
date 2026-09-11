@@ -79,6 +79,13 @@ export type Fixtures = {
   outfits: unknown
   /** Creator ranking (/v3/catalog/creators) — what fills the "Top Creators" section. */
   rankings: unknown
+  /** The creator's sales served (and appended to) by the mock marketplace-server (`/v1/coupons`). */
+  coupons: unknown
+  /**
+   * What `/v3/catalog/shop?contractAddress=…` (fetchCollectionSaleState) answers for a creator's collection.
+   * Undefined keeps the default "nothing on sale", which the publish spec relies on.
+   */
+  collectionSaleState?: unknown
 }
 
 function defaults(): Fixtures {
@@ -96,6 +103,7 @@ function defaults(): Fixtures {
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     builderItemContents: { 'thumbnail.png': 'bafyfake' },
+    coupons: { data: [] },
     profile: fx.profile,
     userStore: null,
     authorize: {
@@ -242,6 +250,9 @@ function toCatalogRow(l: any) {
 let secondarySalesFlag = true
 let outfitCreatorFlag = false
 let followsFlag = false
+let creatorSalesFlag = false
+// The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
+let couponStore: any[] = []
 
 // Stateful outfits: the mock shop-server. Seeded from F.outfits per run so studio mutations (save,
 // publish, delete) survive navigation within a test without leaking across runs.
@@ -272,7 +283,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         flags: {
           'dapps-shop-secondary-sales': secondarySalesFlag,
           'dapps-shop-outfit-creators': outfitCreatorFlag,
-          'dapps-shop-follows': followsFlag
+          'dapps-shop-follows': followsFlag,
+          'dapps-shop-creator-sales': creatorSalesFlag
         },
         variants: outfitCreatorFlag
           ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
@@ -439,7 +451,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const ca = u.searchParams.get('contractAddress')
       const itemId = u.searchParams.get('itemId')
       // fetchCollectionSaleState (contractAddress, no itemId) → treat as "not on sale".
-      if (ca && !itemId) return json(req, { data: [], total: 0 })
+      if (ca && !itemId) return json(req, F.collectionSaleState ?? { data: [], total: 0 })
       // Honor the server-side filters so filter/search/sort + item-detail specs are meaningful.
       let items = [...((F.shopListings as { data: any[] }).data ?? [])]
       const search = u.searchParams.get('search')?.toLowerCase()
@@ -608,6 +620,23 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
       return json(req, { data: rows, total: rows.length })
     }
+    // Creator sales (lib/coupons). The POST answers the way marketplace-server does — the stored coupon with
+    // its id, status and initial on-chain state — and the GET returns everything this run has stored.
+    if (path === '/v1/coupons' && method === 'POST') {
+      const body = JSON.parse(req.postData() || '{}') as { checks?: { effective?: number } }
+      const sale = {
+        id: `coupon-${couponStore.length + 1}`,
+        ...body,
+        couponManager: '0x6c956587d9fe70032781edcdc626310648575382',
+        root: '0x' + '11'.repeat(32),
+        createdAt: Date.now(),
+        state: { uses: 0, cancelled: false, revoked: false, checkedAt: Date.now() },
+        status: (body.checks?.effective ?? 0) > Date.now() ? 'scheduled' : 'active'
+      }
+      couponStore.unshift(sale)
+      return json(req, { ok: true, data: sale }, 201)
+    }
+    if (path === '/v1/coupons') return json(req, { ok: true, data: couponStore })
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
     // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
@@ -831,6 +860,11 @@ export async function launchApp(
      * state, where the feature is hidden; the follows spec passes true to exercise the prototype.
      */
     follows?: boolean
+    /**
+     * Whether the mocked flag file reports creator sales as available. Defaults to FALSE, the shipped state;
+     * the creator-sale spec passes true to exercise the flow.
+     */
+    creatorSales?: boolean
     /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
     delays?: Delays
     /**
@@ -852,6 +886,8 @@ export async function launchApp(
   outfitCreatorFlag = opts.outfitCreator ?? false
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
+  creatorSalesFlag = opts.creatorSales ?? false
+  couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
