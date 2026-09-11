@@ -406,9 +406,9 @@ export const StatusLabel = styled.span`
   color: ${theme.colors.gray4};
 `
 
-// ---------------- Smart (toggle row) ----------------
+// ---------------- Toggle rows (Deals, Smart) ----------------
 
-export const SmartRow = styled.div`
+export const ToggleRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -417,14 +417,14 @@ export const SmartRow = styled.div`
   height: 40px;
   padding: 4px;
 
-  /* On mobile SMART is a peer of the collapsible section headers (Figma 1304-307965): same 52px row
-     height so it doesn't read as a smaller afterthought. */
+  /* On mobile a toggle row is a peer of the collapsible section headers (Figma 1304-307965): same 52px
+     row height so it doesn't read as a smaller afterthought. */
   ${theme.media.maxWidth('lg')} {
     height: 52px;
   }
 `
 
-export const SmartLeft = styled.div`
+export const ToggleLeft = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -441,7 +441,7 @@ export const SmartFlash = styled(Icon)`
   }
 `
 
-export const SmartTitle = styled.span`
+export const ToggleTitle = styled.span`
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 14px;
@@ -450,7 +450,7 @@ export const SmartTitle = styled.span`
   /* Figma labels SMART in uppercase (the flash-feature label), unlike the title-case section names. */
   text-transform: uppercase;
 
-  /* Match the section-header title size on mobile so SMART has the same hierarchy as Price/Rarity/etc. */
+  /* Match the section-header title size on mobile so a toggle row has the same hierarchy as Price/Rarity. */
   ${theme.media.maxWidth('lg')} {
     font-size: 16px;
   }
