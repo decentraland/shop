@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchCreatorItems } from '~/lib/collections'
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { useFollows } from '~/store/follows'
@@ -22,7 +23,7 @@ export function FollowedCreatorsRow() {
   const followed = useFollows(s => s.followed)
   const creators = followed.slice(0, MAX_CREATORS)
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: rawItems = [], isLoading } = useQuery({
     // Key on the follow set so the row refreshes when the visitor follows/unfollows.
     queryKey: ['followed-creators-row', creators.join(',')],
     // Off with the flag too, so a stale localStorage set from an earlier build can't fan out requests
@@ -36,11 +37,18 @@ export function FollowedCreatorsRow() {
             .catch(() => [] as CatalogItem[])
         )
       )
-      return interleave(lists)
-        .filter(i => i.priceCredits > 0) // buyable only
-        .slice(0, MAX_ITEMS)
+      return (
+        interleave(lists)
+          // Buyable only. A MANA row is buyable before its credit price is known, so it qualifies on
+          // carrying `manaWei` — filtering on the number alone dropped store mints the feed reports at 0.
+          .filter(i => i.priceCredits > 0 || !!i.manaWei)
+          .slice(0, MAX_ITEMS)
+      )
     }
   })
+
+  // fetchCreatorItems is the same feed the creator page prices at the live rate.
+  const items = useLivePricedItems(rawItems)
 
   if (!enabled || creators.length === 0) return null
   if (!isLoading && items.length === 0) return null
