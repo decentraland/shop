@@ -1238,6 +1238,7 @@
     "errorWindow": "The sale has to end after it starts.",
     "errorDuration": "A sale can run for up to 30 days.",
     "errorCollections": "Pick at least one collection.",
+    "errorUses": "Enter a whole number of units, at least 1.",
     "successTitle": "Your sale is live! 🎉",
     "successScheduledTitle": "Your sale is scheduled",
     "successBody": "{count, plural, one {# collection} other {# collections}} at {pct}% off",

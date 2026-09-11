@@ -17,6 +17,7 @@ import { isManagedWallet } from '~/lib/wallet'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
+import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
 import { Icon } from '~/components/Icon'
@@ -63,13 +64,11 @@ function problemCopy(problem: SaleInputProblem): string {
       return t('creatorSale.errorDuration')
     case 'collections':
       return t('creatorSale.errorCollections')
+    case 'uses':
+      return t('creatorSale.errorUses')
     default:
       return t('creatorSale.errorWindow')
   }
-}
-
-function formatDate(ms: number): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms))
 }
 
 function durationLabel(hours: number): string {
@@ -230,7 +229,7 @@ export function CreatorSaleModal({
             </S.SuccessText>
             <S.SuccessDetail>
               {scheduled ? (
-                t('creatorSale.successStarts', { date: formatDate(created.checks.effective) })
+                t('creatorSale.successStarts', { date: formatDateTime(created.checks.effective) })
               ) : (
                 <>
                   {t('creatorSale.successEnds')}{' '}

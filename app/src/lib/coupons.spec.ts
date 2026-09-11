@@ -78,7 +78,8 @@ describe('validateSaleTerms', () => {
     ['window', { ...ok, startsAtMs: now + 4 * DAY }],
     ['duration', { ...ok, endsAtMs: now + 31 * DAY }],
     ['collections', { ...ok, collections: [] }],
-    ['window', { ...ok, uses: 0 }]
+    ['uses', { ...ok, uses: 0 }],
+    ['uses', { ...ok, uses: 2.5 }]
   ]
 
   it.each(rejected)('rejects %s', (problem, terms) => {

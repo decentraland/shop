@@ -66,7 +66,10 @@ export type CouponContracts = {
 }
 
 // Polygon mainnet is wired on-chain and listed in the public contracts registry, but the transactions library
-// version this app pins predates its entry. Drop once the library bump lands.
+// version this app pins predates its entry. Remove this map, and the catch branch that reads it, once
+// `decentraland-transactions` is bumped to a release that includes `CouponManager` and `CollectionDiscountCoupon`
+// for `ChainId.MATIC_MAINNET` (added in decentraland/decentraland-transactions#136): from then on `getContract`
+// answers for mainnet and the fallback is dead code.
 const MAINNET_FALLBACK = {
   couponManager: '0x3fd3056ee72a2a85e9392fab3a450e7736536081',
   collectionDiscountCoupon: '0xc914507fe297b2dddd1232ac3a8903f1c125e794'
@@ -161,7 +164,7 @@ export function couponTypedValues(checks: TradeChecks, couponAddress: string, da
   }
 }
 
-export type SaleInputProblem = 'collections' | 'pct' | 'window' | 'duration'
+export type SaleInputProblem = 'collections' | 'pct' | 'window' | 'duration' | 'uses'
 
 /** A sale the creator asked for that the contract, the server or the product would refuse. The UI maps the code to copy. */
 export class SaleInputError extends Error {
@@ -192,7 +195,7 @@ export function validateSaleTerms(terms: SaleTerms, now = Date.now()): void {
   const startsAt = terms.startsAtMs ?? now
   if (!(terms.endsAtMs > now) || !(terms.endsAtMs > startsAt)) throw new SaleInputError('window')
   if (terms.endsAtMs - Math.max(startsAt, now) > MAX_SALE_DURATION_MS) throw new SaleInputError('duration')
-  if (terms.uses !== undefined && (!Number.isInteger(terms.uses) || terms.uses < 1)) throw new SaleInputError('window')
+  if (terms.uses !== undefined && (!Number.isInteger(terms.uses) || terms.uses < 1)) throw new SaleInputError('uses')
 }
 
 const INDEX_ABI = [
@@ -285,7 +288,11 @@ export async function postCoupon(payload: CouponCreation, identity: AuthIdentity
 /** A creator's sales, newest first, with their last known state. Public: coupons are public signatures. */
 export async function fetchCreatorSales(address: string): Promise<CreatorSale[]> {
   const res = await fetch(`${config.marketplaceServerUrl}/v1/coupons?signer=${address.toLowerCase()}`)
-  if (!res.ok) throw new Error(`fetchCreatorSales ${res.status}`)
+  if (!res.ok) {
+    // Release the connection before throwing: an unread body on the error path leaks it.
+    void res.body?.cancel()
+    throw new Error(`fetchCreatorSales ${res.status}`)
+  }
   const json = (await res.json()) as { ok?: boolean; data?: CreatorSale[] }
   return json.data ?? []
 }
@@ -318,7 +325,13 @@ export async function endSale(opts: { sale: CreatorSale; signer: ethers.Signer }
   const contracts = getCouponContracts(sale.chainId)
   if (!contracts) throw new Error(`Coupons are not available on chain ${sale.chainId}`)
 
-  const manager = new ethers.Contract(sale.couponManager, contracts.couponManager.abi, signer) as CouponManagerContract
+  // The manager address comes from this build's contract registry, never from the API row: the wallet is about to
+  // send a transaction to it, and the server's copy is only there to describe the sale.
+  const manager = new ethers.Contract(
+    contracts.couponManager.address,
+    contracts.couponManager.abi,
+    signer
+  ) as CouponManagerContract
   const onChainCoupon = {
     signature: sale.signature,
     checks: {

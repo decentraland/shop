@@ -5,6 +5,7 @@ import { endSale, isSaleCapped, liveSaleStatus, type CreatorSale, type CreatorSa
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
+import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
 import { Button } from '~/components/Button'
@@ -26,10 +27,6 @@ function statusCopy(status: CreatorSaleStatus): string {
     default:
       return t('creatorSale.statusEnded')
   }
-}
-
-function formatDate(ms: number): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms))
 }
 
 /** A creator's sales, newest first, with the one action a running sale has: ending it early. */
@@ -81,7 +78,7 @@ export function CreatorSales({ sales, session }: { sales: CreatorSale[]; session
                     {t('creatorSale.endsIn')} <SaleCountdown endsAt={sale.checks.expiration} />
                   </>
                 ) : status === 'scheduled' ? (
-                  t('creatorSale.startsOn', { date: formatDate(sale.checks.effective) })
+                  t('creatorSale.startsOn', { date: formatDateTime(sale.checks.effective) })
                 ) : null}
                 {isSaleCapped(sale) ? (
                   <span>{t('creatorSale.used', { used: sale.state?.uses ?? 0, total: sale.checks.uses })}</span>

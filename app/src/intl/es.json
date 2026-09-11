@@ -1238,6 +1238,7 @@
     "errorWindow": "La oferta tiene que terminar después de empezar.",
     "errorDuration": "Una oferta puede durar hasta 30 días.",
     "errorCollections": "Elige al menos una colección.",
+    "errorUses": "Introduce un número entero de unidades, al menos 1.",
     "successTitle": "¡Tu oferta ya está activa! 🎉",
     "successScheduledTitle": "Tu oferta quedó programada",
     "successBody": "{count, plural, one {# colección} other {# colecciones}} con {pct}% de descuento",
