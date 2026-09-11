@@ -11,6 +11,10 @@ import {
   type MyAsset
 } from '~/lib/api'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
+import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorSaleModal'
+import { CreatorSales } from '~/components/CreatorSales'
+import { useCreatorSales } from '~/hooks/useCreatorSales'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
@@ -308,6 +312,31 @@ export function MyAssets() {
   })
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
 
+  // Creator sales: the collections with at least one Shop listing (what a sale can apply to) and the sales the
+  // creator already runs. Both only matter on the creations section, and only once the flag opens the flow.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const { data: creatorSales } = useCreatorSales(address, creatorSalesEnabled && section === 'creations')
+  const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const saleableCollections = useMemo<SaleableCollection[]>(() => {
+    const byAddress = new Map<string, SaleableCollection>()
+    for (const item of publishable ?? []) {
+      const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
+      if (!sale?.isOnSale) continue
+      const key = item.contractAddress.toLowerCase()
+      const entry = byAddress.get(key) ?? {
+        contractAddress: key,
+        name: item.collectionName,
+        listedCount: 0,
+        minPriceCredits: null
+      }
+      entry.listedCount += 1
+      entry.minPriceCredits =
+        entry.minPriceCredits === null ? sale.priceCredits : Math.min(entry.minPriceCredits, sale.priceCredits)
+      byAddress.set(key, entry)
+    }
+    return [...byAddress.values()]
+  }, [publishable, saleState])
+
   // Creations filtered (status + search) + sorted client-side (the builder feed isn't paginated/queryable).
   const creations = useMemo(() => {
     let list = publishable ?? []
@@ -525,6 +554,36 @@ export function MyAssets() {
         {/* ---- Creations grid ---- */}
         {section === 'creations' ? (
           <>
+            {creatorSalesEnabled && session ? (
+              <S.SalesPanel data-testid="creator-sales-panel">
+                <S.SalesHead>
+                  <S.SalesTitle>{t('creatorSale.salesTitle')}</S.SalesTitle>
+                  <Button
+                    variant="purple"
+                    size="sm"
+                    data-testid="creator-sale-open"
+                    disabled={saleableCollections.length === 0}
+                    onClick={() => setSaleModalOpen(true)}
+                  >
+                    {t('creatorSale.putOnSale')}
+                  </Button>
+                </S.SalesHead>
+                {creatorSales && creatorSales.length > 0 ? (
+                  <CreatorSales sales={creatorSales} session={session} />
+                ) : (
+                  <S.SalesHint>
+                    {saleableCollections.length === 0 ? t('creatorSale.noCollections') : t('creatorSale.noSales')}
+                  </S.SalesHint>
+                )}
+              </S.SalesPanel>
+            ) : null}
+            {saleModalOpen && session ? (
+              <CreatorSaleModal
+                session={session}
+                collections={saleableCollections}
+                onClose={() => setSaleModalOpen(false)}
+              />
+            ) : null}
             <S.Grid data-testid="grid">
               {publishableLoading ? (
                 <SkeletonCards count={12} />

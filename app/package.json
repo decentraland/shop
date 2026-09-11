@@ -25,6 +25,7 @@
     "@dcl/ui-env": "2.0.0",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
+    "@openzeppelin/merkle-tree": "^1.0.8",
     "@sentry/react": "7.120.3",
     "@stripe/react-stripe-js": "^2.9.0",
     "@stripe/stripe-js": "^4.10.0",

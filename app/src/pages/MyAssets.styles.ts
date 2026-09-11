@@ -235,3 +235,38 @@ export const GateText = styled.p`
 export const ImportBanner = styled(ManaPricingBanner)`
   margin-bottom: 16px;
 `
+
+// The creator's sales, above the creations grid: a header with the one action, then the running sales.
+export const SalesPanel = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid ${theme.colors.line};
+  border-radius: ${theme.radius.card};
+  background: ${theme.colors.panel};
+`
+
+export const SalesHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`
+
+export const SalesTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 16px;
+  color: ${theme.colors.text};
+`
+
+export const SalesHint = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  line-height: 1.5;
+  color: ${theme.colors.muted};
+`
