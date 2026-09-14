@@ -3,13 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
-import {
-  fetchCollectionSaleState,
-  fetchMyAssets,
-  fetchSecondarySaleState,
-  type CatalogItem,
-  type MyAsset
-} from '~/lib/api'
+import { fetchMyAssets, fetchSecondarySaleState, type CatalogItem, type MyAsset } from '~/lib/api'
+import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
+import { displayCredits } from '~/lib/mana-convert'
+import { useManaRate } from '~/hooks/useManaRate'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorSaleModal'
 import { CollectionThumb } from '~/components/CollectionThumb'
@@ -327,7 +324,7 @@ export function MyAssets() {
       const maps = await Promise.all(
         contractAddresses.map(async ca => [ca, await fetchCollectionSaleState(ca)] as const)
       )
-      const merged: Record<string, { isOnSale: boolean; priceCredits: number; tradeId: string }> = {}
+      const merged: Record<string, CollectionSaleState> = {}
       for (const [ca, m] of maps) {
         for (const [itemId, v] of Object.entries(m)) merged[`${ca}-${itemId}`] = v
       }
@@ -335,6 +332,21 @@ export function MyAssets() {
     }
   })
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
+
+  // Only a MANA-denominated listing needs the oracle, and most sellers have none — don't poll for nothing.
+  const hasManaListing = useMemo(() => Object.values(saleState ?? {}).some(v => !!v.manaWei), [saleState])
+  const { data: manaRate } = useManaRate(hasManaListing)
+
+  /**
+   * A MANA listing has no fixed credit price: convert at the LIVE rate, the same number the browse grid
+   * and the item page show. The server's snapshot stands in until that rate resolves, so a listed item
+   * never flashes NOT FOR SALE — `displayCredits` would return 0 without a rate.
+   */
+  const creditsFor = (sale: CollectionSaleState | undefined) => {
+    if (!sale) return 0
+    if (!sale.manaWei || !manaRate) return sale.priceCredits
+    return displayCredits({ manaWei: sale.manaWei, priceCredits: sale.priceCredits }, manaRate)
+  }
 
   // Creator sales: the collections with at least one Shop listing (what a sale can apply to) and the sales the
   // creator already runs. Both only matter on the creations section, and only once the flag opens the flow.
@@ -349,6 +361,9 @@ export function MyAssets() {
     // covers never depends on how the grid happens to be filtered.
     for (const item of publishable ?? []) {
       const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
+      // A MANA listing is on sale, but a coupon cannot discount it: the sale re-prices the Shop's own
+      // credit listings. Counting one would offer a discount that covers none of the collection's items.
+      const listedInCredits = !!sale?.isOnSale && !sale.manaWei
       const key = item.contractAddress.toLowerCase()
       const entry = byAddress.get(key) ?? {
         contractAddress: key,
@@ -361,10 +376,10 @@ export function MyAssets() {
         key: `${key}-${item.blockchainItemId}`,
         name: item.name,
         thumbnail: item.thumbnail,
-        priceCredits: sale?.isOnSale ? sale.priceCredits : null,
+        priceCredits: listedInCredits ? sale.priceCredits : null,
         remainingSupply: item.remainingSupply
       })
-      if (sale?.isOnSale) {
+      if (listedInCredits) {
         entry.listedCount += 1
         entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
       }
@@ -376,19 +391,13 @@ export function MyAssets() {
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
   // with the Activity chip, so the two can never quote different numbers.
-  const { items: importableItems, count: importableCount } = useImportable()
+  const { count: importableCount } = useImportable()
   const importCount = importableCount ?? 0
 
-  /** The creations still on classic pricing, keyed like the sale-state map so both can be asked per item. */
-  const classicPricedKeys = useMemo(
-    () =>
-      new Set(
-        importableItems
-          .filter(i => i.listingType === 'primary' && i.itemId != null)
-          .map(i => `${i.contractAddress.toLowerCase()}-${i.itemId}`)
-      ),
-    [importableItems]
-  )
+
+
+  // Creations filtered (status + price + search) + sorted client-side (the builder feed isn't
+  // paginated/queryable).
 
   // Creations filtered (status + price + search) + sorted client-side (the builder feed isn't
   // paginated/queryable).
@@ -396,20 +405,21 @@ export function MyAssets() {
     let list = publishable ?? []
     if (status === 'on_sale') list = list.filter(p => saleFor(p)?.isOnSale)
     else if (status === 'not_for_sale') list = list.filter(p => !saleFor(p)?.isOnSale)
-    if (priceType === 'credits') list = list.filter(p => saleFor(p)?.isOnSale)
-    else if (priceType === 'mana')
-      list = list.filter(p => classicPricedKeys.has(`${p.contractAddress.toLowerCase()}-${p.blockchainItemId}`))
+    // Both arms read the SAME listing the card prices from, so the filter can never disagree with what the
+    // grid shows. `isOnSale` alone is not "priced in credits": a MANA listing is on sale too, it is just
+    // quoted in the other currency, and `manaWei` is what tells them apart.
+    if (priceType === 'credits') list = list.filter(p => !!saleFor(p)?.isOnSale && !saleFor(p)?.manaWei)
+    else if (priceType === 'mana') list = list.filter(p => !!saleFor(p)?.manaWei)
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(p => p.name.toLowerCase().includes(q))
     }
     const sorted = [...list]
     if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
-    else if (sort === 'cheapest')
-      sorted.sort((a, b) => (saleFor(a)?.priceCredits ?? 0) - (saleFor(b)?.priceCredits ?? 0))
+    else if (sort === 'cheapest') sorted.sort((a, b) => creditsFor(saleFor(a)) - creditsFor(saleFor(b)))
     return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishable, saleState, status, priceType, classicPricedKeys, search, sort])
+  }, [publishable, saleState, status, priceType, search, sort, manaRate])
 
   /**
    * The creations split into their collections, in the order the filtered list already put them.
@@ -725,7 +735,7 @@ export function MyAssets() {
                         // longer happens inline from the My Creations card.
                         <AssetCard
                           key={`${item.contractAddress}-${item.blockchainItemId}`}
-                          item={publishableToItem(item, sale?.priceCredits ?? 0, address ?? '')}
+                          item={publishableToItem(item, creditsFor(sale), address ?? '')}
                           mode="manage-link"
                         />
                       )

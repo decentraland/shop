@@ -8,6 +8,7 @@ import {
   fetchCatalogItems,
   fetchCreatorItems,
   fetchCreatorCollections,
+  fetchCollectionSaleState,
   sanitizeCollectionName
 } from '~/lib/collections'
 
@@ -564,5 +565,97 @@ describe('sanitizeCollectionName', () => {
 
   it('should leave empty string unchanged', () => {
     expect(sanitizeCollectionName('')).toBe('')
+  })
+})
+
+describe("when resolving a collection's primary sale state", () => {
+  // Two feeds answer this, so the mock routes by URL: the shop feed knows the USD-pegged rows, the
+  // catalogue knows every item. `items` is a list of PAGES.
+  function mockFeeds({ shop = [] as unknown[], items = [[]] as unknown[][] }) {
+    let page = 0
+    const total = items.reduce((n, pg) => n + pg.length, 0)
+    const fetchMock = vi.fn(async (url: string) => {
+      const isShop = String(url).includes('/v3/catalog/shop')
+      const body = isShop ? { data: shop, total: shop.length } : { data: items[page++] ?? [], total }
+      return { ok: true, status: 200, json: async () => body }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('should price a USD-pegged listing from the shop feed, exactly', async () => {
+    mockFeeds({
+      shop: [{ listingType: 'primary', itemId: '2', priceCredits: 1, tradeId: 't-pegged' }],
+      items: [[rawItem({ itemId: '2', isOnSale: true, priceCredits: 1, price: '100000000000000000' })]]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['2']).toEqual({ isOnSale: true, priceCredits: 1, tradeId: 't-pegged' })
+    // No manaWei: a pegged row must never be re-converted at the live rate.
+    expect(map['2'].manaWei).toBeUndefined()
+  })
+
+  it('should carry manaWei for a listing the shop feed omits, so it converts at the live rate', async () => {
+    mockFeeds({
+      shop: [],
+      items: [[rawItem({ itemId: '0', isOnSale: true, priceCredits: 14, price: '5000000000000000000' })]]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['0']).toEqual({ isOnSale: true, priceCredits: 14, manaWei: '5000000000000000000' })
+  })
+
+  it('should keep a store mint on sale even though it has no trade to cancel', async () => {
+    mockFeeds({
+      shop: [],
+      items: [[rawItem({ itemId: '4', isOnSale: true, priceCredits: 7, price: '1', tradeId: null })]]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['4'].isOnSale).toBe(true)
+    expect(map['4'].tradeId).toBeUndefined()
+  })
+
+  it('should skip rows that are not on sale, and rows with no itemId', async () => {
+    mockFeeds({
+      shop: [],
+      items: [
+        [
+          rawItem({ itemId: '1', isOnSale: false, priceCredits: 0 }),
+          rawItem({ itemId: null, isOnSale: true, priceCredits: 5 })
+        ]
+      ]
+    })
+    expect(await fetchCollectionSaleState('0xcol')).toEqual({})
+  })
+
+  it('should page past the first 200 catalogue rows so a later listing is not called not-for-sale', async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) =>
+        rawItem({ itemId: String(from + i), isOnSale: true, priceCredits: 3, price: '1' })
+      )
+    mockFeeds({ shop: [], items: [page(0, 200), page(200, 5)] })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(Object.keys(map)).toHaveLength(205)
+    expect(map['204']).toBeDefined()
+  })
+
+  it('should read the collection catalogue, not only the credit-only shop feed', async () => {
+    const fetchMock = mockFeeds({ shop: [], items: [[]] })
+    await fetchCollectionSaleState('0xcol')
+    const urls = fetchMock.mock.calls.map(c => String(c[0]))
+    expect(urls.some(u => u.includes('/v3/catalog/items?'))).toBe(true)
+    expect(urls.every(u => u.includes('contractAddress=0xcol'))).toBe(true)
+  })
+
+  it('should release the response body when the catalogue request fails', async () => {
+    const cancel = vi.fn(async () => undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        String(url).includes('/v3/catalog/shop')
+          ? { ok: true, status: 200, json: async () => ({ data: [], total: 0 }) }
+          : { ok: false, status: 500, body: { cancel } }
+      )
+    )
+    await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchCollectionSaleState 500')
+    expect(cancel).toHaveBeenCalled()
   })
 })

@@ -27,34 +27,34 @@ const item = (bid: string, name: string, rarity: string) => ({
 
 // One collection, one item of each pricing: a Shop listing in credits, a classic listing still in MANA,
 // and one not for sale at all.
+const listed = (itemId: string, name: string, price: number) => ({
+  tradeId: `trade-${itemId}`,
+  listingType: 'primary',
+  contractAddress: COLLECTION,
+  itemId,
+  tokenId: null,
+  name,
+  thumbnail: '',
+  rarity: 'epic',
+  category: 'wearable',
+  wearableCategory: 'hat',
+  creator: TEST_ADDRESS,
+  priceCredits: price,
+  available: 10,
+  network: 'MATIC',
+  chainId: 80002
+})
+
 const fixtures = {
-  shopListings: { data: [] },
+  // The collection catalogue is what says an item is on sale; the shop feed prices the USD-pegged ones.
+  // Galaxy Hat is in both, so it reads as credit-priced. Galaxy Boots is only in the catalogue, which is
+  // exactly how a MANA-denominated listing arrives. Galaxy Cape is in neither.
+  shopListings: { data: [listed('0', 'Galaxy Hat', 30), { ...listed('1', 'Galaxy Boots', 12), tradeId: null }] },
   unifiedListings: { data: [] },
   builderItems: {
     data: [item('0', 'Galaxy Hat', 'epic'), item('1', 'Galaxy Boots', 'rare'), item('2', 'Galaxy Cape', 'mythic')]
   },
-  collectionSaleState: {
-    data: [
-      {
-        tradeId: 'trade-galaxy',
-        listingType: 'primary',
-        contractAddress: COLLECTION,
-        itemId: '0',
-        tokenId: null,
-        name: 'Galaxy Hat',
-        thumbnail: '',
-        rarity: 'epic',
-        category: 'wearable',
-        wearableCategory: 'hat',
-        creator: TEST_ADDRESS,
-        priceCredits: 30,
-        available: 10,
-        network: 'MATIC',
-        chainId: 80002
-      }
-    ],
-    total: 1
-  },
+  collectionSaleState: { data: [listed('0', 'Galaxy Hat', 30)], total: 1 },
   importable: {
     data: [
       {
@@ -133,8 +133,10 @@ describe('my creations', () => {
     const { page } = app
 
     await page.waitForSelector('[data-testid="creation-group-count"]')
+    // Two of the three are listed, and the header counts them the way the Status filter does: a listing
+    // priced in MANA is on sale too, it is simply quoted in the other currency.
     const meta = await page.$eval('[data-testid="creation-group-count"]', el => el.textContent?.trim())
-    expect(meta).toBe('3 items · 1 on sale')
+    expect(meta).toBe('3 items · 2 on sale')
 
     // 13px is small text, so it needs 4.5:1. Gray 3 gave 2.2 against the field's lightest point.
     expect(await contrastOf(page, '[data-testid="creation-group-count"]')).toBeGreaterThanOrEqual(4.5)

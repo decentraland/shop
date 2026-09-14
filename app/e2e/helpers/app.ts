@@ -182,6 +182,9 @@ let mintedCents = 0
 // real service. Reset per run in launchApp.
 let favoritePicks: string[] = []
 
+// Saves by OTHER accounts, so a spec can tell the service's number apart from the viewer's own +1.
+const FAVORITE_BASE_COUNT = 2
+
 // F.credits (creditsResponse) with the run's accumulated top-up folded into the usd block, so the
 // balance chip reflects purchases made during the test.
 function creditsWithTopup(F: Fixtures): unknown {
@@ -238,6 +241,9 @@ function toCatalogRow(l: any) {
     minPrice: priceWei,
     available: l.available ?? 0,
     priceCredits,
+    // The real feed says so on every row, and lib/collections' sale-state map skips anything without it.
+    // Every fixture row is priced, hence on sale — the same assumption the filters above already state.
+    isOnSale: true,
     // The item page reads `isSmart` and `utility` from the v1 items shape, where isSmart lives NESTED under
     // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
     // showcase-clip lookup exercise the same field they read in production.
@@ -654,6 +660,18 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // i.e. the section rendered its skeletons and then removed itself.
     if (path === '/v3/catalog/creators') return json(req, F.rankings)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
+    // Save counts, read in bulk for everything on screen. They move with the run's accumulator, so
+    // hearting an item raises its number.
+    if (path === '/v1/picks/stats') {
+      const checking = u.searchParams.get('checkingUserAddress')
+      return json(req, {
+        ok: true,
+        data: u.searchParams.getAll('itemId').map(itemId => {
+          const pickedByUser = !!checking && favoritePicks.includes(itemId)
+          return { itemId, count: FAVORITE_BASE_COUNT + (pickedByUser ? 1 : 0), pickedByUser }
+        })
+      })
+    }
     // Favorites service (marketplace picks): POST toggles membership in the run's accumulator; the
     // default-list GET returns the picked ids in the {ok, data} envelope lib/favorites.ts parses.
     if (/^\/v1\/picks\/[^/]+$/.test(path) && method === 'POST') {
@@ -909,7 +927,17 @@ export async function launchApp(
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   resetMetaTxNonce() // so a relayed purchase in one test cannot leave the next one's nonce ahead
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+  // Headless Chrome reports NO hover (and a coarse pointer) on a machine with no pointing device, which
+  // is what CI is — and every hover-gated rule in the app then evaluates to its touch branch, so the
+  // desktop behaviour these specs are about is silently not the one running. Force a mouse.
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4'
+    ]
+  })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
   // 900px it collapses into the mobile Filters drawer. Mobile-specific tests can override per-page.

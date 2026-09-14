@@ -24,6 +24,18 @@ export const TOP_GAP = 10
 //
 // No `overflow: hidden` here: the lit ring sits 2px outside the card box, so the media and footer round
 // their own corners instead. See ringHover.
+// Hover/focus state of the whole card: the lit ring, the lift, and the z-index that keeps the scaled
+// card above its neighbours in a rail.
+//
+// Reached through `:has(:focus-visible)` and NOT `:focus-within`: a MOUSE click on one of the card's own
+// controls focuses it too, and that focus outlives the pointer — so hearting an item left the card lit
+// and lifted long after the shopper had moved away from it.
+const cardLit = css`
+  ${ringLit};
+  transform: scale(1.025);
+  z-index: 1;
+`
+
 export const Card = styled.article`
   height: 300px;
   /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
@@ -52,17 +64,19 @@ export const Card = styled.article`
     border-color: transparent;
   }
 
+  /* Hover and KEYBOARD focus light the card the same way — hence two rules rather than one selector
+     list: a browser without :has() drops only the focus one and still lights the card on hover. */
   @media (hover: hover) {
-    &:hover,
-    &:focus-within {
-      ${ringLit};
-      /* A gentle lift on hover; z-index keeps the scaled card, its ring and its glow above its
-         neighbours in the rail. */
-      transform: scale(1.025);
-      z-index: 1;
+    &:hover {
+      ${cardLit};
     }
-    &:hover::after,
-    &:focus-within::after {
+    &:has(:focus-visible) {
+      ${cardLit};
+    }
+    &:hover::after {
+      ${ringHover};
+    }
+    &:has(:focus-visible)::after {
       ${ringHover};
     }
   }
@@ -105,15 +119,59 @@ export const Fav = styled.button`
   top: 4.75px;
   right: 4.75px;
   z-index: 4;
-  width: 24px;
+  min-width: 24px;
   height: 24px;
-  border-radius: 50%;
+  /* A pill radius rather than 50%: the box grows sideways once the save count is in it, and an ellipse
+     is what 50% would give. At the icon-only width it still draws the same circle. */
+  border-radius: 12px;
   border: 0;
   padding: 0;
   background: rgba(255, 255, 255, 0.85);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   color: ${colors.text};
+  cursor: pointer;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background 140ms ease;
+
+  &[data-count] {
+    padding: 0 7px 0 5px;
+  }
+
+  @media (hover: hover) {
+    /* At rest the card is its artwork, so the heart is only there once the card is under the pointer.
+       A SAVED one stays on show — that state is the point of having saved it, and it has to be readable
+       while browsing rather than only while hovering. */
+    &:not([data-on]) {
+      opacity: 0;
+    }
+    [data-testid='card']:hover &,
+    [data-testid='card']:has(:focus-visible) &,
+    &:focus-visible {
+      opacity: 1;
+    }
+    /* The heart you are ABOUT to press: the disc goes opaque and lifts. The glyph takes the colour it
+       is about to become — see FavOutline. */
+    &:hover {
+      background: ${colors.white};
+      transform: scale(1.12);
+    }
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:hover,
+    &:active {
+      transform: none;
+    }
+  }
 
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
   // grows the hit area on touch without changing the visual. It stops FLUSH with the card on the two
@@ -125,6 +183,15 @@ export const Fav = styled.button`
     inset: -4.75px -4.75px -10px -10px;
     border-radius: 50%;
   }
+`
+
+// The item's save count, beside the glyph in the same button.
+export const FavCount = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: ${colors.text};
+  font-variant-numeric: tabular-nums;
 `
 
 // Holds the outline heart with the solid heart stacked exactly on top; the 2px nudge optically centres
@@ -140,7 +207,17 @@ export const FavIcons = styled.span`
 // heart ends as a clean solid glyph rather than a red fill sitting inside a black ring. The fade is
 // delayed to land just as the fill reaches full.
 export const FavOutline = styled(Icon)`
-  transition: opacity 160ms ease;
+  transition:
+    opacity 160ms ease,
+    color 140ms ease;
+
+  /* Pre-echo of the press: hovering the button alone (not the card) tints the outline red. Gated like
+     every other hover state on the card — a tap synthesizes :hover, and it would stick. */
+  @media (hover: hover) {
+    [data-testid='card-fav']:hover & {
+      color: ${colors.dclRed};
+    }
+  }
 
   [data-on] & {
     opacity: 0;
@@ -322,12 +399,13 @@ export const Body = styled.div`
   border-radius: 0 0 ${radius.card} ${radius.card};
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
+  // Keyed on :has(:focus-visible) for the same reason the card's ring is (see cardLit).
   @media (hover: hover) and (min-width: 721px) {
-    &:focus-within [data-testid='card-cart'],
-    &:focus-within [data-reveal] {
+    &:has(:focus-visible) [data-testid='card-cart'],
+    &:has(:focus-visible) [data-reveal] {
       display: flex;
     }
-    &:focus-within [data-chips] {
+    &:has(:focus-visible) [data-chips] {
       display: none;
     }
   }

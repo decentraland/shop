@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { ReactElement } from 'react'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AssetCard } from './AssetCard'
@@ -17,6 +17,13 @@ import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
+
+// Every card reads its save count through react-query, so every render needs a client — one per render,
+// so one case's counts never reach the next.
+function render(ui: ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
+}
 
 // A minimal catalog item — creator '' so the card skips CreatorBadge (which would fetch a profile).
 function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
@@ -282,13 +289,6 @@ describe('AssetCard add-to-cart CTA when the item is already in the cart', () =>
 describe('AssetCard own-item MANAGE CTA', () => {
   const ME = '0x' + '11'.repeat(20)
 
-  // creator === you means the card renders CreatorBadge (which reads a profile via react-query), so
-  // these renders need a QueryClientProvider (the profile fetch is fire-and-forget / disabled here).
-  function renderWithQuery(ui: ReactElement) {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
-  }
-
   afterEach(() => {
     // The wallet store is real (not mocked) — clear the session so it doesn't leak into other suites.
     useWallet.setState({ session: null })
@@ -297,7 +297,7 @@ describe('AssetCard own-item MANAGE CTA', () => {
   it('labels the action MANAGE (not "your item") for your own primary item and enables it', () => {
     useWallet.setState({ session: { address: ME } as never })
     // A primary item you created (creator === you, no tokenId) → isOwnListing is true.
-    const { container } = renderWithQuery(
+    const { container } = render(
       <MemoryRouter>
         <AssetCard item={makeItem({ creator: ME })} />
       </MemoryRouter>
@@ -312,7 +312,7 @@ describe('AssetCard own-item MANAGE CTA', () => {
   it('navigates to the item detail page (management view) when MANAGE is clicked, without adding to cart', () => {
     useWallet.setState({ session: { address: ME } as never })
     const item = makeItem({ creator: ME, contractAddress: '0xc', itemId: '1' })
-    const { container } = renderWithQuery(
+    const { container } = render(
       <MemoryRouter initialEntries={['/items']}>
         <Routes>
           <Route path="/items" element={<AssetCard item={item} />} />
@@ -628,5 +628,57 @@ describe('AssetCard emote play mode', () => {
     )
 
     expect(container.querySelector('[data-testid="chip-play-mode"]')).toBeNull()
+  })
+})
+
+/**
+ * The save count in the card's heart.
+ *
+ * The number is only half of it: the button's aria-label replaces everything inside the button for
+ * assistive tech, so a count that is not in the label is a count only sighted shoppers ever get.
+ */
+describe('AssetCard save count', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, data: [{ itemId: '0xc-1', count: 12 }] })
+      })
+    )
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('should show how many people saved the item', async () => {
+    renderCard(makeItem())
+
+    expect((await screen.findByTestId('card-fav-count')).textContent).toBe('12')
+  })
+
+  it('should put the count in the button label too', async () => {
+    renderCard(makeItem())
+    await screen.findByTestId('card-fav-count')
+
+    expect(screen.getByTestId('card-fav').getAttribute('aria-label')).toBe('Add to favorites, saved by 12 people')
+  })
+
+  it('and nobody has saved it yet it should say so rather than hide the number', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, data: [{ itemId: '0xc-1', count: 0 }] })
+      })
+    )
+    renderCard(makeItem())
+
+    expect((await screen.findByTestId('card-fav-count')).textContent).toBe('0')
+  })
+
+  it('and the item cannot be saved it should not show a heart at all', () => {
+    renderCard(makeItem({ itemId: null }))
+
+    expect(screen.queryByTestId('card-fav')).toBeNull()
   })
 })

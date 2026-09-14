@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { fetchCatalogItems, fetchCollectionItems } from '~/lib/collections'
 import { useRelatedItems } from '~/hooks/useRelatedItems'
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { mergeSuggestions, SUGGESTIONS_TARGET, type SuggestionAnchor } from '~/lib/suggestions'
 
 const COLLECTION_FIRST = 20
@@ -72,5 +73,9 @@ export function useSuggestedItems(
     [siblings, creatorItems, related, anchorKey, target]
   )
 
-  return { ...merged, siblings, siblingsFetched }
+  // The rail sits directly under an item the PDP already priced at the live rate. Leaving these on the
+  // server's number let the same item appear twice on one screen at two prices.
+  const items = useLivePricedItems(merged.items)
+
+  return { ...merged, items, siblings, siblingsFetched }
 }

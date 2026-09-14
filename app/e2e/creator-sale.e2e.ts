@@ -137,6 +137,9 @@ const builderItem = (bid: string, name: string) => ({
   data: { wearable: { category: 'hat' } }
 })
 
+// Note the fixtures below hand the SAME rows to `shopListings` and `collectionSaleState`: the collection
+// catalogue is what marks an item on sale, and the shop feed is what prices the USD-pegged ones. A listing
+// present in only one of the two is not a listing the page can show.
 const noOverflow = (page: App['page']) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
@@ -147,7 +150,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed
       }
@@ -202,7 +205,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed,
         coupons: { data: [activeSale] }
@@ -232,7 +235,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         builderCollections: twoCollections,
         builderItems: twoCollectionsItems,
@@ -290,7 +293,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: { data: [listed('0', 'Galaxy Hat', 30), listed('1', 'Galaxy Boots', 10)] },
         unifiedListings: { data: [] },
         builderItems: {
           data: [
@@ -346,7 +349,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed
       }
@@ -401,7 +404,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed
       }
@@ -448,7 +451,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed
       }
@@ -503,7 +506,7 @@ describe('creator sales', () => {
       creatorSales: true,
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed
       },
@@ -534,7 +537,7 @@ describe('creator sales', () => {
       path: '/my-items',
       fixtures: {
         importable: { data: [] },
-        shopListings: { data: [] },
+        shopListings: galaxyListed,
         unifiedListings: { data: [] },
         collectionSaleState: galaxyListed
       }

@@ -5,6 +5,7 @@ import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmptyState } from '~/components/EmptyState'
 import { fetchCollection, fetchCatalogItems } from '~/lib/collections'
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { AssetCard } from '~/components/AssetCard'
 import { CollectionHero } from '~/components/CollectionHero'
 import { CollectionCreatorCard } from '~/components/CollectionCreatorCard'
@@ -96,10 +97,21 @@ export function Collection() {
     sortBy
   }
 
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } =
-    useInfiniteGrid(['collection-page', filters], skip => fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }), {
-      enabled: !!contractAddress
-    })
+  const {
+    items: rawItems,
+    total,
+    isLoading,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage
+  } = useInfiniteGrid(['collection-page', filters], skip => fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }), {
+    enabled: !!contractAddress
+  })
+
+  // /v3/catalog/items is mixed-denomination: the same grid the browse page prices at the live rate.
+  const items = useLivePricedItems(rawItems)
 
   // Item records don't carry the collection name (it lives on the collections entity), so resolve it
   // separately — mirrors the marketplace's collectionAPI.fetchOne. Falls back to "Collection".
