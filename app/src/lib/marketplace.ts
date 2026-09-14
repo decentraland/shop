@@ -6,8 +6,8 @@ import { ContractName, getContract } from 'decentraland-transactions'
  *
  * The EIP-712 domain names its verifying contract, so the version a listing is signed against is part of
  * what the seller signed — and every allowance, approval and minter right the shop asks for has to name
- * that same contract, or the listing cannot settle. V3 is testnet-only for now, so mainnet has to keep
- * using V2 rather than fail.
+ * that same contract, or the listing cannot settle. V3 is deployed on every chain the shop uses, so a new
+ * listing goes there; the list is still ordered because a chain without the newest version must not fail.
  *
  * KEEP IN LOCKSTEP with the identically-named list in `tools/migrate-listings/src/dcl-transactions.ts`,
  * which vendors the same order for the CLI. See that file for why the list cannot simply be imported;

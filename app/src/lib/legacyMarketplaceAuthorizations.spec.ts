@@ -5,8 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * absent, so the "how many rows" assertions also cover a chain that never had it.
  */
 const CHAIN_WITH_TWO_VERSIONS = 11155111
-/** A chain that only ever had one version, which must keep rendering exactly one row per permission. */
-const CHAIN_WITH_ONE_VERSION = 1
+/**
+ * A chain that only ever had one version, which must keep rendering exactly one row per permission.
+ * Synthetic: every chain the shop uses has both versions now.
+ */
+const CHAIN_WITH_ONE_VERSION = 137
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
@@ -17,8 +20,8 @@ vi.mock('decentraland-transactions', () => ({
   // Mirrors the real getContract: it THROWS for a version a chain does not have.
   getContract: (name: string, chainId: number) => {
     const deployments: Record<string, number[]> = {
-      OffChainMarketplaceV2: [1, 11155111],
-      OffChainMarketplaceV3: [11155111]
+      OffChainMarketplaceV2: [1, 11155111, CHAIN_WITH_ONE_VERSION],
+      OffChainMarketplaceV3: [1, 11155111]
     }
     if (!deployments[name]?.includes(chainId)) {
       throw new Error(`Could not get a valid contract for ${name} using chain ${chainId}`)
