@@ -873,7 +873,17 @@ export async function launchApp(
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   resetMetaTxNonce() // so a relayed purchase in one test cannot leave the next one's nonce ahead
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+  // Headless Chrome reports NO hover (and a coarse pointer) on a machine with no pointing device, which
+  // is what CI is — and every hover-gated rule in the app then evaluates to its touch branch, so the
+  // desktop behaviour these specs are about is silently not the one running. Force a mouse.
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4'
+    ]
+  })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
   // 900px it collapses into the mobile Filters drawer. Mobile-specific tests can override per-page.
