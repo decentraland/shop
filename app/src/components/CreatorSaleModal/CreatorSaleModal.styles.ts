@@ -656,7 +656,7 @@ export const ReviewName = styled.span`
  */
 export const ReviewPrices = styled.span`
   display: grid;
-  grid-template-columns: minmax(30px, auto) minmax(56px, auto);
+  grid-template-columns: minmax(30px, auto) minmax(40px, auto);
   align-items: center;
   gap: 6px;
   font-family: ${theme.font.sans};
@@ -675,26 +675,21 @@ export const ReviewWas = styled.span`
 `
 
 /**
- * The number the sale is actually about, so it is the biggest thing in the row — and it wears the SAME
- * badge the discount does above, fill included. Matching only the lettering was not enough: what reads as
- * "the colour of the discount" is the pill's fill, so a bare coloured number beside a filled pill looked
- * like two unrelated things.
+ * The number the sale is actually about, so it is the biggest thing in the row — and it carries the ink of
+ * its step, the same one the discount badge above is lettered in.
  */
 export const ReviewNow = styled.span`
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 4px;
-  padding: 3px 9px;
-  border-radius: ${theme.radius.pill};
   font-weight: 700;
-  font-size: 17px;
+  font-size: 18px;
 
   ${Object.entries(theme.saleHeat)
     .map(
-      ([step, { tint, ink }]) => `
+      ([step, { ink }]) => `
   &[data-heat='${step}'] {
-    background: ${tint};
     color: ${ink};
   }`
     )

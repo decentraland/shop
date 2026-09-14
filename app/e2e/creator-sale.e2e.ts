@@ -480,15 +480,11 @@ describe('creator sales', () => {
       return {
         step: [badge.getAttribute('data-heat'), price.getAttribute('data-heat')],
         badgeColor: getComputedStyle(badge).color,
-        badgeFill: getComputedStyle(badge).backgroundColor,
         badgeBorder: getComputedStyle(badge).borderTopColor,
-        priceColor: getComputedStyle(price).color,
-        priceFill: getComputedStyle(price).backgroundColor
+        priceColor: getComputedStyle(price).color
       }
     })
     expect(heat.step).toEqual(['max', 'max'])
-    // Fill included, not just the lettering: the fill is what reads as "the colour of the discount".
-    expect(heat.priceFill).toBe(heat.badgeFill)
     expect(heat.priceColor).toBe(heat.badgeColor)
     expect(heat.badgeBorder).toBe(heat.badgeColor)
 
