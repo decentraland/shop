@@ -18,7 +18,6 @@ import { useWallet } from '~/store/wallet'
 export function useFavoriteCount(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>): number | undefined {
   const key = favoriteKey(item)
   const address = useWallet(s => s.session?.address)
-  const identity = useWallet(s => s.session?.identity)
   const faved = useFavorites(s => !!key && !!s.items[key])
   // A signed-in hydrate empties the list before refilling it from the service, so mid-hydrate every
   // item reads as unsaved.
@@ -30,7 +29,7 @@ export function useFavoriteCount(item: Pick<CatalogItem, 'contractAddress' | 'it
       // `enabled` already keeps this from running without a key; the guard is what keeps the two in step,
       // and it is what lets the call stay free of a cast.
       if (!key) throw new Error('favorite count asked for without an item key')
-      return fetchFavoriteStats(key, identity)
+      return fetchFavoriteStats(key, address)
     },
     enabled: !!key,
     // Saves accumulate slowly and the viewer's own is already applied below, so re-reading this per

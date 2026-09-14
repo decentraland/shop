@@ -280,6 +280,7 @@
     "smart": "Smart",
     "addToFavorites": "Agregar a favoritos",
     "removeFromFavorites": "Quitar de favoritos",
+    "favoriteAria": "{action}, {count, plural, one {guardado por # persona} other {guardado por # personas}}",
     "marketPrice": "Precio de mercado",
     "unavailable": "No disponible",
     "buyNow": "Comprar ahora",
