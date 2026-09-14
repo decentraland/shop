@@ -21,6 +21,9 @@ vi.mock('~/lib/analytics', () => ({
 // The real banner is ui2's (MUI), mounted through a CssVarsProvider and a rich-text renderer. Stubbed so
 // this spec is about what the SHOP decides — which slot renders, what the CTA does inside the web view,
 // what the click reports — rather than about ui2's layout, which its own suite covers.
+// `data-cta` reads `showButton` under en-US because that is the key ui2 itself reads, whatever the
+// reader's locale — see Banner.js. Keeping the stub faithful on that point is what makes the IAP tests
+// below mean anything.
 vi.mock('decentraland-ui2/dist/components/Banner', () => ({
   Banner: ({ fields, locale, onClick }: BannerProps) => (
     <div data-testid="ui2-banner" data-locale={locale} data-cta={String(fields?.showButton?.[ContentfulLocale.enUS])}>
@@ -35,6 +38,7 @@ vi.mock('@mui/material/styles', () => ({
 }))
 vi.mock('decentraland-ui2/dist/theme', () => ({ light: {} }))
 
+import { useLocale } from '~/store/locale'
 import { CampaignBanner } from './CampaignBanner'
 
 const HOME_SLOT = 'marketplaceHomepageBanner'
@@ -49,7 +53,9 @@ function aCampaign(over: Partial<Campaign> = {}): Campaign {
       [HOME_SLOT]: {
         id: 'banner-1',
         desktopTitle: { [ContentfulLocale.enUS]: 'Halloween is here', [ContentfulLocale.es]: 'Llegó Halloween' },
-        showButton: { [ContentfulLocale.enUS]: true }
+        // Both locales, because `fetchEntryAllLocales` backfills an untranslated field from English —
+        // the shape this component actually receives.
+        showButton: { [ContentfulLocale.enUS]: true, [ContentfulLocale.es]: true }
       } as Campaign['banners'][string]
     },
     assets: {},
@@ -62,6 +68,7 @@ describe('CampaignBanner', () => {
     campaign = aCampaign()
     iap = false
     tracked.length = 0
+    useLocale.setState({ locale: 'en' })
   })
 
   describe('when the slot holds a banner', () => {
@@ -112,6 +119,21 @@ describe('CampaignBanner', () => {
     it('should leave the call to action alone everywhere else', async () => {
       render(<CampaignBanner slot={HOME_SLOT} />)
       expect(await screen.findByTestId('ui2-banner')).toHaveAttribute('data-cta', 'true')
+    })
+
+    it('should drop it for a spanish reader too', async () => {
+      // ui2 reads `showButton` at en-US regardless of the reader's locale, so overriding that one key is
+      // enough. Locked in here because the locale backfill leaves `showButton.es` true: if ui2 ever
+      // started reading the field per-locale, the CTA would come back inside the web view and nothing
+      // else would catch it.
+      iap = true
+      useLocale.setState({ locale: 'es' })
+
+      render(<CampaignBanner slot={HOME_SLOT} />)
+
+      const banner = await screen.findByTestId('ui2-banner')
+      expect(banner).toHaveAttribute('data-locale', ContentfulLocale.es)
+      expect(banner).toHaveAttribute('data-cta', 'false')
     })
 
     it('should not mutate the cached campaign while dropping it', async () => {
