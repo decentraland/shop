@@ -242,6 +242,73 @@ function toCatalogRow(l: any) {
 let secondarySalesFlag = true
 let outfitCreatorFlag = false
 let followsFlag = false
+let campaignFlag = false
+
+// The marketing CMS, as the delivery proxy serves it: FLAT fields per `?locale=`, which is what makes the
+// client fetch each entry once per locale and merge. The admin id is the one dev.json points at, so the
+// app asks for exactly this entry.
+const CMS_ADMIN = '7FJAHnPOiCEHMJhrZ3sRmG'
+const CMS_BANNER = 'e2e-banner'
+const CMS_CAMPAIGN = 'e2e-campaign'
+const CMS_WIDE = 'e2e-wide'
+const CMS_SQUARE = 'e2e-square'
+
+const cmsLink = (id: string, linkType: 'Entry' | 'Asset') => ({ sys: { type: 'Link', linkType, id } })
+
+function cmsEntry(id: string, locale: string) {
+  const es = locale === 'es'
+  if (id === CMS_ADMIN) {
+    return {
+      sys: { id, type: 'Entry', contentType: { sys: { id: 'admin' } } },
+      metadata: { tags: [], concepts: [] },
+      fields: {
+        name: 'Test admin entry',
+        campaign: cmsLink(CMS_CAMPAIGN, 'Entry'),
+        marketplaceHomepageBanner: cmsLink(CMS_BANNER, 'Entry')
+      }
+    }
+  }
+  if (id === CMS_BANNER) {
+    return {
+      sys: { id, type: 'Entry', contentType: { sys: { id: 'banner' } } },
+      metadata: { tags: [], concepts: [] },
+      fields: {
+        name: 'Halloween',
+        desktopTitle: es ? 'Llegó Halloween' : 'Halloween is here',
+        mobileTitle: es ? 'Llegó Halloween' : 'Halloween is here',
+        showButton: true,
+        buttonsText: es ? 'Ver la colección' : 'Shop the drop',
+        buttonLink: 'https://decentraland.org/shop/event',
+        fullSizeBackground: cmsLink(CMS_WIDE, 'Asset'),
+        mobileBackground: cmsLink(CMS_SQUARE, 'Asset')
+      }
+    }
+  }
+  return {
+    sys: { id, type: 'Entry', contentType: { sys: { id: 'marketingCampaign' } } },
+    metadata: { tags: [], concepts: [] },
+    fields: { name: 'Halloween 2026', mainTag: 'halloween', marketplaceTabName: 'Halloween' }
+  }
+}
+
+function cmsAsset(id: string) {
+  return {
+    sys: { id, type: 'Asset' },
+    metadata: { tags: [], concepts: [] },
+    fields: {
+      title: id,
+      description: '',
+      // Protocol-relative and on Contentful's own host, exactly as the CDN returns it — the client is what
+      // rewrites it onto the Decentraland image proxy, which is the only host the deployed CSP allows.
+      file: {
+        url: `//images.ctfassets.net/space/${id}.png`,
+        fileName: `${id}.png`,
+        contentType: 'image/png',
+        details: { size: 1, image: id === CMS_WIDE ? { width: 1280, height: 300 } : { width: 390, height: 389 } }
+      }
+    }
+  }
+}
 
 // Stateful outfits: the mock shop-server. Seeded from F.outfits per run so studio mutations (save,
 // publish, delete) survive navigation within a test without leaking across runs.
@@ -272,13 +339,26 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         flags: {
           'dapps-shop-secondary-sales': secondarySalesFlag,
           'dapps-shop-outfit-creators': outfitCreatorFlag,
-          'dapps-shop-follows': followsFlag
+          'dapps-shop-follows': followsFlag,
+          'dapps-shop-campaign': campaignFlag
         },
         variants: outfitCreatorFlag
           ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
           : {}
       })
     })
+  }
+  // The marketing CMS and its image proxy. Only reached when a spec turns the campaign flag on — the
+  // client issues no request at all while the feature is off.
+  if (u.hostname.startsWith('cms-api.')) {
+    const entry = path.match(/\/entries\/([^/]+)\/?$/)
+    if (entry) return json(req, cmsEntry(entry[1], u.searchParams.get('locale') ?? 'en-US'))
+    const asset = path.match(/\/assets\/([^/]+)\/?$/)
+    if (asset) return json(req, cmsAsset(asset[1]))
+    return json(req, { message: 'not found' }, 404)
+  }
+  if (u.hostname.startsWith('cms-images.')) {
+    return req.respond({ status: 200, headers: { ...CORS, 'content-type': 'image/png' }, body: PNG })
   }
   // Forced error injection (opt-in): before the normal per-port handling, respond with the mapped
   // status+body (json() attaches CORS headers, so the error reaches the app instead of being blocked).
@@ -837,6 +917,11 @@ export async function launchApp(
      * Script evaluated on every new document BEFORE anything renders — the only place a spec can
      * install a first-paint recorder (a PerformanceObserver, an rAF sampler) early enough to see it.
      */
+    /**
+     * Run with a seasonal campaign published in the CMS. Off by default, which is the shipped state and
+     * what every other spec asserts against: with it off the hero is the Shop's own art and credits CTA.
+     */
+    campaign?: boolean
     initScript?: string
     /**
      * What `page.goto` waits for. Defaults to `networkidle2` (every spec asserting settled content);
@@ -852,6 +937,7 @@ export async function launchApp(
   outfitCreatorFlag = opts.outfitCreator ?? false
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
+  campaignFlag = opts.campaign ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it

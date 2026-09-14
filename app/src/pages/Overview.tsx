@@ -22,6 +22,8 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // illustration — reproducing that in CSS would be a lot of fragile geometry for a pixel-identical result.
 // WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
 // 90 KB here against 1.09 MB as a PNG.
+import { useCampaignHero } from '~/hooks/useCampaignHero'
+import { track } from '~/lib/analytics'
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
 import heroBannerMobile from '~/assets/overview/hero-credits-mobile.webp'
 import { Icon } from '~/components/Icon'
@@ -165,6 +167,10 @@ function Carousel({
   )
 }
 
+// The admin-entry field the home hero reads its campaign takeover from. Shared with the marketplace, which
+// renders the same banner on its own homepage.
+const CAMPAIGN_HERO_SLOT = 'marketplaceHomepageBanner'
+
 export function Overview() {
   // Home page: the hook's site-wide default title/description is the best fit here (its title tail is
   // "Wearables & Emotes for Your Avatar", which we don't want to override), so pass nothing. Indexable.
@@ -196,31 +202,71 @@ export function Overview() {
   })
   const trendingItems = trending ?? []
 
+  // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
+  // which is the normal state — the Shop's own art, headline and credits CTA below are what render.
+  const campaignHero = useCampaignHero(CAMPAIGN_HERO_SLOT)
+
+  function renderHeroCta() {
+    // Hidden inside the iOS web view, where the Shop may not sell credits at all. That covers a campaign's
+    // button too: its destination is free text an editor typed, and a seasonal drop most often points at
+    // buying something.
+    if (isIapMode()) return null
+
+    // A campaign takes the hero over COMPLETELY, this button included — an editor who switched it off
+    // wants no button, not the Shop's standing one sitting under their artwork. Credits keep their own
+    // entry point in the nav bar either way.
+    if (campaignHero) {
+      if (!campaignHero.cta) return null
+      return (
+        // An anchor rather than a router Link: the destination is a whole URL an editor typed, and a
+        // campaign usually points somewhere outside this app. It is also what the marketplace does with
+        // the same field.
+        <S.HeroCta
+          as="a"
+          href={campaignHero.cta.href}
+          variant="purple"
+          data-testid="hero-campaign-cta"
+          onClick={() =>
+            track('Shop Clicked Banner', {
+              slot: CAMPAIGN_HERO_SLOT,
+              banner_id: campaignHero.bannerId,
+              campaign: campaignHero.campaignName
+            })
+          }
+        >
+          {campaignHero.cta.label}
+        </S.HeroCta>
+      )
+    }
+
+    return (
+      <S.HeroCta as={Link} to="/credits" variant="purple" data-testid="hero-credits-cta">
+        <CurrencyIcon size={18} />
+        {t('overview.heroCta')}
+      </S.HeroCta>
+    )
+  }
+
   return (
     <S.Overview className="overview">
       <S.Hero>
         {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
             wide banner — the mobile frame is a different composition, not a resize. */}
         <picture>
-          <source media="(max-width: 768px)" srcSet={heroBannerMobile} />
-          <S.HeroBg src={heroBanner} alt="" aria-hidden />
+          <source media="(max-width: 768px)" srcSet={campaignHero?.mobileImage ?? heroBannerMobile} />
+          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden />
         </picture>
         {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
-          <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
+          <S.HeroTitle data-testid="hero-title">{campaignHero?.title || t('overview.heroTitle')}</S.HeroTitle>
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
               sending the click to browse would leave the buyer one step short of what it advertises.
               Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
               prominent offer in the app, so it is the one that most has to go. The banner's own title is
               generic ("A New Way to Shop"), so it still reads as a banner without it. */}
-          {isIapMode() ? null : (
-            <S.HeroCta as={Link} to="/credits" variant="purple">
-              <CurrencyIcon size={18} />
-              {t('overview.heroCta')}
-            </S.HeroCta>
-          )}
+          {renderHeroCta()}
         </S.HeroInner>
       </S.Hero>
 

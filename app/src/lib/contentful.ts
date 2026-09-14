@@ -85,6 +85,20 @@ export function localized<T>(field: LocalizedField<T> | undefined | null, locale
 }
 
 /**
+ * A linked asset's URL, ready to put in an `src`.
+ *
+ * Assets are stored under `en-US` whatever the reader's language — the artwork is the same file in every
+ * locale — which is the same key `decentraland-ui2` reads them under. Returns `''` for an absent link or an
+ * asset that failed to load, so a caller can treat "no artwork" as one case.
+ */
+export function assetUrl(assets: Record<string, ContentfulAsset>, link: SysLink<'Asset'> | undefined): string {
+  if (!link) return ''
+  const url = assets[link.sys.id]?.fields.file[ContentfulLocale.enUS]?.url
+  if (!url) return ''
+  return /^https?:\/\//.test(url) ? url : `https:${url}`
+}
+
+/**
  * Whether this environment has a CMS to read. An environment with no admin entry configured has no
  * campaign by definition, and the caller must not issue the request at all.
  */

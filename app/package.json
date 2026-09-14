@@ -19,7 +19,6 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@contentful/rich-text-react-renderer": "16.2.2",
     "@dcl/crypto": "^3.4.5",
     "@dcl/schemas": "^26.0.0",
     "@dcl/single-sign-on-client": "^0.1.0",

@@ -3,6 +3,7 @@ import { ContentfulLocale } from '@dcl/schemas'
 
 import { config } from '~/config'
 import {
+  assetUrl,
   fetchCampaign,
   isContentfulConfigured,
   localized,
@@ -146,6 +147,45 @@ describe('contentful', () => {
 
     it('should leave a malformed url untouched rather than throwing', () => {
       expect(optimizeAssetUrl('not a url')).toBe('not a url')
+    })
+  })
+
+  describe('when resolving a linked asset', () => {
+    // The shape `fetchCampaign` HANDS OUT (localized, url already rewritten), not the flat one the CDN
+    // returns — this helper reads the resolved campaign, not a raw response.
+    const assets = {
+      a1: {
+        sys: { id: 'a1', type: 'Asset' },
+        metadata: { tags: [], concepts: [] },
+        fields: { file: { [ContentfulLocale.enUS]: { url: 'https://cms-images.decentraland.org/a1.png?q=80' } } }
+      }
+    } as unknown as Parameters<typeof assetUrl>[0]
+    const link = { sys: { type: 'Link', linkType: 'Asset', id: 'a1' } } as Parameters<typeof assetUrl>[1]
+
+    it('should return the stored url', () => {
+      expect(assetUrl(assets, link)).toBe('https://cms-images.decentraland.org/a1.png?q=80')
+    })
+
+    it('should return nothing for an absent link', () => {
+      expect(assetUrl(assets, undefined)).toBe('')
+    })
+
+    it('should return nothing when the asset is not in the map', () => {
+      // `fetchCampaign` drops an asset it could not fetch rather than failing the campaign, so a link can
+      // outlive the asset it points at. The caller decides what to do with "no artwork".
+      expect(assetUrl({}, link)).toBe('')
+    })
+
+    it('should make a protocol-relative url absolute', () => {
+      const relative = {
+        a1: {
+          sys: { id: 'a1', type: 'Asset' },
+          metadata: { tags: [], concepts: [] },
+          fields: { file: { [ContentfulLocale.enUS]: { url: '//cms-images.decentraland.org/a1.png' } } }
+        }
+      } as unknown as Parameters<typeof assetUrl>[0]
+
+      expect(assetUrl(relative, link)).toBe('https://cms-images.decentraland.org/a1.png')
     })
   })
 
