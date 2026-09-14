@@ -415,34 +415,46 @@ describe('creator sales', () => {
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
 
-    const height = () =>
-      page.$eval('[data-testid="creator-sale-modal"]', el =>
-        Math.round((el as HTMLElement).getBoundingClientRect().height)
-      )
-    // Long enough for every morph transition (0.24s) to have settled.
-    const settle = () => page.evaluate(() => new Promise(r => setTimeout(r, 400)))
+    /**
+     * The height once it has stopped moving, rather than the height after a fixed wait.
+     *
+     * The morphs animate for 0.24s, and a loaded CI runner can still be mid-transition when a timeout that
+     * is generous on a laptop expires — which read as the card changing size when it was only part-way
+     * through not changing size.
+     */
+    const height = async () => {
+      let last = -1
+      for (let i = 0; i < 40; i++) {
+        const now = await page.$eval('[data-testid="creator-sale-modal"]', el =>
+          Math.round((el as HTMLElement).getBoundingClientRect().height)
+        )
+        if (now === last) return now
+        last = now
+        await page.evaluate(() => new Promise(r => setTimeout(r, 100)))
+      }
+      return last
+    }
 
     const heights: number[] = [await height()]
     for (const label of [/^10% off$/i, /^50% off$/i, /^custom$/i]) {
       expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', label)).toBe(true)
-      await settle()
       heights.push(await height())
     }
     for (const label of [/^pick an end$/i, /^7 days$/i]) {
       expect(await clickByText(page, '[data-testid="creator-sale-durations"] button', label)).toBe(true)
-      await settle()
       heights.push(await height())
     }
     expect(await clickByText(page, 'button', /^on a date$/i)).toBe(true)
-    await settle()
     heights.push(await height())
     await page.click('[data-testid="creator-sale-cap-toggle"]')
-    await settle()
     heights.push(await height())
 
     // One height, every combination. The example line rewraps with the numbers in it and the date and cap
     // fields used to arrive as whole new rows, so the card grew and shrank underneath the pointer.
-    expect(new Set(heights).size).toBe(1)
+    // A couple of pixels of slack for font metrics, which differ between a laptop and CI's headless
+    // Chrome; a row arriving or leaving is 40px, so this cannot hide the thing the test is for.
+    const spread = Math.max(...heights) - Math.min(...heights)
+    expect(spread, `heights across the terms: ${heights.join(', ')}`).toBeLessThanOrEqual(2)
   })
 
   it('times the start and the end separately, in the discount’s own colour', async () => {
