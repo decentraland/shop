@@ -57,15 +57,15 @@ const SECTIONS: { key: SectionKey; labelKey: string; category?: string }[] = [
 /**
  * How a creation is priced, for the creations-only Price filter.
  *
- * 'credits' is a Shop listing (USD-pegged); 'classic' is an old listing the seller has not migrated yet —
+ * 'credits' is a Shop listing (USD-pegged); 'mana' is an old listing the seller has not migrated yet —
  * the same set the pricing banner counts. An unlisted creation is neither, so it only shows under 'all'.
  */
-type PriceType = 'all' | 'credits' | 'classic'
-const PRICE_TYPES: PriceType[] = ['all', 'credits', 'classic']
+type PriceType = 'all' | 'credits' | 'mana'
+const PRICE_TYPES: PriceType[] = ['all', 'credits', 'mana']
 const PRICE_LABEL_KEY: Record<PriceType, string> = {
   all: 'filter.priceAll',
   credits: 'filter.priceCredits',
-  classic: 'filter.priceClassic'
+  mana: 'filter.priceMana'
 }
 
 // Sort menu shown in the toolbar. Server values are a subset of the NFT endpoint's NFTSortBy; the same
@@ -397,7 +397,7 @@ export function MyAssets() {
     if (status === 'on_sale') list = list.filter(p => saleFor(p)?.isOnSale)
     else if (status === 'not_for_sale') list = list.filter(p => !saleFor(p)?.isOnSale)
     if (priceType === 'credits') list = list.filter(p => saleFor(p)?.isOnSale)
-    else if (priceType === 'classic')
+    else if (priceType === 'mana')
       list = list.filter(p => classicPricedKeys.has(`${p.contractAddress.toLowerCase()}-${p.blockchainItemId}`))
     if (search) {
       const q = search.toLowerCase()

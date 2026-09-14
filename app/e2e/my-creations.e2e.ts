@@ -167,14 +167,14 @@ describe('my creations', () => {
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="card-name"]').length === 1)
     expect(await cardNames(page)).toEqual(['Galaxy Hat'])
 
-    await page.click('[data-testid="price-filter-classic"]')
+    await page.click('[data-testid="price-filter-mana"]')
     await page.waitForFunction(
       () => document.querySelectorAll('[data-testid="card-name"]')[0]?.textContent?.includes('Boots') ?? false
     )
     expect(await cardNames(page)).toEqual(['Galaxy Boots'])
 
     // The applied filter is removable from the toolbar like every other one.
-    expect(await clickByText(page, '[data-testid="filter-chips"] button', /classic/i)).toBe(true)
+    expect(await clickByText(page, '[data-testid="filter-chips"] button', /mana/i)).toBe(true)
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="card-name"]').length === 3)
   })
 
