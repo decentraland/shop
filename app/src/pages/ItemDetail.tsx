@@ -6,6 +6,7 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorite, useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
+import { useLocale } from '~/store/locale'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
   fetchUnifiedListingForItem,
@@ -66,6 +67,7 @@ import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
+import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { track, itemProps, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
@@ -643,6 +645,14 @@ export function ItemDetail() {
   const cartQty = cartItems.find(i => i.id === cartItem.id)?.quantity ?? 0
   const atStockCap = isPrimary && typeof current.available === 'number' && cartQty >= current.available
   const { key: favKey, faved } = useFavorite(current)
+  const favCount = useFavoriteCount(current)
+  const locale = useLocale(s => s.locale)
+  const favCountLabel = favCount === undefined ? null : favCount.toLocaleString(locale)
+  // The button's label replaces everything inside it for assistive tech, so the count has to be part of
+  // it or it is only ever seen, never heard.
+  const favAction = faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')
+  const favLabel =
+    favCount === undefined ? favAction : t('itemDetail.favoriteAria', { action: favAction, count: favCount })
 
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
   // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
@@ -1229,11 +1239,17 @@ export function ItemDetail() {
             <S.Fav
               data-fav-preview
               data-on={faved || undefined}
+              data-count={favCountLabel ?? undefined}
               onClick={() => toggleFav(current, 'item_detail')}
               aria-pressed={faved}
-              aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+              aria-label={favLabel}
             >
               <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+              {favCount !== undefined ? (
+                <S.FavCount title={t('itemDetail.savedCount', { count: favCount })} data-testid="fav-count-preview">
+                  {favCountLabel}
+                </S.FavCount>
+              ) : null}
             </S.Fav>
           ) : null}
           {/* Over the preview, where the marketplace puts it: the clip is about this render, not about the
@@ -1263,11 +1279,17 @@ export function ItemDetail() {
                   <S.Fav
                     data-fav-title
                     data-on={faved || undefined}
+                    data-count={favCountLabel ?? undefined}
                     onClick={() => toggleFav(current, 'item_detail')}
                     aria-pressed={faved}
-                    aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                    aria-label={favLabel}
                   >
                     <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+                    {favCount !== undefined ? (
+                      <S.FavCount title={t('itemDetail.savedCount', { count: favCount })} data-testid="fav-count">
+                        {favCountLabel}
+                      </S.FavCount>
+                    ) : null}
                   </S.Fav>
                 ) : null}
               </S.InfoHead>

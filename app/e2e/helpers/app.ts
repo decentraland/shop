@@ -174,6 +174,9 @@ let mintedCents = 0
 // real service. Reset per run in launchApp.
 let favoritePicks: string[] = []
 
+// Saves by OTHER accounts, so a spec can tell the service's number apart from the viewer's own +1.
+const FAVORITE_BASE_COUNT = 2
+
 // F.credits (creditsResponse) with the run's accumulated top-up folded into the usd block, so the
 // balance chip reflects purchases made during the test.
 function creditsWithTopup(F: Fixtures): unknown {
@@ -618,6 +621,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // i.e. the section rendered its skeletons and then removed itself.
     if (path === '/v3/catalog/creators') return json(req, F.rankings)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
+    // The PDP's save count, which moves with the run's accumulator so hearting an item raises it.
+    const pickStats = /^\/v1\/picks\/([^/]+)\/stats$/.exec(path)
+    if (pickStats) {
+      const itemId = decodeURIComponent(pickStats[1])
+      const pickedByUser = favoritePicks.includes(itemId)
+      return json(req, {
+        ok: true,
+        data: { itemId, count: FAVORITE_BASE_COUNT + (pickedByUser ? 1 : 0), pickedByUser }
+      })
+    }
     // Favorites service (marketplace picks): POST toggles membership in the run's accumulator; the
     // default-list GET returns the picked ids in the {ok, data} envelope lib/favorites.ts parses.
     if (/^\/v1\/picks\/[^/]+$/.test(path) && method === 'POST') {

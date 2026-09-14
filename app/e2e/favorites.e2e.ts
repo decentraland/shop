@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, BASE, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
+import { COLLECTION } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -37,5 +38,22 @@ describe('favorite an item', () => {
     await page.goto(`${BASE}/my-favorites`, { waitUntil: 'networkidle2', timeout: 45000 })
     await waitForText(page, 'Galaxy Hat')
     expect(await page.evaluate(() => document.body.innerText.includes('Galaxy Hat'))).toBe(true)
+  })
+
+  it("the item page shows how many people saved it, and the viewer's own save raises it", async () => {
+    app = await launchApp({ path: `/item/${COLLECTION}/0` })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+
+    // Two saves by other accounts (the mock picks service), none by the viewer yet.
+    await page.waitForSelector('[data-testid="fav-count"]', { timeout: 15000 })
+    const count = () => page.$eval('[data-testid="fav-count"]', el => el.textContent?.trim())
+    expect(await count()).toBe('2')
+
+    await page.click('[data-fav-title]')
+    await page.waitForFunction(() => document.querySelector('[data-testid="fav-count"]')?.textContent?.trim() === '3', {
+      timeout: 15000
+    })
+    expect(await count()).toBe('3')
   })
 })

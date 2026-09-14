@@ -10,7 +10,7 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 // Pin the marketplace-server base URL so the asserted URLs are stable regardless of env.
 vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'https://marketplace.example' } }))
 
-import { DEFAULT_LIST_ID, favoriteKey, fetchFavoriteIds, setFavorite } from '~/lib/favorites'
+import { DEFAULT_LIST_ID, favoriteKey, fetchFavoriteIds, fetchFavoriteStats, setFavorite } from '~/lib/favorites'
 
 const IDENTITY = {} as AuthIdentity
 
@@ -140,5 +140,36 @@ describe('when picking or unpicking a favorite', () => {
       text: async () => ''
     })
     await expect(setFavorite('0xa-1', true, IDENTITY)).resolves.toBeUndefined()
+  })
+})
+
+describe('when fetching how many people saved an item', () => {
+  it('should ask the stats endpoint signed and report the viewer as one of them', async () => {
+    signedFetch.mockResolvedValueOnce(ok({ ok: true, data: { itemId: '0xa-1', count: 12, pickedByUser: true } }))
+    await expect(fetchFavoriteStats('0xa-1', IDENTITY)).resolves.toEqual({ count: 12, pickedByUser: true })
+    expect(signedFetch).toHaveBeenCalledWith('https://marketplace.example/v1/picks/0xa-1/stats', {
+      method: 'GET',
+      identity: IDENTITY,
+      metadata: {}
+    })
+  })
+
+  it('and there is no identity it should ask unsigned, which answers with the count alone', async () => {
+    const plainFetch = vi.fn().mockResolvedValue(ok({ ok: true, data: { itemId: '0xa-1', count: 12 } }))
+    vi.stubGlobal('fetch', plainFetch)
+    await expect(fetchFavoriteStats('0xa-1')).resolves.toEqual({ count: 12, pickedByUser: false })
+    expect(plainFetch).toHaveBeenCalledWith('https://marketplace.example/v1/picks/0xa-1/stats')
+    expect(signedFetch).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('and the response is an HTTP error it should throw', async () => {
+    signedFetch.mockResolvedValueOnce(fail(500))
+    await expect(fetchFavoriteStats('0xa-1', IDENTITY)).rejects.toThrow('fetchFavoriteStats 500')
+  })
+
+  it('and the envelope reports ok: false it should throw', async () => {
+    signedFetch.mockResolvedValueOnce(ok({ ok: false, message: 'Invalid item id', data: {} }))
+    await expect(fetchFavoriteStats('0xa-1', IDENTITY)).rejects.toThrow('Invalid item id')
   })
 })

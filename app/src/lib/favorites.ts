@@ -56,3 +56,17 @@ export async function setFavorite(itemKey: string, faved: boolean, identity: Aut
   const body = (await res.json().catch(() => null)) as Envelope<unknown> | null
   if (body && !body.ok) throw new Error(`setFavorite: ${body.message ?? 'not ok'}`)
 }
+
+export type FavoriteStats = { count: number; pickedByUser: boolean }
+
+// How many accounts have saved an item, and whether the signed-in one is among them. Signed when an
+// identity is available: the count alone cannot say whether the viewer's own save is already in it,
+// and that is the baseline an optimistic ±1 needs. Anonymous callers get the count only.
+export async function fetchFavoriteStats(itemKey: string, identity?: AuthIdentity | null): Promise<FavoriteStats> {
+  const url = `${config.marketplaceServerUrl}/v1/picks/${encodeURIComponent(itemKey)}/stats`
+  const res = identity ? await signedFetch(url, { method: 'GET', identity, metadata: {} }) : await fetch(url)
+  if (!res.ok) throw new Error(`fetchFavoriteStats ${res.status}`)
+  const body = (await res.json()) as Envelope<{ count: number; pickedByUser?: boolean }>
+  if (!body.ok) throw new Error(`fetchFavoriteStats: ${body.message ?? 'not ok'}`)
+  return { count: body.data.count, pickedByUser: !!body.data.pickedByUser }
+}

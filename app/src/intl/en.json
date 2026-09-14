@@ -413,6 +413,8 @@
     "notAvailableBody": "It may have been delisted or moved. Browse Collectibles for something else.",
     "breadcrumbAria": "Breadcrumb",
     "itemFallback": "Item",
+    "savedCount": "Saved by {count, plural, one {# person} other {# people}}",
+    "favoriteAria": "{action}, {count, plural, one {saved by # person} other {saved by # people}}",
     "description": "Description",
     "showLess": "Show less",
     "readMore": "Read more",
