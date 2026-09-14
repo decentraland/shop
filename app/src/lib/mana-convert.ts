@@ -63,6 +63,22 @@ export function displayCredits(
   return manaWeiToCredits(row.manaWei, rate) ?? 0
 }
 
+/**
+ * Credits for one row at the LIVE rate, keeping the stored figure while that rate is in flight.
+ *
+ * `displayCredits` answers 0 without a rate, which is correct for a caller that checks the rate's state
+ * itself and wrong for one that does not: a card reads `priceCredits > 0` as "for sale", so a 0 blanks
+ * every MANA row until the oracle answers. The server's own conversion is the honest thing to show for
+ * that beat — it is approximately right, where 0 is a different claim entirely.
+ */
+export function creditsAtLiveRate(
+  row: { priceCredits: number; manaWei?: string | null },
+  rate: ManaRate | undefined
+): number {
+  if (!row.manaWei || !rate) return row.priceCredits
+  return displayCredits(row, rate)
+}
+
 // MANA wei → USD cents, rounded UP. Used to size the credits-server authorize amount for a legacy
 // purchase (the server then locks MANA at its own oracle read + signs the fixed maxCreditedValue).
 export function manaWeiToUsdCents(manaWei: string, rate: ManaRate): number {

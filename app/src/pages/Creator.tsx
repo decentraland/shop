@@ -18,8 +18,7 @@ import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { rarityLabel } from '~/lib/rarity'
 import { shortAddress } from '~/lib/address'
-import { displayCredits } from '~/lib/mana-convert'
-import { useManaRate } from '~/hooks/useManaRate'
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmptyState } from '~/components/EmptyState'
@@ -239,14 +238,11 @@ export function Creator() {
    * the live rate makes it 14, which is what the browse grid (and now the item page) shows. Reading the
    * server number here is what made this page disagree with both.
    */
-  const { data: manaRate } = useManaRate()
-  const priced = useMemo(
-    () => items.map(item => ({ ...item, priceCredits: displayCredits(item, manaRate) })),
-    [items, manaRate]
-  )
-  // "For sale" stays exactly what it was for this feed — a price the server reports — with one addition: a
-  // MANA row whose live rate has not resolved yet is still for sale, it just has no number to show. Without
-  // that, every store-mint card would flash as NOT FOR SALE for the first frames.
+  const { items: priced } = useLivePricedItems(items)
+  // "For sale" stays what it was for this feed — a price the server reports — plus `manaWei`, which keeps
+  // a row the server prices at 0 on the for-sale side. The hook already holds the stored figure while the
+  // live rate is in flight, so a store-mint card no longer renders NOT FOR SALE inside it for the first
+  // frames the way it did when the price was 0 until the oracle answered.
   const isForSale = (item: (typeof priced)[number]) => item.priceCredits > 0 || !!item.manaWei
 
   // Which of the three empty states applies, if any. They are genuinely different facts and each got

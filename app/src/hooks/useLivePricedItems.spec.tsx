@@ -28,18 +28,18 @@ describe('when a grid prices rows that may be quoted in either currency', () => 
   it('should leave a USD-quoted row alone, since its credit price is already exact', async () => {
     const { result } = renderHook(() => useLivePricedItems([usdRow]), { wrapper })
     // Converting this one is the opposite mistake: it rendered $6.90 as 6 credits.
-    expect(result.current[0].priceCredits).toBe(69)
+    expect(result.current.items[0].priceCredits).toBe(69)
   })
 
   it('should re-price a MANA row at the live rate, not the stored number', async () => {
     const { result } = renderHook(() => useLivePricedItems([manaRow]), { wrapper })
-    await waitFor(() => expect(result.current[0].priceCredits).toBe(14))
+    await waitFor(() => expect(result.current.items[0].priceCredits).toBe(14))
   })
 
   it('should show the stored price until the rate arrives, so nothing flashes as not-for-sale', () => {
     const { result } = renderHook(() => useLivePricedItems([manaRow]), { wrapper })
     // A card reads priceCredits > 0 as "for sale"; a 0 here would blank every MANA row for a beat.
-    expect(result.current[0].priceCredits).toBe(4)
+    expect(result.current.items[0].priceCredits).toBe(4)
   })
 
   it('should not read the oracle when no row is MANA-denominated', async () => {
@@ -50,12 +50,29 @@ describe('when a grid prices rows that may be quoted in either currency', () => 
   it('should keep the array reference when there is nothing to convert', () => {
     const items = [usdRow]
     const { result } = renderHook(() => useLivePricedItems(items), { wrapper })
-    expect(result.current).toBe(items)
+    expect(result.current.items).toBe(items)
   })
 
   it('should convert only the MANA rows in a mixed grid', async () => {
     const { result } = renderHook(() => useLivePricedItems([usdRow, manaRow]), { wrapper })
-    await waitFor(() => expect(result.current[1].priceCredits).toBe(14))
-    expect(result.current[0].priceCredits).toBe(69)
+    await waitFor(() => expect(result.current.items[1].priceCredits).toBe(14))
+    expect(result.current.items[0].priceCredits).toBe(69)
+  })
+
+  it('should report no pending rate when no row needed one', () => {
+    // useManaRate is disabled in that case, and a disabled query stays `isPending` forever — a skeleton
+    // keyed on it would never clear.
+    const { result } = renderHook(() => useLivePricedItems([usdRow]), { wrapper })
+    expect(result.current.hasManaRows).toBe(false)
+    expect(result.current.ratePending).toBe(false)
+    expect(result.current.rateError).toBe(false)
+  })
+
+  it('should report the failure when the oracle read fails on a grid that needed it', async () => {
+    readManaUsdRate.mockRejectedValue(new Error('oracle down'))
+    const { result } = renderHook(() => useLivePricedItems([manaRow]), { wrapper })
+    await waitFor(() => expect(result.current.rateError).toBe(true))
+    // The stored figure still stands in, so the row does not read as not-for-sale.
+    expect(result.current.items[0].priceCredits).toBe(4)
   })
 })
