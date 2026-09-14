@@ -450,8 +450,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v3/catalog/shop') {
       const ca = u.searchParams.get('contractAddress')
       const itemId = u.searchParams.get('itemId')
-      // fetchCollectionSaleState (contractAddress, no itemId) → treat as "not on sale".
-      if (ca && !itemId) return json(req, F.collectionSaleState ?? { data: [], total: 0 })
+      // fetchCollectionSaleState (contractAddress, no itemId) → treat as "not on sale". The rows are
+      // filtered by the collection asked for, so a creator with several collections gets a different
+      // answer per collection instead of every one of them looking listed.
+      if (ca && !itemId) {
+        const rows = ((F.collectionSaleState as { data: any[] } | undefined)?.data ?? []).filter(
+          i => String(i.contractAddress).toLowerCase() === ca.toLowerCase()
+        )
+        return json(req, { data: rows, total: rows.length })
+      }
       // Honor the server-side filters so filter/search/sort + item-detail specs are meaningful.
       let items = [...((F.shopListings as { data: any[] }).data ?? [])]
       const search = u.searchParams.get('search')?.toLowerCase()
@@ -687,7 +694,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
 
   // builder-server
   if (u.hostname.includes('builder-api')) {
-    if (/\/v1\/collections\/.+\/items/.test(path)) return json(req, F.builderItems)
+    // Per-collection endpoint, so honour the id in the path — answering every collection with the whole
+    // item list made a multi-collection creator look like one collection repeated.
+    if (/\/v1\/collections\/.+\/items/.test(path)) {
+      const id = path.match(/\/v1\/collections\/([^/]+)\/items/)?.[1]
+      const rows = ((F.builderItems as { data: any[] }).data ?? []).filter(
+        i => i.collection_id == null || i.collection_id === id
+      )
+      return json(req, { data: rows })
+    }
     if (/\/v1\/.+\/collections/.test(path)) return json(req, F.builderCollections)
     if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: F.builderItemContents })
     return json(req, { data: [] })

@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { noForward } from '~/styles/emotion'
@@ -243,10 +244,17 @@ export const ImportBanner = styled(ManaPricingBanner)`
  * should read as the same kind of thing — the plain `panel` fill made this one look like an unstyled box
  * next to it.
  */
-/** One collection's block: its header, then that collection's cards. */
+/**
+ * One collection's block: its header, then that collection's cards.
+ *
+ * Consecutive blocks are ruled off. Spacing alone left each header sitting on the previous collection's
+ * cards, so the grid read as one run rather than as separate collections.
+ */
 export const CollectionGroup = styled.section`
   & + & {
-    margin-top: 28px;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
   }
 `
 
@@ -254,7 +262,33 @@ export const CollectionHead = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+`
+
+/**
+ * Putting a collection on sale is the advancing action on this page, so it takes the buy CTA's
+ * orange→red gradient — the same fill the item page gives BUY NOW — instead of the purple primary.
+ */
+export const SaleCta = styled(Button)`
+  && {
+    background: ${theme.gradients.buyBtn};
+    color: ${theme.colors.white};
+  }
+  /* The purple variant paints its solid hover state through a ::before overlay, which would cover the
+     gradient; the hover below swaps the fill directly instead. */
+  &&::before {
+    content: none;
+  }
+  &&:hover:not(:disabled),
+  &&:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+  }
+  /* Three ampersands, not two: the purple variant's own disabled rule carries one more class than a
+     two-ampersand override, so it would otherwise repaint the button flat purple when nothing is listed. */
+  &&&:disabled {
+    background: ${theme.gradients.buyBtn};
+    opacity: 0.55;
+  }
 `
 
 /** Fixed frame so every header lines up whatever each collection's mosaic holds. */

@@ -583,7 +583,7 @@ export function MyAssets() {
               <S.SalesPanel data-testid="creator-sales-panel">
                 <S.SalesHead>
                   <S.SalesTitle>{t('creatorSale.salesTitle')}</S.SalesTitle>
-                  <Button
+                  <S.SaleCta
                     variant="purple"
                     size="sm"
                     data-testid="creator-sale-open"
@@ -594,7 +594,7 @@ export function MyAssets() {
                     }}
                   >
                     {t('creatorSale.putOnSale')}
-                  </Button>
+                  </S.SaleCta>
                 </S.SalesHead>
                 {creatorSales && creatorSales.length > 0 ? (
                   <CreatorSales sales={creatorSales} session={session} />
@@ -629,7 +629,7 @@ export function MyAssets() {
                       <S.CollectionCount>{t('myAssets.itemsCount', { count: group.items.length })}</S.CollectionCount>
                     </S.CollectionHeadText>
                     {creatorSalesEnabled && session && saleableByAddress.has(group.contractAddress) ? (
-                      <Button
+                      <S.SaleCta
                         variant="purple"
                         size="sm"
                         data-testid="creation-group-sale"
@@ -639,7 +639,7 @@ export function MyAssets() {
                         }}
                       >
                         {t('creatorSale.putOnSale')}
-                      </Button>
+                      </S.SaleCta>
                     ) : null}
                   </S.CollectionHead>
                   <S.Grid data-testid="grid">

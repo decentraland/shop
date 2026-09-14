@@ -61,6 +61,66 @@ const activeSale = {
   status: 'active'
 }
 
+// A second collection with nothing listed — the creations grid must separate the two, and only the
+// listed one can be put on sale.
+const SECOND_COLLECTION = '0xc0113c1100000000000000000000000000000002'
+const twoCollections = {
+  data: [
+    {
+      id: 'col-1',
+      name: 'Galaxy Drip',
+      eth_address: TEST_ADDRESS,
+      contract_address: COLLECTION,
+      is_published: true,
+      is_approved: true,
+      minters: []
+    },
+    {
+      id: 'col-2',
+      name: 'Nebula Pack',
+      eth_address: TEST_ADDRESS,
+      contract_address: SECOND_COLLECTION,
+      is_published: true,
+      is_approved: true,
+      minters: []
+    }
+  ]
+}
+const twoCollectionsItems = {
+  data: [
+    {
+      id: 'item-1',
+      collection_id: 'col-1',
+      contract_address: COLLECTION,
+      blockchain_item_id: '0',
+      name: 'Galaxy Hat',
+      thumbnail: 'thumbnail.png',
+      contents: { 'thumbnail.png': 'bafybeigalaxyhatthumbnailfakehashxxxxxxxxxxxxxxxxxx' },
+      is_published: true,
+      is_approved: true,
+      total_supply: 0,
+      rarity: 'epic',
+      type: 'wearable',
+      data: { wearable: { category: 'hat' } }
+    },
+    {
+      id: 'item-2',
+      collection_id: 'col-2',
+      contract_address: SECOND_COLLECTION,
+      blockchain_item_id: '0',
+      name: 'Nebula Cape',
+      thumbnail: 'thumbnail.png',
+      contents: { 'thumbnail.png': 'bafybeinebulacapethumbnailfakehashxxxxxxxxxxxxxxxx' },
+      is_published: true,
+      is_approved: true,
+      total_supply: 0,
+      rarity: 'rare',
+      type: 'wearable',
+      data: { wearable: { category: 'upper_body' } }
+    }
+  ]
+}
+
 const noOverflow = (page: App['page']) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
@@ -139,6 +199,67 @@ describe('creator sales', () => {
     await waitForText(page, 'Your sale has ended.')
     await waitForText(page, 'Ended early')
     expect(await page.$('[data-testid="creator-sale-end"]')).toBeNull()
+  })
+
+  it('separates each collection and offers the sale only where something is listed', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [] },
+        unifiedListings: { data: [] },
+        builderCollections: twoCollections,
+        builderItems: twoCollectionsItems,
+        collectionSaleState: galaxyListed
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Cape')
+    await page.waitForSelector('[data-testid="creation-group"]')
+    const names = await page.$$eval('[data-testid="creation-group-name"]', els => els.map(e => e.textContent?.trim()))
+    expect(names).toEqual(['Galaxy Drip', 'Nebula Pack'])
+
+    // Only the collection with a Shop listing carries the per-header CTA: a sale discounts listings, so
+    // there is nothing for it to apply to on the other one.
+    const ctas = await page.$$eval('[data-testid="creation-group"]', els =>
+      els.map(e => Boolean(e.querySelector('[data-testid="creation-group-sale"]')))
+    )
+    expect(ctas).toEqual([true, false])
+
+    // Consecutive collections are ruled off, so the second header does not sit on the first one's cards.
+    const rule = await page.$$eval('[data-testid="creation-group"]', els => {
+      const s = getComputedStyle(els[1])
+      return { width: parseFloat(s.borderTopWidth), gap: parseFloat(s.paddingTop) }
+    })
+    expect(rule.width).toBeGreaterThan(0)
+    expect(rule.gap).toBeGreaterThan(8)
+
+    // The CTA takes the buy gradient, not the purple primary.
+    const cta = await page.$eval('[data-testid="creation-group-sale"]', el => getComputedStyle(el).backgroundImage)
+    expect(cta).toContain('gradient')
+    expect(cta).toContain('rgb(255, 116, 57)')
+  })
+
+  it('keeps the sale cta on its own fill while nothing is listed to discount', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: { importable: { data: [] }, shopListings: { data: [] }, unifiedListings: { data: [] } }
+    })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="creator-sales-panel"]')
+    await waitForText(page, 'List an item from one of your collections first')
+    // Disabled, but still the buy gradient: the shared purple variant paints its own flat disabled fill
+    // through a more specific rule, which used to win and turn this button purple.
+    const cta = await page.$eval('[data-testid="creator-sale-open"]', el => ({
+      disabled: (el as HTMLButtonElement).disabled,
+      bg: getComputedStyle(el).backgroundImage
+    }))
+    expect(cta.disabled).toBe(true)
+    expect(cta.bg).toContain('rgb(255, 116, 57)')
   })
 
   it('hides the whole flow while the flag is off', async () => {
