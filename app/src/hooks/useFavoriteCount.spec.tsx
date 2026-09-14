@@ -26,7 +26,7 @@ function wrapper({ children }: PropsWithChildren) {
 function statsResponse(count: number, pickedByUser?: boolean) {
   return {
     ok: true,
-    json: () => Promise.resolve({ ok: true, data: { itemId: KEY, count, pickedByUser } })
+    json: () => Promise.resolve({ ok: true, data: [{ itemId: KEY, count, pickedByUser }] })
   }
 }
 
@@ -46,7 +46,9 @@ describe('when reading how many people saved an item', () => {
 
     expect(result.current).toBeUndefined()
     await waitFor(() => expect(result.current).toBe(4))
-    expect(new URL(fetchMock.mock.calls[0][0] as string).pathname).toBe(`/v1/picks/${KEY}/stats`)
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.pathname).toBe('/v1/picks/stats')
+    expect(url.searchParams.getAll('itemId')).toEqual([KEY])
   })
 
   it('and the item has no favorite key it should not ask at all', async () => {

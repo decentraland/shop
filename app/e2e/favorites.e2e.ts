@@ -56,4 +56,103 @@ describe('favorite an item', () => {
     })
     expect(await count()).toBe('3')
   })
+
+  it('the grid keeps the heart for the hovered card, and its count follows the save', async () => {
+    app = await launchApp({ path: '/items' })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+    await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
+
+    // At rest the card is its artwork: the heart is in the page (reachable, readable) but not painted.
+    expect(await page.$eval('[data-testid="card-fav"]', el => getComputedStyle(el).opacity)).toBe('0')
+
+    await page.hover('[data-testid="card"]')
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('[data-testid="card-fav"]') as Element).opacity === '1',
+      { timeout: 15000 }
+    )
+
+    const count = () => page.$eval('[data-testid="card-fav-count"]', el => el.textContent?.trim())
+    expect(await count()).toBe('2')
+
+    await page.click('[data-testid="card-fav"]')
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="card-fav-count"]')?.textContent?.trim() === '3',
+      { timeout: 15000 }
+    )
+    expect(await count()).toBe('3')
+  })
+
+  it('keeps the heart clear of the hover preview, which paints above everything the card draws', async () => {
+    app = await launchApp({ path: '/items' })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+    await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
+    await page.hover('[data-testid="card"]')
+    // The shared preview boots on idle and anchors to the hovered card's media.
+    await page.waitForFunction(() => !!document.getElementById('hover-preview')?.parentElement?.style.clipPath, {
+      timeout: 20000
+    })
+
+    const geometry = await page.evaluate(() => {
+      const wrap = document.getElementById('hover-preview')?.parentElement as HTMLElement
+      const layer = wrap.getBoundingClientRect()
+      const fav = (document.querySelector('[data-testid="card-fav"]') as HTMLElement).getBoundingClientRect()
+      const cut = /polygon\(0px 0px, ([\d.]+)px 0px, [\d.]+px ([\d.]+)px/.exec(wrap.style.clipPath)
+      return {
+        cutLeft: layer.left + Number(cut?.[1]),
+        cutBottom: layer.top + Number(cut?.[2]),
+        layerRight: layer.right,
+        fav: { left: fav.left, right: fav.right, bottom: fav.bottom }
+      }
+    })
+
+    // The cut runs from its left edge to the layer's right edge, and from the layer's top down to its
+    // bottom edge — so the whole button sits inside it and nothing of the preview is painted over it.
+    expect(geometry.cutLeft).toBeLessThanOrEqual(geometry.fav.left)
+    expect(geometry.cutBottom).toBeGreaterThanOrEqual(geometry.fav.bottom)
+    expect(geometry.fav.right).toBeLessThanOrEqual(geometry.layerRight + 1)
+  })
+
+  it('lets go of the card once the pointer leaves, though the click left the heart focused', async () => {
+    app = await launchApp({ path: '/items' })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+    await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
+
+    await page.hover('[data-testid="card"]')
+    await page.click('[data-testid="card-fav"]')
+    await page.mouse.move(5, 5)
+
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('[data-testid="card"]') as Element).transform === 'none',
+      { timeout: 15000 }
+    )
+    // The button IS still focused — a mouse click focuses it, and that focus outlives the pointer. That is
+    // what used to keep the card lit and lifted on a card the shopper had already left.
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('card-fav')
+    expect(await page.$eval('[data-testid="card"]', el => getComputedStyle(el, '::after').backgroundImage)).toBe('none')
+  })
+
+  it('still lights the card for a keyboard user on the heart', async () => {
+    app = await launchApp({ path: '/items' })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+    await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
+
+    // A real key press first: :focus-visible follows the last interaction, so focusing the button without
+    // one would be read as a pointer focus and prove nothing about the keyboard path.
+    await page.keyboard.press('Tab')
+    await page.evaluate(() => (document.querySelector('[data-testid="card-fav"]') as HTMLElement).focus())
+
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('[data-testid="card"]') as Element).transform !== 'none',
+      { timeout: 15000 }
+    )
+    // Waited for rather than read: both the lift and the reveal are transitions, and they start together.
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('[data-testid="card-fav"]') as Element).opacity === '1',
+      { timeout: 15000 }
+    )
+  })
 })

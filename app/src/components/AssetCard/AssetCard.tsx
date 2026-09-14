@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart, type AddToCartSource } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
+import { useLocale } from '~/store/locale'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
@@ -15,6 +16,7 @@ import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { track } from '~/lib/analytics'
 import { useSaleActive } from '~/hooks/useSaleActive'
+import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import type { CatalogItem } from '~/lib/api'
 import * as S from './AssetCard.styles'
 
@@ -83,6 +85,14 @@ export function AssetCard(props: AssetCardProps) {
   // Your own (primary) listing — can't add it to the cart (see lib/ownership.ts).
   const own = isOwnListing(item, address)
   const { key: favKey, faved, toggle: toggleFav } = useFavorite(item)
+  const favCount = useFavoriteCount(item)
+  const locale = useLocale(s => s.locale)
+  const favCountLabel = favCount === undefined ? null : favCount.toLocaleString(locale)
+  const favAction = faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')
+  // The button's label replaces everything inside it for assistive tech, so the count has to be part
+  // of it or it is only ever seen, never heard.
+  const favLabel =
+    favCount === undefined ? favAction : t('assetCard.favoriteAria', { action: favAction, count: favCount })
   // The single shared 3D preview (see HoverPreviewLayer): on hover this card asks it to load this item
   // and overlay this card's media. `isPreviewing`/`previewReady` reflect whether THIS card is the one
   // currently driving that shared instance.
@@ -362,17 +372,19 @@ export function AssetCard(props: AssetCardProps) {
       {!isNameItem && favKey ? (
         <S.Fav
           data-on={faved || undefined}
+          data-count={favCountLabel ?? undefined}
           data-testid="card-fav"
           onClick={e => {
             e.stopPropagation()
             toggleFav(item, source)
           }}
-          aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+          aria-label={favLabel}
         >
           <S.FavIcons>
             <S.FavOutline name="heart" size={16} aria-hidden />
             <S.FavFill name="heart-solid" size={16} aria-hidden />
           </S.FavIcons>
+          {favCountLabel ? <S.FavCount data-testid="card-fav-count">{favCountLabel}</S.FavCount> : null}
         </S.Fav>
       ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the

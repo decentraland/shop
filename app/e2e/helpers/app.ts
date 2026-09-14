@@ -621,14 +621,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // i.e. the section rendered its skeletons and then removed itself.
     if (path === '/v3/catalog/creators') return json(req, F.rankings)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
-    // The PDP's save count, which moves with the run's accumulator so hearting an item raises it.
-    const pickStats = /^\/v1\/picks\/([^/]+)\/stats$/.exec(path)
-    if (pickStats) {
-      const itemId = decodeURIComponent(pickStats[1])
-      const pickedByUser = favoritePicks.includes(itemId)
+    // Save counts, read in bulk for everything on screen. They move with the run's accumulator, so
+    // hearting an item raises its number.
+    if (path === '/v1/picks/stats') {
+      const checking = u.searchParams.get('checkingUserAddress')
       return json(req, {
         ok: true,
-        data: { itemId, count: FAVORITE_BASE_COUNT + (pickedByUser ? 1 : 0), pickedByUser }
+        data: u.searchParams.getAll('itemId').map(itemId => {
+          const pickedByUser = !!checking && favoritePicks.includes(itemId)
+          return { itemId, count: FAVORITE_BASE_COUNT + (pickedByUser ? 1 : 0), pickedByUser }
+        })
       })
     }
     // Favorites service (marketplace picks): POST toggles membership in the run's accumulator; the
@@ -871,7 +873,17 @@ export async function launchApp(
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   resetMetaTxNonce() // so a relayed purchase in one test cannot leave the next one's nonce ahead
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+  // Headless Chrome reports NO hover (and a coarse pointer) on a machine with no pointing device, which
+  // is what CI is — and every hover-gated rule in the app then evaluates to its touch branch, so the
+  // desktop behaviour these specs are about is silently not the one running. Force a mouse.
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4'
+    ]
+  })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
   // 900px it collapses into the mobile Filters drawer. Mobile-specific tests can override per-page.

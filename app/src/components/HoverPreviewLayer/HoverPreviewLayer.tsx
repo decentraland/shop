@@ -40,6 +40,10 @@ const Wrap = styled.div`
 // cross-origin iframe never surfaces its internal content-URL tooltip.
 const IFRAME_ID = 'hover-preview'
 
+// Slack around the heart's box when cutting it out of the preview (see `notch`), so no antialiased edge
+// of the layer survives along the button's own edge.
+const NOTCH_PAD = 1
+
 // Poses a hovered WEARABLE can strike. It used to be FASHION and only FASHION, so every card in the
 // grid played the identical animation and the rail read as one avatar copy-pasted. Restricted to poses
 // that keep the avatar planted and framed inside a card-sized viewport — walk/run/jump translate it out
@@ -90,6 +94,11 @@ export function HoverPreviewLayer() {
   // The token we last asked the engine to load — a LOAD only means "ready" if it still matches.
   const loadingTokenRef = useRef(-1)
   const [rect, setRect] = useState<DOMRect | null>(null)
+  // Where the hovered card's heart sits inside this layer's box, so the layer can cut that corner away.
+  // The layer is fixed in the ROOT stacking context and the card isolates its own, so nothing the card
+  // draws can come out above it: without the cut the preview covers the heart exactly while the shopper
+  // is hovering to reach it.
+  const [notch, setNotch] = useState<{ left: number; bottom: number } | null>(null)
   // The pose is drawn ONCE per hover and held for it: the UPDATE effect re-runs on boot/avatar changes
   // too, and re-rolling there would snap the avatar into a different animation mid-hover. Keyed on the
   // store's hover token, which bumps on show() and ignores re-entering the same card.
@@ -118,19 +127,42 @@ export function HoverPreviewLayer() {
   useEffect(() => {
     if (!anchor) {
       setRect(null)
+      setNotch(null)
       return
     }
     let raf = 0
-    const update = () => setRect(anchor.getBoundingClientRect())
+    // Measured rather than derived: the button's width follows its save count and the hovered card is
+    // scaled, so the box it actually occupies is the only reliable one.
+    const favEl = anchor.parentElement?.querySelector('[data-testid="card-fav"]') ?? null
+    const update = () => {
+      const anchorRect = anchor.getBoundingClientRect()
+      setRect(anchorRect)
+      const fav = favEl?.getBoundingClientRect()
+      setNotch(
+        fav
+          ? {
+              left: fav.left - (Math.round(anchorRect.left) + RING_INSET) - NOTCH_PAD,
+              bottom: fav.bottom - (Math.round(anchorRect.top) + RING_INSET) + NOTCH_PAD
+            }
+          : null
+      )
+    }
     update()
     const onMove = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(update)
     }
+    // The heart WIDENS when its save count lands, which can happen after the hover started and after the
+    // preview is already showing. Nothing else re-measures for that — scroll and resize do not fire for a
+    // button growing in place — and a cut that is narrower than the button is the same bug as no cut at
+    // all, one digit further right.
+    const favResize = favEl && typeof ResizeObserver === 'function' ? new ResizeObserver(onMove) : null
+    if (favEl && favResize) favResize.observe(favEl)
     window.addEventListener('scroll', onMove, true)
     window.addEventListener('resize', onMove)
     return () => {
       cancelAnimationFrame(raf)
+      favResize?.disconnect()
       window.removeEventListener('scroll', onMove, true)
       window.removeEventListener('resize', onMove)
     }
@@ -233,6 +265,9 @@ export function HoverPreviewLayer() {
         borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
         overflow: 'hidden',
         zIndex: 5,
+        clipPath: notch
+          ? `polygon(0 0, ${notch.left}px 0, ${notch.left}px ${notch.bottom}px, 100% ${notch.bottom}px, 100% 100%, 0 100%)`
+          : undefined,
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,
         transition: 'opacity .25s ease'
