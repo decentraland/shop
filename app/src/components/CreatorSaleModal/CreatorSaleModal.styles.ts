@@ -93,14 +93,6 @@ export const FieldLabel = styled.span`
   color: ${theme.colors.muted};
 `
 
-export const Note = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 12px;
-  line-height: 1.5;
-  color: ${theme.colors.muted};
-`
-
 export const CollectionList = styled.div`
   display: flex;
   flex-direction: column;
@@ -109,25 +101,21 @@ export const CollectionList = styled.div`
   overflow-y: auto;
 `
 
-export const CollectionRow = styled.label`
+export const CollectionRow = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid ${theme.colors.line};
   border-radius: ${theme.radius.card};
-  cursor: pointer;
 
-  input {
-    flex: none;
-    width: 18px;
-    height: 18px;
-    accent-color: ${theme.colors.accent};
-    cursor: pointer;
-  }
   &[data-selected] {
     border-color: ${theme.colors.accent};
     background: ${theme.colors.promptLilac};
+  }
+  /* Stating the scope, not offering it: no pointer affordance and nothing to click. */
+  &[data-readonly] {
+    cursor: default;
   }
 `
 
@@ -192,6 +180,31 @@ export const Chip = styled.button`
   &:hover:not(:disabled):not([data-selected]) {
     border-color: ${theme.colors.lineStrong};
   }
+
+  /* Discount chips carry their step of the heat ramp at rest, so the scale is readable before anything is
+     picked; the chosen one keeps the tint and gains the saturated ring plus a halo. Selection is a ring,
+     not a colour swap, because the colour is already saying something else here. */
+  ${Object.entries(theme.saleHeat)
+    .map(
+      ([step, { tint, edge }]) => `
+  &[data-heat='${step}'] {
+    background: ${tint};
+    border-color: ${tint};
+    color: ${theme.colors.text};
+  }
+  &[data-heat='${step}']:hover:not(:disabled):not([data-selected]) {
+    border-color: ${edge};
+  }
+  &[data-heat='${step}'][data-selected] {
+    background: ${tint};
+    border: 2px solid ${edge};
+    color: ${theme.colors.text};
+    box-shadow: 0 0 0 3px ${edge}40;
+    /* The 2px border eats a pixel of the box; take it back from the padding so the row doesn't shift. */
+    padding: 0 13px;
+  }`
+    )
+    .join('')}
   &:disabled {
     opacity: 0.5;
     cursor: default;
@@ -222,6 +235,17 @@ export const InlineInput = styled.span`
   &[aria-invalid='true'] {
     border-color: ${theme.colors.err};
   }
+
+  /* Takes the heat of whatever has been typed, so the custom value reads on the same scale as the presets. */
+  ${Object.entries(theme.saleHeat)
+    .map(
+      ([step, { tint, edge }]) => `
+  &[data-heat='${step}'] {
+    background: ${tint};
+    border-color: ${edge};
+  }`
+    )
+    .join('')}
 
   input {
     width: 64px;
@@ -414,4 +438,163 @@ export const SuccessDetail = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   color: ${theme.colors.text2};
+`
+
+/**
+ * A chip that becomes its own input.
+ *
+ * Two grid columns swapping between 0fr and 1fr: the chip collapses to nothing while the field opens in
+ * its place, and because both tracks stay content-sized the animation survives translation — no measured
+ * or hardcoded widths to go stale when "Custom" becomes "Personalizado".
+ */
+export const Morph = styled.div`
+  display: inline-grid;
+  grid-template-columns: 1fr 0fr;
+  align-items: center;
+  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  &[data-open] {
+    grid-template-columns: 0fr 1fr;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+export const MorphCell = styled.div`
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+
+  /* The collapsed half is still in the DOM (it has to be, to animate back), so stop it catching clicks. */
+  &[data-off] {
+    pointer-events: none;
+  }
+`
+
+/** The review step: what the sale will do, item by item, before anything is signed. */
+export const ReviewSummary = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.panel};
+`
+
+export const ReviewPct = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: ${theme.colors.dclRed};
+  color: ${theme.colors.white};
+  font-family: ${theme.font.sans};
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+`
+
+export const ReviewWhen = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  line-height: 1.5;
+  color: ${theme.colors.text2};
+`
+
+export const ReviewGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const ReviewGroupTitle = styled.h3`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 13px;
+  color: ${theme.colors.text};
+`
+
+export const ReviewList = styled.ul`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Long collections stay inside the modal instead of pushing the actions off-screen. */
+  max-height: 220px;
+  overflow-y: auto;
+`
+
+export const ReviewRow = styled.li`
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.white};
+  border: 1px solid ${theme.colors.line};
+
+  &[data-muted] {
+    background: ${theme.colors.panel};
+    border-color: ${theme.colors.panel};
+  }
+`
+
+export const ReviewThumb = styled.img`
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: ${theme.colors.media};
+`
+
+export const ReviewName = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: ${theme.colors.text};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const ReviewPrices = styled.span`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  white-space: nowrap;
+`
+
+export const ReviewWas = styled.s`
+  color: ${theme.colors.muted2};
+`
+
+export const ReviewNow = styled.b`
+  color: ${theme.colors.text};
+  font-weight: 700;
+`
+
+export const ReviewUnaffected = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: ${theme.colors.muted};
+  white-space: nowrap;
+`
+
+export const ReviewFoot = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  line-height: 1.5;
+  color: ${theme.colors.muted};
 `

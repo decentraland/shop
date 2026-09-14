@@ -344,21 +344,34 @@ export function MyAssets() {
   const [saleModalFor, setSaleModalFor] = useState<string | undefined>(undefined)
   const saleableCollections = useMemo<SaleableCollection[]>(() => {
     const byAddress = new Map<string, SaleableCollection>()
+    // Every creation goes in, listed or not: the sale only re-prices the listed ones, and the review step
+    // has to be able to say which of the rest it will leave alone. The unfiltered list, so what the sale
+    // covers never depends on how the grid happens to be filtered.
     for (const item of publishable ?? []) {
       const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
-      if (!sale?.isOnSale) continue
       const key = item.contractAddress.toLowerCase()
       const entry = byAddress.get(key) ?? {
         contractAddress: key,
         name: item.collectionName,
         listedCount: 0,
-        examplePriceCredits: null
+        examplePriceCredits: null,
+        items: []
       }
-      entry.listedCount += 1
-      entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
+      entry.items.push({
+        key: `${key}-${item.blockchainItemId}`,
+        name: item.name,
+        thumbnail: item.thumbnail,
+        priceCredits: sale?.isOnSale ? sale.priceCredits : null,
+        remainingSupply: item.remainingSupply
+      })
+      if (sale?.isOnSale) {
+        entry.listedCount += 1
+        entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
+      }
       byAddress.set(key, entry)
     }
-    return [...byAddress.values()]
+    // A collection with nothing listed has nothing to discount, so it is not saleable.
+    return [...byAddress.values()].filter(c => c.listedCount > 0)
   }, [publishable, saleState])
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
@@ -422,6 +435,9 @@ export function MyAssets() {
     () => new Set(saleableCollections.map(c => c.contractAddress.toLowerCase())),
     [saleableCollections]
   )
+
+  /** The collection the open modal is scoped to — a sale always covers exactly the one it was opened from. */
+  const saleModalCollection = saleableCollections.find(c => c.contractAddress === saleModalFor)
 
   useEffect(() => {
     if (pricingPrompt !== 'idle' || importCount === 0) return
@@ -661,11 +677,10 @@ export function MyAssets() {
                 <CreatorSales sales={creatorSales} session={session} />
               </S.SalesPanel>
             ) : null}
-            {saleModalOpen && session ? (
+            {saleModalOpen && session && saleModalCollection ? (
               <CreatorSaleModal
                 session={session}
-                collections={saleableCollections}
-                preselect={saleModalFor}
+                collection={saleModalCollection}
                 onClose={() => setSaleModalOpen(false)}
               />
             ) : null}

@@ -121,6 +121,22 @@ const twoCollectionsItems = {
   ]
 }
 
+const builderItem = (bid: string, name: string) => ({
+  id: `item-${bid}`,
+  collection_id: 'col-1',
+  contract_address: COLLECTION,
+  blockchain_item_id: bid,
+  name,
+  thumbnail: 'thumbnail.png',
+  contents: { 'thumbnail.png': 'bafyfake' },
+  is_published: true,
+  is_approved: true,
+  total_supply: 0,
+  rarity: 'epic',
+  type: 'wearable',
+  data: { wearable: { category: 'hat' } }
+})
+
 const noOverflow = (page: App['page']) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
@@ -153,9 +169,18 @@ describe('creator sales', () => {
     await waitForText(page, 'sells for 24 credits')
     expect(await noOverflow(page)).toBe(true)
 
+    // The collection is the scope, not a choice: it is stated, with nothing to untick.
+    expect(await page.$('[data-testid="creator-sale-collections"] input')).toBeNull()
+
     // Pick 30% → the example follows.
     expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^30% off$/i)).toBe(true)
     await waitForText(page, 'sells for 21 credits')
+
+    // Nothing is signed from the form — the terms go to a review first.
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review sale/i)
+    await page.waitForSelector('[data-testid="creator-sale-review"]')
+    await waitForText(page, '1 item goes on sale')
+    expect(await noOverflow(page)).toBe(true)
 
     // One signature, one POST, then the success view with its countdown.
     await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start sale/i)
@@ -240,6 +265,134 @@ describe('creator sales', () => {
     const cta = await page.$eval('[data-testid="creation-group-sale"]', el => getComputedStyle(el).backgroundImage)
     expect(cta).toContain('gradient')
     expect(cta).toContain('rgb(255, 116, 57)')
+  })
+
+  it('reviews every item, and says which ones the sale leaves alone', async () => {
+    const listed = (itemId: string, name: string, price: number) => ({
+      tradeId: `trade-${itemId}`,
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId,
+      tokenId: null,
+      name,
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: TEST_ADDRESS,
+      priceCredits: price,
+      available: 10,
+      network: 'MATIC',
+      chainId: 80002
+    })
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [] },
+        unifiedListings: { data: [] },
+        builderItems: {
+          data: [
+            builderItem('0', 'Galaxy Hat'),
+            builderItem('1', 'Galaxy Boots'),
+            // Never listed, so the sale cannot touch it — the review has to say so.
+            builderItem('2', 'Galaxy Cape')
+          ]
+        },
+        collectionSaleState: { data: [listed('0', 'Galaxy Hat', 30), listed('1', 'Galaxy Boots', 10)], total: 2 }
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Cape')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /put on sale/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review sale/i)
+    await page.waitForSelector('[data-testid="creator-sale-review"]')
+
+    // Every listed item, with what it costs now and what it will cost. 20% off: 30 → 24, 10 → 8.
+    const rows = await page.$$eval('[data-testid="creator-sale-review-item"]', els =>
+      els.map(e => ({
+        name: e.querySelector('[data-testid="review-name"]')?.textContent,
+        was: e.querySelector('[data-testid="review-was"]')?.textContent,
+        now: e.querySelector('[data-testid="review-now"]')?.textContent
+      }))
+    )
+    expect(rows).toEqual([
+      { name: 'Galaxy Hat', was: '30', now: '24' },
+      { name: 'Galaxy Boots', was: '10', now: '8' }
+    ])
+
+    // And the one that is not listed, named rather than silently dropped.
+    await waitForText(page, '1 item is not listed and stays as it is')
+    const untouched = await page.$$eval('[data-testid="creator-sale-review-untouched"] li', els =>
+      els.map(e => e.textContent?.replace(/\s+/g, ' ').trim())
+    )
+    expect(untouched).toEqual(['Galaxy CapeNot for sale'])
+
+    // Uncapped, so the ceiling is the listed items' own remaining supply (100 + 100 for two rares).
+    await waitForText(page, 'available at the sale price')
+
+    // Back returns to the terms with them intact.
+    expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    await waitForText(page, 'sells for 24 credits')
+  })
+
+  it('grades the discount chips by how deep the cut is, and opens each input in its chip', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [] },
+        unifiedListings: { data: [] },
+        collectionSaleState: galaxyListed
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /put on sale/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+
+    // Four distinct steps, warming as the discount deepens — not one colour repeated.
+    const fills = await page.$$eval('[data-testid="creator-sale-discounts"] button[data-heat]', els =>
+      els.map(e => getComputedStyle(e).backgroundColor)
+    )
+    expect(fills).toHaveLength(4)
+    expect(new Set(fills).size).toBe(4)
+
+    // The chip IS the field: picking Custom collapses the button away and opens the input in its place.
+    const width = (sel: string) => page.$eval(sel, el => (el as HTMLElement).getBoundingClientRect().width)
+    const settled = (sel: string, open: boolean) =>
+      page.waitForFunction(
+        (s: string, o: boolean) => {
+          const el = document.querySelector(s)
+          if (!el) return false
+          const w = el.getBoundingClientRect().width
+          return o ? w > 0 : w === 0
+        },
+        { timeout: 5000 },
+        sel,
+        open
+      )
+
+    expect(await width('[data-testid="creator-sale-custom-pct-chip"]')).toBeGreaterThan(0)
+    expect(await width('[data-testid="creator-sale-custom-pct-field"]')).toBe(0)
+
+    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^custom$/i)).toBe(true)
+    await settled('[data-testid="creator-sale-custom-pct-chip"]', false)
+    expect(await width('[data-testid="creator-sale-custom-pct-field"]')).toBeGreaterThan(0)
+
+    // Same for the two date pickers, which used to drop a field below the row.
+    expect(await width('[data-testid="creator-sale-custom-end-field"]')).toBe(0)
+    expect(await clickByText(page, '[data-testid="creator-sale-durations"] button', /^pick an end$/i)).toBe(true)
+    // Settle on the chip reaching zero, not on the field appearing: the tracks interpolate, so mid-flight
+    // the collapsing half is briefly WIDER than either end state.
+    await settled('[data-testid="creator-sale-custom-end-chip"]', false)
+    expect(await width('[data-testid="creator-sale-custom-end-field"]')).toBeGreaterThan(0)
   })
 
   it('hides the whole flow while the flag is off', async () => {

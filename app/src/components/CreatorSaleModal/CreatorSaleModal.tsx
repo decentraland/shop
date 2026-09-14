@@ -20,11 +20,24 @@ import { friendlyError } from '~/lib/errors'
 import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
+import { heatFor } from '~/styles/theme'
+import { formatCredits } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import * as S from './CreatorSaleModal.styles'
+
+/** One of the collection's creations, as the review step needs it. */
+export type SaleItem = {
+  key: string
+  name: string
+  thumbnail: string
+  /** Its Shop price in credits, or null when it is not listed — a sale has nothing to discount there. */
+  priceCredits: number | null
+  remainingSupply: number
+}
 
 /** A collection the creator can put on sale: one of theirs with at least one item listed in the Shop. */
 export type SaleableCollection = {
@@ -36,6 +49,13 @@ export type SaleableCollection = {
    * item rounds any discount away and the example would read "1 credit sells for 1 credit". Null when unknown.
    */
   examplePriceCredits: number | null
+  /** Every creation in it, listed or not — the review step has to account for both. */
+  items: SaleItem[]
+}
+
+/** What a listed item will ring up at, rounded the way the checkout rounds the discounted amount. */
+function salePriceOf(price: number, pct: number): number {
+  return Math.max(1, Math.ceil((price * (100 - (Number.isFinite(pct) ? pct : 0))) / 100))
 }
 
 const PCT_PRESETS = [10, 20, 30, 50]
@@ -81,28 +101,55 @@ function durationLabel(hours: number): string {
     : t('creatorSale.hours', { count: hours })
 }
 
+/**
+ * A chip that stands in for its own field until it is picked, then hands the space over.
+ *
+ * Both halves stay mounted so the swap can animate both ways; the collapsed one is taken out of the
+ * accessibility tree and stops catching clicks (its inner control also drops out of the tab order).
+ */
+function MorphField({
+  id,
+  open,
+  chip,
+  field
+}: {
+  id: string
+  open: boolean
+  chip: React.ReactNode
+  field: React.ReactNode
+}) {
+  return (
+    <S.Morph data-open={open || undefined} data-testid={id}>
+      <S.MorphCell data-off={open || undefined} aria-hidden={open || undefined} data-testid={`${id}-chip`}>
+        {chip}
+      </S.MorphCell>
+      <S.MorphCell data-off={!open || undefined} aria-hidden={!open || undefined} data-testid={`${id}-field`}>
+        {field}
+      </S.MorphCell>
+    </S.Morph>
+  )
+}
+
 export function CreatorSaleModal({
   session,
-  collections,
-  preselect,
+  collection,
   onCreated,
   onClose
 }: {
   session: Session
-  collections: SaleableCollection[]
   /**
-   * The collection to start with ticked, when the modal was opened from one collection's own header.
-   * Absent, every saleable collection starts ticked — the store-wide sale the modal was built for.
+   * The one collection this sale covers. The modal is always opened from a collection's own header, so
+   * the collection is the context rather than a choice — it is shown, not picked.
    */
-  preselect?: string
+  collection: SaleableCollection
   onCreated?: (sale: CreatorSale) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [selected, setSelected] = useState<string[]>(() =>
-    preselect ? [preselect] : collections.map(c => c.contractAddress)
-  )
+  const selected = useMemo(() => [collection.contractAddress], [collection.contractAddress])
+  // The terms are agreed on the first step and confirmed on the second; nothing is signed until 'review'.
+  const [step, setStep] = useState<'form' | 'review'>('form')
   const [pctPreset, setPctPreset] = useState<number | 'custom'>(20)
   const [customPct, setCustomPct] = useState('15')
   const [duration, setDuration] = useState<DurationKey>('72h')
@@ -139,20 +186,19 @@ export function CreatorSaleModal({
   }, [selected, pct, duration, customEnd, startMode, startAt, capOn, cap])
 
   const example = useMemo(() => {
-    const prices = collections
-      .filter(c => selected.includes(c.contractAddress))
-      .map(c => c.examplePriceCredits ?? 0)
-      .filter(p => p > 0)
-    const price = prices.length ? Math.max(...prices) : 100
-    // Whole credits, rounded up: the same rule the checkout applies to the discounted amount.
-    const sale = Math.max(1, Math.ceil((price * (100 - (Number.isFinite(pct) ? pct : 0))) / 100))
-    return { price, sale }
-  }, [collections, selected, pct])
+    const price = collection.examplePriceCredits ?? 100
+    return { price, sale: salePriceOf(price, pct) }
+  }, [collection, pct])
 
-  function toggle(address: string) {
-    setTouched(true)
-    setSelected(prev => (prev.includes(address) ? prev.filter(a => a !== address) : [...prev, address]))
-  }
+  /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
+  const review = useMemo(() => {
+    const listed = collection.items.filter(i => i.priceCredits != null)
+    const unlisted = collection.items.filter(i => i.priceCredits == null)
+    // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
+    // listed item — the honest ceiling for "how many can be sold at this price".
+    const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
+    return { listed, unlisted, supply }
+  }, [collection])
 
   async function submit() {
     setTouched(true)
@@ -260,7 +306,104 @@ export function CreatorSaleModal({
     )
   }
 
+  /** When the sale runs, in one line — the same two facts the success view repeats afterwards. */
+  const whenCopy =
+    startMode === 'later' && terms.startsAtMs
+      ? t('creatorSale.reviewWindowScheduled', {
+          start: formatDateTime(terms.startsAtMs),
+          end: formatDateTime(terms.endsAtMs)
+        })
+      : t('creatorSale.reviewWindowNow', { end: formatDateTime(terms.endsAtMs) })
+
+  /** How many copies the sale price can cover: the cap when set, otherwise the listed items' own supply. */
+  const capCopy =
+    terms.uses !== undefined
+      ? t('creatorSale.reviewCap', { count: terms.uses })
+      : t('creatorSale.reviewNoCap', { count: review.supply })
+
+  if (step === 'review') {
+    return (
+      <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
+        <S.Card
+          data-testid="creator-sale-review"
+          onClick={e => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('creatorSale.reviewTitle')}
+        >
+          <S.Head>
+            <S.Title>{t('creatorSale.reviewTitle')}</S.Title>
+            <S.Close onClick={onClose} disabled={busy} aria-label={t('creatorSale.cancel')}>
+              <Icon name="close" className="ico" />
+            </S.Close>
+          </S.Head>
+
+          <S.ReviewSummary>
+            <S.ReviewPct>{t('creatorSale.offPct', { pct })}</S.ReviewPct>
+            <S.ReviewWhen>{whenCopy}</S.ReviewWhen>
+          </S.ReviewSummary>
+
+          <S.ReviewGroup>
+            <S.ReviewGroupTitle>{t('creatorSale.reviewOnSale', { count: review.listed.length })}</S.ReviewGroupTitle>
+            <S.ReviewList data-testid="creator-sale-review-items">
+              {review.listed.map(i => (
+                <S.ReviewRow key={i.key} data-testid="creator-sale-review-item">
+                  <S.ReviewThumb src={i.thumbnail} alt="" />
+                  <S.ReviewName data-testid="review-name">{i.name}</S.ReviewName>
+                  <S.ReviewPrices>
+                    <S.ReviewWas data-testid="review-was">{formatCredits(i.priceCredits as number)}</S.ReviewWas>
+                    <S.ReviewNow data-testid="review-now">
+                      <CurrencyIcon size={13} />
+                      {formatCredits(salePriceOf(i.priceCredits as number, pct))}
+                    </S.ReviewNow>
+                  </S.ReviewPrices>
+                </S.ReviewRow>
+              ))}
+            </S.ReviewList>
+          </S.ReviewGroup>
+
+          {/* Named explicitly rather than left out: an item the creator did not list is untouched by the
+              sale, and silence there reads as "everything is covered". */}
+          {review.unlisted.length > 0 ? (
+            <S.ReviewGroup>
+              <S.ReviewGroupTitle>
+                {t('creatorSale.reviewUntouched', { count: review.unlisted.length })}
+              </S.ReviewGroupTitle>
+              <S.ReviewList data-testid="creator-sale-review-untouched">
+                {review.unlisted.map(i => (
+                  <S.ReviewRow key={i.key} data-muted>
+                    <S.ReviewThumb src={i.thumbnail} alt="" />
+                    <S.ReviewName>{i.name}</S.ReviewName>
+                    <S.ReviewUnaffected>{t('creatorSale.reviewNotListed')}</S.ReviewUnaffected>
+                  </S.ReviewRow>
+                ))}
+              </S.ReviewList>
+            </S.ReviewGroup>
+          ) : null}
+
+          <S.ReviewFoot>{capCopy}</S.ReviewFoot>
+
+          {status ? <S.Status>{status}</S.Status> : null}
+          <ErrorNotice message={error} />
+
+          <S.Actions>
+            <S.OutlineBtn onClick={() => setStep('form')} disabled={busy} data-testid="creator-sale-back">
+              {t('creatorSale.back')}
+            </S.OutlineBtn>
+            <S.PurpleBtn data-testid="creator-sale-submit" onClick={() => void submit()} disabled={busy}>
+              {busy ? status : startMode === 'later' ? t('creatorSale.submitScheduled') : t('creatorSale.submit')}
+            </S.PurpleBtn>
+          </S.Actions>
+        </S.Card>
+      </S.Scrim>
+    )
+  }
+
   const inlineProblem = touched && terms.problem ? problemCopy(terms.problem) : null
+  // Which chip is currently standing in for its input.
+  const customPctOpen = pctPreset === 'custom'
+  const customEndOpen = duration === 'custom'
+  const startLaterOpen = startMode === 'later'
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
@@ -280,35 +423,23 @@ export function CreatorSaleModal({
 
         <S.Subtitle>{t('creatorSale.subtitle')}</S.Subtitle>
 
+        {/* Read-only: the sale is scoped to the collection the creator opened it from, so this states the
+            context rather than offering a choice. */}
         <S.Field>
-          <S.FieldLabel>{t('creatorSale.collections')}</S.FieldLabel>
-          {collections.length === 0 ? (
-            <S.Note>{t('creatorSale.noCollections')}</S.Note>
-          ) : (
-            <S.CollectionList
-              role="group"
-              aria-label={t('creatorSale.collections')}
-              data-testid="creator-sale-collections"
-            >
-              {collections.map(c => {
-                const on = selected.includes(c.contractAddress)
-                return (
-                  <S.CollectionRow key={c.contractAddress} data-selected={on || undefined}>
-                    <input type="checkbox" checked={on} disabled={busy} onChange={() => toggle(c.contractAddress)} />
-                    {/* A collection has no image of its own, so it is shown the way the rest of the Shop shows
-                        one: a mosaic of its first items, each over its rarity gradient. */}
-                    <S.RowThumb>
-                      <CollectionThumb contractAddress={c.contractAddress} />
-                    </S.RowThumb>
-                    <S.RowInfo>
-                      <S.RowName>{c.name}</S.RowName>
-                      <S.RowMeta>{t('creatorSale.collectionListed', { count: c.listedCount })}</S.RowMeta>
-                    </S.RowInfo>
-                  </S.CollectionRow>
-                )
-              })}
-            </S.CollectionList>
-          )}
+          <S.FieldLabel>{t('creatorSale.collection')}</S.FieldLabel>
+          <S.CollectionList data-testid="creator-sale-collections">
+            <S.CollectionRow data-selected data-readonly>
+              {/* A collection has no image of its own, so it is shown the way the rest of the Shop shows
+                  one: a mosaic of its first items, each over its rarity gradient. */}
+              <S.RowThumb>
+                <CollectionThumb contractAddress={collection.contractAddress} />
+              </S.RowThumb>
+              <S.RowInfo>
+                <S.RowName>{collection.name}</S.RowName>
+                <S.RowMeta>{t('creatorSale.collectionListed', { count: collection.listedCount })}</S.RowMeta>
+              </S.RowInfo>
+            </S.CollectionRow>
+          </S.CollectionList>
         </S.Field>
 
         <S.Field>
@@ -318,7 +449,9 @@ export function CreatorSaleModal({
               <S.Chip
                 key={p}
                 type="button"
+                data-heat={heatFor(p)}
                 data-selected={pctPreset === p || undefined}
+                aria-pressed={pctPreset === p}
                 disabled={busy}
                 onClick={() => {
                   setTouched(true)
@@ -328,36 +461,46 @@ export function CreatorSaleModal({
                 {t('creatorSale.offPct', { pct: p })}
               </S.Chip>
             ))}
-            <S.Chip
-              type="button"
-              data-selected={pctPreset === 'custom' || undefined}
-              disabled={busy}
-              onClick={() => {
-                setTouched(true)
-                setPctPreset('custom')
-              }}
-            >
-              {t('creatorSale.customPct')}
-            </S.Chip>
-            {pctPreset === 'custom' ? (
-              <S.InlineInput aria-invalid={touched && terms.problem === 'pct' ? true : undefined}>
-                <input
-                  type="number"
-                  min={MIN_SALE_PCT}
-                  max={MAX_SALE_PCT}
-                  step="1"
-                  inputMode="numeric"
-                  value={customPct}
+            <MorphField
+              id="creator-sale-custom-pct"
+              open={customPctOpen}
+              chip={
+                <S.Chip
+                  type="button"
+                  tabIndex={customPctOpen ? -1 : undefined}
                   disabled={busy}
-                  aria-label={t('creatorSale.pctLabel')}
-                  onChange={e => {
+                  onClick={() => {
                     setTouched(true)
-                    setCustomPct(e.target.value)
+                    setPctPreset('custom')
                   }}
-                />
-                <span aria-hidden>%</span>
-              </S.InlineInput>
-            ) : null}
+                >
+                  {t('creatorSale.customPct')}
+                </S.Chip>
+              }
+              field={
+                <S.InlineInput
+                  data-heat={heatFor(pct)}
+                  aria-invalid={touched && terms.problem === 'pct' ? true : undefined}
+                >
+                  <input
+                    type="number"
+                    min={MIN_SALE_PCT}
+                    max={MAX_SALE_PCT}
+                    step="1"
+                    inputMode="numeric"
+                    value={customPct}
+                    disabled={busy}
+                    tabIndex={customPctOpen ? undefined : -1}
+                    aria-label={t('creatorSale.pctLabel')}
+                    onChange={e => {
+                      setTouched(true)
+                      setCustomPct(e.target.value)
+                    }}
+                  />
+                  <span aria-hidden>%</span>
+                </S.InlineInput>
+              }
+            />
           </S.Chips>
         </S.Field>
 
@@ -369,6 +512,7 @@ export function CreatorSaleModal({
                 key={d.key}
                 type="button"
                 data-selected={duration === d.key || undefined}
+                aria-pressed={duration === d.key}
                 disabled={busy}
                 onClick={() => {
                   setTouched(true)
@@ -378,31 +522,38 @@ export function CreatorSaleModal({
                 {durationLabel(d.hours)}
               </S.Chip>
             ))}
-            <S.Chip
-              type="button"
-              data-selected={duration === 'custom' || undefined}
-              disabled={busy}
-              onClick={() => {
-                setTouched(true)
-                setDuration('custom')
-              }}
-            >
-              {t('creatorSale.customEnd')}
-            </S.Chip>
-          </S.Chips>
-          {duration === 'custom' ? (
-            <S.DateInput
-              type="datetime-local"
-              value={customEnd}
-              min={toLocalInput(Date.now())}
-              disabled={busy}
-              aria-label={t('creatorSale.endLabel')}
-              onChange={e => {
-                setTouched(true)
-                setCustomEnd(e.target.value)
-              }}
+            <MorphField
+              id="creator-sale-custom-end"
+              open={customEndOpen}
+              chip={
+                <S.Chip
+                  type="button"
+                  tabIndex={customEndOpen ? -1 : undefined}
+                  disabled={busy}
+                  onClick={() => {
+                    setTouched(true)
+                    setDuration('custom')
+                  }}
+                >
+                  {t('creatorSale.customEnd')}
+                </S.Chip>
+              }
+              field={
+                <S.DateInput
+                  type="datetime-local"
+                  value={customEnd}
+                  min={toLocalInput(Date.now())}
+                  disabled={busy}
+                  tabIndex={customEndOpen ? undefined : -1}
+                  aria-label={t('creatorSale.endLabel')}
+                  onChange={e => {
+                    setTouched(true)
+                    setCustomEnd(e.target.value)
+                  }}
+                />
+              }
             />
-          ) : null}
+          </S.Chips>
         </S.Field>
 
         <S.Field>
@@ -411,33 +562,41 @@ export function CreatorSaleModal({
             <S.Chip
               type="button"
               data-selected={startMode === 'now' || undefined}
+              aria-pressed={startMode === 'now'}
               disabled={busy}
               onClick={() => setStartMode('now')}
             >
               {t('creatorSale.startNow')}
             </S.Chip>
-            <S.Chip
-              type="button"
-              data-selected={startMode === 'later' || undefined}
-              disabled={busy}
-              onClick={() => setStartMode('later')}
-            >
-              {t('creatorSale.startLater')}
-            </S.Chip>
-          </S.Chips>
-          {startMode === 'later' ? (
-            <S.DateInput
-              type="datetime-local"
-              value={startAt}
-              min={toLocalInput(Date.now())}
-              disabled={busy}
-              aria-label={t('creatorSale.startLabel')}
-              onChange={e => {
-                setTouched(true)
-                setStartAt(e.target.value)
-              }}
+            <MorphField
+              id="creator-sale-custom-start"
+              open={startLaterOpen}
+              chip={
+                <S.Chip
+                  type="button"
+                  tabIndex={startLaterOpen ? -1 : undefined}
+                  disabled={busy}
+                  onClick={() => setStartMode('later')}
+                >
+                  {t('creatorSale.startLater')}
+                </S.Chip>
+              }
+              field={
+                <S.DateInput
+                  type="datetime-local"
+                  value={startAt}
+                  min={toLocalInput(Date.now())}
+                  disabled={busy}
+                  tabIndex={startLaterOpen ? undefined : -1}
+                  aria-label={t('creatorSale.startLabel')}
+                  onChange={e => {
+                    setTouched(true)
+                    setStartAt(e.target.value)
+                  }}
+                />
+              }
             />
-          ) : null}
+          </S.Chips>
         </S.Field>
 
         <S.Field>
@@ -474,11 +633,18 @@ export function CreatorSaleModal({
         <ErrorNotice message={error ?? inlineProblem} />
 
         <S.PrimaryBtn
-          data-testid="creator-sale-submit"
-          onClick={() => void submit()}
-          disabled={busy || collections.length === 0 || (touched && !!terms.problem)}
+          data-testid="creator-sale-continue"
+          onClick={() => {
+            setTouched(true)
+            if (terms.problem) setError(problemCopy(terms.problem))
+            else {
+              setError(null)
+              setStep('review')
+            }
+          }}
+          disabled={busy || (touched && !!terms.problem)}
         >
-          {busy ? status : startMode === 'later' ? t('creatorSale.submitScheduled') : t('creatorSale.submit')}
+          {t('creatorSale.review')}
         </S.PrimaryBtn>
       </S.Card>
     </S.Scrim>

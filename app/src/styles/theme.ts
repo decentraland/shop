@@ -95,6 +95,32 @@ export const rarities = {
   unique: '#fea217'
 } as const
 
+/**
+ * Discount "heat" — how hard a creator is cutting the price, along the brand's own amber→red→magenta
+ * ramp (the `flare` gradient's stops, used as solid steps).
+ *
+ * `tint` is the fill and `edge` the saturated ring that marks the chosen one. Ink stays Soft Black on
+ * every step rather than flipping to white on a saturated fill: the saturated stops (amber especially)
+ * cannot carry white text at 13px and stay above the AA ratio, and a scale that only reads at one end
+ * is not a scale.
+ */
+export const saleHeat = {
+  low: { tint: '#fff3e0', edge: '#ffbc5b' },
+  mid: { tint: '#ffe7d8', edge: '#ff7439' },
+  high: { tint: '#ffe0e6', edge: '#ff2d55' },
+  max: { tint: '#f9e0fb', edge: '#c640cd' }
+} as const
+
+export type SaleHeat = keyof typeof saleHeat
+
+/** Which step a discount sits on. The thresholds are the preset chips (10 / 20 / 30 / 50). */
+export function heatFor(pct: number): SaleHeat {
+  if (!Number.isFinite(pct) || pct < 15) return 'low'
+  if (pct < 25) return 'mid'
+  if (pct < 40) return 'high'
+  return 'max'
+}
+
 const gradients = {
   amethyst: 'linear-gradient(180deg, #c640cd 0%, #691fa9 100%)',
   cerise: 'linear-gradient(135deg, #ff2d55 0%, #c640cd 100%)', // card hover border
@@ -160,6 +186,6 @@ const media = {
   minWidth: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
-export const theme = { colors, rarities, gradients, radius, font, media, z }
+export const theme = { colors, rarities, saleHeat, gradients, radius, font, media, z }
 
 export type AppTheme = typeof theme
