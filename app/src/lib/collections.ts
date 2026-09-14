@@ -1,4 +1,5 @@
 import { config } from '~/config'
+import { ZERO_ADDRESS } from '~/lib/address'
 import { fetchPeggedPrimaryPrices, type CatalogItem } from '~/lib/api'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
@@ -281,11 +282,19 @@ export async function fetchCatalogItems({
   // return the unfiltered feed, which reads as a broken filter.
   if (category === 'wearable' || category === 'emote') qs.set('category', category)
   if (creator) qs.set('creator', creator)
-  if (contractAddress) qs.set('contractAddress', contractAddress)
-  // The REPEATED form here, unlike the unified feed's comma-separated one: this endpoint parses the set
-  // with `getAddressList`, which reads only repeated keys. Sending one encoding to both would silently
-  // drop the filter on one of them.
-  contractAddresses?.forEach(address => qs.append('contractAddress', address))
+  // Mutually exclusive, like the unified feed's — see the note there.
+  if (contractAddresses) {
+    // The REPEATED form here, unlike the unified feed's comma-separated one: this endpoint parses the set
+    // with `getAddressList`, which reads only repeated keys. Sending one encoding to both would silently
+    // drop the filter on one of them.
+    //
+    // And an empty set becomes the zero address, because `forEach` over nothing appends nothing — which
+    // this endpoint reads as "no collection filter" and answers with the whole catalogue.
+    const named = contractAddresses.length ? contractAddresses : [ZERO_ADDRESS]
+    named.forEach(address => qs.append('contractAddress', address))
+  } else if (contractAddress) {
+    qs.set('contractAddress', contractAddress)
+  }
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)

@@ -179,6 +179,46 @@ describe('when fetching a collection carousel', () => {
   })
 })
 
+/**
+ * The collection-set filter on the full-catalogue feed.
+ *
+ * Same contract as the unified feed's, and one deliberate difference: this endpoint parses a set from
+ * REPEATED keys only, so the two encodings are not interchangeable.
+ */
+describe('when filtering the catalog items by a set of collections', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  const urlOf = (fetchMock: ReturnType<typeof mockFetchOk>) => decodeURIComponent(String(fetchMock.mock.calls[0][0]))
+
+  it('should repeat the key, which is the only form this endpoint parses', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ contractAddresses: [A, B] })
+
+    const url = urlOf(fetchMock)
+    expect(url).toContain(`contractAddress=${A}`)
+    expect(url).toContain(`contractAddress=${B}`)
+  })
+
+  it('should ask for nothing rather than everything when the set is empty', async () => {
+    // `forEach` over an empty array appends nothing, and a missing filter is read as "no filter".
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ contractAddresses: [] })
+
+    expect(urlOf(fetchMock)).toContain('contractAddress=0x0000000000000000000000000000000000000000')
+  })
+
+  it('should apply no collection filter when no set is given', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({})
+
+    expect(urlOf(fetchMock)).not.toContain('contractAddress=')
+  })
+})
+
 describe('when fetching a creator storefront', () => {
   it('should call the /v3/catalog/items endpoint with the creator, default first and social-emotes excluded', async () => {
     const fetchMock = mockFetchOk([])

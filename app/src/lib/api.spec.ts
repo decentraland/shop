@@ -704,6 +704,52 @@ describe('when fetching the unified browse listings', () => {
   })
 })
 
+/**
+ * The collection-set filter — what the seasonal event browses by.
+ *
+ * The case worth a test is the EMPTY set. This endpoint reads a missing collection filter as "no filter",
+ * so a request that simply omits it answers with the entire catalogue — which a caller asking for an event
+ * would then render as the event. An empty set therefore has to travel as a filter that matches nothing.
+ */
+describe('when filtering the unified feed by a set of collections', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  it('should send the set comma-separated, which is what the endpoint parses', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddresses: [A, B] })
+
+    expect(decodeURIComponent(lastUrl())).toContain(`contractAddress=${A},${B}`)
+  })
+
+  it('should ask for nothing rather than everything when the set is empty', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddresses: [] })
+
+    expect(lastUrl()).toContain('contractAddress=0x0000000000000000000000000000000000000000')
+  })
+
+  it('should apply no collection filter when no set is given', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({})
+
+    expect(lastUrl()).not.toContain('contractAddress=')
+  })
+
+  it('should not send the single-collection filter alongside a set', async () => {
+    // Both write the same query key, so a request carrying both would silently apply one of them.
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddress: '0x1111111111111111111111111111111111111111', contractAddresses: [A] })
+
+    expect(decodeURIComponent(lastUrl())).toContain(`contractAddress=${A}`)
+    expect(lastUrl()).not.toContain('0x1111111111111111111111111111111111111111')
+  })
+})
+
 describe('when fetching the item-unified browse feed', () => {
   // A representative item row: same shape as a unified listing row plus the per-item listingCount.
   const itemRow = {
