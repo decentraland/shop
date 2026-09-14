@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** Stands in for a chain that has not received the newest version. Every real one now has V3. */
+const CHAIN_WITHOUT_V3 = 137
+
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
     OffChainMarketplaceV2: 'OffChainMarketplaceV2',
@@ -8,8 +11,8 @@ vi.mock('decentraland-transactions', () => ({
   // Mirrors the real getContract: it THROWS for a version a chain does not have.
   getContract: (name: string, chainId: number) => {
     const deployments: Record<string, number[]> = {
-      OffChainMarketplaceV2: [1, 11155111],
-      OffChainMarketplaceV3: [11155111]
+      OffChainMarketplaceV2: [1, 11155111, CHAIN_WITHOUT_V3],
+      OffChainMarketplaceV3: [1, 11155111]
     }
     if (!deployments[name]?.includes(chainId)) {
       throw new Error(`Could not get a valid contract for ${name} using chain ${chainId}`)
@@ -37,7 +40,7 @@ describe('when getting the latest off-chain marketplace contract', () => {
     let chainId: number
 
     beforeEach(() => {
-      chainId = 1
+      chainId = CHAIN_WITHOUT_V3
     })
 
     it('should fall back to V2 rather than throw', () => {
