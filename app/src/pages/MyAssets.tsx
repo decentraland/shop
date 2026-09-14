@@ -3,13 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
-import {
-  fetchCollectionSaleState,
-  fetchMyAssets,
-  fetchSecondarySaleState,
-  type CatalogItem,
-  type MyAsset
-} from '~/lib/api'
+import { fetchMyAssets, fetchSecondarySaleState, type CatalogItem, type MyAsset } from '~/lib/api'
+import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
+import { displayCredits } from '~/lib/mana-convert'
+import { useManaRate } from '~/hooks/useManaRate'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
@@ -299,7 +296,7 @@ export function MyAssets() {
       const maps = await Promise.all(
         contractAddresses.map(async ca => [ca, await fetchCollectionSaleState(ca)] as const)
       )
-      const merged: Record<string, { isOnSale: boolean; priceCredits: number; tradeId: string }> = {}
+      const merged: Record<string, CollectionSaleState> = {}
       for (const [ca, m] of maps) {
         for (const [itemId, v] of Object.entries(m)) merged[`${ca}-${itemId}`] = v
       }
@@ -307,6 +304,21 @@ export function MyAssets() {
     }
   })
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
+
+  // Only a MANA-denominated listing needs the oracle, and most sellers have none — don't poll for nothing.
+  const hasManaListing = useMemo(() => Object.values(saleState ?? {}).some(v => !!v.manaWei), [saleState])
+  const { data: manaRate } = useManaRate(hasManaListing)
+
+  /**
+   * A MANA listing has no fixed credit price: convert at the LIVE rate, the same number the browse grid
+   * and the item page show. The server's snapshot stands in until that rate resolves, so a listed item
+   * never flashes NOT FOR SALE — `displayCredits` would return 0 without a rate.
+   */
+  const creditsFor = (sale: CollectionSaleState | undefined) => {
+    if (!sale) return 0
+    if (!sale.manaWei || !manaRate) return sale.priceCredits
+    return displayCredits({ manaWei: sale.manaWei, priceCredits: sale.priceCredits }, manaRate)
+  }
 
   // Creations filtered (status + search) + sorted client-side (the builder feed isn't paginated/queryable).
   const creations = useMemo(() => {
@@ -319,11 +331,10 @@ export function MyAssets() {
     }
     const sorted = [...list]
     if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
-    else if (sort === 'cheapest')
-      sorted.sort((a, b) => (saleFor(a)?.priceCredits ?? 0) - (saleFor(b)?.priceCredits ?? 0))
+    else if (sort === 'cheapest') sorted.sort((a, b) => creditsFor(saleFor(a)) - creditsFor(saleFor(b)))
     return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishable, saleState, status, search, sort])
+  }, [publishable, saleState, status, search, sort, manaRate])
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
   // with the Activity chip, so the two can never quote different numbers.
@@ -537,7 +548,7 @@ export function MyAssets() {
                     // longer happens inline from the My Creations card.
                     <AssetCard
                       key={`${item.contractAddress}-${item.blockchainItemId}`}
-                      item={publishableToItem(item, sale?.priceCredits ?? 0, address ?? '')}
+                      item={publishableToItem(item, creditsFor(sale), address ?? '')}
                       mode="manage-link"
                     />
                   )
