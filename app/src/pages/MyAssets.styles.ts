@@ -324,7 +324,9 @@ export const CollectionName = styled.h3`
 export const CollectionCount = styled.span`
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.muted2};
+  /* Gray 5 — what the toolbar's own item count uses on this field. Gray 3 sat at 2.2:1 against the
+     page gradient and Gray 4 only reaches 3.8:1; both belong on the darker card fill, not out here. */
+  color: ${theme.colors.gray5};
 `
 
 export const SalesPanel = styled.section`
@@ -332,16 +334,10 @@ export const SalesPanel = styled.section`
   flex-direction: column;
   gap: 8px;
   margin-bottom: 20px;
-  padding: 12px 8px 12px 16px;
+  /* Even sides now that nothing sits at the right edge — the 8px was the old cta's optical inset. */
+  padding: 12px 16px;
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.promptLilac};
-`
-
-export const SalesHead = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 `
 
 export const SalesTitle = styled.h2`
@@ -350,12 +346,4 @@ export const SalesTitle = styled.h2`
   font-weight: 600;
   font-size: 16px;
   color: ${theme.colors.text};
-`
-
-export const SalesHint = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  line-height: 1.5;
-  color: ${theme.colors.muted};
 `

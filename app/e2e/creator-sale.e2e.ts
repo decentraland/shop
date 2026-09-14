@@ -141,11 +141,11 @@ describe('creator sales', () => {
 
     await waitForText(page, 'Galaxy Hat')
     expect(await clickByText(page, 'button', /my creations/i)).toBe(true)
-    await page.waitForSelector('[data-testid="creator-sales-panel"]')
-    await waitForText(page, 'No sales yet')
+    // Nothing running yet, so the page shows no sales panel at all.
+    expect(await page.$('[data-testid="creator-sales-panel"]')).toBeNull()
 
-    // The one action becomes available once the listed collection resolves.
-    await clickWhenEnabled(page, '[data-testid="creator-sale-open"]', /put on sale/i)
+    // The collection's own header carries the action, once its listing resolves.
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /put on sale/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
     await waitForText(page, 'Galaxy Drip')
     await waitForText(page, '1 item listed')
@@ -242,26 +242,6 @@ describe('creator sales', () => {
     expect(cta).toContain('rgb(255, 116, 57)')
   })
 
-  it('keeps the sale cta on its own fill while nothing is listed to discount', async () => {
-    app = await launchApp({
-      path: '/my-items?section=creations',
-      creatorSales: true,
-      fixtures: { importable: { data: [] }, shopListings: { data: [] }, unifiedListings: { data: [] } }
-    })
-    const { page } = app
-
-    await page.waitForSelector('[data-testid="creator-sales-panel"]')
-    await waitForText(page, 'List an item from one of your collections first')
-    // Disabled, but still the buy gradient: the shared purple variant paints its own flat disabled fill
-    // through a more specific rule, which used to win and turn this button purple.
-    const cta = await page.$eval('[data-testid="creator-sale-open"]', el => ({
-      disabled: (el as HTMLButtonElement).disabled,
-      bg: getComputedStyle(el).backgroundImage
-    }))
-    expect(cta.disabled).toBe(true)
-    expect(cta.bg).toContain('rgb(255, 116, 57)')
-  })
-
   it('hides the whole flow while the flag is off', async () => {
     app = await launchApp({
       path: '/my-items',
@@ -277,5 +257,6 @@ describe('creator sales', () => {
     expect(await clickByText(page, 'button', /my creations/i)).toBe(true)
     await waitForText(page, 'Galaxy Hat')
     expect(await page.$('[data-testid="creator-sales-panel"]')).toBeNull()
+    expect(await page.$('[data-testid="creation-group-sale"]')).toBeNull()
   })
 })

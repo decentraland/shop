@@ -7,10 +7,13 @@ import * as S from './ManaPricingBanner.styles'
 export function ManaPricingBanner({
   count,
   to = '/import',
+  onDismiss,
   className
 }: {
   count: number
   to?: string
+  /** Given, the strip gains a close button. Dismissal is the caller's to hold — and is not persisted. */
+  onDismiss?: () => void
   className?: string
 }) {
   return (
@@ -38,9 +41,21 @@ export function ManaPricingBanner({
           <S.Accent>{t('manaPricingBanner.accent')}</S.Accent> {t('manaPricingBanner.trail')}
         </S.Text>
       </S.Body>
-      <S.Cta to={to} data-testid="mana-pricing-banner-cta">
-        {t('manaPricingBanner.cta')}
-      </S.Cta>
+      <S.Actions>
+        <S.Cta to={to} data-testid="mana-pricing-banner-cta">
+          {t('manaPricingBanner.cta')}
+        </S.Cta>
+        {onDismiss ? (
+          <S.Dismiss
+            type="button"
+            onClick={onDismiss}
+            aria-label={t('manaPricingBanner.dismiss')}
+            data-testid="mana-pricing-banner-dismiss"
+          >
+            <Icon name="close" size={16} />
+          </S.Dismiss>
+        ) : null}
+      </S.Actions>
     </S.Root>
   )
 }

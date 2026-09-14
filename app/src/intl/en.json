@@ -251,6 +251,10 @@
     "errorGrant": "Couldn’t add your {currency} — please try again."
   },
   "filter": {
+    "salePrice": "Sale price",
+    "priceAll": "All",
+    "priceCredits": "Credits",
+    "priceClassic": "Classic pricing",
     "price": "Price",
     "status": "Status",
     "statusAll": "All",
@@ -607,7 +611,8 @@
     "sectionCreations": "My Creations",
     "searchPlaceholder": "Search your items",
     "clearSearch": "Clear search",
-    "itemsCount": "{count, plural, one {# item} other {# items}}"
+    "itemsCount": "{count, plural, one {# item} other {# items}}",
+    "groupOnSale": "{count, plural, one {# on sale} other {# on sale}}"
   },
   "activity": {
     "filter": {
@@ -942,7 +947,8 @@
     "lead": "{count, plural, one {# item is} other {# items are}} still using <mana>MANA</mana> pricing.",
     "accent": "Switch to Credits",
     "trail": "to keep your prices stable.",
-    "cta": "Update prices"
+    "cta": "Update prices",
+    "dismiss": "Dismiss"
   },
   "marketplaceRedirect": {
     "title": "Marketplace Redirect",
@@ -1253,7 +1259,6 @@
     "cancel": "Cancel",
     "salesTitle": "Sales",
     "putOnSale": "Put on sale",
-    "noSales": "No sales yet. Put your collections on sale to move more items.",
     "offPct": "{pct}% off",
     "statusActive": "Live",
     "statusScheduled": "Scheduled",

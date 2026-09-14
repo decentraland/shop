@@ -251,6 +251,10 @@
     "errorGrant": "No pudimos añadir tus {currency}. Inténtalo de nuevo."
   },
   "filter": {
+    "salePrice": "Precio de venta",
+    "priceAll": "Todos",
+    "priceCredits": "Créditos",
+    "priceClassic": "Precio clásico",
     "price": "Precio",
     "status": "Estado",
     "statusAll": "Todos",
@@ -607,7 +611,8 @@
     "sectionCreations": "Mis creaciones",
     "searchPlaceholder": "Busca tus artículos",
     "clearSearch": "Borrar búsqueda",
-    "itemsCount": "{count, plural, one {# ítem} other {# ítems}}"
+    "itemsCount": "{count, plural, one {# ítem} other {# ítems}}",
+    "groupOnSale": "{count, plural, one {# en venta} other {# en venta}}"
   },
   "activity": {
     "filter": {
@@ -942,7 +947,8 @@
     "lead": "{count, plural, one {# artículo sigue usando} other {# artículos siguen usando}} precios en <mana>MANA</mana>.",
     "accent": "Cambia a créditos",
     "trail": "para mantener tus precios estables.",
-    "cta": "Actualizar precios"
+    "cta": "Actualizar precios",
+    "dismiss": "Descartar"
   },
   "marketplaceRedirect": {
     "title": "Redirección al Marketplace",
@@ -1253,7 +1259,6 @@
     "cancel": "Cancelar",
     "salesTitle": "Ofertas",
     "putOnSale": "Poner en oferta",
-    "noSales": "Todavía no tienes ofertas. Pon tus colecciones en oferta para vender más.",
     "offPct": "{pct}% de descuento",
     "statusActive": "Activa",
     "statusScheduled": "Programada",

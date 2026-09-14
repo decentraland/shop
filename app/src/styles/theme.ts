@@ -24,6 +24,10 @@ const colors = {
   muted2: '#a09ba8', // Neutrals/Gray 3
   gray0: '#43404a', // Neutrals/Gray 0 — filter labels, applied-filter chip bg
   gray4: '#cfcdd4', // Neutrals/Gray 4 — hairline borders on rarity swatch chips
+  // Neutrals/Gray 5 as INK: secondary text sitting straight on the purple page field, where Gray 4
+  // drops under the AA ratio against the gradient's lightest stop. Same hex as `media`/`chip`, named
+  // apart because those are fills.
+  gray5: '#ecebed',
   textSecondary: 'rgba(22, 21, 24, 0.6)', // Figma "text/secondary" — unchecked checkbox outline
   line: '#e6e4ea', // subtle card border
   lineStrong: '#a09ba8', // search field / defined borders
