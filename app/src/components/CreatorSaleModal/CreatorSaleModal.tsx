@@ -23,6 +23,7 @@ import { t } from '~/intl/i18n'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SaleCountdown } from '~/components/SaleCountdown'
+import { CollectionThumb } from '~/components/CollectionThumb'
 import * as S from './CreatorSaleModal.styles'
 
 /** A collection the creator can put on sale: one of theirs with at least one item listed in the Shop. */
@@ -83,17 +84,25 @@ function durationLabel(hours: number): string {
 export function CreatorSaleModal({
   session,
   collections,
+  preselect,
   onCreated,
   onClose
 }: {
   session: Session
   collections: SaleableCollection[]
+  /**
+   * The collection to start with ticked, when the modal was opened from one collection's own header.
+   * Absent, every saleable collection starts ticked — the store-wide sale the modal was built for.
+   */
+  preselect?: string
   onCreated?: (sale: CreatorSale) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [selected, setSelected] = useState<string[]>(() => collections.map(c => c.contractAddress))
+  const [selected, setSelected] = useState<string[]>(() =>
+    preselect ? [preselect] : collections.map(c => c.contractAddress)
+  )
   const [pctPreset, setPctPreset] = useState<number | 'custom'>(20)
   const [customPct, setCustomPct] = useState('15')
   const [duration, setDuration] = useState<DurationKey>('72h')
@@ -286,6 +295,11 @@ export function CreatorSaleModal({
                 return (
                   <S.CollectionRow key={c.contractAddress} data-selected={on || undefined}>
                     <input type="checkbox" checked={on} disabled={busy} onChange={() => toggle(c.contractAddress)} />
+                    {/* A collection has no image of its own, so it is shown the way the rest of the Shop shows
+                        one: a mosaic of its first items, each over its rarity gradient. */}
+                    <S.RowThumb>
+                      <CollectionThumb contractAddress={c.contractAddress} />
+                    </S.RowThumb>
                     <S.RowInfo>
                       <S.RowName>{c.name}</S.RowName>
                       <S.RowMeta>{t('creatorSale.collectionListed', { count: c.listedCount })}</S.RowMeta>

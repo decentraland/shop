@@ -243,6 +243,56 @@ export const ImportBanner = styled(ManaPricingBanner)`
  * should read as the same kind of thing — the plain `panel` fill made this one look like an unstyled box
  * next to it.
  */
+/** One collection's block: its header, then that collection's cards. */
+export const CollectionGroup = styled.section`
+  & + & {
+    margin-top: 28px;
+  }
+`
+
+export const CollectionHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+`
+
+/** Fixed frame so every header lines up whatever each collection's mosaic holds. */
+export const CollectionThumbFrame = styled.span`
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
+  overflow: hidden;
+  background: ${theme.colors.media};
+`
+
+export const CollectionHeadText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Takes the slack so the CTA sits at the far edge, and lets a long name ellipse instead of pushing it. */
+  flex: 1;
+  min-width: 0;
+`
+
+export const CollectionName = styled.h3`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 16px;
+  color: ${theme.colors.softWhite};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const CollectionCount = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: ${theme.colors.muted2};
+`
+
 export const SalesPanel = styled.section`
   display: flex;
   flex-direction: column;

@@ -12,6 +12,7 @@ import {
 } from '~/lib/api'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorSaleModal'
+import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
@@ -317,6 +318,7 @@ export function MyAssets() {
   const creatorSalesEnabled = useCreatorSalesEnabled()
   const { data: creatorSales } = useCreatorSales(address, creatorSalesEnabled && section === 'creations')
   const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const [saleModalFor, setSaleModalFor] = useState<string | undefined>(undefined)
   const saleableCollections = useMemo<SaleableCollection[]>(() => {
     const byAddress = new Map<string, SaleableCollection>()
     for (const item of publishable ?? []) {
@@ -352,6 +354,30 @@ export function MyAssets() {
     return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishable, saleState, status, search, sort])
+
+  /**
+   * The creations split into their collections, in the order the filtered list already put them.
+   *
+   * A creator manages by collection — a sale covers one, and so does the CTA in each header — so the grid
+   * is grouped rather than flat. Insertion order is kept instead of re-sorting by name, so whatever the
+   * Sort control chose still decides which collection leads.
+   */
+  const creationGroups = useMemo(() => {
+    const groups = new Map<string, { contractAddress: string; name: string; items: typeof creations }>()
+    for (const item of creations) {
+      const key = item.contractAddress.toLowerCase()
+      const group = groups.get(key)
+      if (group) group.items.push(item)
+      else groups.set(key, { contractAddress: key, name: item.collectionName, items: [item] })
+    }
+    return [...groups.values()]
+  }, [creations])
+
+  /** Which collections a sale can actually cover, for the per-header CTA. */
+  const saleableByAddress = useMemo(
+    () => new Set(saleableCollections.map(c => c.contractAddress.toLowerCase())),
+    [saleableCollections]
+  )
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
   // with the Activity chip, so the two can never quote different numbers.
@@ -562,7 +588,10 @@ export function MyAssets() {
                     size="sm"
                     data-testid="creator-sale-open"
                     disabled={saleableCollections.length === 0}
-                    onClick={() => setSaleModalOpen(true)}
+                    onClick={() => {
+                      setSaleModalFor(undefined)
+                      setSaleModalOpen(true)
+                    }}
                   >
                     {t('creatorSale.putOnSale')}
                   </Button>
@@ -580,28 +609,57 @@ export function MyAssets() {
               <CreatorSaleModal
                 session={session}
                 collections={saleableCollections}
+                preselect={saleModalFor}
                 onClose={() => setSaleModalOpen(false)}
               />
             ) : null}
-            <S.Grid data-testid="grid">
-              {publishableLoading ? (
+            {publishableLoading ? (
+              <S.Grid data-testid="grid">
                 <SkeletonCards count={12} />
-              ) : (
-                creations.map(item => {
-                  const sale = saleFor(item)
-                  return (
-                    // Creations use the same MANAGE cta as owned assets: it navigates to the item's
-                    // detail page, where listing / editing / removing / issuing live. Publishing no
-                    // longer happens inline from the My Creations card.
-                    <AssetCard
-                      key={`${item.contractAddress}-${item.blockchainItemId}`}
-                      item={publishableToItem(item, sale?.priceCredits ?? 0, address ?? '')}
-                      mode="manage-link"
-                    />
-                  )
-                })
-              )}
-            </S.Grid>
+              </S.Grid>
+            ) : (
+              creationGroups.map(group => (
+                <S.CollectionGroup key={group.contractAddress} data-testid="creation-group">
+                  <S.CollectionHead>
+                    <S.CollectionThumbFrame>
+                      <CollectionThumb contractAddress={group.contractAddress} />
+                    </S.CollectionThumbFrame>
+                    <S.CollectionHeadText>
+                      <S.CollectionName data-testid="creation-group-name">{group.name}</S.CollectionName>
+                      <S.CollectionCount>{t('myAssets.itemsCount', { count: group.items.length })}</S.CollectionCount>
+                    </S.CollectionHeadText>
+                    {creatorSalesEnabled && session && saleableByAddress.has(group.contractAddress) ? (
+                      <Button
+                        variant="purple"
+                        size="sm"
+                        data-testid="creation-group-sale"
+                        onClick={() => {
+                          setSaleModalFor(group.contractAddress)
+                          setSaleModalOpen(true)
+                        }}
+                      >
+                        {t('creatorSale.putOnSale')}
+                      </Button>
+                    ) : null}
+                  </S.CollectionHead>
+                  <S.Grid data-testid="grid">
+                    {group.items.map(item => {
+                      const sale = saleFor(item)
+                      return (
+                        // Creations use the same MANAGE cta as owned assets: it navigates to the item's
+                        // detail page, where listing / editing / removing / issuing live. Publishing no
+                        // longer happens inline from the My Creations card.
+                        <AssetCard
+                          key={`${item.contractAddress}-${item.blockchainItemId}`}
+                          item={publishableToItem(item, sale?.priceCredits ?? 0, address ?? '')}
+                          mode="manage-link"
+                        />
+                      )
+                    })}
+                  </S.Grid>
+                </S.CollectionGroup>
+              ))
+            )}
             {!publishableLoading && creations.length === 0 ? (
               <EmptyState
                 testId="creations-empty"

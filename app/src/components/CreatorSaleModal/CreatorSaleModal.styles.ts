@@ -131,6 +131,16 @@ export const CollectionRow = styled.label`
   }
 `
 
+/** The mosaic's frame: a fixed, rounded square so rows stay aligned whatever each collection holds. */
+export const RowThumb = styled.span`
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
+  overflow: hidden;
+  background: ${theme.colors.media};
+`
+
 export const RowInfo = styled.span`
   display: flex;
   flex-direction: column;

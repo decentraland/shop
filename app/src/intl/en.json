@@ -606,7 +606,8 @@
     "sectionNames": "Names",
     "sectionCreations": "My Creations",
     "searchPlaceholder": "Search your items",
-    "clearSearch": "Clear search"
+    "clearSearch": "Clear search",
+    "itemsCount": "{count, plural, one {# item} other {# items}}"
   },
   "activity": {
     "filter": {
