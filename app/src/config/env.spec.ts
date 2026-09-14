@@ -47,4 +47,24 @@ describe('per-env config JSONs', () => {
     expect(stg.CHAIN_ID).toBe(POLYGON_MAINNET)
     expect(new URL(stg.RELAYER_URL).hostname).toContain('decentraland.org')
   })
+
+  it.each(ENVS)('$name points at the marketing CMS', ({ json }) => {
+    expect(new URL(json.CONTENTFUL_URL).hostname).toBe('cms-api.decentraland.org')
+    expect(json.CONTENTFUL_SPACE_ID).toBeTruthy()
+    expect(json.CONTENTFUL_ENVIRONMENT).toBeTruthy()
+  })
+
+  it('keeps the dev campaign entry separate from the published one', () => {
+    // The admin entry is the ONLY per-environment value in the CMS block: dev reads a test entry, so a
+    // draft banner can be staged without going live the moment it is saved.
+    expect(dev.CONTENTFUL_ADMIN_ENTITY_ID).not.toBe(prod.CONTENTFUL_ADMIN_ENTITY_ID)
+  })
+
+  it('reads the published campaign on stg, like every other production surface it points at', () => {
+    // Deliberate, and the same split the Marketplace ships. Staging is not a second dev: it reads the
+    // production APIs and Polygon mainnet, so reading a different CMS entry there would rehearse a
+    // campaign nobody is about to launch. Previewing a draft is what dev is for — or a local
+    // VITE_CONTENTFUL_ADMIN_ENTITY_ID override.
+    expect(stg.CONTENTFUL_ADMIN_ENTITY_ID).toBe(prod.CONTENTFUL_ADMIN_ENTITY_ID)
+  })
 })

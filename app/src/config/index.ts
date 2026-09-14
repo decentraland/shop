@@ -124,6 +124,19 @@ export const config = {
   // prod stays off. See lib/featureFlags.ts.
   // `String()` for the same reason as treasuryAddress below: @dcl/ui-env's `get` is untyped.
   featureFlagsUrl: String(env.VITE_FEATURE_FLAGS_URL ?? base.get('FEATURE_FLAGS_URL') ?? ''),
+  /**
+   * Decentraland's CMS proxy (Contentful behind `cms-api.decentraland.org`) and the marketing entry the
+   * seasonal-event banner and tab are read from. PUBLIC reads — the proxy needs no token, which is why a
+   * client-side fetch is possible at all.
+   *
+   * `adminEntityId` is the only value that differs per environment: dev points at a test entry so marketing
+   * can stage an event without it appearing in production. An empty id disables the whole feature (the
+   * fetch is never issued), which is the safe default for an environment that has no entry yet.
+   */
+  contentfulUrl: String(env.VITE_CONTENTFUL_URL ?? base.get('CONTENTFUL_URL') ?? ''),
+  contentfulSpaceId: String(env.VITE_CONTENTFUL_SPACE_ID ?? base.get('CONTENTFUL_SPACE_ID') ?? ''),
+  contentfulEnvironment: String(env.VITE_CONTENTFUL_ENVIRONMENT ?? base.get('CONTENTFUL_ENVIRONMENT') ?? ''),
+  contentfulAdminEntityId: String(env.VITE_CONTENTFUL_ADMIN_ENTITY_ID ?? base.get('CONTENTFUL_ADMIN_ENTITY_ID') ?? ''),
   // ORDERING, if this is ever enabled from scratch: credits-server's consumer must be live and armed FIRST.
   // With routing on here and the consumer off, listings route their MANA to the treasury and nobody credits
   // the seller — recoverable on a testnet, not on mainnet.
