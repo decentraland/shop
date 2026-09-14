@@ -15,6 +15,7 @@ import { LivePromo } from '~/components/LivePromo'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // Figma 5566:4449 "Web 1920x340", exported flat rather than rebuilt: the source is thirteen absolutely
@@ -179,7 +180,9 @@ export function Overview() {
     queryKey: ['overview-listings'],
     queryFn: () => fetchShopItems({ first: 12, sortBy: 'newest', listingType: 'primary' })
   })
-  const items = data?.items ?? []
+  // Both rails read the unified feed, which carries MANA-denominated rows (a store mint, a classic
+  // order) alongside USD ones — price each in its own currency before the cards show a number.
+  const items = useLivePricedItems(data?.items ?? [])
 
   // The Trending row: ranked by the last day's sales, server-side (marketplace-server /v3/catalog/trending),
   // which is also where every rule the row has to honour is applied — see lib/api fetchTrendingItems for why
@@ -194,7 +197,7 @@ export function Overview() {
     queryKey: ['overview-trending', secondarySales],
     queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' })
   })
-  const trendingItems = trending ?? []
+  const trendingItems = useLivePricedItems(trending ?? [])
 
   return (
     <S.Overview className="overview">
