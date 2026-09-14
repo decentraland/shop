@@ -30,6 +30,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/my-items': 'my_assets',
   '/my-favorites': 'favorites',
   '/activity': 'activity',
+  '/event': 'event',
   '/import': 'import',
   '/store-settings': 'store_settings',
   '/cart': 'cart',
@@ -43,6 +44,7 @@ const PAGE_NAMES: Record<string, string> = {
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
+const Event = lazy(() => import('~/pages/Event').then(m => ({ default: m.Event })))
 const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetailRoute })))
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
@@ -185,6 +187,10 @@ export function App() {
               <Route path="/" element={<AliasRedirect to="/overview" />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/items" element={<Assets />} />
+              {/* The seasonal event's storefront. Generic on purpose: which event it is comes from the
+                  CMS, so one route serves every campaign and nothing has to be deployed to change it. The
+                  page sends visitors to /items when no campaign is running. */}
+              <Route path="/event" element={<Event />} />
               {/* Items is the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
               <Route path="/market" element={<AliasRedirect to="/items" />} />

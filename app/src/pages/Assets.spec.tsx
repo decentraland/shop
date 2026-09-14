@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { UnifiedListing } from '~/lib/api'
+import type { AssetsProps } from '~/pages/Assets'
 
 // Assets pulls a lot of heavy ESM transitively (checkout + names libs → decentraland-transactions
 // cross-chain), which doesn't resolve under vitest — mock those seams. We only care that selecting
@@ -76,12 +77,12 @@ function LocationProbe() {
   return <span data-testid="location-search">{useLocation().search}</span>
 }
 
-function renderAssets(entry = '/items') {
+function renderAssets(entry = '/items', props: AssetsProps = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[entry]}>
-        <Assets />
+        <Assets {...props} />
         <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>
@@ -380,5 +381,64 @@ describe('Assets — the status a search runs under', () => {
     await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
     expect(vi.mocked(fetchShopItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'torso' })
     expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The grid, pinned to a set of collections — what the seasonal event renders.
+ *
+ * Reusing this page rather than copying it is what keeps the event's filters, chips, sorting and cards
+ * identical to the ordinary grid. The properties below are the ones that reuse depends on, and each was a
+ * trap before it was a prop.
+ */
+describe('Assets — pinned to a set of collections', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  it('asks both feeds for only those collections', async () => {
+    renderAssets('/items', { contracts: [A, B] })
+
+    expect((await lastShopItemsCall())!.contractAddresses).toEqual([A, B])
+  })
+
+  it('asks for nothing at all when the set resolved to none', async () => {
+    // THE safety property. Both feeds read an absent collection filter as "no filter", so a request
+    // carrying an empty set comes back as the whole catalogue — rendered as if it were the event. The
+    // query must not go out.
+    renderAssets('/items', { contracts: [] })
+
+    await screen.findByTestId('browse-empty')
+    expect(fetchShopItems).not.toHaveBeenCalled()
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+
+  it('leaves the whole catalogue alone when no set is given', async () => {
+    renderAssets('/items')
+
+    expect((await lastShopItemsCall())!.contractAddresses).toBeUndefined()
+  })
+
+  it('keeps the buyable grid when the reader searches', async () => {
+    // Unpinned, a search flips Status to "everything", which swaps the unified feed for the full
+    // catalogue one and its view-only cards.
+    renderAssets('/items?q=hat', { lockStatus: 'on_sale' })
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+
+  it('refuses a NAMEs category it never offered', async () => {
+    // The URL is user-editable: `?category=names` would otherwise render the NAMEs page inside a surface
+    // whose filter panel never listed it.
+    renderAssets('/items?category=names', { hideNames: true })
+
+    expect(screen.queryByTestId('names-page')).not.toBeInTheDocument()
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+  })
+
+  it('still offers NAMEs on the ordinary grid', async () => {
+    renderAssets('/items?category=names')
+
+    expect(await screen.findByTestId('names-page')).toBeInTheDocument()
   })
 })

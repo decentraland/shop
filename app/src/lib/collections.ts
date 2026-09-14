@@ -233,6 +233,14 @@ export type CatalogItemsFilters = {
   creator?: string
   // One collection's items (the collection storefront grid).
   contractAddress?: string
+  /**
+   * A SET of collections — what a seasonal event filters by. Sent as REPEATED keys, which is the only
+   * encoding this endpoint parses.
+   *
+   * An empty array must never be sent: the server reads an absent filter as "no filter", so it would come
+   * back as the whole catalogue presented as the event.
+   */
+  contractAddresses?: string[]
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -253,6 +261,7 @@ export async function fetchCatalogItems({
   category,
   creator,
   contractAddress,
+  contractAddresses,
   rarities,
   wearableCategories,
   search,
@@ -273,6 +282,10 @@ export async function fetchCatalogItems({
   if (category === 'wearable' || category === 'emote') qs.set('category', category)
   if (creator) qs.set('creator', creator)
   if (contractAddress) qs.set('contractAddress', contractAddress)
+  // The REPEATED form here, unlike the unified feed's comma-separated one: this endpoint parses the set
+  // with `getAddressList`, which reads only repeated keys. Sending one encoding to both would silently
+  // drop the filter on one of them.
+  contractAddresses?.forEach(address => qs.append('contractAddress', address))
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)

@@ -9,6 +9,7 @@ import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useIsOutfitCreator } from '~/hooks/useOutfits'
+import { useEventTab } from '~/hooks/useEventTab'
 import { useBalance } from '~/hooks/useBalance'
 import { useWalletChain } from '~/hooks/useWalletChain'
 import { useManaBalances } from '~/hooks/useManaBalance'
@@ -73,6 +74,8 @@ export function NavBar() {
   const hidesGlobalSearch = /^\/my-items(\/|$)/.test(pathname)
   // Read once so every branch below decides off the same value (the module memoises it anyway).
   const iap = isIapMode()
+  // The seasonal event tab, when one is running and actually has collections in it.
+  const eventTab = useEventTab()
   // Checkout is a flow, not a place to browse from: inside the iOS web view the cart and its success
   // screen drop the shop's sub-nav entirely (Figma 2703:399357 Cart), leaving the back arrow the page
   // already renders as the only way out. The global bar above stays — it carries the credits balance,
@@ -280,6 +283,15 @@ export function NavBar() {
         <S.Subnav data-testid="subnav" data-iap={iap || undefined} data-scrolled={scrolled || undefined}>
           <S.Tabs data-testid="subnav-tabs">
             <NavLink to="/overview">{t('nav.overview')}</NavLink>
+            {/* The seasonal event, between Overview and Collectibles — the same place the marketplace puts
+                it. Its LABEL is content, not UI copy: it is whatever the campaign is called, so it never
+                goes through t(). Shown only once the event is known to have collections in it; an event tab
+                that opens an empty grid is worse than no tab. */}
+            {eventTab ? (
+              <NavLink to="/event" data-testid="nav-event">
+                {eventTab}
+              </NavLink>
+            ) : null}
             {/* Collectibles stays active across the item detail / collection / creator pages too (they're
                all part of browsing collectibles), not just the /items grid. */}
             <NavLink to="/items" className={() => (collectiblesActive ? 'active' : '')}>

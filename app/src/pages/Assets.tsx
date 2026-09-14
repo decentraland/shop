@@ -9,12 +9,13 @@ import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
+import { CATEGORIES } from '~/components/CategoryFilter'
 import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
-import { useSeo } from '~/hooks/useSeo'
+import { useSeo, type SeoInput } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { rarityLabel } from '~/lib/rarity'
 import { track } from '~/lib/analytics'
@@ -46,7 +47,26 @@ const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
  */
 const defaultStatusFor = (searching: boolean): FilterStatus => (searching ? 'all' : 'on_sale')
 
-export function Assets() {
+export type AssetsProps = {
+  /**
+   * Collections the grid is pinned to. Absent = the whole catalogue.
+   *
+   * An EMPTY array means the caller asked for a set that resolved to nothing, and the grid then shows its
+   * empty state WITHOUT querying — see `selectsNothing` below for why that distinction is load-bearing.
+   */
+  contracts?: string[]
+  /**
+   * Drops the NAMEs destination from the filter panel — and, with it, from the categories the URL may
+   * select. A NAME is a separate purchase, not part of a curated set of collections.
+   */
+  hideNames?: boolean
+  /** Overrides the grid's own SEO. Passed rather than set by the caller: see the `useSeo` call below. */
+  seo?: SeoInput
+  /** Pins Status, so a search cannot swap the buyable grid for the view-only one. */
+  lockStatus?: FilterStatus
+}
+
+export function Assets({ contracts, hideNames = false, seo, lockStatus }: AssetsProps = {}) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
@@ -55,10 +75,14 @@ export function Assets() {
   // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
   // so search variants collapse onto /items. Indexable.
   const rawQuery = (searchParams.get('q') ?? '').trim()
-  useSeo({
-    title: rawQuery ? t('seo.collectibles.searchTitle', { query: rawQuery }) : t('seo.collectibles.title'),
-    description: t('seo.collectibles.description')
-  })
+  // Taken as a PROP rather than left to the caller to set: this hook rewrites every managed tag, and a
+  // page that called it and then rendered this grid would be overwritten — the child's effect runs last.
+  useSeo(
+    seo ?? {
+      title: rawQuery ? t('seo.collectibles.searchTitle', { query: rawQuery }) : t('seo.collectibles.title'),
+      description: t('seo.collectibles.description')
+    }
+  )
 
   const defaultStatus = defaultStatusFor(!!q)
   // EVERY filter lives in the URL, through one owner. A refresh, a shared link and the back button used
@@ -78,9 +102,17 @@ export function Assets() {
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
-  const category = filterState.category
+  // Validated the same way `status` is, and against the categories this instance actually offers. The URL
+  // is user-editable: without this, `?category=names` renders the NAMEs page inside a surface whose filter
+  // panel never offered it.
+  const offered = CATEGORIES.map(c => c.key).filter(key => !(hideNames && key === 'names'))
+  const category = offered.includes(filterState.category) ? filterState.category : 'all'
   // Validated on read: the URL is user-editable, and an unknown status must not reach the query.
-  const status: FilterStatus = STATUSES.includes(filterState.status) ? filterState.status : defaultStatus
+  // `lockStatus` wins outright. Without it a search flips the default to 'all' (see defaultStatusFor),
+  // which swaps the buyable unified grid for the view-only catalogue one — fine while browsing the whole
+  // shop, wrong on a surface that exists to sell a specific set.
+  const status: FilterStatus =
+    lockStatus ?? (STATUSES.includes(filterState.status) ? filterState.status : defaultStatus)
   // A category is a different set of items, not more of the same one — read it from the top.
   useScrollTopOnChange(`${category}:${subCategory ?? ''}`)
 
@@ -109,6 +141,9 @@ export function Assets() {
   //  • 'all' / 'not_for_sale' → the full catalog (/v3/catalog/items, via fetchCatalogItems) — every
   //    item incl. those not for sale, rendered as VIEW-only cards (no inline trade). 'not_for_sale'
   //    passes isOnSale:false; 'all' leaves it unset (both).
+  // Told apart from "no filter" deliberately: `undefined` is the whole catalogue, `[]` is a caller whose
+  // set resolved to nothing.
+  const selectsNothing = contracts !== undefined && contracts.length === 0
   const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
@@ -131,7 +166,8 @@ export function Assets() {
     // shows a result count, so dropping rows here would give short pages and a count that lies. Note this
     // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
     // they are not purchasable in the Shop.
-    listingType: secondarySales ? undefined : ('primary' as const)
+    listingType: secondarySales ? undefined : ('primary' as const),
+    contractAddresses: contracts?.length ? contracts : undefined
   }
   // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
   // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).
@@ -142,7 +178,8 @@ export function Assets() {
     search: q || undefined,
     sortBy,
     isWearableSmart: smart || undefined,
-    isOnSale: status === 'not_for_sale' ? false : undefined
+    isOnSale: status === 'not_for_sale' ? false : undefined,
+    contractAddresses: contracts?.length ? contracts : undefined
   }
 
   const {
@@ -161,8 +198,12 @@ export function Assets() {
       isUnified
         ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
         : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
-    // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
-    { enabled: category !== 'names' }
+    // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected. And a set that
+    // resolved to nothing must not query at all, for a reason worth spelling out: BOTH feeds read an
+    // absent collection filter as "no filter", so a request carrying an empty set would come back as the
+    // entire catalogue and be rendered as if it were the event. Fail closed here, and the grid shows its
+    // empty state instead.
+    { enabled: category !== 'names' && !selectsNothing }
   )
   const resultCount = total
 
@@ -303,6 +344,7 @@ export function Assets() {
                 onToggleRarity={toggleRarity}
                 status={status}
                 onStatus={setStatus}
+                hideNames={hideNames}
                 smart={smart}
                 onSmart={v => setFilters({ smart: v })}
               />

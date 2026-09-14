@@ -497,6 +497,15 @@ export type ShopListingFilters = {
   first?: number
   skip?: number
   contractAddress?: string
+  /**
+   * Restrict to a SET of collections, where `contractAddress` restricts to one. What a seasonal event
+   * filters by — an event tags whole collections, and names dozens of them at once.
+   *
+   * AN EMPTY ARRAY MUST NEVER BE SENT. The server reads an absent collection filter as "no filter", so an
+   * empty one would come back as the entire catalogue presented as the event. A caller whose set resolved
+   * to nothing must not issue the request at all.
+   */
+  contractAddresses?: string[]
   itemId?: string
   creator?: string
   rarities?: string[]
@@ -748,6 +757,9 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   qs.set('first', String(first))
   if (filters.skip != null) qs.set('skip', String(filters.skip))
   if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
+  // Comma-separated, which is what this endpoint takes for a set. Not the repeated form: at ~100
+  // collections that is 16 more characters apiece on a query string already several kilobytes long.
+  if (filters.contractAddresses?.length) qs.set('contractAddress', filters.contractAddresses.join(','))
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
   if (filters.creator) qs.set('creator', filters.creator)
   if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))
