@@ -440,7 +440,7 @@ describe('creator sales', () => {
       expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', label)).toBe(true)
       heights.push(await height())
     }
-    for (const label of [/^pick an end$/i, /^7 days$/i]) {
+    for (const label of [/^pick an end$/i, /^7d$/i]) {
       expect(await clickByText(page, '[data-testid="creator-sale-durations"] button', label)).toBe(true)
       heights.push(await height())
     }

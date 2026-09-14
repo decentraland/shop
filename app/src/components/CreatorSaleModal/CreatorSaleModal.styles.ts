@@ -277,6 +277,11 @@ export const DateInput = styled.input`
   /* Chip height exactly: this field opens inside a row of chips, and two pixels of difference there
      resized the whole modal. */
   height: 40px;
+  /* Explicit, and wide enough for the whole date: the browser's intrinsic width for a datetime-local is
+     ~187px, and leaving it implicit made the row's fit depend on font metrics. With the compact duration
+     labels the row now has ~110px to spare, so this can be generous rather than lucky. */
+  width: 192px;
+  box-sizing: border-box;
   padding: 0 10px;
   border: 0.5px solid ${theme.colors.text};
   border-radius: ${theme.radius.btn};

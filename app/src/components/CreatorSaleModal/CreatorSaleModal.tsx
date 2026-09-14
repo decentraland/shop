@@ -95,6 +95,11 @@ function problemCopy(problem: SaleInputProblem): string {
   }
 }
 
+/**
+ * Compact on purpose — "24h", "3d". Five controls share this row, and the date field the last one opens
+ * needs ~187px of it; spelled-out labels left nine pixels of slack, which CI's wider glyphs turned into a
+ * wrapped row and a modal that changed height. It is also the shorthand the Shop's own countdowns speak.
+ */
 function durationLabel(hours: number): string {
   return hours % 24 === 0 && hours >= 24 * 2
     ? t('creatorSale.days', { count: hours / 24 })
