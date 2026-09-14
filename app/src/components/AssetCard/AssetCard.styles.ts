@@ -24,6 +24,18 @@ export const TOP_GAP = 10
 //
 // No `overflow: hidden` here: the lit ring sits 2px outside the card box, so the media and footer round
 // their own corners instead. See ringHover.
+// Hover/focus state of the whole card: the lit ring, the lift, and the z-index that keeps the scaled
+// card above its neighbours in a rail.
+//
+// Reached through `:has(:focus-visible)` and NOT `:focus-within`: a MOUSE click on one of the card's own
+// controls focuses it too, and that focus outlives the pointer — so hearting an item left the card lit
+// and lifted long after the shopper had moved away from it.
+const cardLit = css`
+  ${ringLit};
+  transform: scale(1.025);
+  z-index: 1;
+`
+
 export const Card = styled.article`
   height: 300px;
   /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
@@ -52,17 +64,19 @@ export const Card = styled.article`
     border-color: transparent;
   }
 
+  /* Hover and KEYBOARD focus light the card the same way — hence two rules rather than one selector
+     list: a browser without :has() drops only the focus one and still lights the card on hover. */
   @media (hover: hover) {
-    &:hover,
-    &:focus-within {
-      ${ringLit};
-      /* A gentle lift on hover; z-index keeps the scaled card, its ring and its glow above its
-         neighbours in the rail. */
-      transform: scale(1.025);
-      z-index: 1;
+    &:hover {
+      ${cardLit};
     }
-    &:hover::after,
-    &:focus-within::after {
+    &:has(:focus-visible) {
+      ${cardLit};
+    }
+    &:hover::after {
+      ${ringHover};
+    }
+    &:has(:focus-visible)::after {
       ${ringHover};
     }
   }
@@ -136,7 +150,7 @@ export const Fav = styled.button`
       opacity: 0;
     }
     [data-testid='card']:hover &,
-    [data-testid='card']:focus-within &,
+    [data-testid='card']:has(:focus-visible) &,
     &:focus-visible {
       opacity: 1;
     }
@@ -385,12 +399,13 @@ export const Body = styled.div`
   border-radius: 0 0 ${radius.card} ${radius.card};
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
+  // Keyed on :has(:focus-visible) for the same reason the card's ring is (see cardLit).
   @media (hover: hover) and (min-width: 721px) {
-    &:focus-within [data-testid='card-cart'],
-    &:focus-within [data-reveal] {
+    &:has(:focus-visible) [data-testid='card-cart'],
+    &:has(:focus-visible) [data-reveal] {
       display: flex;
     }
-    &:focus-within [data-chips] {
+    &:has(:focus-visible) [data-chips] {
       display: none;
     }
   }
