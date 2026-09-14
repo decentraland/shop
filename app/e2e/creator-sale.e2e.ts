@@ -161,7 +161,7 @@ describe('creator sales', () => {
     expect(await page.$('[data-testid="creator-sales-panel"]')).toBeNull()
 
     // The collection's own header carries the action, once its listing resolves.
-    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /put on sale/i)
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
     await waitForText(page, 'Galaxy Drip')
     await waitForText(page, '1 item listed')
@@ -177,15 +177,15 @@ describe('creator sales', () => {
     await waitForText(page, 'sells for 21 credits')
 
     // Nothing is signed from the form — the terms go to a review first.
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review sale/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
-    await waitForText(page, '1 item goes on sale')
+    await waitForText(page, '1 item gets the discount')
     expect(await noOverflow(page)).toBe(true)
 
     // One signature, one POST, then the success view with its countdown.
-    await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start sale/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
     await page.waitForSelector('[data-testid="creator-sale-success"]')
-    await waitForText(page, 'Your sale is live!')
+    await waitForText(page, 'Your discount is live!')
     await waitForText(page, '1 collection at 30% off')
     await page.waitForSelector('[data-testid="creator-sale-countdown"]')
     expect(await noOverflow(page)).toBe(true)
@@ -216,12 +216,12 @@ describe('creator sales', () => {
     await waitForText(page, '-30%')
     await waitForText(page, 'Live')
 
-    expect(await clickByText(page, '[data-testid="creator-sale-end"]', /end sale/i)).toBe(true)
+    expect(await clickByText(page, '[data-testid="creator-sale-end"]', /end discount/i)).toBe(true)
     // Two-step: the row asks before anything is sent.
     await page.waitForSelector('[data-testid="creator-sale-end-confirm"]')
     expect(await clickByText(page, '[data-testid="creator-sale-end-confirm"]', /end now/i)).toBe(true)
 
-    await waitForText(page, 'Your sale has ended.')
+    await waitForText(page, 'Your discount has ended.')
     await waitForText(page, 'Ended early')
     expect(await page.$('[data-testid="creator-sale-end"]')).toBeNull()
   })
@@ -306,9 +306,9 @@ describe('creator sales', () => {
     const { page } = app
 
     await waitForText(page, 'Galaxy Cape')
-    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /put on sale/i)
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review sale/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Every listed item, with what it costs now and what it will cost. 20% off: 30 → 24, 10 → 8.
@@ -332,7 +332,7 @@ describe('creator sales', () => {
     expect(untouched).toEqual(['Galaxy CapeNot for sale'])
 
     // Uncapped, so the ceiling is the listed items' own remaining supply (100 + 100 for two rares).
-    await waitForText(page, 'available at the sale price')
+    await waitForText(page, 'available at the discounted price')
 
     // Back returns to the terms with them intact.
     expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
@@ -354,7 +354,7 @@ describe('creator sales', () => {
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
-    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /put on sale/i)
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
 
     // Four distinct steps, warming as the discount deepens — not one colour repeated.
@@ -393,6 +393,140 @@ describe('creator sales', () => {
     // the collapsing half is briefly WIDER than either end state.
     await settled('[data-testid="creator-sale-custom-end-chip"]', false)
     expect(await width('[data-testid="creator-sale-custom-end-field"]')).toBeGreaterThan(0)
+  })
+
+  it('keeps the modal the same height whatever the terms are', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [] },
+        unifiedListings: { data: [] },
+        collectionSaleState: galaxyListed
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+
+    const height = () =>
+      page.$eval('[data-testid="creator-sale-modal"]', el =>
+        Math.round((el as HTMLElement).getBoundingClientRect().height)
+      )
+    // Long enough for every morph transition (0.24s) to have settled.
+    const settle = () => page.evaluate(() => new Promise(r => setTimeout(r, 400)))
+
+    const heights: number[] = [await height()]
+    for (const label of [/^10% off$/i, /^50% off$/i, /^custom$/i]) {
+      expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', label)).toBe(true)
+      await settle()
+      heights.push(await height())
+    }
+    for (const label of [/^pick an end$/i, /^7 days$/i]) {
+      expect(await clickByText(page, '[data-testid="creator-sale-durations"] button', label)).toBe(true)
+      await settle()
+      heights.push(await height())
+    }
+    expect(await clickByText(page, 'button', /^on a date$/i)).toBe(true)
+    await settle()
+    heights.push(await height())
+    await page.click('[data-testid="creator-sale-cap-toggle"]')
+    await settle()
+    heights.push(await height())
+
+    // One height, every combination. The example line rewraps with the numbers in it and the date and cap
+    // fields used to arrive as whole new rows, so the card grew and shrank underneath the pointer.
+    expect(new Set(heights).size).toBe(1)
+  })
+
+  it('times the start and the end separately, in the discount’s own colour', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [] },
+        unifiedListings: { data: [] },
+        collectionSaleState: galaxyListed
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    // Schedule it, so the start is a moment in the future with its own time left.
+    expect(await clickByText(page, 'button', /^on a date$/i)).toBe(true)
+    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^50% off$/i)).toBe(true)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-review"]')
+
+    // Each end of the window is its own row, and each says how long until it.
+    for (const row of ['creator-sale-review-starts', 'creator-sale-review-ends']) {
+      const text = await page.$eval(`[data-testid="${row}"]`, el => el.textContent ?? '')
+      expect(text).toMatch(/\d/)
+      expect(text).toMatch(/\d+[dhms]/)
+    }
+
+    // One colour per step, everywhere it shows: the badge here, the discounted price here, and the chip
+    // back on the terms. They drifted apart once — a bright ring on the chip against a darker price —
+    // and the review read as a different discount from the one that had been picked.
+    const heat = await page.evaluate(() => {
+      const badge = document.querySelector('[data-testid="creator-sale-review-pct"]') as Element
+      const price = document.querySelector('[data-testid="review-now"]') as Element
+      return {
+        step: [badge.getAttribute('data-heat'), price.getAttribute('data-heat')],
+        badgeColor: getComputedStyle(badge).color,
+        badgeBorder: getComputedStyle(badge).borderTopColor,
+        priceColor: getComputedStyle(price).color
+      }
+    })
+    expect(heat.step).toEqual(['max', 'max'])
+    expect(heat.priceColor).toBe(heat.badgeColor)
+    expect(heat.badgeBorder).toBe(heat.badgeColor)
+
+    expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    const chipColor = await page.$eval(
+      '[data-testid="creator-sale-discounts"] button[data-selected]',
+      el => getComputedStyle(el).color
+    )
+    expect(chipColor).toBe(heat.priceColor)
+  })
+
+  it('drops a failed attempt when the creator goes back to change the terms', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [] },
+        unifiedListings: { data: [] },
+        collectionSaleState: galaxyListed
+      },
+      errors: { '/v1/coupons': { status: 500 } }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-review"]')
+
+    await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-error"]')
+
+    // Back to the terms, and forward again: the notice belonged to an attempt that no longer exists.
+    expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    expect(await page.$('[data-testid="creator-sale-error"]')).toBeNull()
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-review"]')
+    expect(await page.$('[data-testid="creator-sale-error"]')).toBeNull()
   })
 
   it('hides the whole flow while the flag is off', async () => {

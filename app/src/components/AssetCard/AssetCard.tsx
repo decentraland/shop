@@ -269,7 +269,7 @@ export function AssetCard(props: AssetCardProps) {
         <CurrencyIcon size={13} />
         {formatCredits(item.compareAtCredits!)}
       </S.PriceWas>
-      <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
+      <S.Countdown until={item.saleEndsAt} testId="card-countdown" />
     </S.Price>
   ) : (
     <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>

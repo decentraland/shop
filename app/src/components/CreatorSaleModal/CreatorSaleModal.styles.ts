@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { SaleCountdown } from '~/components/SaleCountdown'
 import { theme } from '~/styles/theme'
 
 // Creator sale modal: the same shell as PrimaryListModal (white rounded card, header + close, muted field
@@ -182,24 +183,25 @@ export const Chip = styled.button`
   }
 
   /* Discount chips carry their step of the heat ramp at rest, so the scale is readable before anything is
-     picked; the chosen one keeps the tint and gains the saturated ring plus a halo. Selection is a ring,
-     not a colour swap, because the colour is already saying something else here. */
+     picked; the chosen one keeps the tint and gains the ring plus a halo. Selection is a ring, not a
+     colour swap, because the colour is already saying something else here. */
   ${Object.entries(theme.saleHeat)
     .map(
-      ([step, { tint, edge }]) => `
+      ([step, { tint, ink }]) => `
   &[data-heat='${step}'] {
     background: ${tint};
     border-color: ${tint};
-    color: ${theme.colors.text};
+    color: ${ink};
   }
   &[data-heat='${step}']:hover:not(:disabled):not([data-selected]) {
-    border-color: ${edge};
+    border-color: ${ink};
   }
   &[data-heat='${step}'][data-selected] {
     background: ${tint};
-    border: 2px solid ${edge};
-    color: ${theme.colors.text};
-    box-shadow: 0 0 0 3px ${edge}40;
+    border: 2px solid ${ink};
+    color: ${ink};
+    font-weight: 700;
+    box-shadow: 0 0 0 3px ${ink}33;
     /* The 2px border eats a pixel of the box; take it back from the padding so the row doesn't shift. */
     padding: 0 13px;
   }`
@@ -220,6 +222,9 @@ export const InlineInput = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* Fields stack in a column, whose default stretch would blow a two-character number box out to the
+     full width of the modal. */
+  width: fit-content;
   height: 40px;
   padding: 0 10px;
   border: 0.5px solid ${theme.colors.text};
@@ -239,10 +244,10 @@ export const InlineInput = styled.span`
   /* Takes the heat of whatever has been typed, so the custom value reads on the same scale as the presets. */
   ${Object.entries(theme.saleHeat)
     .map(
-      ([step, { tint, edge }]) => `
+      ([step, { tint, ink }]) => `
   &[data-heat='${step}'] {
     background: ${tint};
-    border-color: ${edge};
+    border-color: ${ink};
   }`
     )
     .join('')}
@@ -269,7 +274,9 @@ export const InlineInput = styled.span`
 `
 
 export const DateInput = styled.input`
-  height: 42px;
+  /* Chip height exactly: this field opens inside a row of chips, and two pixels of difference there
+     resized the whole modal. */
+  height: 40px;
   padding: 0 10px;
   border: 0.5px solid ${theme.colors.text};
   border-radius: ${theme.radius.btn};
@@ -285,16 +292,18 @@ export const DateInput = styled.input`
   }
 `
 
-export const CapRow = styled.label`
+export const CapRow = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 40px;
   font-family: ${theme.font.sans};
   font-size: 13px;
   color: ${theme.colors.text};
   cursor: pointer;
 
-  input {
+  /* Only the checkbox, not the number field the row can open. */
+  > label > input {
     width: 18px;
     height: 18px;
     accent-color: ${theme.colors.accent};
@@ -302,10 +311,24 @@ export const CapRow = styled.label`
   }
 `
 
+export const CapLabel = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+`
+
 // The worked example: what one listed item costs during the sale.
+/**
+ * The hint under the terms. Always two lines tall, even when one would do: the sentence wraps or unwraps
+ * with the numbers in it, and letting that resize the modal made the whole card jump while picking.
+ */
 export const Preview = styled.p`
+  display: flex;
+  align-items: center;
   margin: 0;
   padding: 10px 12px;
+  min-height: calc(2 * 1.5em + 20px);
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.panel};
   font-family: ${theme.font.sans};
@@ -462,6 +485,21 @@ export const Morph = styled.div`
   }
 `
 
+/** Morph's sibling for a field with no chip to swap with — a checkbox opens it in place instead. */
+export const Reveal = styled.div`
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  &[data-open] {
+    grid-template-columns: 1fr;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
 export const MorphCell = styled.div`
   min-width: 0;
   overflow: hidden;
@@ -476,33 +514,76 @@ export const MorphCell = styled.div`
 /** The review step: what the sale will do, item by item, before anything is signed. */
 export const ReviewSummary = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   padding: 12px;
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.panel};
 `
 
+/** The chosen discount, wearing the same colours its chip wore on the step before. */
 export const ReviewPct = styled.span`
   display: inline-flex;
   align-items: center;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: ${theme.colors.dclRed};
-  color: ${theme.colors.white};
+  /* Hugs its label: it sits in the same 1fr column the dates fill, which would otherwise stretch it. */
+  justify-self: start;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: ${theme.radius.pill};
+  border: 2px solid transparent;
   font-family: ${theme.font.sans};
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+
+  ${Object.entries(theme.saleHeat)
+    .map(
+      ([step, { tint, ink }]) => `
+  &[data-heat='${step}'] {
+    background: ${tint};
+    border-color: ${ink};
+    color: ${ink};
+  }`
+    )
+    .join('')}
 `
 
-export const ReviewWhen = styled.span`
+/** One row of the summary: its label, the value, and — for the window — how long until it. */
+export const ReviewWhenRow = styled.div`
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
-  color: ${theme.colors.text2};
+`
+
+export const ReviewWhenLabel = styled.span`
+  color: ${theme.colors.muted};
+  font-size: 13px;
+`
+
+export const ReviewWhenValue = styled.b`
+  font-weight: 700;
+  color: ${theme.colors.text};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+/**
+ * Plain meta text, not the default pill: three filled pills in one small panel (the discount badge plus
+ * one per row) fought each other, and the one that should win is the discount.
+ */
+export const ReviewWhenLeft = styled(SaleCountdown)`
+  flex: none;
+  padding: 0;
+  background: none;
+  color: ${theme.colors.muted};
+  font-size: 13px;
+  font-weight: 600;
 `
 
 export const ReviewGroup = styled.div`
@@ -522,21 +603,21 @@ export const ReviewGroupTitle = styled.h3`
 export const ReviewList = styled.ul`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
   /* Long collections stay inside the modal instead of pushing the actions off-screen. */
-  max-height: 220px;
+  max-height: 232px;
   overflow-y: auto;
 `
 
 export const ReviewRow = styled.li`
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 12px;
+  padding: 10px 12px;
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.white};
   border: 1px solid ${theme.colors.line};
@@ -548,38 +629,68 @@ export const ReviewRow = styled.li`
 `
 
 export const ReviewThumb = styled.img`
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
   object-fit: cover;
   background: ${theme.colors.media};
 `
 
 export const ReviewName = styled.span`
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   color: ${theme.colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
+/**
+ * Two fixed columns rather than an inline run: the old and the new price line up down the list, so the
+ * column of what things cost now and the column of what they will cost can be read as columns.
+ */
+/**
+ * Two right-aligned columns so the prices line up down the list. The tracks are only as wide as the
+ * numbers need — wider ones left a gulf between what an item costs and what it will cost, which read as
+ * two unrelated figures rather than a before and an after.
+ */
 export const ReviewPrices = styled.span`
-  display: inline-flex;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: minmax(30px, auto) minmax(40px, auto);
+  align-items: center;
   gap: 6px;
   font-family: ${theme.font.sans};
-  font-size: 13px;
   white-space: nowrap;
 `
 
-export const ReviewWas = styled.s`
+export const ReviewWas = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
   color: ${theme.colors.muted2};
+  text-decoration: line-through;
+  font-weight: 600;
+  font-size: 15px;
 `
 
-export const ReviewNow = styled.b`
-  color: ${theme.colors.text};
+/** The number the sale is actually about, so it is the biggest thing in the row — in the step's own ink. */
+export const ReviewNow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
   font-weight: 700;
+  font-size: 18px;
+
+  ${Object.entries(theme.saleHeat)
+    .map(
+      ([step, { ink }]) => `
+  &[data-heat='${step}'] {
+    color: ${ink};
+  }`
+    )
+    .join('')}
 `
 
 export const ReviewUnaffected = styled.span`
@@ -593,8 +704,15 @@ export const ReviewUnaffected = styled.span`
 
 export const ReviewFoot = styled.p`
   margin: 0;
+  padding: 12px;
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.promptLilac};
   font-family: ${theme.font.sans};
-  font-size: 13px;
-  line-height: 1.5;
-  color: ${theme.colors.muted};
+  font-size: 14px;
+  line-height: 1.45;
+  color: ${theme.colors.text};
+
+  b {
+    font-weight: 700;
+  }
 `

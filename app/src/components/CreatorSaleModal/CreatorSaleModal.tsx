@@ -19,7 +19,7 @@ import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
 import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
-import { t } from '~/intl/i18n'
+import { t, tNode } from '~/intl/i18n'
 import { heatFor } from '~/styles/theme'
 import { formatCredits } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -292,7 +292,7 @@ export function CreatorSaleModal({
               ) : (
                 <>
                   {t('creatorSale.successEnds')}{' '}
-                  <SaleCountdown endsAt={created.checks.expiration} testId="creator-sale-countdown" />
+                  <SaleCountdown until={created.checks.expiration} testId="creator-sale-countdown" />
                 </>
               )}
             </S.SuccessDetail>
@@ -307,19 +307,13 @@ export function CreatorSaleModal({
   }
 
   /** When the sale runs, in one line — the same two facts the success view repeats afterwards. */
-  const whenCopy =
-    startMode === 'later' && terms.startsAtMs
-      ? t('creatorSale.reviewWindowScheduled', {
-          start: formatDateTime(terms.startsAtMs),
-          end: formatDateTime(terms.endsAtMs)
-        })
-      : t('creatorSale.reviewWindowNow', { end: formatDateTime(terms.endsAtMs) })
+  const bold = (chunks: React.ReactNode[]) => <b>{chunks}</b>
 
   /** How many copies the sale price can cover: the cap when set, otherwise the listed items' own supply. */
   const capCopy =
     terms.uses !== undefined
-      ? t('creatorSale.reviewCap', { count: terms.uses })
-      : t('creatorSale.reviewNoCap', { count: review.supply })
+      ? tNode('creatorSale.reviewCap', { b: bold, count: terms.uses })
+      : tNode('creatorSale.reviewNoCap', { b: bold, count: review.supply })
 
   if (step === 'review') {
     return (
@@ -338,9 +332,28 @@ export function CreatorSaleModal({
             </S.Close>
           </S.Head>
 
+          {/* Three labelled rows sharing one column, so the discount, the start and the end line up as
+              the same kind of fact. Each end of the window carries how long until it: a date alone does
+              not answer "when does this actually happen", which is what a creator is checking here. */}
           <S.ReviewSummary>
-            <S.ReviewPct>{t('creatorSale.offPct', { pct })}</S.ReviewPct>
-            <S.ReviewWhen>{whenCopy}</S.ReviewWhen>
+            <S.ReviewWhenRow data-testid="creator-sale-review-discount">
+              <S.ReviewWhenLabel>{t('creatorSale.discount')}</S.ReviewWhenLabel>
+              <S.ReviewPct data-heat={heatFor(pct)} data-testid="creator-sale-review-pct">
+                {t('creatorSale.offPct', { pct })}
+              </S.ReviewPct>
+            </S.ReviewWhenRow>
+            <S.ReviewWhenRow data-testid="creator-sale-review-starts">
+              <S.ReviewWhenLabel>{t('creatorSale.reviewStarts')}</S.ReviewWhenLabel>
+              <S.ReviewWhenValue>
+                {terms.startsAtMs ? formatDateTime(terms.startsAtMs) : t('creatorSale.reviewStartsNow')}
+              </S.ReviewWhenValue>
+              {terms.startsAtMs ? <S.ReviewWhenLeft until={terms.startsAtMs} /> : null}
+            </S.ReviewWhenRow>
+            <S.ReviewWhenRow data-testid="creator-sale-review-ends">
+              <S.ReviewWhenLabel>{t('creatorSale.reviewEnds')}</S.ReviewWhenLabel>
+              <S.ReviewWhenValue>{formatDateTime(terms.endsAtMs)}</S.ReviewWhenValue>
+              <S.ReviewWhenLeft until={terms.endsAtMs} />
+            </S.ReviewWhenRow>
           </S.ReviewSummary>
 
           <S.ReviewGroup>
@@ -351,9 +364,12 @@ export function CreatorSaleModal({
                   <S.ReviewThumb src={i.thumbnail} alt="" />
                   <S.ReviewName data-testid="review-name">{i.name}</S.ReviewName>
                   <S.ReviewPrices>
-                    <S.ReviewWas data-testid="review-was">{formatCredits(i.priceCredits as number)}</S.ReviewWas>
-                    <S.ReviewNow data-testid="review-now">
-                      <CurrencyIcon size={13} />
+                    <S.ReviewWas data-testid="review-was">
+                      <CurrencyIcon size={12} />
+                      {formatCredits(i.priceCredits as number)}
+                    </S.ReviewWas>
+                    <S.ReviewNow data-heat={heatFor(pct)} data-testid="review-now">
+                      <CurrencyIcon size={14} />
                       {formatCredits(salePriceOf(i.priceCredits as number, pct))}
                     </S.ReviewNow>
                   </S.ReviewPrices>
@@ -384,10 +400,20 @@ export function CreatorSaleModal({
           <S.ReviewFoot>{capCopy}</S.ReviewFoot>
 
           {status ? <S.Status>{status}</S.Status> : null}
-          <ErrorNotice message={error} />
+          <ErrorNotice message={error} testId="creator-sale-error" />
 
           <S.Actions>
-            <S.OutlineBtn onClick={() => setStep('form')} disabled={busy} data-testid="creator-sale-back">
+            <S.OutlineBtn
+              onClick={() => {
+                // A rejected signature left its notice on screen when the creator came back to change
+                // something — the message then belonged to an attempt that no longer exists.
+                setError(null)
+                setStatus(null)
+                setStep('form')
+              }}
+              disabled={busy}
+              data-testid="creator-sale-back"
+            >
               {t('creatorSale.back')}
             </S.OutlineBtn>
             <S.PurpleBtn data-testid="creator-sale-submit" onClick={() => void submit()} disabled={busy}>
@@ -601,26 +627,39 @@ export function CreatorSaleModal({
 
         <S.Field>
           <S.CapRow>
-            <input type="checkbox" checked={capOn} disabled={busy} onChange={e => setCapOn(e.target.checked)} />
-            <span>{t('creatorSale.cap')}</span>
-          </S.CapRow>
-          {capOn ? (
-            <S.InlineInput>
+            <S.CapLabel>
               <input
-                type="number"
-                min="1"
-                step="1"
-                inputMode="numeric"
-                value={cap}
+                type="checkbox"
+                checked={capOn}
                 disabled={busy}
-                aria-label={t('creatorSale.capLabel')}
-                onChange={e => {
-                  setTouched(true)
-                  setCap(e.target.value)
-                }}
+                data-testid="creator-sale-cap-toggle"
+                onChange={e => setCapOn(e.target.checked)}
               />
-            </S.InlineInput>
-          ) : null}
+              <span>{t('creatorSale.cap')}</span>
+            </S.CapLabel>
+            {/* Opens in the row rather than below it: a two-character number does not need a field the
+                width of the modal, and adding a row resized the card. */}
+            <S.Reveal data-open={capOn || undefined} data-testid="creator-sale-cap">
+              <S.MorphCell data-off={!capOn || undefined} aria-hidden={!capOn || undefined}>
+                <S.InlineInput>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={cap}
+                    disabled={busy}
+                    tabIndex={capOn ? undefined : -1}
+                    aria-label={t('creatorSale.capLabel')}
+                    onChange={e => {
+                      setTouched(true)
+                      setCap(e.target.value)
+                    }}
+                  />
+                </S.InlineInput>
+              </S.MorphCell>
+            </S.Reveal>
+          </S.CapRow>
         </S.Field>
 
         <S.Preview data-testid="creator-sale-preview">
@@ -630,7 +669,7 @@ export function CreatorSaleModal({
         </S.Preview>
 
         {status ? <S.Status>{status}</S.Status> : null}
-        <ErrorNotice message={error ?? inlineProblem} />
+        <ErrorNotice message={error ?? inlineProblem} testId="creator-sale-error" />
 
         <S.PrimaryBtn
           data-testid="creator-sale-continue"

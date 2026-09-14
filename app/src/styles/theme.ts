@@ -99,16 +99,21 @@ export const rarities = {
  * Discount "heat" — how hard a creator is cutting the price, along the brand's own amber→red→magenta
  * ramp (the `flare` gradient's stops, used as solid steps).
  *
- * `tint` is the fill and `edge` the saturated ring that marks the chosen one. Ink stays Soft Black on
- * every step rather than flipping to white on a saturated fill: the saturated stops (amber especially)
- * cannot carry white text at 13px and stay above the AA ratio, and a scale that only reads at one end
- * is not a scale.
+ * Two values per step, and only two, so a discount is ONE colour wherever it appears: `ink` draws the
+ * line and the lettering — the chip's ring and label, the review's badge, the discounted price itself —
+ * and `tint` is a wash of the same hue behind it. Having a bright ring and a separate darker text colour
+ * made the price on the review look like a different discount from the chip that set it.
+ *
+ * Each ink is its hue darkened until it clears 4.5:1 BOTH on white (the review's rows) and on its own
+ * tint (the chip). The bright stops cannot do that as text — amber on white lands near 1.7:1.
  */
 export const saleHeat = {
-  low: { tint: '#fff3e0', edge: '#ffbc5b' },
-  mid: { tint: '#ffe7d8', edge: '#ff7439' },
-  high: { tint: '#ffe0e6', edge: '#ff2d55' },
-  max: { tint: '#f9e0fb', edge: '#c640cd' }
+  low: { tint: '#fff3e0', ink: '#8a5a00' },
+  mid: { tint: '#ffe7d8', ink: '#b4400f' },
+  high: { tint: '#ffdbe2', ink: '#c4103a' },
+  // The deepest cut ends on the Shop's own sale red rather than a fourth hue: red is what the SALE badge
+  // already means to a shopper, so ending the ramp anywhere else breaks the link.
+  max: { tint: '#ffc9d4', ink: '#a80f33' }
 } as const
 
 export type SaleHeat = keyof typeof saleHeat

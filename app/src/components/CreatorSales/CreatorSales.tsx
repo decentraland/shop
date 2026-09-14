@@ -75,7 +75,7 @@ export function CreatorSales({ sales, session }: { sales: CreatorSale[]; session
               <S.Meta>
                 {status === 'active' ? (
                   <>
-                    {t('creatorSale.endsIn')} <SaleCountdown endsAt={sale.checks.expiration} />
+                    {t('creatorSale.endsIn')} <SaleCountdown until={sale.checks.expiration} />
                   </>
                 ) : status === 'scheduled' ? (
                   t('creatorSale.startsOn', { date: formatDateTime(sale.checks.effective) })

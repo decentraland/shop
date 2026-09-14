@@ -3,36 +3,37 @@ import { saleTimeLeft, formatCountdown, countdownTickMs } from '~/lib/sale'
 import { Icon } from '~/components/Icon'
 import * as S from './SaleCountdown.styles'
 
-// Live "ends in 2d 4h" label for a flash sale. Repaints on a self-adjusting timer — once a minute
-// while the end is far off, once a second in the final hour (see countdownTickMs) — so a whole grid
-// of these doesn't re-render every second. Renders nothing for an open-ended or already-finished sale.
+// Live "2d 4h" label counting down to a moment — a sale's end, or its start. Repaints on a self-adjusting
+// timer — once a minute while that moment is far off, once a second in the final hour (see countdownTickMs)
+// — so a whole grid of these doesn't re-render every second. Renders nothing once the moment has passed, or
+// when there is no moment to count to.
 export function SaleCountdown({
-  endsAt,
+  until,
   className,
   testId,
   iconSize = 13
 }: {
-  endsAt?: number
+  until?: number
   className?: string
   testId?: string
   iconSize?: number
 }) {
-  const [left, setLeft] = useState(() => saleTimeLeft(endsAt))
+  const [left, setLeft] = useState(() => saleTimeLeft(until))
 
   useEffect(() => {
-    setLeft(saleTimeLeft(endsAt))
-    if (endsAt == null) return
+    setLeft(saleTimeLeft(until))
+    if (until == null) return
     let timer: ReturnType<typeof setTimeout>
     const tick = () => {
-      const remaining = saleTimeLeft(endsAt)
+      const remaining = saleTimeLeft(until)
       setLeft(remaining)
       const next = countdownTickMs(remaining)
       if (next > 0) timer = setTimeout(tick, next)
     }
-    const first = countdownTickMs(saleTimeLeft(endsAt))
+    const first = countdownTickMs(saleTimeLeft(until))
     if (first > 0) timer = setTimeout(tick, first)
     return () => clearTimeout(timer)
-  }, [endsAt])
+  }, [until])
 
   const label = formatCountdown(left)
   if (!label) return null
