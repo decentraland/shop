@@ -96,7 +96,21 @@ export enum FeatureFlag {
    * Registering leaves Polygon — the credit is spent there and the mint happens on Ethereum behind a bridge
    * — so it carries failure modes no other purchase has and needs a switch of its own.
    */
-  SHOP_NAMES = 'shop-names'
+  SHOP_NAMES = 'shop-names',
+
+  /**
+   * Whether the Shop shows the seasonal EVENT surfaces — the Contentful-driven banner and the event tab
+   * that pins the grid to the event's collections.
+   *
+   * The event's existence, name, artwork and collections all live in the CMS, so this flag is not how an
+   * event is started or ended — unpublishing the entry does that, with no deploy. It is the kill switch for
+   * the CODE: the one way to take the surfaces down from our side if the CMS read, the tag lookup or the
+   * filtered grid misbehaves, without waiting on whoever owns the Contentful space.
+   *
+   * Fails closed like every other accessor here, and there it matches the product default: no flag, no
+   * event.
+   */
+  SHOP_CAMPAIGN = 'shop-campaign'
 }
 
 /** The application whose flag file carries the flags above. */

@@ -36,6 +36,11 @@ vi.mock('~/components/OutfitsRow', () => ({ OutfitsRow: () => null }))
 vi.mock('~/components/TopCreators', () => ({ TopCreators: () => null }))
 vi.mock('~/components/FollowedCreatorsRow', () => ({ FollowedCreatorsRow: () => null }))
 
+// The campaign takeover of the hero. Stubbed so these specs are about what the PAGE does with an answer;
+// how that answer is derived from the CMS is `useCampaignHero`'s own spec.
+const { useCampaignHero } = vi.hoisted(() => ({ useCampaignHero: vi.fn(() => null) }))
+vi.mock('~/hooks/useCampaignHero', () => ({ useCampaignHero }))
+
 // AssetCard stays REAL — the credit price it renders is one of the things under test, and a stub card would
 // make the placeholder-to-card counts meaningless too. These are the seams it reaches through that do not
 // resolve (or do not matter) here.
@@ -110,6 +115,7 @@ async function lastTrendingCall() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useCampaignHero.mockReturnValue(null)
   useSecondarySales.mockReturnValue(false)
   fetchTrendingItems.mockResolvedValue([])
   fetchShopItems.mockResolvedValue({ items: [], total: 0 })
@@ -295,5 +301,72 @@ describe('the promo tiles', () => {
 
     expect(wearables).toHaveAttribute('href', '/items?category=wearable')
     expect(emotes).toHaveAttribute('href', '/items?category=emote')
+  })
+})
+
+/**
+ * The hero is the Shop's own art, headline and credits CTA — until a campaign takes it over.
+ *
+ * The takeover reuses this markup rather than stacking a second banner above it, so what these specs
+ * guard is the swap: every part moves together, and the default comes back the moment the campaign is
+ * gone. That last property is what lets marketing end an event by unpublishing an entry, with no deploy.
+ */
+describe('the home hero', () => {
+  const campaignHero = {
+    title: 'Halloween is here',
+    desktopImage: 'https://cms-images.decentraland.org/wide.png',
+    mobileImage: 'https://cms-images.decentraland.org/square.png',
+    cta: { label: 'Shop the drop', href: 'https://decentraland.org/shop/event' },
+    bannerId: 'banner-1',
+    campaignName: 'Halloween 2026'
+  }
+
+  describe('when no campaign is running', () => {
+    it("should show the Shop's own headline and credits CTA", () => {
+      renderOverview()
+
+      expect(screen.getByTestId('hero-title').textContent).toBe('A New Way to Shop')
+      expect(screen.getByTestId('hero-credits-cta')).toBeInTheDocument()
+      expect(screen.queryByTestId('hero-campaign-cta')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('when a campaign takes the hero over', () => {
+    beforeEach(() => {
+      useCampaignHero.mockReturnValue(campaignHero as never)
+    })
+
+    it('should show the campaign headline instead', () => {
+      renderOverview()
+
+      expect(screen.getByTestId('hero-title').textContent).toBe('Halloween is here')
+    })
+
+    it('should paint the campaign artwork at both sizes', () => {
+      const { container } = renderOverview()
+
+      expect(container.querySelector('picture img')).toHaveAttribute('src', campaignHero.desktopImage)
+      expect(container.querySelector('picture source')).toHaveAttribute('srcset', campaignHero.mobileImage)
+    })
+
+    it('should replace the credits CTA with the campaign one', () => {
+      renderOverview()
+
+      const cta = screen.getByTestId('hero-campaign-cta')
+      expect(cta).toHaveAttribute('href', campaignHero.cta.href)
+      expect(cta.textContent).toBe('Shop the drop')
+      expect(screen.queryByTestId('hero-credits-cta')).not.toBeInTheDocument()
+    })
+
+    it('should show no CTA at all when the campaign ships none', () => {
+      // The campaign owns the hero completely: an editor who switched the button off wants no button, not
+      // the Shop's standing one under their artwork.
+      useCampaignHero.mockReturnValue({ ...campaignHero, cta: null } as never)
+
+      renderOverview()
+
+      expect(screen.queryByTestId('hero-campaign-cta')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('hero-credits-cta')).not.toBeInTheDocument()
+    })
   })
 })

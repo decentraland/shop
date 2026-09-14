@@ -19,5 +19,9 @@
   "SEGMENT_WRITE_KEY": "Hip6yFNl1d8c82RMx0l5oWxesleuX6P6",
   "SENTRY_DSN": "https://734376fbe845d08ef24e2b2d0481b3f4@o4504361728212992.ingest.us.sentry.io/4511789233209344",
   "FEATURE_FLAGS_URL": "https://feature-flags.decentraland.zone",
+  "CONTENTFUL_URL": "https://cms-api.decentraland.org",
+  "CONTENTFUL_SPACE_ID": "ea2ybdmmn1kv",
+  "CONTENTFUL_ENVIRONMENT": "master",
+  "CONTENTFUL_ADMIN_ENTITY_ID": "7FJAHnPOiCEHMJhrZ3sRmG",
   "TREASURY_ADDRESS": "0x3EEdEceaFA4797D36819C1d9f8e3b0071285AD69"
 }
