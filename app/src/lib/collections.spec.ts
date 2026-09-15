@@ -9,6 +9,7 @@ import {
   fetchCreatorItems,
   fetchCreatorCollections,
   fetchCollectionSaleState,
+  fetchCreatorSaleState,
   sanitizeCollectionName
 } from '~/lib/collections'
 
@@ -697,5 +698,90 @@ describe("when resolving a collection's primary sale state", () => {
     )
     await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchCollectionSaleState 500')
     expect(cancel).toHaveBeenCalled()
+  })
+})
+
+describe("when fetching a creator's sale state in one pass", () => {
+  // Routed by URL: the shop feed and the catalogue are read together, so the order of the calls is not
+  // something a test should pin.
+  function routeFetch(handlers: Record<string, (url: URL) => unknown>) {
+    const fetchMock = vi.fn().mockImplementation(async (input: string) => {
+      const url = new URL(input)
+      const handler = handlers[url.pathname]
+      if (!handler) throw new Error(`unexpected fetch ${url.pathname}`)
+      return { ok: true, status: 200, json: async () => handler(url) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  const peggedRow = (contractAddress: string, itemId: string, priceCredits: number, tradeId: string) => ({
+    listingType: 'primary',
+    contractAddress,
+    itemId,
+    priceCredits,
+    tradeId,
+    tokenId: null
+  })
+
+  it('should scope both feeds to the creator and key the map by contract-itemId', async () => {
+    const fetchMock = routeFetch({
+      '/v3/catalog/shop': () => ({ data: [peggedRow('0xCOLL', '7', 30, 'trade-7')], total: 1 }),
+      '/v3/catalog/items': () => ({
+        data: [
+          rawItem({ contractAddress: '0xCOLL', itemId: '7', isOnSale: true, tradeId: 'trade-7', price: '1' }),
+          // On sale but absent from the shop feed: a MANA-denominated listing, priced live from manaWei.
+          rawItem({
+            id: 'item-2',
+            contractAddress: '0xother',
+            itemId: '1',
+            isOnSale: true,
+            tradeId: null,
+            price: '5000000000000000000',
+            priceCredits: 4
+          }),
+          rawItem({ id: 'item-3', contractAddress: '0xother', itemId: '2', isOnSale: false })
+        ],
+        total: 3
+      })
+    })
+
+    const map = await fetchCreatorSaleState('0xCreator')
+
+    const urls = fetchMock.mock.calls.map(call => new URL(call[0] as string))
+    expect(urls).toHaveLength(2)
+    for (const url of urls) expect(url.searchParams.get('creator')).toBe('0xcreator')
+    expect(urls.find(u => u.pathname === '/v3/catalog/shop')?.searchParams.get('listingType')).toBe('primary')
+    expect(map).toEqual({
+      '0xcoll-7': { isOnSale: true, priceCredits: 30, tradeId: 'trade-7' },
+      '0xother-1': { isOnSale: true, priceCredits: 4, manaWei: '5000000000000000000' }
+    })
+  })
+
+  it('should page both feeds to the end rather than trust the first page', async () => {
+    const shopRow = (i: number) => peggedRow('0xcoll', String(i), 1, `t${i}`)
+    const catRow = (i: number) =>
+      rawItem({ id: `item-${i}`, contractAddress: '0xcoll', itemId: String(i), isOnSale: true, tradeId: `t${i}` })
+    const pageOf = (url: URL, row: (i: number) => unknown) => {
+      const skip = Number(url.searchParams.get('skip'))
+      return skip === 0
+        ? { data: Array.from({ length: 200 }, (_, i) => row(i)), total: 201 }
+        : { data: [row(200)], total: 201 }
+    }
+    const fetchMock = routeFetch({
+      '/v3/catalog/shop': url => pageOf(url, shopRow),
+      '/v3/catalog/items': url => pageOf(url, catRow)
+    })
+
+    const map = await fetchCreatorSaleState('0xcreator')
+
+    expect(Object.keys(map)).toHaveLength(201)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('and a feed is down it should throw with the status', async () => {
+    mockFetchNotOk(503)
+
+    await expect(fetchCreatorSaleState('0xcreator')).rejects.toThrow(/503/)
   })
 })

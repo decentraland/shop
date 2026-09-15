@@ -569,8 +569,17 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         )
         return json(req, { data: rows, total: rows.length })
       }
+      // fetchCreatorSaleState reads the creator's PRIMARY listings in one pass. When a spec provides the
+      // narrower `collectionSaleState` fixture, that is what this read must see: it models what the shop
+      // feed knows about the creator's primaries, and a row present in the catalogue but absent from it is
+      // how a spec says "MANA-priced". Only the row source changes; every filter below still applies.
+      const saleStateRows = (F.collectionSaleState as { data: any[] } | undefined)?.data
+      const creatorSaleStateRead =
+        !ca && !itemId && u.searchParams.get('creator') && u.searchParams.get('listingType') === 'primary'
+      const baseRows =
+        creatorSaleStateRead && saleStateRows ? saleStateRows : ((F.shopListings as { data: any[] }).data ?? [])
       // Honor the server-side filters so filter/search/sort + item-detail specs are meaningful.
-      let items = [...((F.shopListings as { data: any[] }).data ?? [])]
+      let items = [...baseRows]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
@@ -821,6 +830,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Which collections carry a campaign's tag. Answered only while a campaign is published — an event
     // whose tag nobody has applied yet is the ordinary state, and the tab has to stay hidden for it.
     if (path === '/v1/addresses') return json(req, { ok: true, data: campaignFlag ? [fx.COLLECTION] : [] })
+    // Everything the address has in the builder, across its collections — the read My Creations makes
+    // (lib/builder → fetchPublishableItems). Served from the same rows as the per-collection route below,
+    // so one fixture describes the creator whichever route the app takes.
+    if (/^\/v1\/0x[0-9a-fA-F]{40}\/items$/.test(path)) return json(req, F.builderItems)
     // Per-collection endpoint, so honour the id in the path — answering every collection with the whole
     // item list made a multi-collection creator look like one collection repeated.
     if (/\/v1\/collections\/.+\/items/.test(path)) {

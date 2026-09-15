@@ -341,6 +341,33 @@ export async function fetchPeggedPrimaryPrices(
   return map
 }
 
+// The same map for EVERY collection a creator sells, keyed by `contract-itemId`. One paged read for the
+// whole catalogue instead of one per collection: My Creations used to fan this out per collection, which
+// put one heavy catalogue query on the server for each collection the creator had.
+export async function fetchCreatorPeggedPrimaryPrices(
+  creator: string
+): Promise<Record<string, { priceCredits: number; tradeId?: string }>> {
+  const map: Record<string, { priceCredits: number; tradeId?: string }> = {}
+  const PAGE = 200
+  for (let skip = 0; ; skip += PAGE) {
+    const { listings, total } = await fetchShopListingsRaw({
+      creator: creator.toLowerCase(),
+      first: PAGE,
+      skip,
+      listingType: 'primary'
+    })
+    for (const l of listings) {
+      if (l.listingType !== 'primary' || l.itemId == null) continue
+      map[`${l.contractAddress.toLowerCase()}-${l.itemId}`] = {
+        priceCredits: l.priceCredits,
+        ...(l.tradeId ? { tradeId: l.tradeId } : {})
+      }
+    }
+    if (listings.length < PAGE || (total > 0 && skip + listings.length >= total)) break
+  }
+  return map
+}
+
 // Per-TOKEN secondary sale state for a collection, from the v3 shop feed. Keyed by tokenId, carrying
 // the credit price + tradeId. The indexer's /v1/nfts `order` is a legacy on-chain (MANA) field and is
 // absent for a shop (USD-pegged, off-chain trade) resale, so an on-sale owned token has no credit price
