@@ -46,6 +46,7 @@ import { canPayGasItself } from '~/lib/wallet-kind'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
+import { useCampaignBadge } from '~/hooks/useCampaignBadge'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
@@ -131,6 +132,9 @@ export function ItemDetail() {
   // Sanitised once, here, because eight consumers below key their lookups off these three (see
   // `routeSegment` for what the in-world client's links do to them).
   const contractAddress = routeSegment(rawContractAddress)
+  // The running seasonal event, when this item's collection is in it. Read from the ROUTE's address rather
+  // than from the loaded item so the chip is right from the first paint, and does not appear late.
+  const eventBadge = useCampaignBadge(contractAddress)
   const routeItemId = routeSegment(rawItemId)
   const routeTokenId = routeSegment(rawTokenId)
   const isTokenRoute = !!routeTokenId
@@ -1346,6 +1350,16 @@ export function ItemDetail() {
                     chip would be redundant — it's kept only for the generic /item view. */}
                 {!isTokenRoute && current.issuedId ? (
                   <S.DetailChip data-testid="detail-issued">#{current.issuedId}</S.DetailChip>
+                ) : null}
+                {/* Part of the running seasonal event. First in this row rather than last: it is the only
+                    chip here that is timely, and the one a reader is most likely to want to follow. The
+                    label is the event's own name from the CMS — NOT its tag, which is an internal
+                    identifier the marketplace surfaces by mistake. */}
+                {eventBadge ? (
+                  <S.DetailChipLink to="/event" data-testid="detail-event" title={eventBadge}>
+                    <Icon name="star-rounded" size={18} />
+                    {eventBadge}
+                  </S.DetailChipLink>
                 ) : null}
                 {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
