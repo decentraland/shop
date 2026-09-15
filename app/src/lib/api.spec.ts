@@ -595,7 +595,8 @@ describe('when fetching the shop browse listings', () => {
       chainId: 80002,
       compareAtCredits: 10,
       saleEndsAt: 1_700_000_000,
-      saleUnitsLeft: 3
+      saleUnitsLeft: 3,
+      coupon: { id: 'c1', signature: '0xabc', proof: [], collections: ['0x1'] }
     }
 
     beforeEach(() => getIsFeatureEnabled.mockResolvedValue(false))
@@ -612,6 +613,16 @@ describe('when fetching the shop browse listings', () => {
       expect(items[0].saleUnitsLeft).toBeUndefined()
     })
 
+    it('should drop the coupon too, so the discount cannot settle behind the price on screen', async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [onSaleRow] }))
+
+      const { items } = await fetchListings()
+
+      // The other fields only decide what a price looks like. This one is what the checkout hands to
+      // `acceptWithCoupon` — kept, it would charge the sale price under a list-price label.
+      expect(items[0].coupon).toBeUndefined()
+    })
+
     it('should leave a listing that was never on sale exactly as it was', async () => {
       fetchMock.mockResolvedValueOnce(
         jsonOk({ total: 1, data: [{ ...onSaleRow, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }] })
@@ -621,6 +632,7 @@ describe('when fetching the shop browse listings', () => {
 
       expect(items[0].priceCredits).toBe(7)
       expect(items[0].compareAtCredits).toBeUndefined()
+      expect(items[0].coupon).toBeUndefined()
     })
   })
 

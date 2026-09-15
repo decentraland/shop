@@ -490,8 +490,19 @@ async function primeCreatorSales(): Promise<void> {
  * transaction all see a listing that simply is not on sale.
  */
 function withoutSale(l: ShopListingRaw): ShopListingRaw {
-  if (l.compareAtCredits == null) return { ...l, saleUnitsLeft: null }
-  return { ...l, priceCredits: l.compareAtCredits, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }
+  // `coupon` goes with the rest, and it is the half that matters most. The other fields only decide what a
+  // price LOOKS like; the coupon is what the checkout hands to `acceptWithCoupon`. Leaving it behind would
+  // switch the discount off everywhere a buyer can see it and still apply it to the trade they sign —
+  // every surface quoting the list price while the sale price is what settles.
+  if (l.compareAtCredits == null) return { ...l, saleUnitsLeft: null, coupon: null }
+  return {
+    ...l,
+    priceCredits: l.compareAtCredits,
+    compareAtCredits: null,
+    saleEndsAt: null,
+    saleUnitsLeft: null,
+    coupon: null
+  }
 }
 
 function shopListingToItem(raw: ShopListingRaw): CatalogItem {
