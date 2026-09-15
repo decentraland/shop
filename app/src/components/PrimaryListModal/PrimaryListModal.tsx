@@ -369,7 +369,7 @@ export function PrimaryListModal({
 
         <S.PrimaryBtn
           onClick={() => void publish()}
-          disabled={busy || unchanged || enabled === null || !priceValid}
+          disabled={busy || unchanged || cancelFailed === 'pending' || enabled === null || !priceValid}
           data-testid="list-submit"
         >
           {cta}

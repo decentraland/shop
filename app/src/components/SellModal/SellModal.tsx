@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Network } from '@dcl/schemas'
@@ -88,6 +88,7 @@ export function SellModal({
   const [listedCredits, setListedCredits] = useState<number | null>(null)
   // 'form' = the price/expiration form; 'authorize' = the first-time approval STEP (self-custody only).
   const [step, setStep] = useState<'form' | 'authorize'>('form')
+  const afterAuthorize = useRef<{ payGas?: boolean }>({})
   // Edit-price progress. `cancelDone` survives a failed publish so a retry skips straight to re-listing
   // instead of trying to take down a listing that is already gone.
   const [phase, setPhase] = useState<ListingEditPhase>('idle')
@@ -133,6 +134,8 @@ export function SellModal({
         const authorized = await getAuthorizationStatus(auth, session.address)
         setBusy(false)
         if (!authorized) {
+          // Remembered so a paid retry of the cancel survives the detour through the approval step.
+          afterAuthorize.current = opts
           setStep('authorize')
           return
         }
@@ -283,7 +286,7 @@ export function SellModal({
         reason={t('authorizeStep.sellReason', { name: asset.name })}
         onAuthorized={() => {
           setStep('form')
-          void list()
+          void list(afterAuthorize.current)
         }}
         onCancel={() => setStep('form')}
         onClose={onClose}
@@ -416,7 +419,7 @@ export function SellModal({
 
         <S.PrimaryBtn
           onClick={() => void handleSubmit()}
-          disabled={busy || unchanged || !priceValid || !dateValid}
+          disabled={busy || unchanged || cancelFailed === 'pending' || !priceValid || !dateValid}
           data-testid="list-submit"
         >
           {edit

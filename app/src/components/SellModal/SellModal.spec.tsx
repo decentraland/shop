@@ -207,6 +207,28 @@ describe('SellModal edit price', () => {
     })
   })
 
+  describe('when the fee-less removal is still pending', () => {
+    it('should keep the fee-less submit closed and keep the paid retry through the approval step', async () => {
+      const cancelCurrent = vi.fn<ListingEdit['cancelCurrent']>().mockResolvedValue('relay-pending')
+      renderModal('injected', { canPayGas: true, cancelCurrent })
+      getAuthorizationStatus.mockResolvedValue(true)
+
+      await userEvent.click(screen.getByRole('button', { name: /update price/i }))
+      await screen.findByTestId('edit-cancel-relay-failed')
+      // Another fee-less attempt would race the one that may still land.
+      expect(screen.getByTestId('list-submit')).toBeDisabled()
+
+      // The paid retry detours through the approval step and must come out the other side still paid.
+      getAuthorizationStatus.mockResolvedValue(false)
+      cancelCurrent.mockResolvedValue('ok')
+      await userEvent.click(screen.getByRole('button', { name: /pay the fee/i }))
+      await userEvent.click(await screen.findByTestId('authorize-step-action'))
+
+      await waitFor(() => expect(createUsdPeggedListing).toHaveBeenCalledTimes(1))
+      expect(cancelCurrent).toHaveBeenLastCalledWith(expect.objectContaining({ payGas: true }))
+    })
+  })
+
   describe('when the new price fails to publish after the listing was taken down', () => {
     it('should retry only the publish half', async () => {
       const cancelCurrent = vi.fn(async () => 'ok' as const)

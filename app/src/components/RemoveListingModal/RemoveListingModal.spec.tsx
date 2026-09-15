@@ -37,6 +37,18 @@ describe('RemoveListingModal', () => {
     })
   })
 
+  describe('when the fee-less removal is still pending', () => {
+    it('should keep the fee-less submit closed and offer only the paid path', async () => {
+      renderModal({ cancel: vi.fn().mockResolvedValue('relay-pending') })
+
+      await userEvent.click(screen.getByTestId('remove-confirm'))
+
+      await screen.findByTestId('cancel-gasless-failed')
+      expect(screen.getByTestId('remove-confirm')).toBeDisabled()
+      expect(screen.getByTestId('cancel-pay-gas')).toBeEnabled()
+    })
+  })
+
   describe('when it fails for a managed user', () => {
     it('should show the generic error inside the dialog, never wallet wording', async () => {
       const { onClose } = renderModal({
