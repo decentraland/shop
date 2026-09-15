@@ -18,7 +18,7 @@ import {
   fetchOwnedItemCount,
   fetchTokenById,
   fetchTrade,
-  TradeNotFoundError,
+  fetchShopListingForItem,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
@@ -966,14 +966,22 @@ export function ItemDetail() {
       mode: opts.payGas ? 'direct' : 'gasless-only',
       watch: {
         // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
-        // one). Only THIS trade disappearing (404) counts: another live listing for the same item — a resale,
-        // or the primary next to a resale — says nothing about this one, and a failed read is not evidence.
+        // one). The trade id is no evidence either way: the server re-signs a still-live listing under a NEW
+        // id when availability changes, so a 404 may be a successor, not a cancel. What is stable is this
+        // seller having no live listing on THIS asset — the token's own order for a resale, the item's
+        // primary shop listing for a mint. A successor keeps that alive; an unrelated resale of the same
+        // item never touches it; a failed read is not evidence.
         isCancelled: async () => {
           try {
-            await fetchTrade(manageTradeId)
+            if (manageAsSecondary) {
+              if (!current.tokenId) return false
+              const token = await fetchOwnedToken(session.address, current.contractAddress, current.tokenId)
+              return token !== null && !token.isOnSale
+            }
+            if (!current.itemId) return false
+            return (await fetchShopListingForItem(current.contractAddress, current.itemId)) === null
+          } catch {
             return false
-          } catch (e) {
-            return e instanceof TradeNotFoundError
           }
         },
         onWaiting: opts.onWaiting
@@ -1929,7 +1937,7 @@ export function ItemDetail() {
             setJustListedCredits(credits)
             // The new trade is what Remove / Edit act on until the feed catches up; without it the page would
             // still point at the retired one.
-            if (tradeId) setCurrent(prev => ({ ...prev, tradeId }))
+            setCurrent(prev => ({ ...prev, tradeId }))
           }}
           onClose={closeManageModal}
         />

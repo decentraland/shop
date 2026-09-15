@@ -81,7 +81,7 @@ beforeEach(() => {
   isMarketplaceMinter.mockResolvedValue(true)
   createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'trade-1' })
   ensureMinter.mockResolvedValue(undefined)
-  postTrade.mockResolvedValue(undefined)
+  postTrade.mockResolvedValue({ id: 'trade-created' })
 })
 
 describe('PrimaryListModal', () => {

@@ -59,7 +59,7 @@ export function SellModal({
   // Fired with the whole-credit price (and the new listing's tradeId) the moment the listing is published
   // — lets the PDP show the new price immediately and optimistically patch its money/manage caches (the
   // tradeId lets the optimistic on-sale state also carry a working "remove" target). Fixes the stale-price bug.
-  onListed?: (credits: number, tradeId?: string) => void
+  onListed?: (credits: number, tradeId: string) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -206,9 +206,7 @@ export function SellModal({
       // The persisted trade carries the new tradeId — hand it to onListed so the PDP's optimistic on-sale
       // state also gets a working "remove" target (avoids a no-op remove right after listing).
       // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
-      const created = (await (edit
-        ? postListingWithRetry(trade, session.identity)
-        : postTrade(trade, session.identity))) as { id?: string } | undefined
+      const created = await (edit ? postListingWithRetry(trade, session.identity) : postTrade(trade, session.identity))
 
       setListedCredits(priceValue) // already whole credits
       track('Shop Listed Item', {
@@ -222,7 +220,7 @@ export function SellModal({
       toast.success(t(edit ? 'listingEdit.toastUpdated' : 'sellModal.toastOnSale', { name: asset.name }))
       void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
       // Let the PDP show the new price at once and optimistically patch its own money/manage caches.
-      onListed?.(priceValue, created?.id)
+      onListed?.(priceValue, created.id)
     } catch (e) {
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })

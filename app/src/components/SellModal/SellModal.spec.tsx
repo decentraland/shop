@@ -89,7 +89,7 @@ beforeEach(() => {
   setAuthorization.mockResolvedValue(undefined)
   createUsdPeggedListing.mockResolvedValue({ id: 'trade-1' })
   ensureApproval.mockResolvedValue(undefined)
-  postTrade.mockResolvedValue(undefined)
+  postTrade.mockResolvedValue({ id: 'trade-created' })
 })
 
 describe('SellModal authorization step', () => {
@@ -156,7 +156,7 @@ describe('SellModal edit price', () => {
       expect(screen.getByRole('dialog', { name: 'Edit price' })).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: /update price/i }))
 
-      await waitFor(() => expect(onListed).toHaveBeenCalledWith(10, undefined))
+      await waitFor(() => expect(onListed).toHaveBeenCalledWith(10, 'trade-created'))
       expect(calls).toEqual(['cancel', 'list'])
       expect(cancelCurrent).toHaveBeenCalledWith(expect.objectContaining({ payGas: undefined }))
       expect(screen.getByText('Your price is updated')).toBeInTheDocument()

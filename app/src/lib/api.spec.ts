@@ -1302,6 +1302,11 @@ describe('when posting a signed trade', () => {
     expect(signer).toBe('dcl:marketplace')
     expect(url).toBe('https://market.test')
   })
+
+  it('should reject a response that carries no trade id instead of reporting success', async () => {
+    addTradeMock.mockResolvedValueOnce({} as never)
+    await expect(postTrade({} as never, { authChain: [] } as never)).rejects.toThrow(/without an id/)
+  })
 })
 
 describe('when fetching a single signed trade', () => {

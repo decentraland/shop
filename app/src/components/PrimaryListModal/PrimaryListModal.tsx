@@ -43,7 +43,7 @@ export function PrimaryListModal({
   // Fired the instant the primary listing goes live (mirrors SellModal.onListed). The PDP uses it to show
   // the just-listed price immediately instead of flashing "not for sale" while the feed's MV catches up,
   // and the new tradeId so an immediate Remove / Edit acts on the live listing, not the retired one.
-  onListed?: (credits: number, tradeId?: string) => void
+  onListed?: (credits: number, tradeId: string) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -154,9 +154,7 @@ export function PrimaryListModal({
 
       setStatus(t('primaryList.statusFinishing'))
       // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
-      const created = (await (edit
-        ? postListingWithRetry(trade, session.identity)
-        : postTrade(trade, session.identity))) as { id?: string } | undefined
+      const created = await (edit ? postListingWithRetry(trade, session.identity) : postTrade(trade, session.identity))
 
       setStatus(null)
       setListedCredits(value) // already whole credits
@@ -169,7 +167,7 @@ export function PrimaryListModal({
         is_primary: true
       })
       toast.success(t(edit ? 'listingEdit.toastUpdated' : 'primaryList.toastOnSale', { name: item.name }))
-      onListed?.(value, created?.id)
+      onListed?.(value, created.id)
       void queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       void queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
       // A freshly-published item must appear (and be buyable) in the browse/catalog grids, the homepage

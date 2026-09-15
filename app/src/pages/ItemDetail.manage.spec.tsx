@@ -64,17 +64,15 @@ vi.mock('~/lib/analytics', async importOriginal => ({
   track: vi.fn()
 }))
 
-const { fetchShopListingForItem, fetchTradeForItem, fetchTrade, TradeNotFound } = vi.hoisted(() => ({
+const { fetchShopListingForItem, fetchTradeForItem, fetchTrade } = vi.hoisted(() => ({
   fetchShopListingForItem: vi.fn(),
   fetchTradeForItem: vi.fn(),
-  fetchTrade: vi.fn(),
-  TradeNotFound: class TradeNotFoundError extends Error {}
+  fetchTrade: vi.fn()
 }))
 vi.mock('~/lib/api', () => ({
   fetchShopListingForItem,
   fetchTradeForItem,
   fetchTrade,
-  TradeNotFoundError: TradeNotFound,
   fetchItemResales: vi.fn().mockResolvedValue([]),
   fetchItemDescription: vi.fn().mockResolvedValue(''),
   fetchOwnedToken: vi.fn().mockResolvedValue(null),
@@ -212,22 +210,22 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
 })
 
 describe('ItemDetail — confirming the take-down landed', () => {
-  it('should count only this exact listing being gone, never another live listing for the same item', async () => {
+  it("should count only this seller's primary listing being gone, never a successor or another live listing", async () => {
     renderPdp(newClient())
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
     await confirmRemove()
     await waitFor(() => expect(cancelListing).toHaveBeenCalledTimes(1))
     const { watch } = cancelListing.mock.calls[0][0] as { watch: { isCancelled: () => Promise<boolean> } }
 
-    // A resale of the same item is live and answers the item-level lookup — this listing is still up.
-    fetchTradeForItem.mockResolvedValue({ id: 'someone-elses-resale' })
-    fetchTrade.mockResolvedValue({ id: LIVE_TRADE, signer: CREATOR })
+    // The old id is gone but the item's primary listing lives on under a successor (a concurrent re-sign).
+    fetchTrade.mockRejectedValue(new Error('fetchTrade 404'))
+    fetchShopListingForItem.mockResolvedValue(listedItem({ id: 'successor-trade' }))
     expect(await watch.isCancelled()).toBe(false)
     // A read that fails is not evidence either.
-    fetchTrade.mockRejectedValue(new Error('network'))
+    fetchShopListingForItem.mockRejectedValue(new Error('network'))
     expect(await watch.isCancelled()).toBe(false)
-    // Only this trade disappearing is.
-    fetchTrade.mockRejectedValue(new TradeNotFound('fetchTrade 404'))
+    // Only the creator having NO primary listing on this item is.
+    fetchShopListingForItem.mockResolvedValue(null)
     expect(await watch.isCancelled()).toBe(true)
   })
 })

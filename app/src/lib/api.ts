@@ -1213,7 +1213,10 @@ export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
   // lib barrel, so keeping it dynamic keeps that weight out of the browse/initial bundle.
   const { TradeService } = await import('decentraland-dapps/dist/modules/trades/TradeService')
   const service = new TradeService(API_SIGNER, config.marketplaceServerUrl, () => identity)
-  return service.addTrade(trade)
+  const created = await service.addTrade(trade)
+  // Remove / Edit act on this id right after listing, so a response without one is a broken contract, not a success.
+  if (!created?.id) throw new Error('marketplace returned a listing without an id')
+  return created
 }
 
 // The signed trade behind a listing is not immutable: the server re-signs it as availability
