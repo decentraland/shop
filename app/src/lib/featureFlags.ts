@@ -61,6 +61,12 @@ export enum FeatureFlag {
    */
   SHOP_SUGGESTED_FOR_YOU = 'shop-suggested-for-you',
   /**
+   * The creator's own dashboard at /my-store: how each collection is selling, what needs attention, and the
+   * discounts running. Off means the page is unreachable and its nav entry is absent — nothing about
+   * selling changes, only whether the creator can see it in one place.
+   */
+  SHOP_MY_STORE = 'shop-my-store',
+  /**
    * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
    * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
    *
@@ -370,4 +376,9 @@ export async function getIsSecondarySalesEnabled(): Promise<boolean> {
 /** Whether creators can put their collections on sale from the Shop. Fails closed like every other accessor. */
 export async function getIsCreatorSalesEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/** Whether the creator's store dashboard is reachable. */
+export async function getIsMyStoreEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)
 }
