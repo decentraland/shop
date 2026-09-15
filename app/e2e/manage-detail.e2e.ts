@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByAria, clickByText, waitForText } from './helpers/dom'
+import { clickByAria, clickByText, clickWhenEnabled, waitForText } from './helpers/dom'
 import { buyTrade, ownedNftsOnSale, unifiedWithItem0Resale } from './fixtures'
 
 let app: App | undefined
@@ -50,5 +50,33 @@ describe('owner management on the item detail page', () => {
     const after = await page.evaluate(() => document.body.innerText)
     expect(/no longer for sale/i.test(after)).toBe(true)
     expect(/couldn.t remove the listing/i.test(after)).toBe(false)
+  })
+
+  it('edits the price from the modal: the current listing comes down and the new price goes up on submit', async () => {
+    app = await launchApp({
+      path: '/my-items',
+      fixtures: { ownedNfts: ownedNftsOnSale, trade: buyTrade, importable: { data: [] } }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat #42')
+    expect(await clickByAria(page, /galaxy hat #42/i)).toBe(true)
+    await waitForText(page, 'Edit price')
+
+    // Edit price opens the price modal straight away — nothing is taken down until the seller submits.
+    expect(await clickByText(page, 'button', /edit price/i)).toBe(true)
+    await waitForText(page, 'Set a new price for your item')
+    const modal = await page.$('[data-testid="modal"]')
+    expect(modal).not.toBeNull()
+
+    // Submit: fetchTrade(trade-2) → cancelListing through the mock wallet, then the new listing is
+    // signed and POSTed. The modal reports both steps and lands on the updated-price success view.
+    await page.$eval('[data-testid="price-input"]', el => (el as HTMLInputElement).select())
+    await page.type('[data-testid="price-input"]', '150')
+    await clickWhenEnabled(page, '[data-testid="list-submit"]', /update price/i)
+    await waitForText(page, 'Your price is updated')
+    const body = await page.evaluate(() => document.body.innerText)
+    expect(/at the new price/i.test(body)).toBe(true)
+    expect(/couldn.t/i.test(body)).toBe(false)
   })
 })

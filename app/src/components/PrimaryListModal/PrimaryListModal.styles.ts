@@ -388,3 +388,45 @@ export const PurpleBtn = styled.button`
     outline-offset: 2px;
   }
 `
+
+// The fee-less removal of the old listing was not confirmed: a calm notice with the seller's options.
+export const RelayNotice = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: ${theme.colors.successBg};
+  border: 1px solid ${theme.colors.line};
+
+  & p {
+    margin: 0;
+    font-family: ${theme.font.sans};
+    font-size: 13px;
+    line-height: 1.5;
+    color: ${theme.colors.text};
+  }
+`
+
+export const RelayActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+`
+
+export const LinkBtn = styled.button`
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  color: ${theme.colors.accent};
+  text-decoration: underline;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`

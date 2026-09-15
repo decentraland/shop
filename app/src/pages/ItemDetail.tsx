@@ -41,8 +41,8 @@ import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError, isRejection } from '~/lib/errors'
-import { isManagedWallet } from '~/lib/wallet'
 import { canPayGasItself } from '~/lib/wallet-kind'
+import type { ListingCancelResult, ListingEdit } from '~/components/ListingSteps'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
@@ -169,11 +169,6 @@ export function ItemDetail() {
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
-  // Managed (web2) wallets sign transparently (no popup); self-custody wallets (MetaMask,
-  // WalletConnect…) show a confirmation prompt. Used to word the Edit-price "cancel first" step
-  // appropriately: "confirm in your wallet" vs a plain "canceling…" progress state. Shared helper so
-  // the classification stays consistent with the buy/sell modals (lib/wallet).
-  const isManaged = isManagedWallet(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -726,9 +721,10 @@ export function ItemDetail() {
   // price the SellModal just submitted immediately, then let the authoritative ownedAsset refetch take
   // over (cleared below once it reports the matching listing). Bridges the MV lag on the Edit-price flow.
   const [justListedCredits, setJustListedCredits] = useState<number | null>(null)
-  // Which manage action is in flight, so ONLY its button shows a working label (Update price shouldn't
-  // read "Working…" while a Remove is running, and vice-versa). null = idle.
-  const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
+  // Which manage action is in flight, so ONLY its button shows a working label. null = idle.
+  const [managing, setManaging] = useState<'remove' | null>(null)
+  // The list modal is open to re-price the CURRENT listing (it takes the old one down before publishing).
+  const [editing, setEditing] = useState(false)
   const [manageError, setManageError] = useState<string | null>(null)
   // The relay did not get the cancellation confirmed. Holds the choice open — pay the gas now, or leave it —
   // instead of spending the seller's gas behind their back (see cancelListing's `mode`).
@@ -906,7 +902,7 @@ export function ItemDetail() {
    * owned token is a SECONDARY sale and so is gone while the flag is off.
    *
    * Taking an existing listing DOWN stays available either way — hiding the entrance must not trap the
-   * people already inside. But CHANGING THE PRICE is not an exit: `updatePrice` cancels and re-lists, so it
+   * people already inside. But CHANGING THE PRICE is not an exit: Edit price cancels and re-lists, so it
    * creates a brand-new secondary listing. Gating only the first listing let the flag be walked around by
    * anyone who already had one, which is why this now guards both entrances and leaves only Remove.
    *
@@ -959,58 +955,64 @@ export function ItemDetail() {
     ])
   }
 
-  // Take the current listing down (invalidates its signature on-chain). Mirrors My Assets' cancel flow.
-  // `silent` skips the "no longer for sale" toast when this is the first half of an Update price
-  // (cancel-then-relist — see updatePrice).
-  // `own` (default true): this call owns the 'remove' working state. Update price calls it with
-  // own:false — that flow owns the 'update' state so takeDown must not stomp it.
-  async function takeDown(opts: { silent?: boolean; own?: boolean; payGas?: boolean } = {}): Promise<boolean> {
-    const own = opts.own !== false
+  // Take the current listing down (invalidates its signature on-chain) and flip every cache that renders
+  // it. Throws on failure — the Remove button (takeDown) and the Edit-price modal (editListing) each turn
+  // that into their own on-screen state. `silent` skips the "no longer for sale" toast.
+  async function cancelCurrentListing(opts: {
+    silent?: boolean
+    payGas?: boolean
+    onWaiting?: (elapsedMs: number) => void
+  }): Promise<void> {
+    if (!session || !manageTradeId) throw new Error('No listing to take down')
+    const trade = await fetchTrade(manageTradeId)
+    await cancelListing({
+      trade,
+      signer: session.signer,
+      // Ask before spending their gas: 'gasless-only' reports back instead of opening a second wallet
+      // prompt on its own. `payGas` is the seller answering yes, from inside their own click — which is
+      // also what makes the wallet accept the network request the direct path needs.
+      mode: opts.payGas ? 'direct' : 'gasless-only',
+      watch: {
+        // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
+        // one). Asking the feed keeps "confirmed" and "what the seller will see" the same thing.
+        isCancelled: async () => {
+          if (!current.itemId) return false
+          const live = await fetchTradeForItem(current.contractAddress, current.itemId).catch(() => undefined)
+          return live !== undefined && live?.id !== manageTradeId
+        },
+        onWaiting: opts.onWaiting
+      }
+    })
+    if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
+    // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
+    // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
+    // invalidate→refetch alone would read back the STALE still-listed price (previously it only
+    // corrected on the next window focus). refreshManage then reconciles.
+    setJustListedCredits(null)
+    // Retire the trade so nothing can offer it back while the MV catches up: patchManageCaches below only
+    // reaches the TOKEN-scoped caches, and no-ops entirely without a tokenId — i.e. never on the /item
+    // route, where a creator's primary listing lives in this page's own item state instead.
+    markListingCancelled(qc, manageTradeId)
+    // …and drop it from that state, so the buyable-trade query stops short-circuiting on a dead id and can
+    // resolve whatever replaces it (the re-list half of an Edit price, say).
+    setCurrent(prev => (prev.tradeId === manageTradeId ? { ...prev, tradeId: undefined } : prev))
+    void refreshManage()
+    patchManageCaches(
+      qc,
+      { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+      { kind: 'removed' }
+    )
+  }
+
+  // The Remove button: owns the 'remove' working state and the manage-area error / relay notices.
+  async function takeDown(opts: { payGas?: boolean } = {}): Promise<boolean> {
     if (!session || !manageTradeId) return false
     setManageError(null)
     setGaslessCancelFailed(null)
     setCancelSlow(false)
-    if (own) setManaging('remove')
+    setManaging('remove')
     try {
-      const trade = await fetchTrade(manageTradeId)
-      await cancelListing({
-        trade,
-        signer: session.signer,
-        // Ask before spending their gas: 'gasless-only' reports back instead of opening a second wallet
-        // prompt on its own. `payGas` is the seller answering yes, from inside their own click — which is
-        // also what makes the wallet accept the network request the direct path needs.
-        mode: opts.payGas ? 'direct' : 'gasless-only',
-        watch: {
-          // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
-          // one). Asking the feed keeps "confirmed" and "what the seller will see" the same thing.
-          isCancelled: async () => {
-            if (!current.itemId) return false
-            const live = await fetchTradeForItem(current.contractAddress, current.itemId).catch(() => undefined)
-            return live !== undefined && live?.id !== manageTradeId
-          },
-          onWaiting: elapsed => setCancelSlow(elapsed > 20_000)
-        }
-      })
-      if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
-      // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
-      // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
-      // invalidate→refetch alone would read back the STALE still-listed price (previously it only
-      // corrected on the next window focus). Runs for the silent edit-price cancel too, so the old listing
-      // disappears immediately before the relist modal reopens. refreshManage then reconciles.
-      setJustListedCredits(null)
-      // Retire the trade so nothing can offer it back while the MV catches up: patchManageCaches below only
-      // reaches the TOKEN-scoped caches, and no-ops entirely without a tokenId — i.e. never on the /item
-      // route, where a creator's primary listing lives in this page's own item state instead.
-      markListingCancelled(qc, manageTradeId)
-      // …and drop it from that state, so the buyable-trade query stops short-circuiting on a dead id and can
-      // resolve whatever replaces it (the re-list half of an Edit price, say).
-      setCurrent(prev => (prev.tradeId === manageTradeId ? { ...prev, tradeId: undefined } : prev))
-      void refreshManage()
-      patchManageCaches(
-        qc,
-        { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
-        { kind: 'removed' }
-      )
+      await cancelCurrentListing({ payGas: opts.payGas, onWaiting: elapsed => setCancelSlow(elapsed > 20_000) })
       return true
     } catch (e) {
       const rejected = isRejection(e)
@@ -1027,40 +1029,46 @@ export function ItemDetail() {
       setManageError(rejected ? t('getCredits.errorCanceled') : friendlyError(e, t('myAssets.removeListingError')))
       return false
     } finally {
-      if (own) setManaging(null)
+      setManaging(null)
       setCancelSlow(false)
     }
   }
 
-  // `relist` suppresses the funnel-entry event: updatePrice() takes the old listing down and reopens this
-  // modal to price it again, which is an EDIT, not a new listing. Counting it would inflate the funnel's
-  // entry by one per price change and make the listing conversion rate look worse than it is.
-  function openListModal({ relist = false }: { relist?: boolean } = {}) {
+  // Edit price: the shop's listings are independent signed trades (unlike the classic marketplace's
+  // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
+  // price still fulfillable. The list modal runs both halves on submit — take the current listing down,
+  // then publish the new price — through this adapter, so the seller picks the price BEFORE anything
+  // happens. A relay that could not confirm the removal is reported, not thrown: the modal offers the
+  // seller their options instead of a bare error.
+  const editListing: ListingEdit = {
+    currentCredits: managePriceCredits || current.priceCredits || undefined,
+    canPayGas,
+    cancelCurrent: async ({ payGas, onWaiting }): Promise<ListingCancelResult> => {
+      try {
+        await cancelCurrentListing({ silent: true, payGas, onWaiting })
+        return 'ok'
+      } catch (e) {
+        if (e instanceof GaslessCancelFailedError) return e.definitive ? 'relay-reverted' : 'relay-pending'
+        throw e
+      }
+    }
+  }
+
+  // `edit` suppresses the funnel-entry event: re-pricing is an EDIT, not a new listing. Counting it would
+  // inflate the funnel's entry by one per price change and make the listing conversion rate look worse.
+  function openListModal({ edit = false }: { edit?: boolean } = {}) {
     // Funnel entry for a listing, PRIMARY or SECONDARY. The spec (§5.6) has always called for both; the
     // event was wired only to the secondary branch, so the primary flow — the one sellers actually use —
     // produced listings with no funnel entry at all and `Shop Started Listing` read zero.
-    if (!relist) {
+    if (!edit) {
       track('Shop Started Listing', {
         listing_type: manageAsSecondary ? 'secondary' : 'primary',
         item_id: current.itemId ?? current.tokenId ?? null
       })
     }
+    setEditing(edit)
     if (manageAsSecondary) setShowSell(true)
     else setShowPrimary(true)
-  }
-
-  // Update price: the shop's listings are independent signed trades (unlike the classic marketplace's
-  // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
-  // price still fulfillable. Take the current listing down first, then open the list modal to re-list
-  // at the new price — both halves are the shop's existing, tested flows.
-  async function updatePrice() {
-    setManaging('update')
-    try {
-      const ok = await takeDown({ silent: true, own: false })
-      if (ok) openListModal({ relist: true })
-    } finally {
-      setManaging(null)
-    }
   }
 
   // Modal closed (after a successful list or a cancel) → refresh the management state so the view
@@ -1068,6 +1076,7 @@ export function ItemDetail() {
   function closeManageModal() {
     setShowSell(false)
     setShowPrimary(false)
+    setEditing(false)
     void refreshManage()
   }
 
@@ -1690,17 +1699,12 @@ export function ItemDetail() {
                             entrance, not an exit. Remove stays below either way. */}
                             {canPutOnSale ? (
                               <S.SoftCta
-                                onClick={() => void updatePrice()}
+                                onClick={() => openListModal({ edit: true })}
                                 disabled={managing !== null || !canOpenListModal}
+                                data-testid="edit-price"
                               >
-                                {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
-                                <span>
-                                  {managing === 'update'
-                                    ? isManaged
-                                      ? t('itemDetail.updateCanceling')
-                                      : t('itemDetail.updateConfirmCancel')
-                                    : t('itemDetail.manageUpdatePrice')}
-                                </span>
+                                <Icon name="pen" className="ico" />
+                                <span>{t('itemDetail.manageUpdatePrice')}</span>
                               </S.SoftCta>
                             ) : null}
                             <S.ScrimCta onClick={() => void takeDown()} disabled={managing !== null}>
@@ -1757,12 +1761,6 @@ export function ItemDetail() {
                           >
                             {t('itemDetail.manageIssue')}
                           </S.LinkCta>
-                        ) : null}
-                        {managing === 'update' ? (
-                          // Only note kept in the manage view: explain the two-step nature while the
-                          // current listing is being taken down. The "manage it in My Assets" note was
-                          // removed — you're already managing right here (on both /item and /token).
-                          <S.ManageNote>{t('itemDetail.updateHelper')}</S.ManageNote>
                         ) : null}
                         {lowestResale != null ? (
                           <S.ManageResellers>
@@ -1950,6 +1948,7 @@ export function ItemDetail() {
           asset={ownedAsset}
           session={session}
           creator={current.creator}
+          edit={editing ? editListing : undefined}
           onListed={(credits, tradeId) => {
             // Show the new price immediately on THIS page (justListedCredits), and optimistically patch every
             // cache that renders this token's sale state (PDP owned-token → no re-entry flash, My Assets grid,
@@ -2001,6 +2000,7 @@ export function ItemDetail() {
         <PrimaryListModal
           item={publishableItem}
           session={session}
+          edit={editing ? editListing : undefined}
           onListed={credits => setJustListedCredits(credits)}
           onClose={closeManageModal}
         />
