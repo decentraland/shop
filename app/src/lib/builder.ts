@@ -2,6 +2,7 @@ import signedFetch from 'decentraland-crypto-fetch'
 import { Rarity } from '@dcl/schemas'
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 
 // builder-server client (READ-ONLY). Enumerates the creator's published collections and their
 // publishable items so the Shop can offer them for PRIMARY sale. Listing itself does NOT POST here
@@ -192,6 +193,38 @@ export async function fetchCreatorCollections(address: string, identity: AuthIde
     }))
 }
 
+/** One raw builder item → the Shop's publishable shape, supplied and priced from its collection. */
+async function toPublishableItem(raw: RawItem, collection: CreatorCollection): Promise<PublishableItem> {
+  const rarity = raw.rarity ?? 'common'
+  const total = Number(raw.total_supply ?? 0) || 0
+  let max: number
+  try {
+    max = Rarity.getMaxSupply(rarity as Rarity)
+  } catch {
+    max = 0
+  }
+  const contractAddress = (raw.contract_address ?? collection.contractAddress).toLowerCase()
+  const blockchainItemId = raw.blockchain_item_id ?? ''
+  return {
+    id: raw.id,
+    collectionId: collection.id,
+    collectionName: collection.name,
+    contractAddress,
+    blockchainItemId,
+    name: raw.name,
+    category: categoryOf(raw),
+    rarity,
+    thumbnail: await resolveThumbnail(raw, contractAddress, blockchainItemId),
+    type: raw.type ?? 'wearable',
+    isPublished: raw.is_published ?? collection.isPublished,
+    isApproved: raw.is_approved ?? collection.isApproved,
+    totalSupply: total,
+    maxSupply: max,
+    remainingSupply: toRemaining(total, max),
+    minters: collection.minters
+  }
+}
+
 /** The publishable items inside one collection (only those ready for a primary listing). */
 export async function fetchCollectionItems(
   collection: CreatorCollection,
@@ -199,39 +232,7 @@ export async function fetchCollectionItems(
 ): Promise<PublishableItem[]> {
   const url = `${BUILDER_V1()}/collections/${collection.id}/items`
   const payload = await getJson<Paginated<RawItem>>(url, identity)
-  const items = await Promise.all(
-    unwrap(payload).map(async raw => {
-      const rarity = raw.rarity ?? 'common'
-      const total = Number(raw.total_supply ?? 0) || 0
-      let max: number
-      try {
-        max = Rarity.getMaxSupply(rarity as Rarity)
-      } catch {
-        max = 0
-      }
-      const contractAddress = (raw.contract_address ?? collection.contractAddress).toLowerCase()
-      const blockchainItemId = raw.blockchain_item_id ?? ''
-      const item: PublishableItem = {
-        id: raw.id,
-        collectionId: collection.id,
-        collectionName: collection.name,
-        contractAddress,
-        blockchainItemId,
-        name: raw.name,
-        category: categoryOf(raw),
-        rarity,
-        thumbnail: await resolveThumbnail(raw, contractAddress, blockchainItemId),
-        type: raw.type ?? 'wearable',
-        isPublished: raw.is_published ?? collection.isPublished,
-        isApproved: raw.is_approved ?? collection.isApproved,
-        totalSupply: total,
-        maxSupply: max,
-        remainingSupply: toRemaining(total, max),
-        minters: collection.minters
-      }
-      return item
-    })
-  )
+  const items = await Promise.all(unwrap(payload).map(raw => toPublishableItem(raw, collection)))
   return items.filter(isPublishable)
 }
 
@@ -248,11 +249,20 @@ export function isPublishable(item: PublishableItem): boolean {
 }
 
 /**
- * All publishable items across the creator's published collections. Fail-soft per collection so one
- * bad response doesn't hide the rest. Signed as the creator (identity).
+ * Every item the address has in the builder, across ALL its collections, in one request. The server
+ * resolves the on-chain and Catalyst state for the whole set at once, where the per-collection route does
+ * that work once per collection — which is what made My Creations cost one round trip per collection.
  */
-export async function fetchPublishableItems(address: string, identity: AuthIdentity): Promise<PublishableItem[]> {
-  const collections = await fetchCreatorCollections(address, identity)
+async function fetchCreatorRawItems(address: string, identity: AuthIdentity): Promise<RawItem[]> {
+  const url = `${BUILDER_V1()}/${address.toLowerCase()}/items`
+  return unwrap(await getJson<Paginated<RawItem>>(url, identity))
+}
+
+/** The previous shape of the read: one request per collection, fail-soft so one bad collection cannot hide the rest. */
+async function fetchPublishableItemsPerCollection(
+  collections: CreatorCollection[],
+  identity: AuthIdentity
+): Promise<PublishableItem[]> {
   const perCollection = await Promise.all(
     collections.map(async c => {
       try {
@@ -263,4 +273,34 @@ export async function fetchPublishableItems(address: string, identity: AuthIdent
     })
   )
   return perCollection.flat()
+}
+
+/**
+ * All publishable items across the creator's published collections. Signed as the creator (identity).
+ *
+ * Two requests, started together: the collections (for names, contracts and minters) and the address-wide
+ * item list. Items whose collection is not published — drafts, third-party items — are dropped here, since
+ * the address feed carries everything the creator ever made. Should the address feed fail, the read falls
+ * back to the per-collection route so the page still loads, just the slow way; the failure is reported
+ * because it means the fast path is broken for everyone.
+ */
+export async function fetchPublishableItems(address: string, identity: AuthIdentity): Promise<PublishableItem[]> {
+  const [collections, rawItems] = await Promise.all([
+    fetchCreatorCollections(address, identity),
+    fetchCreatorRawItems(address, identity).catch((error: unknown) => {
+      captureError(error, { flow: 'my_creations', step: 'creator_items' })
+      return null
+    })
+  ])
+  if (collections.length === 0) return []
+  if (rawItems === null) return fetchPublishableItemsPerCollection(collections, identity)
+
+  const byId = new Map(collections.map(c => [c.id, c]))
+  const items = await Promise.all(
+    rawItems.flatMap(raw => {
+      const collection = raw.collection_id ? byId.get(raw.collection_id) : undefined
+      return collection ? [toPublishableItem(raw, collection)] : []
+    })
+  )
+  return items.filter(isPublishable)
 }
