@@ -669,6 +669,17 @@ export async function fetchUnifiedListingForItem(
   return pickItemListing(items)
 }
 
+// The creator's live PRIMARY listing for an item — a shop trade or a legacy MANA order alike — or null when
+// there is none. Asked of the UNIFIED feed on purpose: the shop-only feed omits legacy orders, and the take-down
+// watcher that uses this must not read a still-live legacy listing as "gone".
+export async function fetchPrimaryListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5, listingType: 'primary' })
+  return items.find(l => !l.tokenId) ?? null
+}
+
 /**
  * Which of an item's listings this page is about, when it has more than one.
  *
@@ -839,6 +850,7 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
   if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
   if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
+  if (filters.listingType) qs.set('listingType', filters.listingType)
   if (filters.search) qs.set('search', filters.search)
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
@@ -1277,7 +1289,10 @@ export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
   // lib barrel, so keeping it dynamic keeps that weight out of the browse/initial bundle.
   const { TradeService } = await import('decentraland-dapps/dist/modules/trades/TradeService')
   const service = new TradeService(API_SIGNER, config.marketplaceServerUrl, () => identity)
-  return service.addTrade(trade)
+  const created = await service.addTrade(trade)
+  // Remove / Edit act on this id right after listing, so a response without one is a broken contract, not a success.
+  if (!created?.id) throw new Error('marketplace returned a listing without an id')
+  return created
 }
 
 // The signed trade behind a listing is not immutable: the server re-signs it as availability

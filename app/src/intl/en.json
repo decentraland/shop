@@ -452,9 +452,6 @@
     "cancelLater": "Leave it for now",
     "cancelSlow": "Still confirming on the network. This can take a few minutes when Polygon is busy — you can keep this open.",
     "manageWorking": "Working…",
-    "updateConfirmCancel": "Confirm cancellation",
-    "updateCanceling": "Canceling current listing…",
-    "updateHelper": "Editing the price cancels your current listing first, then relists it at the new price.",
     "buyFromCreator": "Buy directly from creator",
     "lowestPrice": "Lowest Price:",
     "viewAllResellers": "View other resellers",
@@ -1296,5 +1293,24 @@
     "ending": "Ending…",
     "endedToast": "Your discount has ended.",
     "endError": "Couldn’t end the discount. Please try again."
+  },
+  "listingEdit": {
+    "title": "Edit price",
+    "subtitle": "Set a new price for your item. We’ll take down the current listing and publish it again at the new price.",
+    "submit": "Update price",
+    "confirmRemoval": "First, confirm the removal of your current price…",
+    "confirmNew": "Almost done! Confirm your new price…",
+    "stepRemoval": "Removing your current price…",
+    "stepNew": "Publishing your new price…",
+    "slow": "Still working on it. This can take a few minutes — you can keep this open.",
+    "cancelFailed": "We couldn't take down your current listing — please try again.",
+    "listFailedAfterCancel": "Your current listing was taken down, but the new price couldn't be published yet. Try again to put your item back on sale.",
+    "successHeader": "Your price is updated",
+    "successBody": "Your item is now on sale at the new price!",
+    "toastUpdated": "“{name}” is now on sale at the new price!"
+  },
+  "removeListing": {
+    "title": "Remove from sale?",
+    "body": "“{name}” will no longer be available in the Shop. You can put it on sale again anytime."
   }
 }
