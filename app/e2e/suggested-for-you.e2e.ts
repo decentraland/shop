@@ -1,6 +1,7 @@
+import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeAll } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { bodyText, clickByText, waitForText } from './helpers/dom'
 import { COLLECTION } from './fixtures'
@@ -20,6 +21,12 @@ import { COLLECTION } from './fixtures'
 // Screenshots are evidence for a human reading the run, not fixtures — they go to a temp dir like the
 // other visual specs, never into the repo.
 const SHOTS = process.env.E2E_SHOTS_DIR ?? join(tmpdir(), 'shop-suggested-e2e')
+
+// puppeteer will not create the directory it is asked to write into, so a fresh machine — CI, or any
+// checkout that has never run this spec — fails on the screenshot rather than on an assertion.
+beforeAll(() => {
+  mkdirSync(SHOTS, { recursive: true })
+})
 
 let app: App | undefined
 afterEach(async () => {
