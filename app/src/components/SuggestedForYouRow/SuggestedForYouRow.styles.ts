@@ -62,3 +62,18 @@ export const ReasonLink = styled(Link)`
     color: ${theme.colors.softWhite};
   }
 `
+
+/**
+ * The reserved height of the reason line, while there is no reason to put in it yet.
+ *
+ * It matches `Reason` exactly at both widths on purpose: the skeleton is there to stop the page moving
+ * when the rail arrives, and a placeholder card with no room for its explanation would move it by the
+ * height of this line instead — the same jump, one element lower.
+ */
+export const ReasonPlaceholder = styled.div`
+  height: 32px;
+
+  ${theme.media.maxWidth('mobile')} {
+    height: 30px;
+  }
+`

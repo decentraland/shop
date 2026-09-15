@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { AssetCard } from '~/components/AssetCard'
+import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { fetchCatalogByIds, type SuggestedItem } from '~/lib/api'
 import { track } from '~/lib/analytics'
@@ -13,6 +14,9 @@ import * as Row from '~/styles/row.styles'
 import * as S from './SuggestedForYouRow.styles'
 
 const RAIL_SIZE = 12
+
+// Enough to fill the widest viewport the rail is shown at; the track clips the rest.
+const SKELETON_COUNT = 6
 
 /**
  * Below this the rail is not worth the space it takes: a personalised row with two cards reads as a
@@ -187,13 +191,23 @@ export function SuggestedForYouRow() {
     return () => observer.disconnect()
   }, [visible, items, result, hasAddress, seedCount, fetchMs])
 
-  // Nothing at all until the answer is in and passes every condition — deliberately no skeleton.
-  // Most first-time visits end with this rail absent, so a placeholder rail would mean a title and
-  // five grey cards flashing in and then vanishing for the majority. The trade is a layout shift for
-  // the few who do get the rail against a flash for everyone who does not, and the flash is worse.
-  if (!visible) return null
+  // Placeholders only while a request is actually IN FLIGHT — which is to say only for someone who has
+  // the flag and something to personalise from. A visitor with neither never asked, so they never see a
+  // rail shimmer in and vanish; what the placeholders buy is that the page stops jumping when the answer
+  // lands for everyone who did ask.
+  //
+  // Still a trade rather than a free win: a caller who asks and is hidden anyway (the server had nothing
+  // personal, or returned too few rows) sees the placeholders collapse. `hidden_suggestions` already
+  // reports that case with its reason, so how often it happens will be a number rather than a guess.
+  //
+  // Note this is one tree, not an early return: SkeletonSettle has to be MOUNTED while loading to notice
+  // the edge when loading goes false, and an early return would mount it afterwards, when there is
+  // nothing left for it to fade.
+  if (!isLoading && !visible) return null
 
-  const showControls = pageCount > 1
+  // Never over the placeholders: the arrows are measured from a track that currently holds skeletons, and
+  // a click on one would report a `paged_suggestions` for a rail the reader cannot see yet.
+  const showControls = !isLoading && pageCount > 1
 
   const onClick = (item: SuggestedItem, rank: number, target: ClickTarget) => {
     track('clicked_suggestion', {
@@ -212,12 +226,23 @@ export function SuggestedForYouRow() {
     scrollToPage(target)
   }
 
+  const skeletonCells = Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+    <S.Cell key={i}>
+      <SkeletonCards count={1} settling={!isLoading} />
+      <S.ReasonPlaceholder aria-hidden />
+    </S.Cell>
+  ))
+
   return (
-    <Row.Root ref={railRef} data-testid="suggested-row">
+    <Row.Root ref={railRef} data-testid={isLoading ? 'suggested-row-skeleton' : 'suggested-row'}>
       <Row.Head>
         <Row.Title>{t('overview.suggested.title')}</Row.Title>
       </Row.Head>
       <S.Viewport>
+        {/* The placeholders' exit, crossfaded over the cards that replaced them (see SkeletonSettle). */}
+        <SkeletonSettle loading={isLoading}>
+          <S.Track>{skeletonCells}</S.Track>
+        </SkeletonSettle>
         {showControls ? (
           <Row.Arrow
             data-side="left"
@@ -230,21 +255,23 @@ export function SuggestedForYouRow() {
           </Row.Arrow>
         ) : null}
         <S.Track ref={trackRef} data-testid="suggested-row-track">
-          {items.map((item, i) => (
-            <S.Cell key={item.id} onClick={() => onClick(item, i, 'card')}>
-              <AssetCard item={item} source="suggested" position={i} />
-              <ReasonLine
-                item={item}
-                triggerNameById={triggerNameById}
-                // The line sits inside the cell's click area, so its own click has to stop there:
-                // otherwise every reason click would also be counted as interest in the card.
-                onReasonClick={event => {
-                  event.stopPropagation()
-                  onClick(item, i, 'reason')
-                }}
-              />
-            </S.Cell>
-          ))}
+          {isLoading && skeletonCells}
+          {!isLoading &&
+            items.map((item, i) => (
+              <S.Cell key={item.id} onClick={() => onClick(item, i, 'card')}>
+                <AssetCard item={item} source="suggested" position={i} />
+                <ReasonLine
+                  item={item}
+                  triggerNameById={triggerNameById}
+                  // The line sits inside the cell's click area, so its own click has to stop there:
+                  // otherwise every reason click would also be counted as interest in the card.
+                  onReasonClick={event => {
+                    event.stopPropagation()
+                    onClick(item, i, 'reason')
+                  }}
+                />
+              </S.Cell>
+            ))}
         </S.Track>
         {showControls ? (
           <Row.Arrow
