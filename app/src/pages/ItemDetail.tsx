@@ -636,14 +636,31 @@ export function ItemDetail() {
   // Scarcity, only while the sale is actually live: a count left over from a window that has closed would
   // read as pressure to buy at a price no longer on offer.
 
-  /** The offer's own scale: what has been claimed, over the most this listing can still give at that price. */
+  /**
+   * The OFFER's scale — both numbers from the coupon, which is the thing the bar is about.
+   *
+   * They have to share a scope. `used` counts the whole collection the coupon covers, while
+   * `saleUnitsLeft` is capped by THIS item's stock, so pairing them produced a figure true of neither: a
+   * coupon with 100 uses, 60 spent on a sibling, on an item with 3 copies left read "60 of 63 claimed" —
+   * this item looking nearly exhausted without having sold one.
+   */
   const offerStock = (() => {
-    if (!saleActive || current.saleUnitsLeft == null) return null
+    if (!saleActive) return null
     const claimed = current.coupon?.used ?? 0
-    const allowance = Number(current.coupon?.checks?.uses ?? 0)
-    const reachable = claimed + current.saleUnitsLeft
-    const total = allowance > 0 ? Math.min(allowance, reachable) : reachable
-    return total > 0 ? { claimed, total } : null
+    const total = Number(current.coupon?.checks?.uses ?? 0)
+    return total > 0 && claimed <= total ? { claimed, total } : null
+  })()
+
+  /**
+   * "Only 3 left at this price" — what the collection-wide bar cannot say.
+   *
+   * Only when this item runs out BEFORE the offer does; otherwise the bar's own remainder already is the
+   * answer and the line would repeat it.
+   */
+  const unitsLeft = (() => {
+    if (!saleActive || current.saleUnitsLeft == null) return null
+    const offerLeft = offerStock ? offerStock.total - offerStock.claimed : Infinity
+    return current.saleUnitsLeft < offerLeft ? current.saleUnitsLeft : null
   })()
   // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
   const cartItem: CatalogItem = useMemo(
@@ -1659,6 +1676,11 @@ export function ItemDetail() {
                        */}
                       {offerStock ? (
                         <OfferStock claimed={offerStock.claimed} total={offerStock.total} testId="detail-offer-stock" />
+                      ) : null}
+                      {unitsLeft != null ? (
+                        <S.UnitsLeft data-testid="detail-units-left">
+                          {t('assetCard.unitsLeftAtThisPrice', { count: unitsLeft })}
+                        </S.UnitsLeft>
                       ) : null}
                     </S.PriceBlock>
                   )}

@@ -28,12 +28,17 @@ export function SaleTimer({ until, className, testId }: { until?: number; classN
   const parts = countdownParts(left)
   if (!parts) return null
 
+  /*
+   * The most significant units that are actually running, largest first — never a leading zero. "0m 45s"
+   * in the final minute is when this chip matters most and reads worst; it collapses to "45s", the way the
+   * compact countdown on the cards already does.
+   */
   const units: string[] = []
   if (parts.days > 0) units.push(t('saleTimer.days', { n: parts.days }))
   if (parts.days > 0 || parts.hours > 0) units.push(t('saleTimer.hours', { n: parts.hours }))
-  units.push(
-    parts.days > 0 ? t('saleTimer.minutes', { n: parts.minutes }) : t('saleTimer.minutes', { n: parts.minutes })
-  )
+  if (parts.days > 0 || parts.hours > 0 || parts.minutes > 0) {
+    units.push(t('saleTimer.minutes', { n: parts.minutes }))
+  }
   if (parts.days === 0 && parts.hours === 0) units.push(t('saleTimer.seconds', { n: parts.seconds }))
 
   return (

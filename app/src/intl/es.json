@@ -1295,7 +1295,7 @@
     "blockedCta": "Ir a publicaciones",
     "putOnSale": "Iniciar descuento",
     "groupActive": "{pct}% de descuento",
-    "groupScheduled": "{pct}% · programado",
+    "groupScheduled": "{pct}% de descuento · programado",
     "offPct": "{pct}% de descuento",
     "statusActive": "Activa",
     "statusScheduled": "Programada",

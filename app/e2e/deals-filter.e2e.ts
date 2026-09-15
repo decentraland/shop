@@ -181,46 +181,71 @@ describe('the Deals filter on a phone', () => {
   })
 })
 
-/** The same on-sale row, plus however many units are left at the sale price. */
-const withUnitsLeft = (saleUnitsLeft: number) => ({
-  ...unifiedListingsOnSale,
-  data: [{ ...unifiedListingsOnSale.data[0], saleUnitsLeft }, ...unifiedListingsOnSale.data.slice(1)]
-})
+/**
+ * The same row under a coupon that has already been spent ELSEWHERE in its collection.
+ *
+ * `used` counts the whole collection; `saleUnitsLeft` is this listing's own ceiling. A fixture that leaves
+ * `used` at zero cannot tell the two apart, which is how a bar that mixed them went unnoticed.
+ */
+const withSharedCoupon = (used: number, uses: number, saleUnitsLeft: number) => {
+  const row = unifiedListingsOnSale.data[0] as Record<string, unknown>
+  return {
+    ...unifiedListingsOnSale,
+    data: [
+      {
+        ...row,
+        saleUnitsLeft,
+        coupon: { ...((row.coupon as Record<string, unknown>) ?? {}), used, checks: { uses } }
+      },
+      ...unifiedListingsOnSale.data.slice(1)
+    ]
+  }
+}
 
 describe('how much of a limited offer is left', () => {
-  describe('and only a handful remain', () => {
-    it('should scale the bar to what THIS listing can still give, not to the whole coupon', async () => {
+  describe('and the coupon has been spent on a sibling listing', () => {
+    it('should keep the bar on the OFFER and say separately how few are left HERE', async () => {
       app = await launchApp({
         path: `/item/${COLLECTION}/0`,
         creatorSales: true,
-        fixtures: { unifiedListings: withUnitsLeft(3) }
+        // 60 of the collection's 100 uses are gone, and this item has 3 copies left under the offer.
+        fixtures: { unifiedListings: withSharedCoupon(60, 100, 3) }
       })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
-      const text = await page.$eval('[data-testid="detail-offer-stock"]', (el: Element) =>
-        (el as HTMLElement).innerText.replace(/\n/g, ' ')
+      const bar = await page.$eval('[data-testid="detail-offer-stock"]', (el: Element) =>
+        (el as HTMLElement).innerText.replace(/\s+/g, ' ')
       )
-      // A coupon covers a whole collection, so its allowance can be far larger than this listing's stock.
-      // The ceiling is what is actually gettable here.
-      expect(text).toMatch(/of 3 claimed/i)
+      // Both numbers from the coupon. Pairing the collection-wide count with this listing's ceiling read
+      // "60 of 63 claimed" — an item looking nearly exhausted without having sold one of its own.
+      expect(bar).toMatch(/60 of 100 claimed/i)
+      expect(bar).not.toMatch(/of 63 claimed/i)
+
+      // And the thing the collection-wide bar cannot say.
+      const hint = await page.$eval('[data-testid="detail-units-left"]', el => el.textContent ?? '')
+      expect(hint).toMatch(/3/)
     })
   })
 
-  describe('and there are plenty', () => {
-    it('should still draw the scale, because a bar is a measure and not a scarcity claim', async () => {
+  describe('and the offer runs out before this item does', () => {
+    it('should say nothing about this item, because the bar already answers it', async () => {
       app = await launchApp({
         path: `/item/${COLLECTION}/0`,
         creatorSales: true,
-        fixtures: { unifiedListings: withUnitsLeft(40) }
+        // 4 uses left on the coupon, and this listing could give 40 — the OFFER is the binding constraint.
+        fixtures: { unifiedListings: withSharedCoupon(96, 100, 4) }
       })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
-      const text = await page.$eval('[data-testid="detail-offer-stock"]', (el: Element) =>
-        (el as HTMLElement).innerText.replace(/\n/g, ' ')
+      const bar = await page.$eval('[data-testid="detail-offer-stock"]', (el: Element) =>
+        (el as HTMLElement).innerText.replace(/\s+/g, ' ')
       )
-      expect(text).toMatch(/of 40 claimed/i)
+      expect(bar).toMatch(/96 of 100 claimed/i)
+      // The bar's own remainder IS the answer here, so repeating it in words would be the duplicate the
+      // line exists to avoid.
+      expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
     })
   })
 
@@ -231,6 +256,7 @@ describe('how much of a limited offer is left', () => {
 
       await waitForText(page, 'Galaxy Hat')
       expect(await page.$('[data-testid="detail-offer-stock"]')).toBeNull()
+      expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
     })
   })
 })
