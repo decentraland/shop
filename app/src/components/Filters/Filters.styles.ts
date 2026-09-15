@@ -399,11 +399,27 @@ export const StatusRadio = styled.input`
 `
 
 export const StatusLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: ${theme.font.sans};
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;
   color: ${theme.colors.gray4};
+`
+
+/**
+ * The currency a filter option is about, before its name.
+ *
+ * `1em` rather than a pixel size, and nudged onto the x-height: it reads as part of the label, not as an
+ * icon set beside it — the same treatment the pricing banner gives the mark inside its sentence.
+ */
+export const StatusMark = styled.img`
+  width: 1em;
+  height: 1em;
+  flex: none;
+  vertical-align: -0.12em;
 `
 
 // ---------------- Toggle rows (Deals, Smart) ----------------
