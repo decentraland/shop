@@ -695,7 +695,18 @@
     "promoOutfitsAria": "Encuentra tu look: explora los wearables",
     "promoOutfitsAlt": "Encuentra tu look",
     "emptyTitle": "Se avecinan nuevos lanzamientos",
-    "emptyBody": "No hay artículos a la venta en este momento; vuelve pronto."
+    "emptyBody": "No hay artículos a la venta en este momento; vuelve pronto.",
+    "suggested": {
+      "title": "Sugeridos para ti",
+      "reason": {
+        "coOwned": "Porque tienes {item}",
+        "creatorAffinity": "Más de un creador que coleccionas",
+        "favoriteSimilar": "Parecido a tus favoritos",
+        "equippedSimilar": "Combina con lo que llevas puesto",
+        "seedSimilar": "Parecido a lo que miraste",
+        "trending": "Tendencia"
+      }
+    }
   },
   "app": {
     "crash": {

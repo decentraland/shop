@@ -695,7 +695,18 @@
     "promoOutfitsAria": "Find your look — explore wearables",
     "promoOutfitsAlt": "Find your look",
     "emptyTitle": "New drops are on the way",
-    "emptyBody": "There are no items on sale right now — check back soon."
+    "emptyBody": "There are no items on sale right now — check back soon.",
+    "suggested": {
+      "title": "Suggested for you",
+      "reason": {
+        "coOwned": "Because you have {item}",
+        "creatorAffinity": "More from a creator you collect",
+        "favoriteSimilar": "Similar to your favorites",
+        "equippedSimilar": "Goes with what you're wearing",
+        "seedSimilar": "Similar to items you've looked at",
+        "trending": "Trending"
+      }
+    }
   },
   "app": {
     "crash": {
