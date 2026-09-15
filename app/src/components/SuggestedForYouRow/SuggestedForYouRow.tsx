@@ -320,6 +320,9 @@ function ReasonLine({
     )
   }
 
+  // `creator` is passed though none of the current copy interpolates it (suggestionReasons.spec pins
+  // that). It is here for the revision that names the creator, which would also need the resolution
+  // path co_owned uses — the value alone is not enough to render a name.
   const to = reasonLinksToItem(kind) && itemId ? triggerItemPath(itemId) : null
   return <Line kind={kind} text={t(key, { creator: creator ?? '' })} to={to} onReasonClick={onReasonClick} />
 }

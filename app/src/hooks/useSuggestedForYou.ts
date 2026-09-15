@@ -83,6 +83,11 @@ export function useSuggestedForYou(first = 12): SuggestedForYou {
   const { data, isLoading, isError } = useQuery({
     // Everything that changes the answer, and nothing that does not: the seed KEY rather than the
     // array, so a re-derived list in a different order does not look like new input.
+    //
+    // `equipped` is deliberately absent even though it is sent. Swapping one wearable is not worth
+    // discarding a still-fresh set of recommendations, and the profile's arrival already moves the key
+    // through `bodyShape`, so the first fetch never misses it; a later change is picked up by the next
+    // fetch after staleTime.
     queryKey: ['suggested-for-you', address ?? 'anon', key, bodyShape ?? '', first],
     enabled: enabled && hasSignal,
     staleTime: 5 * 60_000,
