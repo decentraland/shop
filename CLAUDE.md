@@ -100,3 +100,9 @@ The primary mobile breakpoint is **768px** — `theme.media.maxWidth('mobile')`.
 ### Verifying responsive changes
 
 The e2e harness (`app/e2e/`, run via `node_modules/.bin/vitest run --config vitest.e2e.config.ts` from `app/`) drives a real headless browser — use `page.setViewport({ width, height })` to check a mobile viewport and screenshot to confirm layout.
+
+**Run e2e with your own `E2E_PORT` / `E2E_BASE_URL` whenever another dev server may be up.** The harness starts vite with `--strictPort` on 5273, but it does not fail when that port is already taken: `waitForServer` only checks that *something* answers there, so the run silently tests whatever is listening — another worktree, another branch — and reports green about code you did not write. Two agents on one machine is enough to hit this.
+
+```
+E2E_PORT=5291 E2E_BASE_URL=http://localhost:5291 node_modules/.bin/vitest run --config vitest.e2e.config.ts
+```
