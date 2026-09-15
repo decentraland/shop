@@ -4,7 +4,13 @@ import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { fetchCatalogByIds, type SuggestedItem } from '~/lib/api'
 import { track } from '~/lib/analytics'
-import { reasonCounts, suggestedHiddenReason, type ClickTarget, type PagedAction } from '~/lib/suggestionEvents'
+import {
+  reasonCounts,
+  suggestedHiddenReason,
+  type ClickTarget,
+  type PagedAction,
+  type SuggestionSurface
+} from '~/lib/suggestionEvents'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
 import { reasonInterpolatesItemName, reasonKey, reasonLinksToItem, triggerItemPath } from '~/lib/suggestionReasons'
 import { t } from '~/intl/i18n'
@@ -42,7 +48,7 @@ const SKELETON_COUNT = 6
  * @param title overrides the home page's wording. On a PDP the rail answers a narrower question, and
  *   "Suggested for you" over a row that deliberately excludes the item you are looking at reads as a
  *   non sequitur.
- * @param surface which page this is, so the analytics can tell the two rails apart.
+ * @param surface which page this is, so the analytics can tell the rails apart.
  * @param first how many rows to ask for. A prop and not a constant because a caller that ALSO calls the
  *   hook -- the PDP does, to decide whether its own cascade is still wanted -- has to ask the identical
  *   question, or react-query sees two keys and the Shop pays twice for its most expensive request. The
@@ -53,7 +59,7 @@ export function SuggestedForYouRow({
   title,
   surface = 'home',
   first = RAIL_SIZE
-}: { exclude?: string[]; title?: string; surface?: 'home' | 'pdp'; first?: number } = {}) {
+}: { exclude?: string[]; title?: string; surface?: SuggestionSurface; first?: number } = {}) {
   const { result, isLoading, isError, enabled, hasSignal, hasAddress, seedCount, fetchMs } = useSuggestedForYou(first, {
     exclude
   })
