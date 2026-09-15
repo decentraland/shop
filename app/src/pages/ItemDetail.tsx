@@ -1826,7 +1826,16 @@ export function ItemDetail() {
                         <NotifyMe item={current} />
                         {current.itemId ? (
                           <S.BuyResaleLink
-                            onClick={() => setShowBuyResale(true)}
+                            onClick={() => {
+                              // Separate from the redirect event on purpose: the gap between them is the
+                              // question worth answering, "wanted a resale" against "actually went looking".
+                              track('Shop Clicked Buy Resale', {
+                                item_id: current.itemId,
+                                contract_address: current.contractAddress,
+                                has_shop_resale: !!cheapestResaleItem
+                              })
+                              setShowBuyResale(true)
+                            }}
                             data-testid="buy-resale"
                             aria-haspopup="dialog"
                           >
