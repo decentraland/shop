@@ -108,6 +108,10 @@ function deal(i: number, pct = 30 - i * 5): UnifiedListing {
     name: `Deal ${i}`,
     priceCredits: 100 - pct,
     compareAtCredits: 100,
+    // MILLISECONDS, and deliberately not the seconds the e2e helper uses. The two build rows at different
+    // layers: this one fabricates a CatalogItem, which is post-boundary — `lib/api.ts` multiplies the
+    // server's seconds by 1000 on the way in, and `lib/sale.ts` compares against `Date.now()`. Seconds here
+    // would put the sale in 1970 and every card would quietly stop striking its old price.
     saleEndsAt: Date.now() + 86_400_000
   })
 }
@@ -118,7 +122,9 @@ function deal(i: number, pct = 30 - i * 5): UnifiedListing {
  */
 function feeds({ creations = [], deals = [] }: { creations?: UnifiedListing[]; deals?: UnifiedListing[] }) {
   fetchShopItems.mockImplementation((filters: { discounted?: boolean } = {}) => {
-    const items = filters.discounted ? deals : creations
+    // `!= null`, not truthiness: `discounted: false` is a real filter — "everything NOT on sale" — and
+    // reading it as absent would hand such a spec the creations feed and let it pass on the wrong rows.
+    const items = filters.discounted != null && filters.discounted ? deals : creations
     return Promise.resolve({ items, total: items.length })
   })
 }
