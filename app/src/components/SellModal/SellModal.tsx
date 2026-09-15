@@ -7,6 +7,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
+import { postListingWithRetry } from '~/lib/import'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { isManagedWallet } from '~/lib/wallet'
@@ -201,7 +202,10 @@ export function SellModal({
 
       // The persisted trade carries the new tradeId — hand it to onListed so the PDP's optimistic on-sale
       // state also gets a working "remove" target (avoids a no-op remove right after listing).
-      const created = (await postTrade(trade, session.identity)) as { id?: string } | undefined
+      // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
+      const created = (await (edit
+        ? postListingWithRetry(trade, session.identity)
+        : postTrade(trade, session.identity))) as { id?: string } | undefined
 
       setListedCredits(priceValue) // already whole credits
       track('Shop Listed Item', {

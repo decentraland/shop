@@ -5,6 +5,7 @@ import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
 import { postTrade } from '~/lib/api'
+import { postListingWithRetry } from '~/lib/import'
 import { itemRoute } from '~/lib/routes'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
@@ -151,7 +152,8 @@ export function PrimaryListModal({
       })
 
       setStatus(t('primaryList.statusFinishing'))
-      await postTrade(trade, session.identity)
+      // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
+      await (edit ? postListingWithRetry(trade, session.identity) : postTrade(trade, session.identity))
 
       setStatus(null)
       setListedCredits(value) // already whole credits

@@ -89,20 +89,20 @@ export type ImportPhase =
   | { step: 'publishing' }
   | { step: 'indexing'; attempt: number; of: number }
 
-async function postListingWithRetry(
+// Shared with the Edit-price modals, whose cancel-then-relist hits the same window.
+export async function postListingWithRetry(
   trade: Parameters<typeof postTrade>[0],
   identity: Parameters<typeof postTrade>[1],
   onPhase?: (phase: ImportPhase) => void
-): Promise<void> {
+): Promise<Awaited<ReturnType<typeof postTrade>>> {
   for (let attempt = 0; ; attempt++) {
     try {
       onPhase?.(
         attempt === 0 ? { step: 'publishing' } : { step: 'indexing', attempt, of: CLEAR_RETRY_DELAYS_MS.length }
       )
-      await postTrade(trade, identity)
-      return
+      return await postTrade(trade, identity)
     } catch (e) {
-      const stillOnSale = /already an open order/i.test((e as Error)?.message ?? '')
+      const stillOnSale = /already an open order|status code 409/i.test((e as Error)?.message ?? '')
       if (!stillOnSale || attempt >= CLEAR_RETRY_DELAYS_MS.length) throw e
       await new Promise(r => setTimeout(r, CLEAR_RETRY_DELAYS_MS[attempt]))
     }
