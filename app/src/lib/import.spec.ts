@@ -68,7 +68,8 @@ import {
   importListing,
   RelistFailedError,
   type ImportItem,
-  type ImportListing
+  type ImportListing,
+  postListingWithRetry
 } from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
@@ -340,6 +341,25 @@ describe('when the marketplace has not yet cleared the old order', () => {
       await expect(p).resolves.toBeUndefined()
 
       expect(postTrade).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('should stop waiting and never post again once its owner has gone away', async () => {
+    vi.useFakeTimers()
+    try {
+      postTrade.mockRejectedValue(new Error('There is already an open order for this NFT'))
+      const owner = new AbortController()
+
+      const p = postListingWithRetry({} as never, session.identity, { signal: owner.signal })
+      p.catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(1000)
+      owner.abort()
+      await vi.runAllTimersAsync()
+
+      await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+      expect(postTrade).toHaveBeenCalledTimes(1)
     } finally {
       vi.useRealTimers()
     }

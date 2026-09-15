@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Network } from '@dcl/schemas'
@@ -49,6 +49,14 @@ export function PrimaryListModal({
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [price, setPrice] = useState(edit?.currentCredits ? String(edit.currentCredits) : '10') // whole credits
+  // Ends a re-price's post-cancel backoff if this modal goes away, so an abandoned edit never publishes later.
+  // Created in the effect so StrictMode's rehearsal unmount aborts a throwaway controller, not the live one.
+  const unmounted = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    unmounted.current = controller
+    return () => controller.abort(new DOMException('Modal closed', 'AbortError'))
+  }, [])
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -154,7 +162,9 @@ export function PrimaryListModal({
 
       setStatus(t('primaryList.statusFinishing'))
       // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
-      const created = await (edit ? postListingWithRetry(trade, session.identity) : postTrade(trade, session.identity))
+      const created = await (edit
+        ? postListingWithRetry(trade, session.identity, { signal: unmounted.current?.signal })
+        : postTrade(trade, session.identity))
 
       setStatus(null)
       setListedCredits(value) // already whole credits
@@ -178,6 +188,7 @@ export function PrimaryListModal({
       void queryClient.invalidateQueries({ queryKey: ['overview-listings'] })
       void queryClient.invalidateQueries({ queryKey: ['upsell-listings'] })
     } catch (e) {
+      if (unmounted.current?.signal.aborted) return
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
       // Past step 1 the old listing is gone: say so, since "try again" now means putting it back on sale.

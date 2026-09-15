@@ -979,7 +979,8 @@ export function ItemDetail() {
               return token !== null && !token.isOnSale
             }
             if (!current.itemId) return false
-            return (await fetchShopListingForItem(current.contractAddress, current.itemId)) === null
+            // Primary only: a live resale of the same item would otherwise keep a cancelled mint listing "pending".
+            return (await fetchShopListingForItem(current.contractAddress, current.itemId, 'primary')) === null
           } catch {
             return false
           }

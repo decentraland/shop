@@ -580,8 +580,12 @@ export async function fetchStoreMintState(
 
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
 // page on deep-link/refresh, where the route segment is the itemId. Null if it's not on sale.
-export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
-  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
+export async function fetchShopListingForItem(
+  contractAddress: string,
+  itemId: string,
+  listingType?: 'primary' | 'secondary'
+): Promise<CatalogItem | null> {
+  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1, listingType })
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
 

@@ -224,9 +224,11 @@ describe('ItemDetail — confirming the take-down landed', () => {
     // A read that fails is not evidence either.
     fetchShopListingForItem.mockRejectedValue(new Error('network'))
     expect(await watch.isCancelled()).toBe(false)
-    // Only the creator having NO primary listing on this item is.
+    // Only the creator having NO primary listing on this item is — asked primary-only, so a resale that
+    // stays live after the mint listing is gone cannot keep the cancel "pending".
     fetchShopListingForItem.mockResolvedValue(null)
     expect(await watch.isCancelled()).toBe(true)
+    expect(fetchShopListingForItem).toHaveBeenLastCalledWith(CONTRACT, '1', 'primary')
   })
 })
 
