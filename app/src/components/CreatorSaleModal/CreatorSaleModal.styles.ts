@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { theme } from '~/styles/theme'
 
@@ -343,12 +344,13 @@ export const Preview = styled.p`
 `
 
 /**
- * An amount inside a sentence: the mark first, then the number, the way every price in the Shop reads.
+ * Text wearing the currency mark in front: an amount in the example line, the currency's own name in the
+ * hint. Either way the mark leads, the way every price in the Shop reads.
  *
  * Plain inline, not the inline-flex the price rows use — a flex box here makes `innerText` break the line
  * around it, which is the text the e2e suite reads the sentence from.
  */
-export const PreviewAmount = styled.b`
+export const Marked = styled.b`
   font-weight: 700;
   color: ${theme.colors.text};
   white-space: nowrap;
@@ -725,12 +727,34 @@ export const ReviewNow = styled.span`
 `
 
 export const ReviewUnaffected = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: ${theme.font.sans};
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: ${theme.colors.muted};
   white-space: nowrap;
+`
+
+/** Opens the reason a row is excluded. Focusable, so the explanation is reachable without a hover. */
+export const UnaffectedInfo = styled(Icon)`
+  /* Drawn at 14px, hit at 26px: padding cancelled by an equal negative margin, so a finger has something
+     to land on without the glyph moving or the row growing. */
+  width: 14px;
+  height: 14px;
+  padding: 6px;
+  margin: -6px;
+  box-sizing: content-box;
+  color: ${theme.colors.muted2};
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+    border-radius: 50%;
+  }
 `
 
 export const ReviewFoot = styled.p`

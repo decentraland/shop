@@ -353,6 +353,70 @@ describe('creator sales', () => {
     await waitForText(page, 'sells for 24')
   })
 
+  // The case the review gets wrong if it only knows "listed" and "not listed": an item the shop DOES
+  // sell, but in MANA. Calling that NOT FOR SALE was a lie the creator could check against their own grid.
+  it('calls a MANA-priced item classic rather than not for sale, and says where to change it', async () => {
+    const row = (itemId: string, name: string, price: number, tradeId: string | null) => ({
+      tradeId,
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId,
+      tokenId: null,
+      name,
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: TEST_ADDRESS,
+      priceCredits: price,
+      available: 10,
+      network: 'MATIC',
+      chainId: 80002
+    })
+    const pegged = row('0', 'Galaxy Hat', 30, 'trade-0')
+    // No trade, so the catalogue prices it in MANA: listed, but not at a fixed price in credits.
+    const classic = row('1', 'Galaxy Cape', 14, null)
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: { data: [pegged, classic] },
+        unifiedListings: { data: [] },
+        builderItems: { data: [builderItem('0', 'Galaxy Hat'), builderItem('1', 'Galaxy Cape')] },
+        // The shop feed prices only the USD-pegged one; the other is absent from it by definition.
+        collectionSaleState: { data: [pegged], total: 1 }
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Cape')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-review"]')
+
+    // Its own group, named for what it is — and NOT among the ones that are not for sale.
+    const classicRows = await page.$$eval('[data-testid="creator-sale-review-classic"] li', els =>
+      els.map(e => e.textContent?.replace(/\s+/g, ' ').trim())
+    )
+    expect(classicRows).toEqual(['Galaxy CapeClassic pricing'])
+    expect(await page.$('[data-testid="creator-sale-review-untouched"]')).toBeNull()
+
+    // And the reason is reachable from the row itself, pointing at the page that can change it.
+    const anchor = await page.$eval('[data-testid="creator-sale-classic-why"]', el => {
+      const r = el.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })
+    // Two moves: the first parks the pointer elsewhere so the second produces a mouseover on the trigger.
+    await page.mouse.move(anchor.x - 60, anchor.y - 60)
+    await page.mouse.move(anchor.x, anchor.y)
+    await page.waitForSelector('[role="tooltip"][data-open]')
+    const why = await page.$eval('[role="tooltip"][data-open]', el => el.textContent ?? '')
+    expect(why).toMatch(/MANA/)
+    expect(why).toMatch(/Activity . Listings/)
+  })
+
   it('grades the discount chips by how deep the cut is, and opens each input in its chip', async () => {
     app = await launchApp({
       path: '/my-items?section=creations',

@@ -23,6 +23,7 @@ import { t, tNode } from '~/intl/i18n'
 import { heatFor } from '~/styles/theme'
 import { formatCredits } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Tooltip } from '~/components/Tooltip'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -325,15 +326,15 @@ export function CreatorSaleModal({
   const bold = (chunks: React.ReactNode[]) => <b>{chunks}</b>
 
   /**
-   * A price inside a sentence: the mark first, then the number. The message tags the amount rather than
-   * spelling the unit, so the example reads the way the prices right above it do — and the word the
-   * sentence used to carry cannot drift out of step with the currency's own name.
+   * The currency mark in front of whatever the message tags — an amount, or the currency's own name. The
+   * message tags rather than spelling the unit out, so the sentence reads the way the prices above it do
+   * and the word it used to carry cannot drift out of step with the currency's name.
    */
-  const amount = (chunks: React.ReactNode[]) => (
-    <S.PreviewAmount>
+  const marked = (chunks: React.ReactNode[]) => (
+    <S.Marked>
       <CurrencyIcon className="ccy-mark" />
       {chunks}
-    </S.PreviewAmount>
+    </S.Marked>
   )
 
   /** How many copies the sale price can cover: the cap when set, otherwise the listed items' own supply. */
@@ -417,11 +418,22 @@ export function CreatorSaleModal({
                   <S.ReviewRow key={i.key} data-muted>
                     <S.ReviewThumb src={i.thumbnail} alt="" />
                     <S.ReviewName>{i.name}</S.ReviewName>
-                    <S.ReviewUnaffected>{t('creatorSale.reviewClassicTag')}</S.ReviewUnaffected>
+                    <S.ReviewUnaffected>
+                      {t('creatorSale.reviewClassicTag')}
+                      <Tooltip content={t('creatorSale.reviewClassicWhy')}>
+                        <S.UnaffectedInfo
+                          name="info"
+                          role="img"
+                          aria-label={t('creatorSale.reviewClassicWhy')}
+                          tabIndex={0}
+                          data-testid="creator-sale-classic-why"
+                        />
+                      </Tooltip>
+                    </S.ReviewUnaffected>
                   </S.ReviewRow>
                 ))}
               </S.ReviewList>
-              <S.ReviewFootNote>{t('creatorSale.reviewClassicHint')}</S.ReviewFootNote>
+              <S.ReviewFootNote>{tNode('creatorSale.reviewClassicHint', { c: marked })}</S.ReviewFootNote>
             </S.ReviewGroup>
           ) : null}
 
@@ -715,8 +727,8 @@ export function CreatorSaleModal({
               each amount. */}
           <span>
             {example.sale < example.price
-              ? tNode('creatorSale.preview', { price: example.price, sale: example.sale, c: amount })
-              : tNode('creatorSale.previewNoChange', { price: example.price, c: amount })}
+              ? tNode('creatorSale.preview', { price: example.price, sale: example.sale, c: marked })
+              : tNode('creatorSale.previewNoChange', { price: example.price, c: marked })}
           </span>
         </S.Preview>
 
