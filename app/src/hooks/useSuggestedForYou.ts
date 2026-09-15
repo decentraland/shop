@@ -54,7 +54,15 @@ export function useSuggestedForYou(first = 12): SuggestedForYou {
     return shape.includes('BaseFemale') ? 'BaseFemale' : 'BaseMale'
   }, [profile])
 
-  const equipped = useMemo(() => (profile?.avatar?.wearables ?? []).slice(0, MAX_EQUIPPED), [profile])
+  // Wearables first, then the emote wheel: both are "what this avatar wears right now", and the cap is
+  // shared, so the order decides what survives it. Wearables lead because a full outfit is a broader
+  // statement of taste than ten emote slots, but the emotes have to be here at all — they are the only
+  // signal the profile carries about emotes, which wearables can never stand in for.
+  const equipped = useMemo(() => {
+    const wearables = profile?.avatar?.wearables ?? []
+    const emotes = (profile?.avatar?.emotes ?? []).map(slot => slot.urn).filter(Boolean)
+    return [...wearables, ...emotes].slice(0, MAX_EQUIPPED)
+  }, [profile])
 
   const hasSignal = !!address || seeds.length > 0
   const key = seedsKey(seeds)
