@@ -5,7 +5,7 @@ import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { fetchMyAssets, fetchSecondarySaleState, type CatalogItem, type MyAsset } from '~/lib/api'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
-import { displayCredits } from '~/lib/mana-convert'
+import { creditsAtLiveRate } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorSaleModal'
@@ -337,16 +337,8 @@ export function MyAssets() {
   const hasManaListing = useMemo(() => Object.values(saleState ?? {}).some(v => !!v.manaWei), [saleState])
   const { data: manaRate } = useManaRate(hasManaListing)
 
-  /**
-   * A MANA listing has no fixed credit price: convert at the LIVE rate, the same number the browse grid
-   * and the item page show. The server's snapshot stands in until that rate resolves, so a listed item
-   * never flashes NOT FOR SALE — `displayCredits` would return 0 without a rate.
-   */
-  const creditsFor = (sale: CollectionSaleState | undefined) => {
-    if (!sale) return 0
-    if (!sale.manaWei || !manaRate) return sale.priceCredits
-    return displayCredits({ manaWei: sale.manaWei, priceCredits: sale.priceCredits }, manaRate)
-  }
+  // Map-shaped rather than a list of rows, so it takes the primitive the grids' hook is built on.
+  const creditsFor = (sale: CollectionSaleState | undefined) => (sale ? creditsAtLiveRate(sale, manaRate) : 0)
 
   // Creator sales: the collections with at least one Shop listing (what a sale can apply to) and the sales the
   // creator already runs. Both only matter on the creations section, and only once the flag opens the flow.

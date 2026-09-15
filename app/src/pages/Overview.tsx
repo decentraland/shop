@@ -196,7 +196,7 @@ export function Overview() {
   })
   // Both rails read the unified feed, which carries MANA-denominated rows (a store mint, a classic
   // order) alongside USD ones — price each in its own currency before the cards show a number.
-  const items = useLivePricedItems(data?.items ?? [])
+  const { items } = useLivePricedItems(data?.items ?? [])
 
   // The Trending row: ranked by the last day's sales, server-side (marketplace-server /v3/catalog/trending),
   // which is also where every rule the row has to honour is applied — see lib/api fetchTrendingItems for why
@@ -211,7 +211,7 @@ export function Overview() {
     queryKey: ['overview-trending', secondarySales],
     queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' })
   })
-  const trendingItems = useLivePricedItems(trending ?? [])
+  const { items: trendingItems } = useLivePricedItems(trending ?? [])
 
   // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
   // which is the normal state — the Shop's own art, headline and credits CTA below are what render.

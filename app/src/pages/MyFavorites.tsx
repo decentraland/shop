@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SkeletonCards } from '~/components/SkeletonCards'
-import { useManaRate } from '~/hooks/useManaRate'
-import { displayCredits } from '~/lib/mana-convert'
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { Grid } from '~/styles/grid.styles'
@@ -27,12 +26,7 @@ export function MyFavorites() {
 
   // Favorites hydrate from the /v2 catalog, which prices in MANA, so the cards get their credit price
   // at the live rate — the same rule the browse grid applies to any MANA-priced card.
-  const { data: rate, isPending: ratePending, isError: rateError } = useManaRate()
-  const hasManaItems = stored.some(item => !!item.manaWei)
-  const items = useMemo(
-    () => stored.map(item => ({ ...item, priceCredits: displayCredits(item, rate) })),
-    [stored, rate]
-  )
+  const { items, hasManaRows: hasManaItems, ratePending, rateError } = useLivePricedItems(stored)
 
   if (status === 'error') {
     return (

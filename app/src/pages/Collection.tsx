@@ -111,7 +111,7 @@ export function Collection() {
   })
 
   // /v3/catalog/items is mixed-denomination: the same grid the browse page prices at the live rate.
-  const items = useLivePricedItems(rawItems)
+  const { items } = useLivePricedItems(rawItems)
 
   // Item records don't carry the collection name (it lives on the collections entity), so resolve it
   // separately — mirrors the marketplace's collectionAPI.fetchOne. Falls back to "Collection".

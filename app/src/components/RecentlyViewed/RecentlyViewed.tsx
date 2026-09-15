@@ -11,7 +11,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
   const stored = useMemo(() => getRecentlyViewed().filter(i => i.id !== excludeId), [excludeId])
   // Snapshots taken whenever the item was viewed, so a MANA row's stored credit price is as old as the
   // visit — re-price it rather than showing what the rate was then.
-  const items = useLivePricedItems(stored)
+  const { items } = useLivePricedItems(stored)
   if (items.length === 0) return null
   return (
     <Row.Root>

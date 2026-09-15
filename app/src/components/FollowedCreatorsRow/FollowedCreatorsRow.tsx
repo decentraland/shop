@@ -48,7 +48,7 @@ export function FollowedCreatorsRow() {
   })
 
   // fetchCreatorItems is the same feed the creator page prices at the live rate.
-  const items = useLivePricedItems(rawItems)
+  const { items } = useLivePricedItems(rawItems)
 
   if (!enabled || creators.length === 0) return null
   if (!isLoading && items.length === 0) return null

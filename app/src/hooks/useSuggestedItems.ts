@@ -75,7 +75,7 @@ export function useSuggestedItems(
 
   // The rail sits directly under an item the PDP already priced at the live rate. Leaving these on the
   // server's number let the same item appear twice on one screen at two prices.
-  const items = useLivePricedItems(merged.items)
+  const { items } = useLivePricedItems(merged.items)
 
   return { ...merged, items, siblings, siblingsFetched }
 }
