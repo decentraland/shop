@@ -64,13 +64,15 @@ vi.mock('~/lib/analytics', async importOriginal => ({
   track: vi.fn()
 }))
 
-const { fetchShopListingForItem, fetchTradeForItem, fetchTrade } = vi.hoisted(() => ({
+const { fetchShopListingForItem, fetchPrimaryListingForItem, fetchTradeForItem, fetchTrade } = vi.hoisted(() => ({
   fetchShopListingForItem: vi.fn(),
+  fetchPrimaryListingForItem: vi.fn(),
   fetchTradeForItem: vi.fn(),
   fetchTrade: vi.fn()
 }))
 vi.mock('~/lib/api', () => ({
   fetchShopListingForItem,
+  fetchPrimaryListingForItem,
   fetchTradeForItem,
   fetchTrade,
   fetchItemResales: vi.fn().mockResolvedValue([]),
@@ -219,16 +221,18 @@ describe('ItemDetail — confirming the take-down landed', () => {
 
     // The old id is gone but the item's primary listing lives on under a successor (a concurrent re-sign).
     fetchTrade.mockRejectedValue(new Error('fetchTrade 404'))
-    fetchShopListingForItem.mockResolvedValue(listedItem({ id: 'successor-trade' }))
+    fetchPrimaryListingForItem.mockResolvedValue({ tradeId: 'successor-trade', source: 'native' })
+    expect(await watch.isCancelled()).toBe(false)
+    // A legacy MANA primary is still live: absent from the shop-only feed, but every bit as fulfillable.
+    fetchPrimaryListingForItem.mockResolvedValue({ tradeId: null, source: 'legacy' })
     expect(await watch.isCancelled()).toBe(false)
     // A read that fails is not evidence either.
-    fetchShopListingForItem.mockRejectedValue(new Error('network'))
+    fetchPrimaryListingForItem.mockRejectedValue(new Error('network'))
     expect(await watch.isCancelled()).toBe(false)
-    // Only the creator having NO primary listing on this item is — asked primary-only, so a resale that
-    // stays live after the mint listing is gone cannot keep the cancel "pending".
-    fetchShopListingForItem.mockResolvedValue(null)
+    // Only the creator having NO primary listing on this item is.
+    fetchPrimaryListingForItem.mockResolvedValue(null)
     expect(await watch.isCancelled()).toBe(true)
-    expect(fetchShopListingForItem).toHaveBeenLastCalledWith(CONTRACT, '1', 'primary')
+    expect(fetchPrimaryListingForItem).toHaveBeenLastCalledWith(CONTRACT, '1')
   })
 })
 

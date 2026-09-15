@@ -365,6 +365,18 @@ describe('when the marketplace has not yet cleared the old order', () => {
     }
   })
 
+  it('should not hand back a listing whose owner went away while the post was in flight', async () => {
+    let finish!: (v: unknown) => void
+    postTrade.mockReturnValueOnce(new Promise(resolve => (finish = resolve)))
+    const owner = new AbortController()
+
+    const p = postListingWithRetry({} as never, session.identity, { signal: owner.signal })
+    owner.abort()
+    finish({ id: 'published-anyway' })
+
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('should rethrow other errors immediately without retrying', async () => {
     postTrade.mockRejectedValue(new Error('nope'))
 

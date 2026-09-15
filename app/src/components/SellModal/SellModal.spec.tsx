@@ -35,6 +35,7 @@ vi.mock('~/config', () => ({ config: { chainId: 80002, treasuryAddress: '' } }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 vi.mock('~/lib/collections', () => ({ fetchCollection: vi.fn() }))
 vi.mock('~/store/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+import { toast } from '~/store/toast'
 vi.mock('~/lib/analytics', () => ({ track: vi.fn(), errorCode: () => 'x' }))
 vi.mock('~/lib/monitoring', () => ({ captureError: vi.fn() }))
 
@@ -66,7 +67,7 @@ function renderModal(providerType = 'injected', edit?: ListingEdit) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onClose = vi.fn()
   const onListed = vi.fn()
-  render(
+  const { unmount } = render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <SellModal
@@ -80,7 +81,7 @@ function renderModal(providerType = 'injected', edit?: ListingEdit) {
       </MemoryRouter>
     </QueryClientProvider>
   )
-  return { onListed }
+  return { onListed, unmount }
 }
 
 beforeEach(() => {
@@ -226,6 +227,26 @@ describe('SellModal edit price', () => {
 
       await waitFor(() => expect(createUsdPeggedListing).toHaveBeenCalledTimes(1))
       expect(cancelCurrent).toHaveBeenLastCalledWith(expect.objectContaining({ payGas: true }))
+    })
+  })
+
+  describe('when the modal goes away while the new price is being published', () => {
+    it('should not report the listing to anyone once the request lands', async () => {
+      let finish!: (v: unknown) => void
+      postTrade.mockReturnValueOnce(new Promise(resolve => (finish = resolve)))
+      const { onListed, unmount } = renderModal('magic', {
+        canPayGas: false,
+        cancelCurrent: vi.fn(async () => 'ok' as const)
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: /update price/i }))
+      await waitFor(() => expect(postTrade).toHaveBeenCalledTimes(1))
+      unmount()
+      finish({ id: 'trade-late' })
+      await new Promise(r => setTimeout(r, 0))
+
+      expect(onListed).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
   })
 

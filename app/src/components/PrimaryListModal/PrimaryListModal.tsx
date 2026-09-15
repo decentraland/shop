@@ -165,6 +165,8 @@ export function PrimaryListModal({
       const created = await (edit
         ? postListingWithRetry(trade, session.identity, { signal: unmounted.current?.signal })
         : postTrade(trade, session.identity))
+      // Unmounted while the request was in flight: no toast, caches or callbacks for a page that is gone.
+      unmounted.current?.signal.throwIfAborted()
 
       setStatus(null)
       setListedCredits(value) // already whole credits

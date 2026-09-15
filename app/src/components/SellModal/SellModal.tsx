@@ -217,6 +217,8 @@ export function SellModal({
       const created = await (edit
         ? postListingWithRetry(trade, session.identity, { signal: unmounted.current?.signal })
         : postTrade(trade, session.identity))
+      // Unmounted while the request was in flight: no toast, caches or callbacks for a page that is gone.
+      unmounted.current?.signal.throwIfAborted()
 
       setListedCredits(priceValue) // already whole credits
       track('Shop Listed Item', {

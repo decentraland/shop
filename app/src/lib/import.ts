@@ -103,7 +103,10 @@ export async function postListingWithRetry(
       onPhase?.(
         attempt === 0 ? { step: 'publishing' } : { step: 'indexing', attempt, of: CLEAR_RETRY_DELAYS_MS.length }
       )
-      return await postTrade(trade, identity)
+      const created = await postTrade(trade, identity)
+      // The owner may have gone away while the request was in flight: its success is not to be acted on.
+      signal?.throwIfAborted()
+      return created
     } catch (e) {
       const stillOnSale = /already an open order|status code 409/i.test((e as Error)?.message ?? '')
       if (!stillOnSale || attempt >= CLEAR_RETRY_DELAYS_MS.length) throw e

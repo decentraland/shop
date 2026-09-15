@@ -580,12 +580,8 @@ export async function fetchStoreMintState(
 
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
 // page on deep-link/refresh, where the route segment is the itemId. Null if it's not on sale.
-export async function fetchShopListingForItem(
-  contractAddress: string,
-  itemId: string,
-  listingType?: 'primary' | 'secondary'
-): Promise<CatalogItem | null> {
-  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1, listingType })
+export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
+  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
 
@@ -611,6 +607,17 @@ export async function fetchUnifiedListingForItem(
 ): Promise<UnifiedListing | null> {
   const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
   return pickItemListing(items)
+}
+
+// The creator's live PRIMARY listing for an item — a shop trade or a legacy MANA order alike — or null when
+// there is none. Asked of the UNIFIED feed on purpose: the shop-only feed omits legacy orders, and the take-down
+// watcher that uses this must not read a still-live legacy listing as "gone".
+export async function fetchPrimaryListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5, listingType: 'primary' })
+  return items.find(l => !l.tokenId) ?? null
 }
 
 /**
@@ -782,6 +789,7 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
   if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
   if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
+  if (filters.listingType) qs.set('listingType', filters.listingType)
   if (filters.search) qs.set('search', filters.search)
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')

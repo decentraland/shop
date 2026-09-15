@@ -18,7 +18,7 @@ import {
   fetchOwnedItemCount,
   fetchTokenById,
   fetchTrade,
-  fetchShopListingForItem,
+  fetchPrimaryListingForItem,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
@@ -979,8 +979,9 @@ export function ItemDetail() {
               return token !== null && !token.isOnSale
             }
             if (!current.itemId) return false
-            // Primary only: a live resale of the same item would otherwise keep a cancelled mint listing "pending".
-            return (await fetchShopListingForItem(current.contractAddress, current.itemId, 'primary')) === null
+            // Primary only (a live resale must not keep a cancelled mint listing "pending"), from the unified
+            // feed (a live legacy MANA order must not read as gone).
+            return (await fetchPrimaryListingForItem(current.contractAddress, current.itemId)) === null
           } catch {
             return false
           }
