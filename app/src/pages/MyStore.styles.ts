@@ -1,0 +1,580 @@
+import styled from '@emotion/styled'
+import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
+import { theme } from '~/styles/theme'
+
+// The seller's dashboard. White panels on the Shop's purple field, the same surface My Creations uses, so
+// the two read as one place rather than two products.
+
+export const Root = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+`
+
+export const Masthead = styled.header`
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+`
+
+export const Eyebrow = styled.p`
+  margin: 0 0 6px;
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(252, 252, 252, 0.62);
+`
+
+export const Title = styled.h1`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: ${theme.colors.softWhite};
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 26px;
+  }
+`
+
+export const Sub = styled.p`
+  margin: 6px 0 0;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  color: rgba(252, 252, 252, 0.62);
+`
+
+export const Periods = styled.div`
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: ${theme.radius.pill};
+  background: rgba(0, 0, 0, 0.22);
+`
+
+export const Period = styled.button`
+  border: 0;
+  cursor: pointer;
+  font-family: ${theme.font.sans};
+  padding: 7px 15px;
+  border-radius: ${theme.radius.pill};
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(252, 252, 252, 0.62);
+  background: transparent;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    color: ${theme.colors.softWhite};
+  }
+  &[aria-pressed='true'] {
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`
+
+export const Tiles = styled.section`
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+
+  ${theme.media.maxWidth('lg')} {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  ${theme.media.maxWidth('mobile')} {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+export const Tile = styled.div`
+  background: ${theme.colors.softWhite};
+  color: ${theme.colors.text};
+  border-radius: ${theme.radius.card};
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+`
+
+export const TileKey = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: ${theme.colors.muted1};
+`
+
+export const TileValue = styled.span`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: ${theme.font.sans};
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+`
+
+export const TileUnit = styled.span`
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: ${theme.colors.muted};
+`
+
+export const TileFoot = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${theme.colors.muted};
+`
+
+/**
+ * The seam on a figure the Shop can only approximate.
+ *
+ * Earnings is a sum over rows the feed returns a page at a time, so past the cap it covers part of the
+ * window. A dashboard that cannot tell what it knows from what it estimates is worse than one with fewer
+ * figures, so the estimate says so rather than passing as exact.
+ */
+export const Estimate = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: ${theme.colors.muted1};
+  border: 1px dashed ${theme.colors.muted2};
+  border-radius: ${theme.radius.chip};
+  padding: 1px 5px;
+`
+
+export const Columns = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+
+  ${theme.media.maxWidth('lg')} {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+export const Side = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`
+
+export const Panel = styled.section`
+  background: ${theme.colors.softWhite};
+  color: ${theme.colors.text};
+  border-radius: ${theme.radius.card};
+  overflow: hidden;
+`
+
+export const PanelHead = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+`
+
+export const PanelTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+`
+
+export const PanelHint = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${theme.colors.muted};
+`
+
+export const CollRow = styled.div`
+  display: grid;
+  grid-template-columns: 24px 40px minmax(0, 1fr) 76px 96px auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-top: 1px solid ${theme.colors.line};
+
+  ${theme.media.maxWidth('mobile')} {
+    grid-template-columns: 24px 40px minmax(0, 1fr) auto;
+    row-gap: 10px;
+  }
+`
+
+/** The disclosure control. A button, not a decoration: it is what opens the per-item breakdown. */
+export const Chevron = styled.button`
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: ${theme.radius.btn};
+  background: none;
+  cursor: pointer;
+  color: ${theme.colors.muted};
+
+  &:hover {
+    background: ${theme.colors.chip};
+    color: ${theme.colors.text};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
+
+  /* A finger needs more than the 24px the glyph occupies, and the row has that much clear space around it. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+
+  .ico {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.18s ease;
+  }
+  &[aria-expanded='true'] .ico {
+    transform: rotate(180deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ico {
+      transition: none;
+    }
+  }
+`
+
+export const Mosaic = styled.span`
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
+  overflow: hidden;
+  background: ${theme.colors.media};
+`
+
+export const CollName = styled.span`
+  min-width: 0;
+
+  a {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    font-family: ${theme.font.sans};
+    font-size: 14px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  a:hover,
+  a:focus-visible {
+    text-decoration: underline;
+  }
+  span {
+    font-family: ${theme.font.sans};
+    font-size: 12px;
+    color: ${theme.colors.muted};
+  }
+`
+
+export const Num = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+
+  small {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: ${theme.colors.muted};
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    display: none;
+  }
+`
+
+export const SparkCell = styled.span`
+  ${theme.media.maxWidth('mobile')} {
+    display: none;
+  }
+`
+
+export const Spark = styled.svg`
+  display: block;
+  width: 96px;
+  height: 30px;
+`
+
+export const Items = styled.div`
+  border-top: 1px solid ${theme.colors.line};
+  background: ${theme.colors.panel};
+  padding: 4px 18px 10px;
+`
+
+export const ItemRow = styled.div`
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 64px 84px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+
+  & + & {
+    border-top: 1px solid ${theme.colors.line};
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+  }
+`
+
+export const ItemThumb = styled.img`
+  width: 32px;
+  height: 32px;
+  border-radius: ${theme.radius.chip};
+  object-fit: cover;
+  background: ${theme.colors.media};
+`
+
+export const ItemName = styled(Link)`
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+`
+
+export const ItemNum = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: ${theme.colors.text};
+
+  small {
+    color: ${theme.colors.muted};
+    font-weight: 500;
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    display: none;
+  }
+`
+
+/**
+ * How much of an item's run is gone, at a glance.
+ *
+ * Deliberately not the offer bar from the item page: that one measures a discount's allowance, this one
+ * measures the mint. Same visual family, different quantity — so it is drawn thinner and in the muted ink
+ * rather than the sale red, which belongs to the discount.
+ */
+export const Run = styled.span`
+  display: block;
+  width: 84px;
+  height: 6px;
+  border-radius: 100px;
+  background: rgba(22, 21, 24, 0.1);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 6px;
+    border-radius: 100px;
+    background: ${theme.colors.accent};
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    display: none;
+  }
+`
+
+export const ItemState = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: ${theme.colors.muted};
+
+  &[data-state='soldout'] {
+    color: ${theme.colors.accent};
+  }
+  &[data-state='classic'] {
+    color: ${theme.colors.saleTagInk};
+  }
+`
+
+export const AttnRow = styled.div`
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 18px;
+  border-top: 1px solid ${theme.colors.line};
+`
+
+export const Stripe = styled.span`
+  align-self: stretch;
+  border-radius: 2px;
+  background: ${theme.colors.muted2};
+
+  &[data-sev='act'] {
+    background: ${theme.colors.dclRed};
+  }
+  &[data-sev='soon'] {
+    background: ${theme.colors.flareAmber};
+  }
+`
+
+export const AttnText = styled.span`
+  b {
+    display: block;
+    font-family: ${theme.font.sans};
+    font-size: 13px;
+    font-weight: 600;
+  }
+  span {
+    display: block;
+    margin-top: 2px;
+    font-family: ${theme.font.sans};
+    font-size: 12px;
+    color: ${theme.colors.muted};
+  }
+`
+
+export const AttnNum = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+`
+
+export const FeedWrap = styled.div`
+  overflow-x: auto;
+`
+
+export const Feed = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  min-width: 520px;
+
+  thead th {
+    text-align: left;
+    padding: 0 18px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: ${theme.colors.muted1};
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 12px 18px;
+    border-top: 1px solid ${theme.colors.line};
+    vertical-align: middle;
+  }
+  tbody tr:hover {
+    background: ${theme.colors.panel};
+  }
+  td[data-money] {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  td[data-dim] {
+    color: ${theme.colors.muted};
+    font-variant-numeric: tabular-nums;
+  }
+`
+
+export const Kind = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: ${theme.radius.chip};
+  padding: 2px 7px;
+  white-space: nowrap;
+  color: ${theme.colors.muted1};
+  background: ${theme.colors.media};
+
+  &[data-kind='mint'] {
+    color: ${theme.colors.accent};
+    background: rgba(105, 31, 169, 0.1);
+  }
+`
+
+export const ManaMark = styled.img`
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  margin-right: 3px;
+`
+
+/** A line of context under a panel's rows — why they do not add up, or what could not be read. */
+export const Note = styled.p`
+  margin: 0;
+  padding: 12px 18px 16px;
+  border-top: 1px solid ${theme.colors.line};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${theme.colors.muted};
+`
+
+export const Empty = styled.p`
+  margin: 0;
+  padding: 0 18px 18px;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: ${theme.colors.muted};
+`
+
+export const ChevronIcon = styled(Icon)`
+  width: 16px;
+  height: 16px;
+`

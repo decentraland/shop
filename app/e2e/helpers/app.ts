@@ -257,6 +257,7 @@ let secondarySalesFlag = true
 let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
+let myStoreFlag = false
 // The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
 let couponStore: any[] = []
 let campaignFlag = false
@@ -382,6 +383,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
           'dapps-shop-outfit-creators': outfitCreatorFlag,
           'dapps-shop-follows': followsFlag,
           'dapps-shop-creator-sales': creatorSalesFlag,
+          'dapps-shop-my-store': myStoreFlag,
           'dapps-shop-campaign': campaignFlag
         },
         variants: outfitCreatorFlag
@@ -1015,6 +1017,11 @@ export async function launchApp(
      * the creator-sale spec passes true to exercise the flow.
      */
     creatorSales?: boolean
+    /**
+     * Whether the mocked flag file reports the creator's store dashboard as available. Defaults to FALSE,
+     * the shipped state; the my-store spec passes true.
+     */
+    myStore?: boolean
     /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
     delays?: Delays
     /**
@@ -1042,6 +1049,7 @@ export async function launchApp(
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
   creatorSalesFlag = opts.creatorSales ?? false
+  myStoreFlag = opts.myStore ?? false
   couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
   campaignFlag = opts.campaign ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
