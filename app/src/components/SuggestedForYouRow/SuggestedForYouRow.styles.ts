@@ -17,9 +17,16 @@ export const Cell = styled.div`
 `
 
 /**
- * One line of plain language under each card. Clamped to a single line because the rail's cards are
- * a fixed height and a creator name long enough to wrap would push one card taller than its
- * neighbours; the full text stays available as the title attribute.
+ * The line of plain language under each card.
+ *
+ * Height is RESERVED for the full two lines at every width, whether or not a given reason needs them,
+ * because the cards sit in one row: letting the box grow with its text would leave every card in the
+ * rail a different height depending on how long its creator's name happens to be.
+ *
+ * One line on desktop, where the cards are wide enough for any of the six reasons. On a phone two
+ * cards share the viewport and every reason was being cut mid-word ("Because you have Galaxy …"), so
+ * the clamp opens to two lines there. Past that it still truncates, and the whole text stays
+ * available through the title attribute.
  */
 export const Reason = styled.p`
   margin: 0;
@@ -32,9 +39,16 @@ export const Reason = styled.p`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  height: 32px;
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 11px;
+    line-height: 15px;
+    height: 30px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 `
 

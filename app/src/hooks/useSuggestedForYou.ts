@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useProfile } from '~/hooks/useProfile'
@@ -17,6 +17,15 @@ const MAX_EQUIPPED = 30
 export type SuggestedForYou = {
   result?: SuggestedItemsResult
   isLoading: boolean
+  isError: boolean
+  /** Whether the flag lets the rail ask at all — one of the reasons it may be absent. */
+  enabled: boolean
+  /** Whether there was anything to personalise from; false means no request was made. */
+  hasSignal: boolean
+  hasAddress: boolean
+  seedCount: number
+  /** How long the request took, for the rail's own latency reporting. Undefined until it resolves. */
+  fetchMs?: number
 }
 
 /**
@@ -67,15 +76,33 @@ export function useSuggestedForYou(first = 12): SuggestedForYou {
   const hasSignal = !!address || seeds.length > 0
   const key = seedsKey(seeds)
 
-  const { data, isLoading } = useQuery({
+  // Measured around the fetch itself rather than around the query, so a cached answer reports no
+  // time instead of reporting zero as if it had been fetched instantly.
+  const fetchMs = useRef<number | undefined>(undefined)
+
+  const { data, isLoading, isError } = useQuery({
     // Everything that changes the answer, and nothing that does not: the seed KEY rather than the
     // array, so a re-derived list in a different order does not look like new input.
     queryKey: ['suggested-for-you', address ?? 'anon', key, bodyShape ?? '', first],
     enabled: enabled && hasSignal,
     staleTime: 5 * 60_000,
     retry: 1,
-    queryFn: () => fetchSuggestedItems({ address, seeds, bodyShape, equipped, first })
+    queryFn: async () => {
+      const started = performance.now()
+      const answer = await fetchSuggestedItems({ address, seeds, bodyShape, equipped, first })
+      fetchMs.current = Math.round(performance.now() - started)
+      return answer
+    }
   })
 
-  return { result: data, isLoading: enabled && hasSignal && isLoading }
+  return {
+    result: data,
+    isLoading: enabled && hasSignal && isLoading,
+    isError,
+    enabled,
+    hasSignal,
+    hasAddress: !!address,
+    seedCount: seeds.length,
+    fetchMs: fetchMs.current
+  }
 }

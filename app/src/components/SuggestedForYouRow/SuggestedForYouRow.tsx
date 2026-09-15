@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { AssetCard } from '~/components/AssetCard'
-import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { fetchCatalogByIds, type SuggestedItem } from '~/lib/api'
 import { track } from '~/lib/analytics'
+import { reasonCounts, type ClickTarget, type HiddenReason, type PagedAction } from '~/lib/suggestionEvents'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
 import { reasonInterpolatesItemName, reasonKey, reasonLinksToItem, triggerItemPath } from '~/lib/suggestionReasons'
 import { t } from '~/intl/i18n'
@@ -12,7 +12,6 @@ import { useQuery } from '@tanstack/react-query'
 import * as Row from '~/styles/row.styles'
 import * as S from './SuggestedForYouRow.styles'
 
-const SKELETON_COUNT = 5
 const RAIL_SIZE = 12
 
 /**
@@ -35,7 +34,8 @@ const MIN_ROWS = 4
  * card, and the line degrades to the generic copy if that request fails.
  */
 export function SuggestedForYouRow() {
-  const { result, isLoading } = useSuggestedForYou(RAIL_SIZE)
+  const { result, isLoading, isError, enabled, hasSignal, hasAddress, seedCount, fetchMs } =
+    useSuggestedForYou(RAIL_SIZE)
   const items = useMemo(() => result?.data ?? [], [result])
 
   // Names are needed only by the one kind whose copy has a name in it; the rest link to their
@@ -109,51 +109,111 @@ export function SuggestedForYouRow() {
     if (g) scrollRailToPage(el, g, target)
   }, [])
 
-  const visible = result?.personalized === true && items.length >= MIN_ROWS
+  // Why the rail is not here, or null when it is. Ordered the way the decision is actually made, so
+  // the reported reason is the FIRST thing that stopped it rather than a later symptom: a rail that
+  // never asked cannot also be "not personalized".
+  const hiddenReason: HiddenReason | null = !enabled
+    ? 'flag_off'
+    : !hasSignal
+      ? 'no_signal'
+      : isLoading
+        ? null
+        : isError
+          ? 'error'
+          : result?.personalized !== true
+            ? 'not_personalized'
+            : items.length < MIN_ROWS
+              ? 'too_few'
+              : null
 
-  // Once per rail that actually rendered, so the click-through denominator matches what was seen.
-  const seen = useRef(false)
+  const visible = !isLoading && hiddenReason === null
+
+  // One per home-page visit, whichever way it went. Impressions alone cannot produce a click-through
+  // rate: without knowing how often the rail was absent, and why, the denominator is unknowable.
+  const reported = useRef(false)
   useEffect(() => {
-    if (!visible || seen.current) return
-    seen.current = true
-    track('viewed_suggestions', {
-      count: items.length,
-      personalized: result?.personalized === true,
+    if (isLoading || reported.current || hiddenReason === null) return
+    reported.current = true
+    track('hidden_suggestions', {
+      reason: hiddenReason,
+      count: result?.data.length,
+      has_address: hasAddress,
+      seed_count: seedCount,
       algorithm: result?.algorithm
     })
-  }, [visible, items.length, result])
+  }, [isLoading, hiddenReason, result, hasAddress, seedCount])
 
-  if (isLoading) {
-    return (
-      <Row.Root data-testid="suggested-row">
-        <Row.Head>
-          <Row.Title>{t('overview.suggested.title')}</Row.Title>
-        </Row.Head>
-        <S.Viewport>
-          <S.Track>
-            <SkeletonCards count={SKELETON_COUNT} />
-          </S.Track>
-        </S.Viewport>
-      </Row.Root>
+  // The impression, fired when half the rail is actually ON SCREEN rather than when it mounts. The
+  // row lives below the fold, so mounting says almost nothing about being seen, and a click-through
+  // rate built on mounts flatters every rail equally.
+  const railRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!visible || reported.current) return
+    const el = railRef.current
+    if (!el) return
+
+    const report = () => {
+      if (reported.current) return
+      reported.current = true
+      track('viewed_suggestions', {
+        count: items.length,
+        personalized: result?.personalized === true,
+        algorithm: result?.algorithm,
+        has_address: hasAddress,
+        seed_count: seedCount,
+        reason_counts: reasonCounts(items),
+        fetch_ms: fetchMs
+      })
+    }
+
+    // jsdom has no IntersectionObserver, and neither do a few older browsers. Reporting on mount
+    // there overstates impressions, which is the safer of the two errors: the alternative is a rail
+    // that silently reports nothing at all.
+    if (typeof IntersectionObserver === 'undefined') {
+      report()
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          report()
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 }
     )
-  }
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible, items, result, hasAddress, seedCount, fetchMs])
 
+  // Nothing at all until the answer is in and passes every condition — deliberately no skeleton.
+  // Most first-time visits end with this rail absent, so a placeholder rail would mean a title and
+  // five grey cards flashing in and then vanishing for the majority. The trade is a layout shift for
+  // the few who do get the rail against a flash for everyone who does not, and the flash is worse.
   if (!visible) return null
 
   const showControls = pageCount > 1
 
-  const onCardClick = (item: SuggestedItem, rank: number) => {
+  const onClick = (item: SuggestedItem, rank: number, target: ClickTarget) => {
     track('clicked_suggestion', {
       contract_address: item.contractAddress,
       item_id: item.itemId,
       rank,
       reason: item.reason.kind,
-      algorithm: result?.algorithm
+      algorithm: result?.algorithm,
+      has_address: hasAddress,
+      target
     })
   }
 
+  const onPaged = (action: PagedAction, target: number) => {
+    track('paged_suggestions', { action, page: target, algorithm: result?.algorithm })
+    scrollToPage(target)
+  }
+
   return (
-    <Row.Root data-testid="suggested-row">
+    <Row.Root ref={railRef} data-testid="suggested-row">
       <Row.Head>
         <Row.Title>{t('overview.suggested.title')}</Row.Title>
       </Row.Head>
@@ -162,7 +222,7 @@ export function SuggestedForYouRow() {
           <Row.Arrow
             data-side="left"
             data-testid="suggested-row-prev"
-            onClick={() => scrollToPage(page - 1)}
+            onClick={() => onPaged('prev', page - 1)}
             disabled={page <= 0}
             aria-label={t('overview.previous')}
           >
@@ -171,22 +231,26 @@ export function SuggestedForYouRow() {
         ) : null}
         <S.Track ref={trackRef} data-testid="suggested-row-track">
           {items.map((item, i) => (
-            <S.Cell key={item.id} onClick={() => onCardClick(item, i)}>
+            <S.Cell key={item.id} onClick={() => onClick(item, i, 'card')}>
               <AssetCard item={item} source="suggested" position={i} />
-              <ReasonLine item={item} triggerNameById={triggerNameById} />
+              <ReasonLine
+                item={item}
+                triggerNameById={triggerNameById}
+                // The line sits inside the cell's click area, so its own click has to stop there:
+                // otherwise every reason click would also be counted as interest in the card.
+                onReasonClick={event => {
+                  event.stopPropagation()
+                  onClick(item, i, 'reason')
+                }}
+              />
             </S.Cell>
           ))}
         </S.Track>
-        <SkeletonSettle loading={false}>
-          <S.Track>
-            <SkeletonCards count={SKELETON_COUNT} settling />
-          </S.Track>
-        </SkeletonSettle>
         {showControls ? (
           <Row.Arrow
             data-side="right"
             data-testid="suggested-row-next"
-            onClick={() => scrollToPage(page + 1)}
+            onClick={() => onPaged('next', page + 1)}
             disabled={page >= pageCount - 1}
             aria-label={t('overview.next')}
           >
@@ -200,7 +264,7 @@ export function SuggestedForYouRow() {
             <Row.Dot
               key={i}
               data-active={i === page || undefined}
-              onClick={() => scrollToPage(i)}
+              onClick={() => onPaged('dot', i)}
               aria-label={t('overview.goToPage', { page: i + 1 })}
               aria-current={i === page ? 'true' : undefined}
             />
@@ -221,7 +285,15 @@ export function SuggestedForYouRow() {
  * LINKS anywhere (every kind the server attached an item to, using the id it already carries). A
  * name that never arrives falls back to the generic copy rather than showing a gap or a raw id.
  */
-function ReasonLine({ item, triggerNameById }: { item: SuggestedItem; triggerNameById: Map<string, string> }) {
+function ReasonLine({
+  item,
+  triggerNameById,
+  onReasonClick
+}: {
+  item: SuggestedItem
+  triggerNameById: Map<string, string>
+  onReasonClick: (event: MouseEvent<HTMLElement>) => void
+}) {
   const { kind, itemId, creator } = item.reason
   const key = reasonKey(kind)
   if (!key) return null
@@ -238,19 +310,42 @@ function ReasonLine({ item, triggerNameById }: { item: SuggestedItem; triggerNam
         </S.Reason>
       )
     }
-    return <Line kind={kind} text={t(key, { item: name })} to={itemId ? triggerItemPath(itemId) : null} />
+    return (
+      <Line
+        kind={kind}
+        text={t(key, { item: name })}
+        to={itemId ? triggerItemPath(itemId) : null}
+        onReasonClick={onReasonClick}
+      />
+    )
   }
 
   const to = reasonLinksToItem(kind) && itemId ? triggerItemPath(itemId) : null
-  return <Line kind={kind} text={t(key, { creator: creator ?? '' })} to={to} />
+  return <Line kind={kind} text={t(key, { creator: creator ?? '' })} to={to} onReasonClick={onReasonClick} />
 }
 
 /** The whole line is the link rather than a word inside it: the copy is one translated string, and
  * carving a component out of its middle would need every locale to place the name identically. */
-function Line({ kind, text, to }: { kind: string; text: string; to: string | null }) {
+function Line({
+  kind,
+  text,
+  to,
+  onReasonClick
+}: {
+  kind: string
+  text: string
+  to: string | null
+  onReasonClick: (event: MouseEvent<HTMLElement>) => void
+}) {
   return (
     <S.Reason data-testid="suggested-reason" data-kind={kind} title={text}>
-      {to ? <S.ReasonLink to={to}>{text}</S.ReasonLink> : text}
+      {to ? (
+        <S.ReasonLink to={to} onClick={onReasonClick}>
+          {text}
+        </S.ReasonLink>
+      ) : (
+        text
+      )}
     </S.Reason>
   )
 }
