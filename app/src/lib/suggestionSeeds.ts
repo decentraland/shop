@@ -11,24 +11,27 @@ export function seedIdOf(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>):
 }
 
 /**
- * What this browser can tell the server about someone it cannot identify.
+ * What this browser can tell the server that the server cannot look up for itself.
  *
- * Ordered by how much intent each source carries rather than by recency: putting something in the
- * cart is the strongest signal short of buying it, favouriting is a deliberate save, and a view is
- * the weakest. The cap is applied after that ordering, so a visitor who has browsed a lot still
- * spends their twenty slots on the things they showed most interest in.
+ * Favourites are deliberately NOT here. They live in the marketplace's own store, which the server
+ * reads directly for a caller who signed the request — sending them from here as well would spend the
+ * cap below on data the server already has, and at the seed weight rather than the favourite one.
  *
- * Deduplicated, because the same item routinely appears in all three.
+ * Ordered by how much intent each source carries rather than by recency: putting something in the cart
+ * is the strongest signal short of buying it, and a view is the weakest. The cap is applied after that
+ * ordering, so a visitor who has browsed a lot still spends their twenty slots on the things they
+ * showed most interest in.
+ *
+ * Deduplicated, because the same item routinely appears in both.
  */
 export function buildSuggestionSeeds(sources: {
   cart?: Array<Pick<CatalogItem, 'contractAddress' | 'itemId'>>
-  favorites?: Array<Pick<CatalogItem, 'contractAddress' | 'itemId'>>
   recentlyViewed?: Array<Pick<CatalogItem, 'contractAddress' | 'itemId'>>
 }): string[] {
   const seeds: string[] = []
   const seen = new Set<string>()
 
-  for (const group of [sources.cart, sources.favorites, sources.recentlyViewed]) {
+  for (const group of [sources.cart, sources.recentlyViewed]) {
     for (const item of group ?? []) {
       const id = seedIdOf(item)
       if (!id || seen.has(id)) continue
