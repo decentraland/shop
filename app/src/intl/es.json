@@ -279,8 +279,21 @@
     "supply": "Rareza {rarity} — solo existirán {max}",
     "plain": "Rareza {rarity}"
   },
+  "offerStock": {
+    "label": "Stock de la oferta",
+    "claimed": "{claimed} de {total} reclamados",
+    "percent": "{pct}% reclamado"
+  },
+  "saleTimer": {
+    "lead": "Termina en",
+    "days": "{n}d",
+    "hours": "{n}h",
+    "minutes": "{n}m",
+    "seconds": "{n}s"
+  },
   "assetCard": {
     "sale": "OFERTA",
+    "saleTagPct": "-{pct}%",
     "saleWithDiscount": "OFERTA -{pct}%",
     "smart": "Smart",
     "addToFavorites": "Agregar a favoritos",
@@ -293,6 +306,7 @@
     "manage": "Gestionar",
     "inCart": "En el carrito",
     "addToCart": "Añadir al carrito",
+    "soldOut": "Agotado",
     "notForSale": "No en venta",
     "view": "Ver",
     "unitsLeftAtThisPrice": "Solo quedan {count} a este precio"
@@ -614,7 +628,8 @@
     "searchPlaceholder": "Busca tus artículos",
     "clearSearch": "Borrar búsqueda",
     "itemsCount": "{count, plural, one {# ítem} other {# ítems}}",
-    "groupOnSale": "{count, plural, one {# en venta} other {# en venta}}"
+    "groupOnSale": "{count, plural, one {# en venta} other {# en venta}}",
+    "groupSoldOut": "{count, plural, one {# agotado} other {# agotados}}"
   },
   "activity": {
     "filter": {
@@ -1276,7 +1291,11 @@
     "toastScheduled": "Tu descuento quedó programado.",
     "cancel": "Cancelar",
     "salesTitle": "Descuentos",
+    "blockedBody": "Todo lo publicado en esta colección tiene precio en <m>MANA</m>, y un descuento sólo se aplica a los precios en <c>Créditos</c>. Pasa {count, plural, one {la publicación} other {esas publicaciones}} y el descuento va a quedar listo.",
+    "blockedCta": "Ir a publicaciones",
     "putOnSale": "Iniciar descuento",
+    "groupActive": "{pct}% de descuento",
+    "groupScheduled": "{pct}% · programado",
     "offPct": "{pct}% de descuento",
     "statusActive": "Activa",
     "statusScheduled": "Programada",

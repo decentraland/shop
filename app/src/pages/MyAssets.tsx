@@ -12,6 +12,7 @@ import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorS
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
+import type { CreatorSaleStatus } from '~/lib/coupons'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
@@ -28,7 +29,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
-import { theme } from '~/styles/theme'
+import { heatFor, theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmptyState } from '~/components/EmptyState'
 import { NewPricingModal } from '~/components/NewPricingModal'
@@ -141,7 +142,12 @@ function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string 
 // (fetchPublishableItems is scoped to them), and the item-detail page relies on `creator === you` to
 // recognize you as the creator and offer "Put up for sale" (isOwnListing). Passing '' left the detail
 // page treating you as a stranger, so the publish CTA never showed after MANAGE.
-function publishableToItem(p: PublishableItem, price: number, creator: string): CatalogItem {
+function publishableToItem(
+  p: PublishableItem,
+  price: number,
+  creator: string,
+  sale?: CollectionSaleState
+): CatalogItem {
   return {
     id: `${p.contractAddress}-${p.blockchainItemId}`,
     name: p.name,
@@ -154,6 +160,13 @@ function publishableToItem(p: PublishableItem, price: number, creator: string): 
     chainId: config.chainId,
     thumbnail: p.thumbnail,
     priceCredits: price,
+    // The card reads `available === 0` as sold out. Passing it is what lets a creation say so instead of
+    // quietly showing a price of zero.
+    available: p.remainingSupply,
+    // The sale, when one is running: without these the creator's own grid shows the discounted number with
+    // nothing to compare it to — the price just drops and the card never says a discount is why.
+    ...(sale?.compareAtCredits != null ? { compareAtCredits: sale.compareAtCredits } : {}),
+    ...(sale?.saleEndsAt != null ? { saleEndsAt: sale.saleEndsAt } : {}),
     gender: null,
     isSmart: false
   }
@@ -321,7 +334,7 @@ export function MyAssets() {
     isError: publishableError
   } = useQuery({
     queryKey: ['publishable-items', address],
-    queryFn: () => fetchPublishableItems(address as string, session!.identity),
+    queryFn: () => fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true }),
     enabled: !!session && section === 'creations',
     retry: false
   })
@@ -370,6 +383,9 @@ export function MyAssets() {
     // has to be able to say which of the rest it will leave alone. The unfiltered list, so what the sale
     // covers never depends on how the grid happens to be filtered.
     for (const item of publishable ?? []) {
+      // Sold out is not one of the three states below: there is no copy left for a discount to re-price, so
+      // it belongs in neither the discounted group nor the two the review promises to leave alone.
+      if (item.remainingSupply <= 0) continue
       const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
       // Three states, because "on sale" is not one thing here. A discount re-prices the Shop's own credit
       // listings, so an item still quoted in MANA cannot take one — but it IS listed, and the review has to
@@ -398,8 +414,15 @@ export function MyAssets() {
       }
       byAddress.set(key, entry)
     }
-    // A collection with nothing listed has nothing to discount, so it is not saleable.
-    return [...byAddress.values()].filter(c => c.listedCount > 0)
+    /*
+     * Offered wherever the creator has something LISTED, in either currency.
+     *
+     * Credit listings are what a discount can actually re-price, but a collection sold entirely in MANA
+     * used to get no button at all — and an absent control explains nothing. It is offered, and the modal
+     * says why it cannot run yet and where to fix it. A collection with nothing listed at all stays out:
+     * there the answer is to list something, which this flow is not about.
+     */
+    return [...byAddress.values()].filter(c => c.listedCount > 0 || c.items.some(i => i.state === 'classic'))
   }, [publishable, saleState])
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
@@ -440,16 +463,50 @@ export function MyAssets() {
    * Sort control chose still decides which collection leads.
    */
   const creationGroups = useMemo(() => {
-    const groups = new Map<string, { contractAddress: string; name: string; listed: number; items: typeof creations }>()
+    const groups = new Map<
+      string,
+      { contractAddress: string; name: string; listed: number; soldOut: number; items: typeof creations }
+    >()
     for (const item of creations) {
       const key = item.contractAddress.toLowerCase()
-      const group = groups.get(key) ?? { contractAddress: key, name: item.collectionName, listed: 0, items: [] }
+      const group = groups.get(key) ?? {
+        contractAddress: key,
+        name: item.collectionName,
+        listed: 0,
+        soldOut: 0,
+        items: []
+      }
       group.items.push(item)
       if (saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]?.isOnSale) group.listed += 1
+      if (item.remainingSupply <= 0) group.soldOut += 1
       groups.set(key, group)
     }
     return [...groups.values()]
   }, [creations, saleState])
+
+  /** Collection names by address, so the discounts panel can name what each sale covers. */
+  const collectionNames = useMemo(() => {
+    const names: Record<string, string> = {}
+    for (const item of publishable ?? []) names[item.contractAddress.toLowerCase()] = item.collectionName
+    return names
+  }, [publishable])
+
+  /**
+   * The collections a discount already covers, live or waiting to start.
+   *
+   * Only these two statuses: an ended, cancelled or exhausted sale leaves the collection free to take a new
+   * one, and saying otherwise would strand the creator with no way to run another.
+   */
+  const discountedByAddress = useMemo(() => {
+    const set = new Map<string, { status: CreatorSaleStatus; pct: number }>()
+    for (const sale of creatorSales ?? []) {
+      if (sale.status !== 'active' && sale.status !== 'scheduled') continue
+      // Millionths on the wire, because that is the unit the contract does its arithmetic in.
+      const pct = sale.discount / 10_000
+      for (const address of sale.collections) set.set(address.toLowerCase(), { status: sale.status, pct })
+    }
+    return set
+  }, [creatorSales])
 
   /** Which collections a sale can actually cover, for the per-header CTA. */
   const saleableByAddress = useMemo(
@@ -698,7 +755,7 @@ export function MyAssets() {
             {creatorSalesEnabled && session && creatorSales && creatorSales.length > 0 ? (
               <S.SalesPanel data-testid="creator-sales-panel">
                 <S.SalesTitle>{t('creatorSale.salesTitle')}</S.SalesTitle>
-                <CreatorSales sales={creatorSales} session={session} />
+                <CreatorSales sales={creatorSales} session={session} names={collectionNames} />
               </S.SalesPanel>
             ) : null}
             {saleModalOpen && session && saleModalCollection ? (
@@ -724,20 +781,42 @@ export function MyAssets() {
                       <S.CollectionCount data-testid="creation-group-count">
                         {t('myAssets.itemsCount', { count: group.items.length })}
                         {group.listed > 0 ? ` · ${t('myAssets.groupOnSale', { count: group.listed })}` : ''}
+                        {/* Named, because it is the number that explains why the count is higher than what
+                            can be sold — the question a silently shorter list used to raise instead. */}
+                        {group.soldOut > 0 ? ` · ${t('myAssets.groupSoldOut', { count: group.soldOut })}` : ''}
                       </S.CollectionCount>
                     </S.CollectionHeadText>
                     {creatorSalesEnabled && session && saleableByAddress.has(group.contractAddress) ? (
-                      <S.SaleCta
-                        variant="purple"
-                        size="sm"
-                        data-testid="creation-group-sale"
-                        onClick={() => {
-                          setSaleModalFor(group.contractAddress)
-                          setSaleModalOpen(true)
-                        }}
-                      >
-                        {t('creatorSale.putOnSale')}
-                      </S.SaleCta>
+                      // A collection already carries at most one discount, and the panel above is where it is
+                      // ended. Offering to start another here would open a modal whose only outcome is a
+                      // second coupon on the same items — so the header states the fact instead.
+                      discountedByAddress.has(group.contractAddress) ? (
+                        (() => {
+                          const running = discountedByAddress.get(group.contractAddress)!
+                          return (
+                            <S.SaleState data-heat={heatFor(running.pct)} data-testid="creation-group-sale-state">
+                              {t(
+                                running.status === 'scheduled'
+                                  ? 'creatorSale.groupScheduled'
+                                  : 'creatorSale.groupActive',
+                                { pct: running.pct }
+                              )}
+                            </S.SaleState>
+                          )
+                        })()
+                      ) : (
+                        <S.SaleCta
+                          variant="purple"
+                          size="sm"
+                          data-testid="creation-group-sale"
+                          onClick={() => {
+                            setSaleModalFor(group.contractAddress)
+                            setSaleModalOpen(true)
+                          }}
+                        >
+                          {t('creatorSale.putOnSale')}
+                        </S.SaleCta>
+                      )
                     ) : null}
                   </S.CollectionHead>
                   <S.Grid data-testid="grid">
@@ -749,7 +828,7 @@ export function MyAssets() {
                         // longer happens inline from the My Creations card.
                         <AssetCard
                           key={`${item.contractAddress}-${item.blockchainItemId}`}
-                          item={publishableToItem(item, creditsFor(sale), address ?? '')}
+                          item={publishableToItem(item, creditsFor(sale), address ?? '', sale)}
                           mode="manage-link"
                         />
                       )

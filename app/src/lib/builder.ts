@@ -195,7 +195,13 @@ export async function fetchCreatorCollections(address: string, identity: AuthIde
 /** The publishable items inside one collection (only those ready for a primary listing). */
 export async function fetchCollectionItems(
   collection: CreatorCollection,
-  identity: AuthIdentity
+  identity: AuthIdentity,
+  /**
+   * Keep the items whose supply has run out. Off by default, because every caller that asks "what can I
+   * list / mint / discount" means the publishable ones — but the creator's own inventory is not one of
+   * those questions, and dropping a sold-out item there reads as the item having gone missing.
+   */
+  opts?: { includeSoldOut?: boolean }
 ): Promise<PublishableItem[]> {
   const url = `${BUILDER_V1()}/collections/${collection.id}/items`
   const payload = await getJson<Paginated<RawItem>>(url, identity)
@@ -232,31 +238,38 @@ export async function fetchCollectionItems(
       return item
     })
   )
-  return items.filter(isPublishable)
+  return items.filter(opts?.includeSoldOut ? isPublished : isPublishable)
 }
 
 // Publishability rule (BUILDER_LISTING_SPEC §1.4): published + approved + on-chain item id present
 // + supply remaining. Un-approved/unpublished items can't be minted from.
 export function isPublishable(item: PublishableItem): boolean {
-  return (
-    item.isPublished &&
-    item.isApproved &&
-    item.blockchainItemId !== '' &&
-    item.blockchainItemId != null &&
-    item.remainingSupply > 0
-  )
+  return isPublished(item) && item.remainingSupply > 0
+}
+
+/**
+ * The same rule WITHOUT the supply condition: the item exists on chain and the creator owns it, whether or
+ * not there is anything left to mint. An item that has sold out is still theirs, and still theirs to look
+ * at — which is the difference between a collection that shows every item and one that silently shrinks.
+ */
+export function isPublished(item: PublishableItem): boolean {
+  return item.isPublished && item.isApproved && item.blockchainItemId !== '' && item.blockchainItemId != null
 }
 
 /**
  * All publishable items across the creator's published collections. Fail-soft per collection so one
  * bad response doesn't hide the rest. Signed as the creator (identity).
  */
-export async function fetchPublishableItems(address: string, identity: AuthIdentity): Promise<PublishableItem[]> {
+export async function fetchPublishableItems(
+  address: string,
+  identity: AuthIdentity,
+  opts?: { includeSoldOut?: boolean }
+): Promise<PublishableItem[]> {
   const collections = await fetchCreatorCollections(address, identity)
   const perCollection = await Promise.all(
     collections.map(async c => {
       try {
-        return await fetchCollectionItems(c, identity)
+        return await fetchCollectionItems(c, identity, opts)
       } catch {
         return [] as PublishableItem[]
       }

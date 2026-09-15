@@ -269,6 +269,41 @@ export const CollectionHead = styled.div`
  * Putting a collection on sale is the advancing action on this page, so it takes the buy CTA's
  * orange→red gradient — the same fill the item page gives BUY NOW — instead of the purple primary.
  */
+/**
+ * The header's answer when a discount already covers the collection: a statement, not a control.
+ *
+ * Sized and spaced like the button it replaces so the header does not reflow when a discount starts, but
+ * deliberately flat — a filled pill here would read as a third action next to the panel's END DISCOUNT.
+ */
+export const SaleState = styled.span`
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: ${theme.radius.pill};
+  border: 1px solid transparent;
+  font-family: ${theme.font.sans};
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  /* The running discount's own colours — the same ramp the chips, the review badge and the sale price
+     wear, so the header reads as the same discount rather than as a status of its own invention. */
+  ${Object.entries(theme.saleHeat)
+    .map(
+      ([step, { tint, ink }]) => `
+  &[data-heat='${step}'] {
+    background: ${tint};
+    border-color: ${ink};
+    color: ${ink};
+  }`
+    )
+    .join('')}
+`
+
 export const SaleCta = styled(Button)`
   && {
     background: ${theme.gradients.buyBtn};
@@ -332,10 +367,10 @@ export const CollectionCount = styled.span`
 export const SalesPanel = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 20px;
   /* Even sides now that nothing sits at the right edge — the 8px was the old cta's optical inset. */
-  padding: 12px 16px;
+  padding: 16px 18px;
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.promptLilac};
 `

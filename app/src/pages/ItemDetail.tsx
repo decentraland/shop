@@ -61,12 +61,14 @@ import { isNotifyAvailable } from '~/lib/notify'
 // import { MakeOfferButton } from '~/components/MakeOfferButton' // see the CTA block below
 import { Tooltip } from '~/components/Tooltip'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { SaleTimer } from '~/components/SaleTimer'
+import { OfferStock } from '~/components/OfferStock'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
 import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
-import { saleDiscountPct, saleUnitsHint } from '~/lib/sale'
+import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { track, itemProps, creditsToUsd } from '~/lib/analytics'
@@ -633,7 +635,16 @@ export function ItemDetail() {
   })
   // Scarcity, only while the sale is actually live: a count left over from a window that has closed would
   // read as pressure to buy at a price no longer on offer.
-  const unitsLeft = saleActive ? saleUnitsHint(current.saleUnitsLeft) : null
+
+  /** The offer's own scale: what has been claimed, over the most this listing can still give at that price. */
+  const offerStock = (() => {
+    if (!saleActive || current.saleUnitsLeft == null) return null
+    const claimed = current.coupon?.used ?? 0
+    const allowance = Number(current.coupon?.checks?.uses ?? 0)
+    const reachable = claimed + current.saleUnitsLeft
+    const total = allowance > 0 ? Math.min(allowance, reachable) : reachable
+    return total > 0 ? { claimed, total } : null
+  })()
   // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
   const cartItem: CatalogItem = useMemo(
     () => ({ ...current, tradeId: buyableTradeId, id: buyableTradeId ?? current.id }),
@@ -1262,6 +1273,15 @@ export function ItemDetail() {
             <ItemInfoSkeleton />
           ) : (
             <>
+              {/* Above the title, not beside the price: it announces the whole item, and down in the price
+                  row it was a third chip arguing with the number it describes. */}
+              {onSale && current.compareAtCredits != null ? (
+                <S.DetailSaleTag
+                  pct={saleDiscountPct(current.compareAtCredits, current.priceCredits)}
+                  size="lg"
+                  testId="detail-sale-badge"
+                />
+              ) : null}
               <S.InfoHead>
                 {/* Token route: append the specific copy's mint index to the title (e.g. "Ruby Red
                     Fascinator #1") so the owner/viewer sees exactly which copy this page is about. The
@@ -1560,30 +1580,18 @@ export function ItemDetail() {
                             </>
                           ) : forSale ? (
                             onSale ? (
+                              // One line: the mark, what it costs now, what it cost, and how long that
+                              // lasts. The discount tag moved up beside the title — in here it was a
+                              // fourth thing competing with the number it is about.
                               <S.Price data-variant="sale" data-testid="item-price">
-                                <S.Price>
-                                  <S.Diamond />
-                                  <S.PriceValue>
-                                    <Price credits={current.priceCredits} />
-                                  </S.PriceValue>
-                                </S.Price>
+                                <S.Diamond />
+                                <S.PriceValue>
+                                  <Price credits={current.priceCredits} />
+                                </S.PriceValue>
                                 <S.PriceWas data-testid="detail-price-was">
-                                  <S.Diamond data-was />
                                   <Price credits={current.compareAtCredits!} />
                                 </S.PriceWas>
-                                {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                                  <S.SaleBadge data-testid="detail-sale-badge">
-                                    {t('assetCard.saleWithDiscount', {
-                                      pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
-                                    })}
-                                  </S.SaleBadge>
-                                ) : null}
-                                <S.Countdown until={current.saleEndsAt} />
-                                {unitsLeft != null ? (
-                                  <S.UnitsLeft data-testid="detail-units-left">
-                                    {t('assetCard.unitsLeftAtThisPrice', { count: unitsLeft })}
-                                  </S.UnitsLeft>
-                                ) : null}
+                                <SaleTimer until={current.saleEndsAt} testId="detail-countdown" />
                               </S.Price>
                             ) : (
                               <S.Price data-testid="item-price">
@@ -1625,13 +1633,33 @@ export function ItemDetail() {
                             </S.StockValue>
                           </S.StockCol>
                         ) : outOfStock ? (
+                          // The count stays. "OUT OF STOCK" alone says none are left but not how many there
+                          // ever were, which is the difference between a 1-of-1 and a drop of a thousand.
                           <S.StockCol>
+                            <S.PriceLabel>{t('itemDetail.stock')}</S.PriceLabel>
+                            <S.StockValue>
+                              {(supply ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                            </S.StockValue>
                             <S.StockValue data-out data-testid="out-of-stock">
                               {t('itemDetail.outOfStock')}
                             </S.StockValue>
                           </S.StockCol>
                         ) : null}
                       </S.PriceRow>
+                      {/* How much of the mint is gone, under the row rather than inside the STOCK column:
+                          the scale is ~130px wide and that column is sized for a "99/100". */}
+                      {/*
+                       * How much of the OFFER is gone, which is not how much of the item is.
+                       *
+                       * A coupon's allowance covers a whole collection, so it can be far larger than what
+                       * this listing can deliver. `saleUnitsLeft` arrives already capped by the server
+                       * (LEAST of the coupon's remaining uses and this item's stock), so the ceiling is
+                       * what has been claimed plus what is genuinely still gettable here — never the
+                       * collection-wide number.
+                       */}
+                      {offerStock ? (
+                        <OfferStock claimed={offerStock.claimed} total={offerStock.total} testId="detail-offer-stock" />
+                      ) : null}
                     </S.PriceBlock>
                   )}
 

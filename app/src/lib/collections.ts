@@ -1,6 +1,6 @@
 import { config } from '~/config'
 import { ZERO_ADDRESS } from '~/lib/address'
-import { fetchPeggedPrimaryPrices, type CatalogItem } from '~/lib/api'
+import { fetchPeggedPrimaryPrices, fetchShopListingsRaw, type CatalogItem } from '~/lib/api'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
 // full storefront. Data source: GET /v3/catalog/items (same full-catalog semantics as the classic
@@ -94,6 +94,13 @@ export type CollectionSaleState = {
   manaWei?: string
   /** Absent for a collection-store mint, which is on sale with no trade behind it. */
   tradeId?: string
+  /**
+   * The sale a creator's coupon is running on this listing, when there is one: the price before the cut and
+   * when it ends. Carried so the creator's OWN grids can draw the same strike-through and tag a buyer sees
+   * — without them the price simply drops and nothing says why.
+   */
+  compareAtCredits?: number
+  saleEndsAt?: number
 }
 
 /** One page of a collection's catalogue rows. */
@@ -164,7 +171,13 @@ export async function fetchCollectionSaleState(contractAddress: string): Promise
     const itemId = String(r.itemId)
     const peg = pegged[itemId]
     map[itemId] = peg
-      ? { isOnSale: true, priceCredits: peg.priceCredits, ...(peg.tradeId ? { tradeId: peg.tradeId } : {}) }
+      ? {
+          isOnSale: true,
+          priceCredits: peg.priceCredits,
+          ...(peg.tradeId ? { tradeId: peg.tradeId } : {}),
+          ...(peg.compareAtCredits != null ? { compareAtCredits: peg.compareAtCredits } : {}),
+          ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {})
+        }
       : { isOnSale: true, priceCredits: r.priceCredits ?? 0, ...(r.price ? { manaWei: r.price } : {}) }
   }
   return map
@@ -256,6 +269,48 @@ export type CatalogItemsFilters = {
   maxPriceCredits?: number
 }
 
+/**
+ * Lay the running sales over rows this feed cannot carry them on.
+ *
+ * `/v3/catalog/items` has no coupon join — only `/v3/catalog/shop` does — so a creator's storefront and a
+ * collection page showed the discounted PRICE with nothing marking it as a discount: no strike-through, no
+ * tag, no end. The shop feed is asked for the same scope and its sale fields are copied across by item.
+ *
+ * Silent on failure and skipped when the scope is the whole catalogue: an overlay that cannot resolve must
+ * leave the page exactly as it was, never take it down with it.
+ */
+async function withRunningSales(
+  items: CatalogItem[],
+  scope: { creator?: string; contractAddress?: string }
+): Promise<CatalogItem[]> {
+  if (!scope.creator && !scope.contractAddress) return items
+  if (!items.some(i => i.itemId != null)) return items
+  try {
+    const { listings, creatorSalesLive } = await fetchShopListingsRaw({ ...scope, first: 200, listingType: 'primary' })
+    // The kill switch lives in the mapping this overlay skips, so it has to be honoured here or a flag
+    // turned off would leave the discount standing on exactly these two pages.
+    if (!creatorSalesLive) return items
+    const sales = new Map<string, { compareAtCredits: number; saleEndsAt?: number; priceCredits: number }>()
+    for (const l of listings) {
+      if (l.itemId == null || l.compareAtCredits == null) continue
+      sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
+        compareAtCredits: l.compareAtCredits,
+        priceCredits: l.priceCredits,
+        // SECONDS on the wire, milliseconds everywhere a CatalogItem is read. The mapping this overlay
+        // bypasses is where that conversion normally happens.
+        ...(l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+      })
+    }
+    if (sales.size === 0) return items
+    return items.map(item => {
+      const sale = item.itemId == null ? undefined : sales.get(`${item.contractAddress.toLowerCase()}-${item.itemId}`)
+      return sale ? { ...item, ...sale } : item
+    })
+  } catch {
+    return items
+  }
+}
+
 export async function fetchCatalogItems({
   first = 48,
   skip = 0,
@@ -306,7 +361,7 @@ export async function fetchCatalogItems({
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCatalogItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
-  const items = (data ?? []).map(toCatalogItem)
+  const items = await withRunningSales((data ?? []).map(toCatalogItem), { creator, contractAddress })
   return { items, total: total ?? skip + items.length }
 }
 
@@ -320,7 +375,7 @@ export async function fetchCreatorItems(
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCreatorItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
-  const items = (data ?? []).map(toCatalogItem)
+  const items = await withRunningSales((data ?? []).map(toCatalogItem), { creator })
   return { items, total: total ?? skip + items.length }
 }
 

@@ -6,15 +6,29 @@ const { colors, radius, font, media } = theme
 export const List = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+`
+
+/** The collection's mosaic, at the same 40px the My Creations headers draw it. */
+export const Thumb = styled.span`
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: ${radius.btn};
+  overflow: hidden;
+  background: ${colors.media};
 `
 
 export const Row = styled.div`
   display: grid;
+  /* Three tracks: the mosaic, the text, the action. The discount moved in with the text, where it lines up
+     with the timer instead of floating between the row's two lines. */
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 16px;
+  /* Roomier than the 12/14 it started at: the row carries two chips now, and at their height the old
+     padding left them pressed against the card's edges. */
+  padding: 16px 18px;
   border: 1px solid ${colors.line};
   border-radius: ${radius.card};
   background: ${colors.white};
@@ -35,25 +49,11 @@ export const Row = styled.div`
   }
 `
 
-// The same red tag the cards and the item page use for "SALE −X%".
-export const Badge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: ${colors.dclRed};
-  color: ${colors.white};
-  font-family: ${font.sans};
-  font-weight: 800;
-  font-size: 13px;
-  letter-spacing: 0.03em;
-`
-
 export const Info = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* The name sits on one line and the figures on the next; at 4px the chips touched the name above them. */
+  gap: 8px;
   min-width: 0;
 `
 
@@ -97,7 +97,7 @@ export const Meta = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 14px;
+  gap: 6px 10px;
   font-family: ${font.sans};
   font-size: 12px;
   color: ${colors.muted};
