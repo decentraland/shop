@@ -792,6 +792,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
 
   // builder-server
   if (u.hostname.includes('builder-api')) {
+    // Which collections carry a campaign's tag. Answered only while a campaign is published — an event
+    // whose tag nobody has applied yet is the ordinary state, and the tab has to stay hidden for it.
+    if (path === '/v1/addresses') return json(req, { ok: true, data: campaignFlag ? [fx.COLLECTION] : [] })
     // Per-collection endpoint, so honour the id in the path — answering every collection with the whole
     // item list made a multi-collection creator look like one collection repeated.
     if (/\/v1\/collections\/.+\/items/.test(path)) {

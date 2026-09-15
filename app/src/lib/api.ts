@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
+import { ZERO_ADDRESS } from '~/lib/address'
 import { captureError } from '~/lib/monitoring'
 import type { ListingCoupon } from '~/lib/trade-encoding'
 
@@ -497,6 +498,15 @@ export type ShopListingFilters = {
   first?: number
   skip?: number
   contractAddress?: string
+  /**
+   * Restrict to a SET of collections, where `contractAddress` restricts to one. What a seasonal event
+   * filters by — an event tags whole collections, and names dozens of them at once.
+   *
+   * AN EMPTY ARRAY MUST NEVER BE SENT. The server reads an absent collection filter as "no filter", so an
+   * empty one would come back as the entire catalogue presented as the event. A caller whose set resolved
+   * to nothing must not issue the request at all.
+   */
+  contractAddresses?: string[]
   itemId?: string
   creator?: string
   rarities?: string[]
@@ -747,7 +757,21 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
   qs.set('first', String(first))
   if (filters.skip != null) qs.set('skip', String(filters.skip))
-  if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
+  // The two are mutually exclusive, spelled out rather than left to whichever `qs.set` runs last — the
+  // same choice the server's own parser makes, and for the same reason: a request carrying both would
+  // silently apply one of them.
+  if (filters.contractAddresses) {
+    // Comma-separated, which is what this endpoint takes for a set. Not the repeated form: at ~100
+    // collections that is 16 more characters apiece on a query string already several kilobytes long.
+    //
+    // An EMPTY set becomes the zero address rather than nothing. Omitting the parameter reads as "no
+    // collection filter" server-side, so an empty set would come back as the entire catalogue — and be
+    // rendered as whatever the caller asked for. A caller that resolved to nothing must get nothing, and
+    // the marketplace's campaign browser substitutes the same address for the same reason.
+    qs.set('contractAddress', filters.contractAddresses.length ? filters.contractAddresses.join(',') : ZERO_ADDRESS)
+  } else if (filters.contractAddress) {
+    qs.set('contractAddress', filters.contractAddress)
+  }
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
   if (filters.creator) qs.set('creator', filters.creator)
   if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))

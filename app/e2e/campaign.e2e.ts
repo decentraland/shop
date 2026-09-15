@@ -83,3 +83,44 @@ describe('the home hero', () => {
     await app.page.screenshot({ path: join(SHOTS, 'campaign-hero-mobile.png') })
   })
 })
+
+/**
+ * The event tab, and the grid behind it.
+ *
+ * The tab is the campaign's own name, so it is asserted literally — it never goes through the app's
+ * translations. What the browser proves that jsdom cannot is the round trip: the tag reaches the builder,
+ * the collections it answers with reach the catalogue request, and the grid that comes back is the one the
+ * tab opened.
+ */
+describe('the event tab', () => {
+  it('is absent while no campaign is running', async () => {
+    app = await launchApp({ path: '/overview' })
+
+    expect(await app.page.$('[data-testid="nav-event"]')).toBeNull()
+  })
+
+  it('carries the campaign name and opens the event grid', async () => {
+    app = await launchApp({ path: '/overview', campaign: true })
+
+    const tab = await app.page.waitForSelector('[data-testid="nav-event"]')
+    expect(await tab!.evaluate(el => el.textContent)).toBe('Halloween')
+
+    await Promise.all([tab!.click(), app.page.waitForNavigation({ waitUntil: 'networkidle2' })])
+
+    expect(new URL(app.page.url()).pathname).toMatch(/\/event$/)
+    await app.page.waitForSelector('[data-testid="browse"]')
+  })
+
+  it('asks the catalogue for the campaign’s collections only', async () => {
+    const asked: string[] = []
+    app = await launchApp({ path: '/event', campaign: true })
+    app.page.on('request', r => {
+      if (r.url().includes('/v3/catalog/unified')) asked.push(r.url())
+    })
+    await app.page.reload({ waitUntil: 'networkidle2' })
+
+    expect(asked.length).toBeGreaterThan(0)
+    // The set travels comma-separated, which is the encoding this endpoint parses.
+    expect(asked.some(url => url.includes('contractAddress='))).toBe(true)
+  })
+})
