@@ -105,3 +105,27 @@ describe('suggested for you on the favourites page', () => {
     expect(await page.$('[data-testid="suggested-row"]')).toBeNull()
   })
 })
+
+describe('the space the cart rail occupies', () => {
+  it('gives it back when there is nothing personal to show, rather than leaving a rail-sized gap', async () => {
+    app = await openCart({ suggestedForYou: true, suggested: { personalized: false } })
+    const { page } = app
+    await waitForText(page, 'You might also like')
+
+    // The wrapper carries ~119px of margin and padding of ITS OWN, which a row returning null inside it
+    // does not remove. On the one page where vertical space is most precious, that is a rail-sized hole.
+    expect(await page.$('[data-testid="cart-personal-upsell"]')).toBeNull()
+  })
+
+  it('keeps the space while the answer is still coming, so the rail does not push the page down', async () => {
+    app = await launchApp({ suggestedForYou: true, delays: { '/v3/catalog/suggested': 4000 }, path: '/' })
+    const { page } = app
+    await page.evaluate(c => localStorage.setItem('dcl_shop_cart', c), persistedCart)
+    // NOT networkidle2: waiting for the network to settle waits for the very request whose in-flight
+    // state this asserts, and the placeholders would be gone by the time the wait returned.
+    await page.goto(`${BASE}/cart`, { waitUntil: 'domcontentloaded', timeout: 45000 })
+
+    await page.waitForSelector('[data-testid="cart-personal-upsell"]', { timeout: 15000 })
+    expect(await page.$('[data-testid="suggested-row-skeleton"]')).not.toBeNull()
+  })
+})

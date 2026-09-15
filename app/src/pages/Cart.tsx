@@ -1588,14 +1588,20 @@ export function Cart() {
 
       {/* Two rails, never both. The personal one knows what is in the basket; the generic one is what a
           shopper we know nothing about still gets. */}
-      <S.Upsell>
-        <SuggestedForYouRow
-          exclude={cartExclude}
-          title={t('cart.suggestedTitle')}
-          surface="cart"
-          first={CART_RAIL_SIZE}
-        />
-      </S.Upsell>
+      {/* The wrapper carries 119px of its own spacing, so it has to go when the rail does — the row
+          returning null inside it would otherwise leave a gap the size of a rail. `personalHidden` is
+          null while the answer is still coming too, which is what reserves the space for the
+          placeholders instead of letting them push the page down on arrival. */}
+      {personalHidden === null && (
+        <S.Upsell data-testid="cart-personal-upsell">
+          <SuggestedForYouRow
+            exclude={cartExclude}
+            title={t('cart.suggestedTitle')}
+            surface="cart"
+            first={CART_RAIL_SIZE}
+          />
+        </S.Upsell>
+      )}
       {personalHidden !== null && upsell.length > 0 ? (
         <S.Upsell>
           <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
