@@ -229,7 +229,14 @@ function ReasonLine({ item, triggerNameById }: { item: SuggestedItem; triggerNam
   if (reasonInterpolatesItemName(kind)) {
     const name = itemId ? triggerNameById.get(itemId) : undefined
     if (!name) {
-      return <S.Reason data-testid="suggested-reason">{t('overview.suggested.reason.trending')}</S.Reason>
+      // The name is the only part that failed; the row is still personal. Saying "Trending" here would
+      // be a claim about the item that is simply untrue, so the fallback is the one line that is true
+      // of every row in this rail and specific to none.
+      return (
+        <S.Reason data-testid="suggested-reason" data-kind="generic">
+          {t('overview.suggested.reason.generic')}
+        </S.Reason>
+      )
     }
     return <Line kind={kind} text={t(key, { item: name })} to={itemId ? triggerItemPath(itemId) : null} />
   }

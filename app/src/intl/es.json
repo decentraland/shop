@@ -700,6 +700,7 @@
       "title": "Sugeridos para ti",
       "reason": {
         "coOwned": "Porque tienes {item}",
+        "generic": "Elegido para ti",
         "creatorAffinity": "Más de un creador que coleccionas",
         "favoriteSimilar": "Parecido a tus favoritos",
         "equippedSimilar": "Combina con lo que llevas puesto",

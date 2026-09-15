@@ -52,6 +52,29 @@ describe('reasonInterpolatesItemName', () => {
   })
 })
 
+describe('the generic fallback copy', () => {
+  const KEY = 'overview.suggested.reason.generic'
+
+  it('exists in English', () => {
+    expect(typeof lookup(en as Record<string, unknown>, KEY)).toBe('string')
+  })
+
+  it('exists in Spanish', () => {
+    expect(typeof lookup(es as Record<string, unknown>, KEY)).toBe('string')
+  })
+
+  it('needs no name, since it is what renders when the name is what failed', () => {
+    expect(lookup(en as Record<string, unknown>, KEY)).not.toContain('{')
+    expect(lookup(es as Record<string, unknown>, KEY)).not.toContain('{')
+  })
+
+  it('does not reuse the trending copy, which would claim something untrue of a personal row', () => {
+    const trending = reasonKey('trending') as string
+    expect(lookup(en as Record<string, unknown>, KEY)).not.toBe(lookup(en as Record<string, unknown>, trending))
+    expect(lookup(es as Record<string, unknown>, KEY)).not.toBe(lookup(es as Record<string, unknown>, trending))
+  })
+})
+
 describe('reasonLinksToItem', () => {
   it('links every kind the server attaches an item to', () => {
     expect(KINDS.filter(reasonLinksToItem)).toEqual([
