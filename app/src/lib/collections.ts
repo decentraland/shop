@@ -103,7 +103,11 @@ async function fetchCatalogRowsPage(
   skip: number,
   label: string
 ): Promise<{ data: RawCollectionItem[]; total: number }> {
-  const qs = new URLSearchParams({ ...scope, first: String(first), skip: String(skip), includeSocialEmotes: 'false' })
+  const qs = new URLSearchParams({ first: String(first), skip: String(skip), includeSocialEmotes: 'false' })
+  // Set explicitly rather than spread: a spread of the union types as an intersection and would let a
+  // future non-string field reach the query string as "[object Object]" without a compile error.
+  if ('contractAddress' in scope) qs.set('contractAddress', scope.contractAddress)
+  else qs.set('creator', scope.creator)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) {
     // Release the stream: nothing reads the body on this path, and leaving it unconsumed leaks it.

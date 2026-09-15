@@ -354,7 +354,9 @@ export function MyAssets() {
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
   // Hold the skeleton until prices are known too: cards that land unpriced and then flip to "on sale" read
   // as a glitch. The sale read is the faster of the two, so this rarely adds any wait.
-  const saleSettling = salePending && !saleError && (publishable?.length ?? 0) > 0
+  // `creationsWanted` first: a disabled query reports pending too, so the guard says what is meant rather
+  // than leaning on the item count happening to be zero while nothing has been asked for.
+  const saleSettling = creationsWanted && salePending && !saleError && (publishable?.length ?? 0) > 0
   const creationsLoading = publishableLoading || saleSettling
   // Sized to the count last seen for this account, so the grid does not jump when the real cards land.
   const creationsSkeletonCount = Math.min(12, Math.max(4, creationsHint?.count ?? 12))
