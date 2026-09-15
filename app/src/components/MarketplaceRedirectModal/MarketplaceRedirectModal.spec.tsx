@@ -1,7 +1,18 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+
+// Mocked so the hand-off's tracking side-effect can be asserted without Segment.
+vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
+
 import { MarketplaceRedirectModal, marketplaceItemUrl, marketplaceTokenUrl } from './MarketplaceRedirectModal'
+import { track } from '~/lib/analytics'
+
+const trackMock = vi.mocked(track)
+
+beforeEach(() => {
+  trackMock.mockClear()
+})
 
 const CONTRACT = '0x8adb4affb6c79d9dc018b792fa08c6d1cc7f5f09'
 // A real one. These are 63-digit decimals, and anything that mangles one (a Number round-trip, a
@@ -125,5 +136,41 @@ describe('when a buyer is handed off to the legacy marketplace to buy a resale',
     await userEvent.click(screen.getByTestId('marketplace-redirect-cancel'))
 
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('tracking the hand-off', () => {
+  it('should record a seller leaving to resell, with the token they were looking at', async () => {
+    renderModal()
+
+    await userEvent.click(continueCta())
+
+    expect(trackMock).toHaveBeenCalledWith('Shop Redirected To Marketplace', {
+      direction: 'resell',
+      contract_address: CONTRACT,
+      item_id: null,
+      token_id: TOKEN_ID
+    })
+  })
+
+  it('should record a buyer leaving to find a resale, with the item rather than a copy', async () => {
+    render(<MarketplaceRedirectModal variant="buy" contractAddress={CONTRACT} itemId="7" onClose={vi.fn()} />)
+
+    await userEvent.click(continueCta())
+
+    expect(trackMock).toHaveBeenCalledWith('Shop Redirected To Marketplace', {
+      direction: 'buy',
+      contract_address: CONTRACT,
+      item_id: '7',
+      token_id: null
+    })
+  })
+
+  it('should not record anything when the hand-off is dismissed instead', async () => {
+    renderModal()
+
+    await userEvent.click(screen.getByTestId('marketplace-redirect-cancel'))
+
+    expect(trackMock).not.toHaveBeenCalled()
   })
 })

@@ -74,6 +74,7 @@ vi.mock('~/lib/analytics', () => ({
   isUserRejection: () => false
 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
+import { track } from '~/lib/analytics'
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
 
 // No connected wallet: ownership/management branches are a different concern with their own specs.
@@ -196,6 +197,17 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
     await userEvent.click(await screen.findByTestId('buy-resale'))
 
     expect(await screen.findByTestId('marketplace-redirect-modal')).toHaveTextContent(/not made with credits/i)
+  })
+
+  it('should record the intent on the click, before the hand-off is even shown', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    expect(vi.mocked(track)).toHaveBeenCalledWith(
+      'Shop Clicked Buy Resale',
+      expect.objectContaining({ item_id: '1', has_shop_resale: false })
+    )
   })
 })
 
