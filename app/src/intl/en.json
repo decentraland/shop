@@ -215,7 +215,8 @@
       "own": "{count} you can't buy (your own listing)",
       "and": "and",
       "removed": "Removed {items} from your cart."
-    }
+    },
+    "suggestedTitle": "Goes with your cart"
   },
   "getCredits": {
     "title": "Stock up on Credits",
@@ -668,7 +669,8 @@
     "emptyCta": "Start exploring",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "loadError": "We couldn't load your favorites.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "suggestedTitle": "More like what you saved"
   },
   "favorites": {
     "updateError": "We couldn't update your favorites. Please try again."

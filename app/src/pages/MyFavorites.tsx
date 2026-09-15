@@ -10,6 +10,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { Grid } from '~/styles/grid.styles'
 import { EmptyState } from '~/components/EmptyState'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import * as S from './MyFavorites.styles'
 import emptyIllustration from '~/assets/empty/favorites-empty.svg'
 
@@ -17,6 +18,11 @@ import emptyIllustration from '~/assets/empty/favorites-empty.svg'
 // states); signed-out ones come straight from localStorage. Page the list so a long one doesn't
 // render hundreds of cards at once.
 const PAGE_SIZE = 24
+
+// The rail asks about what is SAVED, so it must not offer the saved things back. The cap keeps the
+// exclusion list — which travels in the query string — from growing with a long favourites list; past it
+// the ownership filter on the server still covers anything already bought.
+const SUGGESTED_EXCLUDE_CAP = 20
 
 export function MyFavorites() {
   useSeo({ title: t('nav.myFavorites'), noindex: true })
@@ -32,6 +38,17 @@ export function MyFavorites() {
   const items = useMemo(
     () => stored.map(item => ({ ...item, priceCredits: displayCredits(item, rate) })),
     [stored, rate]
+  )
+
+  const exclude = useMemo(
+    () =>
+      items
+        .slice(0, SUGGESTED_EXCLUDE_CAP)
+        .map(item =>
+          item.contractAddress && item.itemId ? `${item.contractAddress.toLowerCase()}-${item.itemId}` : null
+        )
+        .filter((id): id is string => id !== null),
+    [items]
   )
 
   if (status === 'error') {
@@ -55,6 +72,10 @@ export function MyFavorites() {
           body={t('myFavorites.emptyBody')}
           cta={{ label: t('myFavorites.emptyCta'), to: '/items' }}
         />
+        {/* An empty page with a button is the one place the rail costs nothing to show: there is no
+            content for it to compete with, and someone with no favourites still has a cart, a history and
+            a wallet to be read from. It hides itself when even that comes up empty. */}
+        <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" />
       </S.Empty>
     )
   }
@@ -79,6 +100,11 @@ export function MyFavorites() {
         isFetching={false}
         onLoadMore={() => setVisible(v => v + PAGE_SIZE)}
       />
+      {/* Under the list rather than over it: what the reader came for is their own saved items, and the
+          rail is what to do next. */}
+      {!loading ? (
+        <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" exclude={exclude} />
+      ) : null}
     </section>
   )
 }
