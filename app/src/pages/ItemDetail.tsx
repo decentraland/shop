@@ -65,7 +65,7 @@ import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
 import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
-import { saleDiscountPct } from '~/lib/sale'
+import { saleDiscountPct, saleUnitsHint } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { track, itemProps, creditsToUsd } from '~/lib/analytics'
@@ -632,6 +632,9 @@ export function ItemDetail() {
     compareAtCredits: current.compareAtCredits,
     saleEndsAt: current.saleEndsAt
   })
+  // Scarcity, only while the sale is actually live: a count left over from a window that has closed would
+  // read as pressure to buy at a price no longer on offer.
+  const unitsLeft = saleActive ? saleUnitsHint(current.saleUnitsLeft) : null
   // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
   const cartItem: CatalogItem = useMemo(
     () => ({ ...current, tradeId: buyableTradeId, id: buyableTradeId ?? current.id }),
@@ -1574,6 +1577,11 @@ export function ItemDetail() {
                                   </S.SaleBadge>
                                 ) : null}
                                 <S.Countdown until={current.saleEndsAt} />
+                                {unitsLeft != null ? (
+                                  <S.UnitsLeft data-testid="detail-units-left">
+                                    {t('assetCard.unitsLeftAtThisPrice', { count: unitsLeft })}
+                                  </S.UnitsLeft>
+                                ) : null}
                               </S.Price>
                             ) : (
                               <S.Price data-testid="item-price">

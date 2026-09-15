@@ -192,7 +192,7 @@
     "clearCart": "Vaciar carrito",
     "purchaseSummary": "Resumen de compra",
     "checkout": "Finalizar compra",
-    "buyWithCredits": "Pagar con créditos",
+    "buyWithCredits": "Pagar con Créditos",
     "creatorTag": "Creador",
     "totalItems": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "working": "Procesando…",
@@ -218,8 +218,8 @@
     }
   },
   "getCredits": {
-    "title": "Carga tus créditos",
-    "subtitle": "Elige un paquete de créditos y consigue wearables y emotes hechos por creadores para armar un look que sea solo tuyo.",
+    "title": "Carga tus Créditos",
+    "subtitle": "Elige un paquete de Créditos y consigue wearables y emotes hechos por creadores para armar un look que sea solo tuyo.",
     "learnMore": "Más información",
     "canceledNote": "Pago cancelado: no se realizó ningún cargo. Elige un paquete cuando quieras.",
     "packBadge": "Recomendado",
@@ -264,7 +264,8 @@
     "browseByCategory": "Ver todos los {category}",
     "browseBySmart": "Ver todos los smart wearables",
     "smart": "Smart",
-    "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo."
+    "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo.",
+    "deals": "Ofertas"
   },
   "rarity": {
     "common": "Común",
@@ -293,7 +294,8 @@
     "inCart": "En el carrito",
     "addToCart": "Añadir al carrito",
     "notForSale": "No en venta",
-    "view": "Ver"
+    "view": "Ver",
+    "unitsLeftAtThisPrice": "Solo quedan {count} a este precio"
   },
   "notifyMe": {
     "label": "Avísame cuando esté disponible",
@@ -329,16 +331,16 @@
   },
   "buyModal": {
     "titleBuy": "Comprar artículo",
-    "titleNoFunds": "Comprar créditos y artículo",
+    "titleNoFunds": "Comprar Créditos y artículo",
     "titleComplete": "¡Compra completada!",
     "dialogAria": "Comprar {name}",
     "close": "Cerrar",
-    "dclBalance": "Tu saldo de créditos:",
-    "myCreditsBalance": "Saldo de mis créditos:",
+    "dclBalance": "Tu saldo de Créditos:",
+    "myCreditsBalance": "Saldo de mis Créditos:",
     "signInToCheckout": "Inicia sesión para finalizar la compra.",
     "insufficientFunds": "Fondos insuficientes.",
     "warningNeedToBuy": "Necesitarás comprar",
-    "warningCreditsAmount": "{count} créditos",
+    "warningCreditsAmount": "{count} Créditos",
     "warningToPurchase": "para comprar {count, plural, one {este artículo.} other {estos artículos.}}",
     "warningLearnMore": "Más información",
     "cancel": "Cancelar",
@@ -349,9 +351,9 @@
     "methodCombined": "Créditos + MANA",
     "buyWithMana": "Comprar con MANA",
     "buyWith": "Comprar con",
-    "manaDetail": "Paga el precio completo de {credits} créditos con {mana} MANA",
-    "combinedDetail": "{credits} de tus créditos + {mana} MANA por los {remainder} restantes",
-    "creditsBalanceLabel": "Saldo de créditos:",
+    "manaDetail": "Paga el precio completo de {credits} Créditos con {mana} MANA",
+    "combinedDetail": "{credits} de tus Créditos + {mana} MANA por los {remainder} restantes",
+    "creditsBalanceLabel": "Saldo de Créditos:",
     "manaBalanceLabel": "Saldo de MANA:",
     "notEnoughMana": "MANA insuficiente",
     "completingPurchase": "Completando la compra…",
@@ -363,8 +365,8 @@
     "itemFallback": "Artículo",
     "error": {
       "generic": "No pudimos completar la compra. Inténtalo de nuevo.",
-      "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo.",
-      "relayDownNoRail": "No pudimos completar la compra. Prueba de nuevo en unos minutos: no se gastaron tus créditos y la retención se libera en breve.",
+      "creditsCheckout": "No pudimos iniciar el pago de Créditos. Inténtalo de nuevo.",
+      "relayDownNoRail": "No pudimos completar la compra. Prueba de nuevo en unos minutos: no se gastaron tus Créditos y la retención se libera en breve.",
       "switchAndRetry": "Cambiar a {network} y reintentar"
     },
     "manaPriceUnavailable": "No pudimos consultar el precio de MANA en este momento, así que pagar con MANA no está disponible para esta compra. Prueba de nuevo en un instante.",
@@ -373,13 +375,13 @@
   },
   "cartCheckout": {
     "titleBuy": "Comprar artículos",
-    "titleNoFunds": "Comprar créditos y artículos",
+    "titleNoFunds": "Comprar Créditos y artículos",
     "dialogAria": "Finaliza la compra de tu carrito",
     "qty": "× {count}",
     "preparing": "Preparando tu compra…",
     "errorTitle": "¡Ups! Algo salió mal",
     "errorHeadline": "No pudimos completar tu compra esta vez.",
-    "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
+    "errorBody": "Tranquilo, tus Créditos están a salvo. Inténtalo de nuevo en un momento.",
     "heldLead": "Tranquilo, tus {currency} están a salvo. No se usaron y ",
     "heldBold": "volverán a tu balance en 5 a 15 minutos",
     "heldTail": " automáticamente. No tienes que hacer nada. Puedes intentarlo otra vez cuando vuelvan.",
@@ -537,7 +539,7 @@
     "viewActivity": "Ver tu actividad",
     "keepShopping": "Seguir comprando",
     "failedTitle": "Tu compra no se completó",
-    "failedBody": "No se pudo completar la compra, así que no se entregó nada. No se gastaron tus créditos (cualquier retención se libera en breve); puedes intentarlo de nuevo.",
+    "failedBody": "No se pudo completar la compra, así que no se entregó nada. No se gastaron tus Créditos (cualquier retención se libera en breve); puedes intentarlo de nuevo.",
     "backToShop": "Volver a la tienda",
     "title": "¡Ya es tuyo!",
     "heroInWardrobe": "ya está en tu guardarropa.",
@@ -626,13 +628,13 @@
     "processing": "Procesando",
     "completed": "Completada",
     "failed": "Fallida",
-    "purchaseFailedNote": "Esta compra no se completó, así que no se te cobró. Tus créditos volvieron a tu saldo.",
+    "purchaseFailedNote": "Esta compra no se completó, así que no se te cobró. Tus Créditos volvieron a tu saldo.",
     "sold": "Vendido",
     "polygonMana": "Polygon MANA",
     "purchaseLabel": "Compra",
     "saleLabel": "Venta",
     "soldTo": "Vendido a {account}",
-    "approxValue": "Valor aproximado en créditos",
+    "approxValue": "Valor aproximado en Créditos",
     "itemFallback": "Artículo",
     "nameRegistration": "NAME de Decentraland",
     "signInTitle": "Inicia sesión para ver tu actividad",
@@ -643,13 +645,13 @@
     "emptySalesBody": "Cuando alguien compre uno de tus artículos, aparecerá aquí.",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "quantity": "×{count}",
-    "creditPurchaseLabel": "Compra de créditos",
+    "creditPurchaseLabel": "Compra de Créditos",
     "creditPaid": "Pagaste {usd}",
     "boughtFrom": "Comprado a {account}",
     "paidWithMana": "Compra · pagada con MANA",
     "payoutPending": "Pendiente",
     "payoutPendingOn": "Créditos disponibles el {date}",
-    "payoutCredited": "Cobrado en créditos",
+    "payoutCredited": "Cobrado en Créditos",
     "migrate": {
       "chip": "Publicaciones",
       "chipAria": "Mueve tus publicaciones — {count, plural, one {queda # artículo} other {quedan # artículos}}"
@@ -658,7 +660,7 @@
     "resume": "Continuar",
     "resuming": "Abriendo…",
     "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo.",
-    "resumePaid": "Ya pagaste esto: tus créditos están en camino.",
+    "resumePaid": "Ya pagaste esto: tus Créditos están en camino.",
     "resumeUnavailable": "No pudimos abrir la página de pago. Inténtalo de nuevo."
   },
   "myFavorites": {
@@ -679,7 +681,7 @@
     "carouselPages": "Páginas de {title}",
     "goToPage": "Ir a la página {page}",
     "heroTitle": "Una nueva forma de comprar",
-    "heroCta": "Comprar créditos",
+    "heroCta": "Comprar Créditos",
     "trendingProducts": "Productos en tendencia",
     "bestDeals": "Mejores ofertas",
     "newCreations": "Nuevas creaciones",
@@ -732,7 +734,8 @@
     "clearAll": "Borrar todo",
     "filters": "Filtros",
     "sortBy": "Ordenar por",
-    "removeFilter": "Quitar el filtro {filter}"
+    "removeFilter": "Quitar el filtro {filter}",
+    "sortBiggestDiscount": "Mayor descuento"
   },
   "outfits": {
     "rowTitle": "Compra el look",
@@ -912,34 +915,34 @@
     "toastPartial": "Algunas publicaciones no se pudieron actualizar."
   },
   "faq": {
-    "title": "Más información sobre los créditos",
+    "title": "Más información sobre los Créditos",
     "sellers": {
-      "whatAreQ": "¿Qué son los créditos?",
-      "whatAreA": "Los créditos son la nueva forma de comprar artículos en el Shop de Decentraland. Compra un paquete de créditos y úsalo para comprar cualquier producto elegible. Los créditos tienen un valor estable: 1 crédito = US$0,10.",
-      "whyCreditsQ": "¿Por qué debería fijar el precio de mis artículos en créditos en lugar de MANA?",
-      "whyCreditsA": "Los créditos dan precios estables. Tus artículos mantienen el mismo valor en dólares sin importar cómo fluctúe el precio de MANA, así el precio es más predecible para ti y para quienes te compran.",
-      "receiveCreditsQ": "Si vendo un artículo con precio en créditos, ¿recibo créditos?",
+      "whatAreQ": "¿Qué son los Créditos?",
+      "whatAreA": "Los Créditos son la nueva forma de comprar artículos en el Shop de Decentraland. Compra un paquete de Créditos y úsalo para comprar cualquier producto elegible. Los Créditos tienen un valor estable: 1 Crédito = US$0,10.",
+      "whyCreditsQ": "¿Por qué debería fijar el precio de mis artículos en Créditos en lugar de MANA?",
+      "whyCreditsA": "Los Créditos dan precios estables. Tus artículos mantienen el mismo valor en dólares sin importar cómo fluctúe el precio de MANA, así el precio es más predecible para ti y para quienes te compran.",
+      "receiveCreditsQ": "Si vendo un artículo con precio en Créditos, ¿recibo Créditos?",
       "receiveCreditsA": "No. Las ganancias de los creadores se siguen pagando en MANA. Cuando se venda tu artículo, recibirás el equivalente en MANA del valor en dólares, según el tipo de cambio al momento de la compra.",
-      "changePriceQ": "¿Puedo cambiar después el precio en créditos?",
-      "changePriceA": "Sí. Puedes actualizar el precio en créditos de tu artículo cuando quieras desde la página «Mis artículos».",
-      "mustSwitchQ": "¿Tengo que pasar mis publicaciones actuales a créditos?",
-      "mustSwitchA": "No. Las publicaciones en MANA van a seguir funcionando. Igual te recomendamos actualizarlas a créditos para que sus precios se mantengan estables y alineados con la nueva experiencia de compra.",
-      "suggestedPriceQ": "¿Cómo se calcula el precio sugerido en créditos?",
-      "suggestedPriceA": "Se calcula un precio equivalente en créditos a partir de tu precio actual en MANA y del tipo de cambio al momento de la migración. Revísalo y ajústalo antes de publicar."
+      "changePriceQ": "¿Puedo cambiar después el precio en Créditos?",
+      "changePriceA": "Sí. Puedes actualizar el precio en Créditos de tu artículo cuando quieras desde la página «Mis artículos».",
+      "mustSwitchQ": "¿Tengo que pasar mis publicaciones actuales a Créditos?",
+      "mustSwitchA": "No. Las publicaciones en MANA van a seguir funcionando. Igual te recomendamos actualizarlas a Créditos para que sus precios se mantengan estables y alineados con la nueva experiencia de compra.",
+      "suggestedPriceQ": "¿Cómo se calcula el precio sugerido en Créditos?",
+      "suggestedPriceA": "Se calcula un precio equivalente en Créditos a partir de tu precio actual en MANA y del tipo de cambio al momento de la migración. Revísalo y ajústalo antes de publicar."
     },
     "buyers": {
-      "whatAreQ": "¿Qué son los créditos?",
-      "whatAreA": "Los créditos son la moneda de Decentraland para comprar nuevos wearables y emotes en el Shop.\nCompra un paquete de créditos y usa tu saldo para conseguir artículos hechos por creadores y armar un look que sea solo tuyo.",
-      "whatCanIBuyQ": "¿Qué puedo comprar con créditos?",
-      "whatCanIBuyA": "Los créditos sirven para comprar nuevos wearables y emotes en el Shop de Decentraland.\nLAND, NAMEs y los artículos de segunda mano siguen disponibles en el Marketplace.",
-      "whereBuyQ": "¿Dónde puedo comprar créditos?",
-      "whereBuyA": "Puedes comprar paquetes de créditos acá mismo, más arriba en esta página. También se pueden comprar dentro del mundo y desde el celular.\nPara conseguir el mejor precio, te recomendamos comprarlos desde la computadora o la web. En el celular el precio puede variar por las comisiones de las tiendas de aplicaciones.",
-      "whereUseQ": "¿Dónde puedo usar mis créditos?",
-      "whereUseA": "Los créditos quedan asociados a tu cuenta de Decentraland, no al dispositivo donde los compraste.\nCómpralos desde la computadora o la web y úsalos en todas partes, incluido el celular.",
-      "expireQ": "¿Los créditos vencen?",
-      "expireA": "No. Los créditos no vencen y se quedan en tu cuenta hasta que los uses.",
-      "transferQ": "¿Los créditos se pueden transferir o cambiar por dinero?",
-      "transferA": "No. Los créditos están asociados a tu cuenta: no se pueden transferir a otra cuenta, ni retirar, ni cambiar por dinero."
+      "whatAreQ": "¿Qué son los Créditos?",
+      "whatAreA": "Los Créditos son la moneda de Decentraland para comprar nuevos wearables y emotes en el Shop.\nCompra un paquete de Créditos y usa tu saldo para conseguir artículos hechos por creadores y armar un look que sea solo tuyo.",
+      "whatCanIBuyQ": "¿Qué puedo comprar con Créditos?",
+      "whatCanIBuyA": "Los Créditos sirven para comprar nuevos wearables y emotes en el Shop de Decentraland.\nLAND, NAMEs y los artículos de segunda mano siguen disponibles en el Marketplace.",
+      "whereBuyQ": "¿Dónde puedo comprar Créditos?",
+      "whereBuyA": "Puedes comprar paquetes de Créditos acá mismo, más arriba en esta página. También se pueden comprar dentro del mundo y desde el celular.\nPara conseguir el mejor precio, te recomendamos comprarlos desde la computadora o la web. En el celular el precio puede variar por las comisiones de las tiendas de aplicaciones.",
+      "whereUseQ": "¿Dónde puedo usar mis Créditos?",
+      "whereUseA": "Los Créditos quedan asociados a tu cuenta de Decentraland, no al dispositivo donde los compraste.\nCómpralos desde la computadora o la web y úsalos en todas partes, incluido el celular.",
+      "expireQ": "¿Los Créditos vencen?",
+      "expireA": "No. Los Créditos no vencen y se quedan en tu cuenta hasta que los uses.",
+      "transferQ": "¿Los Créditos se pueden transferir o cambiar por dinero?",
+      "transferA": "No. Los Créditos están asociados a tu cuenta: no se pueden transferir a otra cuenta, ni retirar, ni cambiar por dinero."
     }
   },
   "creditRate": {
@@ -949,7 +952,7 @@
   },
   "manaPricingBanner": {
     "lead": "{count, plural, one {# artículo sigue usando} other {# artículos siguen usando}} precios en <mana>MANA</mana>.",
-    "accent": "Cambia a créditos",
+    "accent": "Cambia a Créditos",
     "trail": "para mantener tus precios estables.",
     "cta": "Actualizar precios",
     "dismiss": "Descartar"
@@ -960,22 +963,22 @@
     "heading": "Continuá en el Marketplace anterior",
     "body": "La reventa está disponible por ahora en el Marketplace anterior. Te vamos a redirigir para que completes la publicación.",
     "buyBody": "Este item está disponible para reventa en el Marketplace clásico. Te redirigiremos allí para completar tu compra.",
-    "buyCurrencyNote": "Las compras en el Marketplace clásico no se hacen con créditos.",
+    "buyCurrencyNote": "Las compras en el Marketplace clásico no se hacen con Créditos.",
     "cancel": "Cancelar",
     "continue": "Continuar"
   },
   "newPricing": {
     "title": "Precios nuevos",
     "close": "Cerrar",
-    "infoTitle": "¡Cambia tus publicaciones a créditos!",
-    "infoBody": "Ahora puedes poner precio a tus artículos en créditos, para que los compradores vean un precio más claro y tus ganancias no dependan de los cambios de precio de MANA.",
+    "infoTitle": "¡Cambia tus publicaciones a Créditos!",
+    "infoBody": "Ahora puedes poner precio a tus artículos en Créditos, para que los compradores vean un precio más claro y tus ganancias no dependan de los cambios de precio de MANA.",
     "later": "Quizás más tarde",
     "confirm": "Actualizar precios",
     "optOut": "No mostrar esto de nuevo"
   },
   "sellModal": {
     "errorGeneric": "No pudimos publicar tu artículo. Inténtalo de nuevo.",
-    "errorWholeNumber": "Introduce un número entero de créditos",
+    "errorWholeNumber": "Introduce un número entero de Créditos",
     "statusPreparing": "Preparando tu artículo…",
     "statusListing": "Publicando tu artículo…",
     "statusPublishing": "Publicando…",
@@ -1003,11 +1006,11 @@
     "successOnSale": "¡Tu artículo ya está a la venta!",
     "successManage": "Puedes gestionar tu venta desde Mis artículos.",
     "myItems": "Mis artículos",
-    "proceedsCredits": "Recibirás {count, plural, one {# crédito} other {# créditos}} cuando se venda."
+    "proceedsCredits": "Recibirás {count, plural, one {# Crédito} other {# Créditos}} cuando se venda."
   },
   "primaryList": {
     "errorGeneric": "No pudimos publicar tu artículo. Inténtalo de nuevo.",
-    "errorWholeNumber": "Introduce un número entero de créditos",
+    "errorWholeNumber": "Introduce un número entero de Créditos",
     "statusEnabling": "Activando las ventas de esta colección…",
     "statusPublishing": "Publicando tu artículo…",
     "statusFinishing": "Finalizando…",
@@ -1033,7 +1036,7 @@
     "readyManaged": "Esta colección está lista — publicar es instantáneo.",
     "cancel": "Cancelar",
     "checking": "Comprobando…",
-    "proceedsCredits": "Recibirás {count, plural, one {# crédito} other {# créditos}} por venta."
+    "proceedsCredits": "Recibirás {count, plural, one {# Crédito} other {# Créditos}} por venta."
   },
   "migrate": {
     "listedSummary": "{count, plural, one {# artículo está} other {# artículos están}} ahora a la venta con {currency}.",
@@ -1041,7 +1044,7 @@
     "unlistedSummary": "{count, plural, one {# artículo se retiró del marketplace anterior pero no se pudo volver a publicar — vuelve a publicarlo desde Mis artículos.} other {# artículos se retiraron del marketplace anterior pero no se pudieron volver a publicar — vuelve a publicarlos desde Mis artículos.}}",
     "goToMyAssets": "Ir a Mis artículos",
     "listingTitle": "Publicando tus artículos",
-    "subConfirm": "Retiramos cada publicación anterior y la volvemos a publicar por créditos — confirma cada paso.",
+    "subConfirm": "Retiramos cada publicación anterior y la volvemos a publicar por Créditos — confirma cada paso.",
     "subManaged": "Moviendo tus artículos a la Tienda.",
     "progressCount": "{current} de {total}",
     "itemFallback": "Artículo",
@@ -1108,7 +1111,7 @@
     "takenMakeOffer": "Hacer oferta",
     "tooShort": "Los NAMEs deben tener al menos {min} caracteres.",
     "checkError": "No pudimos comprobar ese NAME ahora mismo; aún puedes intentar reclamarlo.",
-    "registrationDisabled": "Todavía no se pueden reclamar NAMEs con créditos.",
+    "registrationDisabled": "Todavía no se pueden reclamar NAMEs con Créditos.",
     "registrationDisabledLink": "Comprar en Marketplace",
     "whyTitle": "¿Por qué comprar un NAME?",
     "whyIntro": "Tu NAME es tu identidad única en Decentraland. Aparece sobre tu avatar, en el chat y en las fotos, ayudando a que la gente te reconozca y te recuerde vayas donde vayas.",
@@ -1123,7 +1126,7 @@
     "why4": "Participa en las decisiones de la comunidad y ayuda a definir lo que viene.",
     "learnMore": "Más información",
     "buyTitle": "Comprar NAME",
-    "myCreditsBalance": "Mi saldo de créditos:",
+    "myCreditsBalance": "Mi saldo de Créditos:",
     "subtitle": "Decentraland NAMEs",
     "confirmTitle": "Confirma tu NAME",
     "confirmBody": "Has elegido {name}. Vuelve a escribir el NAME para confirmar tu selección y continuar con la compra.",
@@ -1144,9 +1147,9 @@
     "pendingBannerBold": "Tu pago se procesó.",
     "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis artículos en breve — no tienes que hacer nada.",
     "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Inténtalo de nuevo en un momento.",
-    "insufficientCredits": "Te faltan {credits} créditos para comprar este NAME.",
+    "insufficientCredits": "Te faltan {credits} Créditos para comprar este NAME.",
     "errorRouteCost": "El registro de NAMEs no está disponible temporalmente. Inténtalo de nuevo más tarde.",
-    "errorNotRegistered": "Se usaron tus créditos pero el NAME no pudo registrarse, así que los fondos volvieron a Decentraland para su recuperación. Contacta a soporte con este NAME y lo resolvemos — no vuelvas a comprar.",
+    "errorNotRegistered": "Se usaron tus Créditos pero el NAME no pudo registrarse, así que los fondos volvieron a Decentraland para su recuperación. Contacta a soporte con este NAME y lo resolvemos — no vuelvas a comprar.",
     "errorSettlementUnknown": "No pudimos confirmar si tu compra se completó. No vuelvas a comprar — revisá Mis Ítems en unos minutos y contactá a soporte con este NAME si no aparece.",
     "errorSpentDismiss": "Entendido"
   },
@@ -1156,10 +1159,10 @@
     "buyingTitle": "Para comprar",
     "sellingTitle": "Para vender",
     "creditsName": "Completar una compra con MANA",
-    "creditsDesc": "Permite que el Shop tome MANA para cubrir la parte que tus créditos no alcanzan, cuando pagas con los dos.",
+    "creditsDesc": "Permite que el Shop tome MANA para cubrir la parte que tus Créditos no alcanzan, cuando pagas con los dos.",
     "manaName": "Pagar una compra entera con MANA",
     "previousVersion": "(versión anterior)",
-    "manaDesc": "Permite que el Shop tome MANA cuando pagas un artículo enteramente en MANA, sin gastar créditos.",
+    "manaDesc": "Permite que el Shop tome MANA cuando pagas un artículo enteramente en MANA, sin gastar Créditos.",
     "sellingDesc": "Permite que el Shop transfiera artículos de esta colección cuando se vendan. Abarca la colección completa, no un solo artículo.",
     "sellingEmpty": "Todavía no hay nada que autorizar. Las autorizaciones para vender aparecen aquí cuando tienes coleccionables.",
     "sellingTruncated": "Tienes muchos coleccionables, así que esta lista cubre las colecciones de los {count} más recientes.",
@@ -1215,7 +1218,7 @@
     },
     "names": {
       "title": "Consigue un NAME de Decentraland",
-      "description": "Reclama tu NAME único de Decentraland con créditos: un alias personal para tu avatar y tu propio World."
+      "description": "Reclama tu NAME único de Decentraland con Créditos: un alias personal para tu avatar y tu propio World."
     }
   },
   "creatorSale": {
@@ -1237,8 +1240,8 @@
     "startLabel": "Empieza el",
     "cap": "Limita cuántos se venden al precio rebajado",
     "capLabel": "Unidades al precio rebajado",
-    "preview": "Ejemplo: un artículo de {price, plural, one {# crédito} other {# créditos}} se vende a {sale, plural, one {# crédito} other {# créditos}} mientras dura el descuento.",
-    "previewNoChange": "Un artículo de {price, plural, one {# crédito} other {# créditos}} se seguiría vendiendo al mismo precio: los precios son créditos enteros, así que elige un descuento mayor.",
+    "preview": "Ejemplo: un artículo de <c>{price}</c> se vende a <c>{sale}</c> mientras dura el descuento.",
+    "previewNoChange": "Un artículo de <c>{price}</c> se seguiría vendiendo al mismo precio: los precios son Créditos enteros, así que elige un descuento mayor.",
     "submit": "Iniciar descuento",
     "submitScheduled": "Programar descuento",
     "review": "Revisar descuento",
@@ -1250,6 +1253,10 @@
     "reviewOnSale": "{count, plural, one {# ítem recibe el descuento} other {# ítems reciben el descuento}}",
     "reviewUntouched": "{count, plural, one {# ítem no está en venta y queda igual} other {# ítems no están en venta y quedan igual}}",
     "reviewNotListed": "No está en venta",
+    "reviewClassic": "{count, plural, one {# ítem todavía usa precios clásicos} other {# ítems todavía usan precios clásicos}}",
+    "reviewClassicTag": "Precio clásico",
+    "reviewClassicWhy": "Tiene precio en MANA, no un precio fijo en Créditos, así que un descuento no puede cambiarlo. Cámbialo desde Actividad → Publicaciones.",
+    "reviewClassicHint": "Un descuento sólo se aplica a los precios en <c>Créditos</c>. Cámbialos y el próximo descuento los va a incluir.",
     "reviewCap": "<b>{count, plural, one {Hasta # copia} other {Hasta # copias}}</b> se pueden vender al precio rebajado.",
     "reviewNoCap": "<b>{count, plural, one {# copia} other {# copias}}</b> al precio rebajado.",
     "confirm": "Confirma para iniciar el descuento",
