@@ -109,6 +109,7 @@ describe('the best deals rail', () => {
   it('shows the live sales biggest discount first, each with its old price and countdown', async () => {
     app = await launchApp({
       path: '/overview',
+      creatorSales: true,
       fixtures: {
         unifiedListings: {
           data: [onSale(primary(0), 0, 20), onSale(primary(1), 1, 50), onSale(primary(2), 2, 35), ...unifiedRows()]
@@ -128,12 +129,34 @@ describe('the best deals rail', () => {
   })
 
   it('stays hidden under three deals, and reserves no placeholders for them', async () => {
+    // Flag ON deliberately: without it the rail would be missing for the wrong reason, and this case is
+    // about the three-deal floor, not about the flag.
     app = await launchApp({
       path: '/overview',
+      creatorSales: true,
       fixtures: { unifiedListings: { data: [onSale(primary(0), 0, 20), onSale(primary(1), 1, 50), ...unifiedRows()] } }
     })
     const { page } = app
 
+    await waitForText(page, 'Trending Products')
+    expect(await bodyText(page)).not.toMatch(/best deals/i)
+    expect(await page.$('[data-testid="best-deals-rail"]')).toBeNull()
+  })
+
+  it('stays away entirely while the creator sales flag is off, deals or no deals', async () => {
+    app = await launchApp({
+      path: '/overview',
+      fixtures: {
+        unifiedListings: {
+          data: [onSale(primary(0), 0, 20), onSale(primary(1), 1, 50), onSale(primary(2), 2, 35), ...unifiedRows()]
+        }
+      }
+    })
+    const { page } = app
+
+    // Three deals is enough to fill the rail, so only the flag can be keeping it away. With the flag off the
+    // feed still answers — it just answers without the sale fields — and a rail that rendered anyway would
+    // headline "Best Deals" over ordinary prices.
     await waitForText(page, 'Trending Products')
     expect(await bodyText(page)).not.toMatch(/best deals/i)
     expect(await page.$('[data-testid="best-deals-rail"]')).toBeNull()

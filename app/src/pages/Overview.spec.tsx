@@ -30,6 +30,11 @@ vi.mock('~/lib/api', () => ({ fetchShopItems, fetchTrendingItems }))
 const { useSecondarySales } = vi.hoisted(() => ({ useSecondarySales: vi.fn(() => false) }))
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales }))
 
+// The creator-sales flag, which is what lets the Best Deals rail exist at all. On by default here so the
+// rail's own specs are about the rail; the one case below turns it off.
+const { useCreatorSalesEnabled } = vi.hoisted(() => ({ useCreatorSalesEnabled: vi.fn(() => true) }))
+vi.mock('~/hooks/useCreatorSalesEnabled', () => ({ useCreatorSalesEnabled }))
+
 // Sibling sections self-fetch (outfits from shop-server, creators from the rankings feed) and have their own
 // coverage. Here they are stand-ins so what is asserted is this page's own behaviour rather than theirs.
 vi.mock('~/components/OutfitsRow', () => ({ OutfitsRow: () => null }))
@@ -141,6 +146,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useCampaignHero.mockReturnValue(null)
   useSecondarySales.mockReturnValue(false)
+  useCreatorSalesEnabled.mockReturnValue(true)
   fetchTrendingItems.mockResolvedValue([])
   fetchShopItems.mockResolvedValue({ items: [], total: 0 })
 })
@@ -349,6 +355,19 @@ describe('when the home page renders its best deals row', () => {
       .getAllByText(/^Deal \d$/)
       .map(el => el.textContent)
     expect(names).toEqual(['Deal 2', 'Deal 0', 'Deal 1'])
+  })
+
+  it('should not exist at all while the creator sales flag is off', async () => {
+    useCreatorSalesEnabled.mockReturnValue(false)
+    feeds({ deals: [deal(0), deal(1), deal(2)] })
+
+    renderOverview()
+
+    // Not merely empty: the feed is never asked. With the flag off the server still answers, minus each
+    // row's sale fields, so a rail that fetched anyway would headline "Best Deals" over ordinary prices.
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    expect(fetchShopItems).not.toHaveBeenCalledWith(expect.objectContaining({ discounted: true }))
+    expect(screen.queryByTestId('best-deals-rail')).toBeNull()
   })
 
   it('should send "View all" to the grid already filtered to deals', async () => {

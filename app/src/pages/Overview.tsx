@@ -274,9 +274,19 @@ export function Overview() {
     queryFn: () => fetchShopItems({ first: 12, discounted: true, sortBy: 'discount', listingType: 'primary' }),
     enabled: creatorSalesEnabled
   })
-  // Through the live rate like every other rail: a discounted row can still be MANA-denominated, and its
-  // server-side `priceCredits` is a snapshot.
-  const dealItems = useLivePricedItems(deals?.items ?? [])
+  /**
+   * NOT through `useLivePricedItems`, unlike the rails above, and deliberately.
+   *
+   * A discounted row's `priceCredits` and `compareAtCredits` are one pair, both computed by the server from
+   * the same USD figure. Re-converting only the first at the live MANA rate leaves the second as it was, and
+   * a sale price that no longer undercuts its own compare-at stops reading as a sale at all — the card drops
+   * its badge, its strike-through and its countdown, and simply shows a price.
+   *
+   * There is also nothing to convert: the catalogue joins coupons on the NATIVE branch only (legacy and
+   * CollectionStore rows are built with `withCoupons: false`), so a row that carries a discount is
+   * USD-pegged by construction and has no `manaWei` to re-price.
+   */
+  const dealItems = deals?.items ?? []
 
   return (
     <S.Overview className="overview">
