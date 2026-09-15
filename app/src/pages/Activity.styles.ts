@@ -477,31 +477,6 @@ export const Empty = styled.div`
   align-items: center;
 `
 
-// Sign-in gate — a plain centred column, not the illustrated empty-state panel.
-export const Gate = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  padding: 90px 20px;
-  min-height: 50vh;
-  color: ${theme.colors.softWhite};
-`
-
-export const EmptyTitle = styled.p`
-  font-size: 22px;
-  font-weight: 700;
-  margin: 6px 0 0;
-`
-
-// The line under the title. Not the global `.muted` utility: that is the light theme's grey and it
-// vanishes on the purple field — this stays in the block's own white.
-export const EmptyBody = styled.p`
-  margin: 0;
-  color: ${theme.colors.softWhite};
-`
-
 /**
  * The row thumbnail for a NAME, carrying the identity of the NAME card rather than a generic media box:
  * the amethyst gradient and the glyph, so it reads as a NAME at a glance.
