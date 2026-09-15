@@ -59,10 +59,10 @@ function hookReturns(overrides: Record<string, unknown>) {
   useSuggestedForYou.mockReturnValue({ ...READY, ...overrides })
 }
 
-function renderRow() {
+function renderRow(props: Parameters<typeof SuggestedForYouRow>[0] = {}) {
   return render(
     <MemoryRouter>
-      <SuggestedForYouRow />
+      <SuggestedForYouRow {...props} />
     </MemoryRouter>
   )
 }
@@ -188,5 +188,58 @@ describe('when the answer has not arrived yet', () => {
 
   it('should report neither an impression nor an absence, because neither has happened yet', () => {
     expect(track).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The rail now lives on four pages, and every rate it will be judged by is one page's clicks over the
+ * SAME page's impressions. If the click carries the surface and the impression does not, those two
+ * numbers cannot be divided by each other on any page — which is precisely the state the rail was in
+ * when the fourth surface was added.
+ */
+describe('when the rail reports from a page that is not the home page', () => {
+  describe('and it rendered', () => {
+    beforeEach(() => {
+      hookReturns({
+        result: {
+          data: [item(0, 'co_owned'), item(1, 'co_owned'), item(2, 'co_owned'), item(3, 'co_owned')],
+          personalized: true,
+          algorithm: 'v1'
+        }
+      })
+      renderRow({ surface: 'cart' })
+    })
+
+    it('should stamp the surface on the impression, which is the denominator of every rate', () => {
+      expect(emitted('viewed_suggestions')[0][1]).toEqual(expect.objectContaining({ surface: 'cart' }))
+    })
+  })
+
+  describe('and it hid itself', () => {
+    beforeEach(() => {
+      hookReturns({ result: { data: [], personalized: false, algorithm: 'v1' } })
+      renderRow({ surface: 'favorites' })
+    })
+
+    it('should stamp the surface on the reason it hid, so absence is countable per page too', () => {
+      expect(emitted('hidden_suggestions')[0][1]).toEqual(expect.objectContaining({ surface: 'favorites' }))
+    })
+  })
+
+  describe('and no surface was given', () => {
+    beforeEach(() => {
+      hookReturns({
+        result: {
+          data: [item(0, 'co_owned'), item(1, 'co_owned'), item(2, 'co_owned'), item(3, 'co_owned')],
+          personalized: true,
+          algorithm: 'v1'
+        }
+      })
+      renderRow()
+    })
+
+    it('should report the home page, so an unlabelled event is never ambiguous', () => {
+      expect(emitted('viewed_suggestions')[0][1]).toEqual(expect.objectContaining({ surface: 'home' }))
+    })
   })
 })

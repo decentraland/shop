@@ -161,9 +161,10 @@ export function SuggestedForYouRow({
       count: result?.data.length,
       has_address: hasAddress,
       seed_count: seedCount,
-      algorithm: result?.algorithm
+      algorithm: result?.algorithm,
+      surface
     })
-  }, [isLoading, hiddenReason, result, hasAddress, seedCount])
+  }, [isLoading, hiddenReason, result, hasAddress, seedCount, surface])
 
   // The impression, fired when half the rail is actually ON SCREEN rather than when it mounts. The
   // row lives below the fold, so mounting says almost nothing about being seen, and a click-through
@@ -184,7 +185,8 @@ export function SuggestedForYouRow({
         has_address: hasAddress,
         seed_count: seedCount,
         reason_counts: reasonCounts(items),
-        fetch_ms: fetchMs
+        fetch_ms: fetchMs,
+        surface
       })
     }
 
@@ -207,7 +209,7 @@ export function SuggestedForYouRow({
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [visible, items, result, hasAddress, seedCount, fetchMs])
+  }, [visible, items, result, hasAddress, seedCount, fetchMs, surface])
 
   // Placeholders only while a request is actually IN FLIGHT — which is to say only for someone who has
   // the flag and something to personalise from. A visitor with neither never asked, so they never see a
