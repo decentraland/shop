@@ -100,6 +100,35 @@ describe('suggested for you', () => {
     expect(await page.$('[data-testid="suggested-row"]')).toBeNull()
   })
 
+  it("holds the rail's place while the answer is in flight, rather than pushing the page down on arrival", async () => {
+    app = await browseThenHome({ suggestedForYou: true, delays: { '/v3/catalog/suggested': 2500 } })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="suggested-row-skeleton"]', { timeout: 10000 })
+    const withPlaceholders = await page.evaluate(
+      () => document.querySelector('[data-testid="suggested-row-skeleton"]')!.getBoundingClientRect().height
+    )
+
+    // The arrows are measured off a track that currently holds placeholders, so paging them would report
+    // a rail the reader cannot see yet.
+    expect(await page.$('[data-testid="suggested-row-prev"]')).toBeNull()
+
+    await page.waitForSelector('[data-testid="suggested-row"]', { timeout: 15000 })
+    const withCards = await page.evaluate(
+      () => document.querySelector('[data-testid="suggested-row"]')!.getBoundingClientRect().height
+    )
+
+    // Same block, same height: that is the whole point of holding the place.
+    expect(Math.abs(withCards - withPlaceholders)).toBeLessThanOrEqual(4)
+  })
+
+  it('never shows placeholders to a visitor who was never going to ask', async () => {
+    app = await browseThenHome({ suggestedForYou: false, delays: { '/v3/catalog/suggested': 2500 } })
+    const { page } = app
+    await new Promise(resolve => setTimeout(resolve, 1200))
+    expect(await page.$('[data-testid="suggested-row-skeleton"]')).toBeNull()
+  })
+
   it('lays out on a phone without spilling sideways', async () => {
     app = await launchApp({ suggestedForYou: true, path: `/item/${COLLECTION}/1` })
     const { page } = app
