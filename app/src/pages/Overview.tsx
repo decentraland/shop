@@ -270,7 +270,11 @@ export function Overview() {
   // "Best Deals" over a list of items at their ordinary price, on the Shop's most visible surface.
   const creatorSalesEnabled = useCreatorSalesEnabled()
   const { data: deals } = useQuery({
-    queryKey: ['overview-deals'],
+    // The flag is part of the key, as it is for Trending above. `enabled: false` stops the refetch but keeps
+    // whatever is already cached, and nothing downstream re-checks the flag — so without this, turning the
+    // flag off would leave the rail standing for everyone with the page already open, which is the one
+    // moment it most needs to come down.
+    queryKey: ['overview-deals', creatorSalesEnabled],
     queryFn: () => fetchShopItems({ first: 12, discounted: true, sortBy: 'discount', listingType: 'primary' }),
     enabled: creatorSalesEnabled
   })

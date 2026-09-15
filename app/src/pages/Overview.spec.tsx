@@ -133,14 +133,19 @@ function feeds({ creations = [], deals = [] }: { creations?: UnifiedListing[]; d
 const pending = () => new Promise<never>(() => {})
 
 function renderOverview() {
+  // The client is built here and reused by `rerender`, so a re-render keeps the cache a real session would.
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  // A fresh element each time, around the SAME client: React bails out of a re-render handed the identical
+  // element object, and the shared client is what makes a re-render keep the cache a real session would.
+  const tree = () => (
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/']}>
         <Overview />
       </MemoryRouter>
     </QueryClientProvider>
   )
+  const result = render(tree())
+  return { ...result, again: () => result.rerender(tree()) }
 }
 
 async function lastTrendingCall() {
@@ -374,6 +379,19 @@ describe('when the home page renders its best deals row', () => {
     await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
     expect(fetchShopItems).not.toHaveBeenCalledWith(expect.objectContaining({ discounted: true }))
     expect(screen.queryByTestId('best-deals-rail')).toBeNull()
+  })
+
+  it('should drop the cached deals when the flag is switched off mid-session', async () => {
+    feeds({ deals: [deal(0), deal(1), deal(2)] })
+    const { again } = renderOverview()
+    await screen.findByTestId('best-deals-rail')
+
+    // `enabled: false` only stops the refetch — the cached rows survive, and nothing downstream re-checks
+    // the flag. The flag belongs in the query key so turning it off lands on a key with nothing behind it.
+    useCreatorSalesEnabled.mockReturnValue(false)
+    again()
+
+    await waitFor(() => expect(screen.queryByTestId('best-deals-rail')).toBeNull())
   })
 
   it('should send "View all" to the grid already filtered to deals', async () => {

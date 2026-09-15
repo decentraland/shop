@@ -336,6 +336,9 @@ let outfitStore: any[] = []
 function isDiscountedRow(i: any): boolean {
   return (
     typeof i.compareAtCredits === 'number' &&
+    // Both numbers, not just the compare-at: `5 > undefined` is false, so an unpriced fixture row would be
+    // read as "not discounted" rather than as the malformed row it is.
+    typeof i.priceCredits === 'number' &&
     i.compareAtCredits > i.priceCredits &&
     typeof i.saleEndsAt === 'number' &&
     i.saleEndsAt * 1000 > Date.now()
