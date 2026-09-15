@@ -279,7 +279,7 @@ export function AssetCard(props: AssetCardProps) {
         <CurrencyIcon size={13} />
         {formatCredits(item.compareAtCredits!)}
       </S.PriceWas>
-      <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
+      <S.Countdown until={item.saleEndsAt} testId="card-countdown" />
     </S.Price>
   ) : (
     <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
@@ -432,7 +432,9 @@ export function AssetCard(props: AssetCardProps) {
               tag on the right — same layout as the view card. */}
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>{item.name}</S.Name>
+              <S.Name data-testid="card-name" title={item.name}>
+                {item.name}
+              </S.Name>
               {issued}
             </S.Desc>
             {priceOrNfs(props.listed)}
@@ -476,7 +478,7 @@ export function AssetCard(props: AssetCardProps) {
         <S.Body data-name>
           <S.Top>
             <S.Desc>
-              <S.Name data-verified title={item.name}>
+              <S.Name data-testid="card-name" data-verified title={item.name}>
                 <span>{item.name}</span>
                 {/* DCL verified badge: scalloped Cerise-gradient seal + white check. Inlined (not the
                     Icon mask) so the gradient renders. */}
@@ -549,7 +551,9 @@ export function AssetCard(props: AssetCardProps) {
         <S.Body>
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>{item.name}</S.Name>
+              <S.Name data-testid="card-name" title={item.name}>
+                {item.name}
+              </S.Name>
               {issued}
             </S.Desc>
             {priceOrNfs(true)}
@@ -577,7 +581,7 @@ export function AssetCard(props: AssetCardProps) {
               or a small "NOT FOR SALE" tag when it isn't. */}
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>
+              <S.Name data-testid="card-name" title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
               {/* The author line the for-sale card has always shown. Leaving it out of THIS branch is why a
@@ -611,7 +615,7 @@ export function AssetCard(props: AssetCardProps) {
               shrinks. */}
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>
+              <S.Name data-testid="card-name" title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
               {/* "by {creator}" line under the title: resolves the creator address to a DCL profile name

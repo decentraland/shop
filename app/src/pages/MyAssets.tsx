@@ -8,6 +8,11 @@ import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collec
 import { displayCredits } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
+import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorSaleModal'
+import { CollectionThumb } from '~/components/CollectionThumb'
+import { CreatorSales } from '~/components/CreatorSales'
+import { useCreatorSales } from '~/hooks/useCreatorSales'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
@@ -45,6 +50,20 @@ const SECTIONS: { key: SectionKey; labelKey: string; category?: string }[] = [
   { key: 'names', labelKey: 'myAssets.sectionNames', category: 'ens' },
   { key: 'creations', labelKey: 'myAssets.sectionCreations' }
 ]
+
+/**
+ * How a creation is priced, for the creations-only Price filter.
+ *
+ * 'credits' is a Shop listing (USD-pegged); 'mana' is an old listing the seller has not migrated yet —
+ * the same set the pricing banner counts. An unlisted creation is neither, so it only shows under 'all'.
+ */
+type PriceType = 'all' | 'credits' | 'mana'
+const PRICE_TYPES: PriceType[] = ['all', 'credits', 'mana']
+const PRICE_LABEL_KEY: Record<PriceType, string> = {
+  all: 'filter.priceAll',
+  credits: 'filter.priceCredits',
+  mana: 'filter.priceMana'
+}
 
 // Sort menu shown in the toolbar. Server values are a subset of the NFT endpoint's NFTSortBy; the same
 // keys drive the (client-side) creations sort.
@@ -141,6 +160,9 @@ export function MyAssets() {
   const sectionParam = searchParams.get('section')
   const section: SectionKey = SECTIONS.some(s => s.key === sectionParam) ? (sectionParam as SectionKey) : 'wearables'
   const [status, setStatus] = useState<FilterStatus>('all')
+  // How a creation is priced. Creations only: it separates the Shop's own credit listings from the classic
+  // MANA ones the migration banner is about, which is a distinction no other section has.
+  const [priceType, setPriceType] = useState<PriceType>('all')
   const [rarities, setRarities] = useState<string[]>([])
   const [subCategory, setSubCategory] = useState<string | null>(null)
   // A section is a different set of items, not more of the same one — read it from the top.
@@ -151,7 +173,11 @@ export function MyAssets() {
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile sidebar drawer
   // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
   const [openStatus, setOpenStatus] = useState(true)
+  const [openPrice, setOpenPrice] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
+  // Dismissing the classic-pricing banner lasts this visit only — deliberately not persisted, so the
+  // nudge comes back while the listings it is about are still there.
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   // 'idle' → 'open' → 'closed' is one-way, so the prompt can fire at most once per visit even though
   // the classic-listing count it waits on keeps refetching underneath.
   const [pricingPrompt, setPricingPrompt] = useState<'idle' | 'open' | 'closed'>('idle')
@@ -189,6 +215,7 @@ export function MyAssets() {
   // Collapsed-group summaries (shown next to the header when a group is closed) — mirrors Collectibles.
   const statusSummary =
     status === 'on_sale' ? t('filter.onSale') : status === 'not_for_sale' ? t('filter.notForSale') : ''
+  const priceSummary = priceType === 'all' ? '' : t(PRICE_LABEL_KEY[priceType])
   const raritySummary = RARITIES.filter(r => rarities.includes(r))
     .map(capitalizeFirst)
     .join(', ')
@@ -205,6 +232,7 @@ export function MyAssets() {
     )
     setSubCategory(null)
     if (!hasRarityAndCategory(next)) setRarities([])
+    if (next !== 'creations') setPriceType('all')
     setFiltersOpen(false)
   }
   function toggleRarity(r: string) {
@@ -320,11 +348,68 @@ export function MyAssets() {
     return displayCredits({ manaWei: sale.manaWei, priceCredits: sale.priceCredits }, manaRate)
   }
 
-  // Creations filtered (status + search) + sorted client-side (the builder feed isn't paginated/queryable).
+  // Creator sales: the collections with at least one Shop listing (what a sale can apply to) and the sales the
+  // creator already runs. Both only matter on the creations section, and only once the flag opens the flow.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const { data: creatorSales } = useCreatorSales(address, creatorSalesEnabled && section === 'creations')
+  const [saleModalOpen, setSaleModalOpen] = useState(false)
+  const [saleModalFor, setSaleModalFor] = useState<string | undefined>(undefined)
+  const saleableCollections = useMemo<SaleableCollection[]>(() => {
+    const byAddress = new Map<string, SaleableCollection>()
+    // Every creation goes in, listed or not: the sale only re-prices the listed ones, and the review step
+    // has to be able to say which of the rest it will leave alone. The unfiltered list, so what the sale
+    // covers never depends on how the grid happens to be filtered.
+    for (const item of publishable ?? []) {
+      const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
+      // A MANA listing is on sale, but a coupon cannot discount it: the sale re-prices the Shop's own
+      // credit listings. Counting one would offer a discount that covers none of the collection's items.
+      const listedInCredits = !!sale?.isOnSale && !sale.manaWei
+      const key = item.contractAddress.toLowerCase()
+      const entry = byAddress.get(key) ?? {
+        contractAddress: key,
+        name: item.collectionName,
+        listedCount: 0,
+        examplePriceCredits: null,
+        items: []
+      }
+      entry.items.push({
+        key: `${key}-${item.blockchainItemId}`,
+        name: item.name,
+        thumbnail: item.thumbnail,
+        priceCredits: listedInCredits ? sale.priceCredits : null,
+        remainingSupply: item.remainingSupply
+      })
+      if (listedInCredits) {
+        entry.listedCount += 1
+        entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
+      }
+      byAddress.set(key, entry)
+    }
+    // A collection with nothing listed has nothing to discount, so it is not saleable.
+    return [...byAddress.values()].filter(c => c.listedCount > 0)
+  }, [publishable, saleState])
+
+  // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
+  // with the Activity chip, so the two can never quote different numbers.
+  const { count: importableCount } = useImportable()
+  const importCount = importableCount ?? 0
+
+
+
+  // Creations filtered (status + price + search) + sorted client-side (the builder feed isn't
+  // paginated/queryable).
+
+  // Creations filtered (status + price + search) + sorted client-side (the builder feed isn't
+  // paginated/queryable).
   const creations = useMemo(() => {
     let list = publishable ?? []
     if (status === 'on_sale') list = list.filter(p => saleFor(p)?.isOnSale)
     else if (status === 'not_for_sale') list = list.filter(p => !saleFor(p)?.isOnSale)
+    // Both arms read the SAME listing the card prices from, so the filter can never disagree with what the
+    // grid shows. `isOnSale` alone is not "priced in credits": a MANA listing is on sale too, it is just
+    // quoted in the other currency, and `manaWei` is what tells them apart.
+    if (priceType === 'credits') list = list.filter(p => !!saleFor(p)?.isOnSale && !saleFor(p)?.manaWei)
+    else if (priceType === 'mana') list = list.filter(p => !!saleFor(p)?.manaWei)
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(p => p.name.toLowerCase().includes(q))
@@ -334,12 +419,35 @@ export function MyAssets() {
     else if (sort === 'cheapest') sorted.sort((a, b) => creditsFor(saleFor(a)) - creditsFor(saleFor(b)))
     return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishable, saleState, status, search, sort, manaRate])
+  }, [publishable, saleState, status, priceType, search, sort, manaRate])
 
-  // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
-  // with the Activity chip, so the two can never quote different numbers.
-  const { count: importableCount } = useImportable()
-  const importCount = importableCount ?? 0
+  /**
+   * The creations split into their collections, in the order the filtered list already put them.
+   *
+   * A creator manages by collection — a sale covers one, and so does the CTA in each header — so the grid
+   * is grouped rather than flat. Insertion order is kept instead of re-sorting by name, so whatever the
+   * Sort control chose still decides which collection leads.
+   */
+  const creationGroups = useMemo(() => {
+    const groups = new Map<string, { contractAddress: string; name: string; listed: number; items: typeof creations }>()
+    for (const item of creations) {
+      const key = item.contractAddress.toLowerCase()
+      const group = groups.get(key) ?? { contractAddress: key, name: item.collectionName, listed: 0, items: [] }
+      group.items.push(item)
+      if (saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]?.isOnSale) group.listed += 1
+      groups.set(key, group)
+    }
+    return [...groups.values()]
+  }, [creations, saleState])
+
+  /** Which collections a sale can actually cover, for the per-header CTA. */
+  const saleableByAddress = useMemo(
+    () => new Set(saleableCollections.map(c => c.contractAddress.toLowerCase())),
+    [saleableCollections]
+  )
+
+  /** The collection the open modal is scoped to — a sale always covers exactly the one it was opened from. */
+  const saleModalCollection = saleableCollections.find(c => c.contractAddress === saleModalFor)
 
   useEffect(() => {
     if (pricingPrompt !== 'idle' || importCount === 0) return
@@ -378,6 +486,12 @@ export function MyAssets() {
       label: status === 'on_sale' ? t('filter.onSale') : t('filter.notForSale'),
       onRemove: () => setStatus('all')
     })
+  if (section === 'creations' && priceType !== 'all')
+    chips.push({
+      key: 'price',
+      label: t(PRICE_LABEL_KEY[priceType]),
+      onRemove: () => setPriceType('all')
+    })
   if (showRarityCat)
     for (const r of RARITIES)
       if (rarities.includes(r))
@@ -388,6 +502,7 @@ export function MyAssets() {
   }
   function clearFilters() {
     setStatus('all')
+    setPriceType('all')
     setRarities([])
     setSubCategory(null)
   }
@@ -472,6 +587,32 @@ export function MyAssets() {
           </F.StatusRow>
         ))}
       </FilterSection>
+
+      {/* Creations only: nothing else the seller owns can still be sitting on classic pricing. */}
+      {section === 'creations' ? (
+        <>
+          <F.Divider />
+          <FilterSection
+            title={t('filter.salePrice')}
+            open={openPrice}
+            onToggle={() => setOpenPrice(o => !o)}
+            summary={priceSummary}
+          >
+            {PRICE_TYPES.map(value => (
+              <F.StatusRow key={value}>
+                <F.StatusRadio
+                  type="radio"
+                  name="myassets-price"
+                  checked={priceType === value}
+                  onChange={() => setPriceType(value)}
+                  data-testid={`price-filter-${value}`}
+                />
+                <F.StatusLabel>{t(PRICE_LABEL_KEY[value])}</F.StatusLabel>
+              </F.StatusRow>
+            ))}
+          </FilterSection>
+        </>
+      ) : null}
     </F.Root>
   )
 
@@ -494,7 +635,9 @@ export function MyAssets() {
       </A.Sidebar>
 
       <A.Main>
-        {importCount > 0 ? <S.ImportBanner count={importCount} /> : null}
+        {importCount > 0 && !bannerDismissed ? (
+          <S.ImportBanner count={importCount} onDismiss={() => setBannerDismissed(true)} />
+        ) : null}
 
         {/* The search rides IN the toolbar, beside Sort By (Figma: count · search · SORT BY). It used to be
             a full-width bar of its own above it, four rows under the sub-nav's global search — two fields on
@@ -536,25 +679,71 @@ export function MyAssets() {
         {/* ---- Creations grid ---- */}
         {section === 'creations' ? (
           <>
-            <S.Grid data-testid="grid">
-              {publishableLoading ? (
+            {/* Only when there IS something to show: starting a sale is each collection header's job now,
+                so an empty panel was a heading over a nudge with nowhere left to send anyone. */}
+            {creatorSalesEnabled && session && creatorSales && creatorSales.length > 0 ? (
+              <S.SalesPanel data-testid="creator-sales-panel">
+                <S.SalesTitle>{t('creatorSale.salesTitle')}</S.SalesTitle>
+                <CreatorSales sales={creatorSales} session={session} />
+              </S.SalesPanel>
+            ) : null}
+            {saleModalOpen && session && saleModalCollection ? (
+              <CreatorSaleModal
+                session={session}
+                collection={saleModalCollection}
+                onClose={() => setSaleModalOpen(false)}
+              />
+            ) : null}
+            {publishableLoading ? (
+              <S.Grid data-testid="grid">
                 <SkeletonCards count={12} />
-              ) : (
-                creations.map(item => {
-                  const sale = saleFor(item)
-                  return (
-                    // Creations use the same MANAGE cta as owned assets: it navigates to the item's
-                    // detail page, where listing / editing / removing / issuing live. Publishing no
-                    // longer happens inline from the My Creations card.
-                    <AssetCard
-                      key={`${item.contractAddress}-${item.blockchainItemId}`}
-                      item={publishableToItem(item, creditsFor(sale), address ?? '')}
-                      mode="manage-link"
-                    />
-                  )
-                })
-              )}
-            </S.Grid>
+              </S.Grid>
+            ) : (
+              creationGroups.map(group => (
+                <S.CollectionGroup key={group.contractAddress} data-testid="creation-group">
+                  <S.CollectionHead>
+                    <S.CollectionThumbFrame>
+                      <CollectionThumb contractAddress={group.contractAddress} />
+                    </S.CollectionThumbFrame>
+                    <S.CollectionHeadText>
+                      <S.CollectionName data-testid="creation-group-name">{group.name}</S.CollectionName>
+                      <S.CollectionCount data-testid="creation-group-count">
+                        {t('myAssets.itemsCount', { count: group.items.length })}
+                        {group.listed > 0 ? ` · ${t('myAssets.groupOnSale', { count: group.listed })}` : ''}
+                      </S.CollectionCount>
+                    </S.CollectionHeadText>
+                    {creatorSalesEnabled && session && saleableByAddress.has(group.contractAddress) ? (
+                      <S.SaleCta
+                        variant="purple"
+                        size="sm"
+                        data-testid="creation-group-sale"
+                        onClick={() => {
+                          setSaleModalFor(group.contractAddress)
+                          setSaleModalOpen(true)
+                        }}
+                      >
+                        {t('creatorSale.putOnSale')}
+                      </S.SaleCta>
+                    ) : null}
+                  </S.CollectionHead>
+                  <S.Grid data-testid="grid">
+                    {group.items.map(item => {
+                      const sale = saleFor(item)
+                      return (
+                        // Creations use the same MANAGE cta as owned assets: it navigates to the item's
+                        // detail page, where listing / editing / removing / issuing live. Publishing no
+                        // longer happens inline from the My Creations card.
+                        <AssetCard
+                          key={`${item.contractAddress}-${item.blockchainItemId}`}
+                          item={publishableToItem(item, creditsFor(sale), address ?? '')}
+                          mode="manage-link"
+                        />
+                      )
+                    })}
+                  </S.Grid>
+                </S.CollectionGroup>
+              ))
+            )}
             {!publishableLoading && creations.length === 0 ? (
               <EmptyState
                 testId="creations-empty"

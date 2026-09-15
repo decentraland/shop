@@ -1573,7 +1573,7 @@ export function ItemDetail() {
                                     })}
                                   </S.SaleBadge>
                                 ) : null}
-                                <S.Countdown endsAt={current.saleEndsAt} />
+                                <S.Countdown until={current.saleEndsAt} />
                               </S.Price>
                             ) : (
                               <S.Price data-testid="item-price">

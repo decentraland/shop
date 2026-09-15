@@ -73,6 +73,13 @@ describe('web2-first copy rule', () => {
    *
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
+   *
+   * ONE deliberate exception has been granted since: `filter.priceMana`, the My Creations price filter, added
+   * on Juanma's call. The reasoning is that it names the same thing the pricing banner above it already names
+   * to the same person — a creator who is paid in MANA and has to find the listings still priced in it — and
+   * that "Classic pricing" made them guess which of the two labels meant the same thing. Note the section is
+   * NOT creator-only: any signed-in account can open My Creations and find it empty. Grant exceptions the same
+   * way if it happens again — named, reasoned, and attributed — rather than quietly widening the list.
    */
   const BASELINE = new Set([
     'activity.paidWithMana',
@@ -102,6 +109,7 @@ describe('web2-first copy rule', () => {
     'faq.sellers.suggestedPriceA',
     'faq.sellers.whyCreditsA',
     'faq.sellers.whyCreditsQ',
+    'filter.priceMana',
     'getCredits.errorSignInAfterPay',
     'importListings.lede',
     'importListings.wasMana',

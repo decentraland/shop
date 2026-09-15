@@ -24,6 +24,10 @@ const colors = {
   muted2: '#a09ba8', // Neutrals/Gray 3
   gray0: '#43404a', // Neutrals/Gray 0 — filter labels, applied-filter chip bg
   gray4: '#cfcdd4', // Neutrals/Gray 4 — hairline borders on rarity swatch chips
+  // Neutrals/Gray 5 as INK: secondary text sitting straight on the purple page field, where Gray 4
+  // drops under the AA ratio against the gradient's lightest stop. Same hex as `media`/`chip`, named
+  // apart because those are fills.
+  gray5: '#ecebed',
   textSecondary: 'rgba(22, 21, 24, 0.6)', // Figma "text/secondary" — unchecked checkbox outline
   line: '#e6e4ea', // subtle card border
   lineStrong: '#a09ba8', // search field / defined borders
@@ -91,6 +95,37 @@ export const rarities = {
   unique: '#fea217'
 } as const
 
+/**
+ * Discount "heat" — how hard a creator is cutting the price, along the brand's own amber→red→magenta
+ * ramp (the `flare` gradient's stops, used as solid steps).
+ *
+ * Two values per step, and only two, so a discount is ONE colour wherever it appears: `ink` draws the
+ * line and the lettering — the chip's ring and label, the review's badge, the discounted price itself —
+ * and `tint` is a wash of the same hue behind it. Having a bright ring and a separate darker text colour
+ * made the price on the review look like a different discount from the chip that set it.
+ *
+ * Each ink is its hue darkened until it clears 4.5:1 BOTH on white (the review's rows) and on its own
+ * tint (the chip). The bright stops cannot do that as text — amber on white lands near 1.7:1.
+ */
+export const saleHeat = {
+  low: { tint: '#fff3e0', ink: '#8a5a00' },
+  mid: { tint: '#ffe7d8', ink: '#b4400f' },
+  high: { tint: '#ffdbe2', ink: '#c4103a' },
+  // The deepest cut ends on the Shop's own sale red rather than a fourth hue: red is what the SALE badge
+  // already means to a shopper, so ending the ramp anywhere else breaks the link.
+  max: { tint: '#ffc9d4', ink: '#a80f33' }
+} as const
+
+export type SaleHeat = keyof typeof saleHeat
+
+/** Which step a discount sits on. The thresholds are the preset chips (10 / 20 / 30 / 50). */
+export function heatFor(pct: number): SaleHeat {
+  if (!Number.isFinite(pct) || pct < 15) return 'low'
+  if (pct < 25) return 'mid'
+  if (pct < 40) return 'high'
+  return 'max'
+}
+
 const gradients = {
   amethyst: 'linear-gradient(180deg, #c640cd 0%, #691fa9 100%)',
   cerise: 'linear-gradient(135deg, #ff2d55 0%, #c640cd 100%)', // card hover border
@@ -156,6 +191,6 @@ const media = {
   minWidth: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
-export const theme = { colors, rarities, gradients, radius, font, media, z }
+export const theme = { colors, rarities, saleHeat, gradients, radius, font, media, z }
 
 export type AppTheme = typeof theme
