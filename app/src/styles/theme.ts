@@ -55,6 +55,9 @@ const colors = {
   blackBtn: '#242129', // add-to-cart bg
   softWhite: '#fcfcfc',
   dclRed: '#ff2d55',
+  // Figma "Primary Base/Primary Light 2" — the sale tag's fill, with dclRed as its hairline.
+  saleTag: '#ffc9d5',
+  saleTagInk: '#ec303a',
   // The item preview's avatar glow. A bare RGB triple because the gradient needs it at two alphas.
   glowCyanRgb: '41 230 255',
   // The warm stop of `gradients.flare`/`ember`. Named because SVG gradient stops need the raw hex —

@@ -74,7 +74,7 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * TWO deliberate exceptions have been granted since, both on Juanma's call, both in the creator's own
+   * THREE deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
    * surfaces:
    *
    * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
@@ -86,7 +86,11 @@ describe('web2-first copy rule', () => {
    * there is no fixed credit price for a percentage to come off. Saying it any other way would leave the
    * creator without the one fact that explains the exclusion.
    *
-   * Note neither section is creator-only: any signed-in account can open My Creations and find it empty.
+   * `creatorSale.blockedBody`, shown when a collection's listings are ALL priced in MANA and a discount
+   * therefore has nothing to re-price. The whole message exists to name that currency: the creator opened
+   * this to run a discount and the answer is which rail their listings are on.
+   *
+   * Note none of these sections is creator-only: any signed-in account can open My Creations and find it empty.
    * Grant exceptions the same way if it happens again — named, reasoned, and attributed — rather than
    * quietly widening the list.
    */
@@ -111,6 +115,7 @@ describe('web2-first copy rule', () => {
     'buyModal.methodCombined',
     'buyModal.methodMana',
     'buyModal.notEnoughMana',
+    'creatorSale.blockedBody',
     'creatorSale.reviewClassicWhy',
     'errors.walletUnauthorized',
     'errors.wrongNetwork',

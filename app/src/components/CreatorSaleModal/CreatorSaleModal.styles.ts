@@ -1,6 +1,8 @@
+import { css } from '@emotion/react'
 import styled from '@emotion/styled'
 import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
+import { calendarPopup } from '~/styles/datePicker'
 import { theme } from '~/styles/theme'
 
 // Creator sale modal: the same shell as PrimaryListModal (white rounded card, header + close, muted field
@@ -274,26 +276,40 @@ export const InlineInput = styled.span`
   }
 `
 
-export const DateInput = styled.input`
-  /* Chip height exactly: this field opens inside a row of chips, and two pixels of difference there
-     resized the whole modal. */
-  height: 40px;
-  /* Explicit, and wide enough for the whole date: the browser's intrinsic width for a datetime-local
-     tracks the font size, and leaving it implicit made the row's fit depend on font metrics. With the
-     compact duration labels the row has room to spare, so this can be generous rather than lucky. */
-  width: 208px;
-  box-sizing: border-box;
-  padding: 0 10px;
-  border: 0.5px solid ${theme.colors.text};
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.white};
-  font-family: ${theme.font.sans};
-  font-size: 14px;
-  color: ${theme.colors.text};
-  max-width: 100%;
-
-  &:focus {
+/**
+ * The end / start field: the Shop's own calendar, not the browser's.
+ *
+ * A native `datetime-local` cannot be themed — its popup is Chrome's, drawn in Chrome's blue, and it
+ * arrived in the middle of a modal that is otherwise entirely ours. react-datepicker is already a
+ * dependency and already wears this theme in the sell flow, so the two calendars now match.
+ *
+ * The field keeps the chip's exact metrics: it opens inside a row of chips, and two pixels of difference
+ * there resized the whole modal.
+ */
+export const DateField = styled.div`
+  .react-datepicker-wrapper {
+    display: block;
+  }
+  .react-datepicker__input-container {
+    display: flex;
+    align-items: center;
+  }
+  .react-datepicker__input-container input {
+    height: 40px;
+    /* Explicit, so the row's fit never depends on font metrics or on the locale's date format. */
+    width: 208px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    border: 0.5px solid ${theme.colors.text};
+    border-radius: ${theme.radius.btn};
+    background: ${theme.colors.white};
+    font-family: ${theme.font.sans};
+    font-size: 14px;
+    color: ${theme.colors.text};
     outline: none;
+    max-width: 100%;
+  }
+  .react-datepicker__input-container input:focus {
     border-color: ${theme.colors.magenta};
   }
 `
@@ -358,6 +374,13 @@ export const Marked = styled.b`
   .ico {
     margin-right: 2px;
   }
+`
+
+/** The MANA mark, sized and seated like the credits one so both currencies read the same in a sentence. */
+export const ManaMark = styled.img`
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
 `
 
 export const Status = styled.p`
@@ -779,4 +802,45 @@ export const ReviewFootNote = styled.p`
   font-size: 13px;
   line-height: 1.45;
   color: ${theme.colors.muted};
+`
+
+/**
+ * The calendar lives in a node of its own at body level (see CALENDAR_PORTAL), so this component's own
+ * scoped styles cannot reach it — a portalled popup is outside the tree Emotion generated the class for.
+ * Keyed on the portal's id instead, and lifted above the modal, which otherwise paints over it.
+ */
+export const calendarPortalStyles = css`
+  #creator-sale-calendar {
+    position: relative;
+    /* Above the modal, which paints over anything at the document's own level. */
+    z-index: ${theme.z.overlay + 1};
+
+    ${calendarPopup}
+
+    /* The time column, which the sell flow's date-only picker never shows. */
+    .react-datepicker__time-container,
+    .react-datepicker__time,
+    .react-datepicker__time-box {
+      background: ${theme.colors.white};
+    }
+    .react-datepicker__time-list-item {
+      color: ${theme.colors.text};
+    }
+    .react-datepicker__time-list-item:hover {
+      background: rgba(105, 31, 169, 0.1) !important;
+    }
+    .react-datepicker__time-list-item--selected {
+      background: ${theme.colors.accent} !important;
+      color: ${theme.colors.white} !important;
+      font-weight: 600 !important;
+    }
+    .react-datepicker__header--time {
+      padding: 12px 0 8px;
+    }
+    .react-datepicker-time__header {
+      color: ${theme.colors.text};
+      font-weight: 600;
+      font-size: 13px;
+    }
+  }
 `

@@ -1,0 +1,1 @@
+export { SaleTimer } from './SaleTimer'

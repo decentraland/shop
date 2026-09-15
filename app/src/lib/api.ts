@@ -320,13 +320,16 @@ export async function fetchItemDescription(contractAddress: string, itemId: stri
 // layers the collection catalogue on top to find the rows this feed omits.
 export async function fetchPeggedPrimaryPrices(
   contractAddress: string
-): Promise<Record<string, { priceCredits: number; tradeId?: string }>> {
-  const map: Record<string, { priceCredits: number; tradeId?: string }> = {}
+): Promise<Record<string, { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }>> {
+  const map: Record<
+    string,
+    { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }
+  > = {}
   // Paged to the end on purpose: a pegged row missing from this map is read as MANA-denominated by
   // fetchCollectionSaleState, which would then convert its USD-wei price as if it were MANA.
   const PAGE = 200
   for (let skip = 0; ; skip += PAGE) {
-    const { listings, total } = await fetchShopListingsRaw({
+    const { listings, total, creatorSalesLive } = await fetchShopListingsRaw({
       contractAddress,
       first: PAGE,
       skip,
@@ -334,7 +337,21 @@ export async function fetchPeggedPrimaryPrices(
     })
     for (const l of listings) {
       if (l.listingType !== 'primary' || l.itemId == null) continue
-      map[String(l.itemId)] = { priceCredits: l.priceCredits, ...(l.tradeId ? { tradeId: l.tradeId } : {}) }
+      map[String(l.itemId)] = {
+        priceCredits: l.priceCredits,
+        ...(l.tradeId ? { tradeId: l.tradeId } : {}),
+        /*
+         * The running sale, so the creator's own grid can draw what a buyer sees.
+         *
+         * Two things this row does NOT get for free, because these are the raw listings and the kill switch
+         * and the unit conversion both live in the mapping to a CatalogItem: the flag has to be honoured
+         * here, and `saleEndsAt` arrives in SECONDS while everything that reads it works in milliseconds.
+         * Left in seconds it lands in 1970 and every card decides the sale is already over — which looks
+         * exactly like the fields never arriving at all.
+         */
+        ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
+        ...(creatorSalesLive && l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+      }
     }
     if (listings.length < PAGE || (total > 0 && skip + listings.length >= total)) break
   }
@@ -586,9 +603,15 @@ export type ShopListingFilters = {
   listingType?: 'primary' | 'secondary'
 }
 
-async function fetchShopListingsRaw(
+/**
+ * The shop feed's rows as the server sends them, kill switch applied.
+ *
+ * Exported so `lib/collections` can lay a running sale over the catalogue feed, which has no coupon join of
+ * its own — see withRunningSales there. Callers outside this module get the raw rows, not CatalogItems.
+ */
+export async function fetchShopListingsRaw(
   params: ShopListingFilters
-): Promise<{ listings: ShopListingRaw[]; total: number }> {
+): Promise<{ listings: ShopListingRaw[]; total: number; creatorSalesLive: boolean }> {
   const qs = new URLSearchParams()
   if (params.category === 'wearable' || params.category === 'emote') qs.set('category', params.category)
   if (params.first != null) qs.set('first', String(params.first))
@@ -609,7 +632,10 @@ async function fetchShopListingsRaw(
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
   const json = (await res.json()) as { data?: ShopListingRaw[]; total?: number }
-  return { listings: json.data ?? [], total: json.total ?? 0 }
+  // The flag travels with the rows: this returns them RAW (the kill switch is applied when they become
+  // CatalogItems), so a caller that maps them itself needs to know whether the discount may be shown.
+  await primeCreatorSales()
+  return { listings: json.data ?? [], total: json.total ?? 0, creatorSalesLive }
 }
 
 /**

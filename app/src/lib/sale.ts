@@ -35,6 +35,20 @@ export function saleTimeLeft(saleEndsAt: number | undefined, now: number = Date.
   return Math.max(0, saleEndsAt - now)
 }
 
+/** The remaining window split into whole days, hours, minutes and seconds. */
+export function countdownParts(
+  msLeft: number
+): { days: number; hours: number; minutes: number; seconds: number } | null {
+  if (!isFinite(msLeft) || msLeft <= 0) return null
+  const totalSec = Math.floor(msLeft / 1000)
+  return {
+    days: Math.floor(totalSec / 86400),
+    hours: Math.floor((totalSec % 86400) / 3600),
+    minutes: Math.floor((totalSec % 3600) / 60),
+    seconds: totalSec % 60
+  }
+}
+
 // Compact, urgency-forward countdown: "2d 4h" → "4h 12m" → "12m 30s" → "45s". Seconds only surface
 // under an hour, where they actually create pressure. Returns '' at/after zero so callers hide it.
 export function formatCountdown(msLeft: number): string {

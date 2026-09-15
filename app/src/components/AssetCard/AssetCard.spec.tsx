@@ -88,23 +88,22 @@ describe('AssetCard author row', () => {
 })
 
 describe('AssetCard flash-sale treatment', () => {
-  it('renders the SALE -X% badge, struck-through compare-at, and a countdown when on sale', () => {
+  it('renders the discount tag and the struck-through compare-at when on sale', () => {
     const { container } = renderCard(
       makeItem({ priceCredits: 7, compareAtCredits: 10, saleEndsAt: Date.now() + 2 * 86400_000 })
     )
-    // 10 → 7 is a 30% cut.
-    expect(screen.getByText(/SALE\s*-30%/)).toBeTruthy()
+    // 10 → 7 is a 30% cut. The tag is the flame and the number; the word SALE is not part of it.
+    expect(container.querySelector('[data-testid="card-sale-badge"]')?.textContent).toContain('-30%')
     const was = container.querySelector('[data-testid="card-price-was"]')
     expect(was?.textContent).toContain('10')
     const now = container.querySelector('[data-testid="card-price-now"]')
     expect(now?.textContent).toContain('7')
-    // A live window renders a ticking countdown pill.
-    expect(container.querySelector('[data-testid="card-countdown"]')).toBeTruthy()
+    // The countdown belongs to the item page now: a grid of them was four chips fighting for one card.
+    expect(container.querySelector('[data-testid="card-countdown"]')).toBeNull()
   })
 
   it('shows no sale treatment for a regular listing', () => {
     const { container } = renderCard(makeItem({ priceCredits: 7 }))
-    expect(screen.queryByText(/SALE/)).toBeNull()
     expect(container.querySelector('[data-testid="card-price-was"]')).toBeNull()
     expect(container.querySelector('[data-testid="card-sale-badge"]')).toBeNull()
   })

@@ -125,7 +125,9 @@ describe('the best deals rail', () => {
     const names = await rail!.$$eval('[data-testid="card-name"]', els => els.map(e => e.textContent))
     expect(names).toEqual(['Deal 50 Off', 'Deal 35 Off', 'Deal 20 Off'])
     expect(await rail!.$$('[data-testid="card-price-was"]')).toHaveLength(3)
-    expect(await rail!.$$('[data-testid="card-countdown"]')).toHaveLength(3)
+    // The tag, not a countdown: the timer belongs to the item page now, so a rail of three cards no longer
+    // carries three ticking clocks.
+    expect(await rail!.$$('[data-testid="card-sale-badge"]')).toHaveLength(3)
     // "View all" lands on the grid already filtered to deals.
     expect(await rail!.$('a[href="/items?deals=true"]')).toBeTruthy()
   })

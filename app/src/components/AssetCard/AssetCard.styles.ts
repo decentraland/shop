@@ -3,10 +3,10 @@ import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
+import { SaleTag } from '~/components/SaleTag'
 import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
-import { SaleCountdown } from '~/components/SaleCountdown'
 import { Icon } from '~/components/Icon'
 
 const { colors, radius, media } = theme
@@ -269,7 +269,6 @@ export const Media = styled.div`
   isolation: isolate;
   flex: 1;
   min-height: 0;
-
   /* The compact card is a drawn 136/114 split, so the media keeps its height and the footer is the part
      that flexes. Left to absorb the slack, it gave 23px back to a sale card's taller price block and that
      card's artwork came out shorter than its neighbours' in the same row. */
@@ -288,23 +287,12 @@ export const Media = styled.div`
   place-items: center;
 `
 
-// Corner ribbon on the media (fav sits top-right, so this anchors top-left).
-export const SaleBadge = styled.span`
+/** The shared discount tag, anchored to the artwork's top-left — the favourite owns the top-right. */
+export const SaleBadge = styled(SaleTag)`
   position: absolute;
   top: 10px;
   left: 10px;
   z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  background: ${colors.dclRed};
-  color: ${colors.white};
-  font-weight: 800;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  border-radius: 6px;
-  padding: 4px 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 `
 
 // Shimmer over the gray media background while the shared 3D preview boots. z-index -1 (within the
@@ -610,18 +598,22 @@ export const Nfs = styled.span`
   white-space: nowrap;
 `
 
+/**
+ * The price being charged. Plain ink, not red: the badge on the artwork is already saying "on sale" in
+ * red, and repeating it on the number left the card with two reds competing for the same announcement
+ * while the price itself — the thing the buyer reads — had to fight the strike-through beside it.
+ */
 export const PriceNow = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: ${colors.dclRed};
+  color: ${colors.softWhite};
   font-weight: 700;
 `
 
 export const PriceWas = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   color: ${colors.muted2};
   text-decoration: line-through;
   font-weight: 600;
@@ -631,23 +623,6 @@ export const PriceWas = styled.span`
 export const Approx = styled.span`
   font-weight: 700;
   color: ${colors.muted2};
-`
-
-// Opaque on purpose. A translucent chip takes the colour of whatever is behind it, and this pill rides
-// cards on two very different surfaces — the browse grid and the home rail — so the same tokens that read
-// on one washed out on the other: accent purple over a 30%-purple fill measured 2.6:1 against the grid's
-// card, below even the 3:1 floor for UI text. A solid fill is the same everywhere (15.4:1 with softWhite).
-export const Countdown = styled(SaleCountdown)`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: ${colors.blackBtn};
-  color: ${colors.softWhite};
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 6px;
-  padding: 2px 8px;
-  white-space: nowrap;
 `
 
 // Fixed-height slot: the full-width action button (Cart) swaps in for the chips on hover/focus without

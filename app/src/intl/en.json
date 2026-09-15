@@ -279,8 +279,21 @@
     "supply": "{rarity} rarity — only {max} will ever exist",
     "plain": "{rarity} rarity"
   },
+  "offerStock": {
+    "label": "Limited offer stock",
+    "claimed": "{claimed} of {total} claimed",
+    "percent": "{pct}% claimed"
+  },
+  "saleTimer": {
+    "lead": "Ends in",
+    "days": "{n}d",
+    "hours": "{n}h",
+    "minutes": "{n}m",
+    "seconds": "{n}s"
+  },
   "assetCard": {
     "sale": "SALE",
+    "saleTagPct": "-{pct}%",
     "saleWithDiscount": "SALE -{pct}%",
     "smart": "Smart",
     "addToFavorites": "Add to favorites",
@@ -293,6 +306,7 @@
     "manage": "Manage",
     "inCart": "In cart",
     "addToCart": "Add to cart",
+    "soldOut": "Sold out",
     "notForSale": "Not for Sale",
     "view": "View",
     "unitsLeftAtThisPrice": "Only {count} left at this price"
@@ -614,7 +628,8 @@
     "searchPlaceholder": "Search your items",
     "clearSearch": "Clear search",
     "itemsCount": "{count, plural, one {# item} other {# items}}",
-    "groupOnSale": "{count, plural, one {# on sale} other {# on sale}}"
+    "groupOnSale": "{count, plural, one {# on sale} other {# on sale}}",
+    "groupSoldOut": "{count, plural, one {# sold out} other {# sold out}}"
   },
   "activity": {
     "filter": {
@@ -1276,7 +1291,11 @@
     "toastScheduled": "Your discount is scheduled.",
     "cancel": "Cancel",
     "salesTitle": "Discounts",
+    "blockedBody": "Everything listed in this collection is priced in <m>MANA</m>, and a discount only applies to prices in <c>Credits</c>. Move {count, plural, one {the listing} other {these listings}} over and the discount will be ready to run.",
+    "blockedCta": "Go to listings",
     "putOnSale": "Start a discount",
+    "groupActive": "{pct}% off",
+    "groupScheduled": "{pct}% off · scheduled",
     "offPct": "{pct}% off",
     "statusActive": "Live",
     "statusScheduled": "Scheduled",

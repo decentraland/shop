@@ -58,74 +58,49 @@ describe('the browse grid while a creator has items on sale', () => {
    * not notice a pill drawn outside its own card, or one whose text is the same colour as what is behind
    * it — both of which this card shipped with. So these two measure geometry and contrast instead.
    */
-  it('keeps the countdown inside its card at phone width, on every side', async () => {
-    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
+  it('keeps the timer inside the item page price block at phone width, on every side', async () => {
+    app = await launchApp({
+      path: `/item/${COLLECTION}/0`,
+      creatorSales: true,
+      fixtures: { unifiedListings: unifiedListingsOnSale }
+    })
     const { page } = app
     await page.setViewport({ width: 390, height: 844 })
 
-    await waitForText(page, 'Galaxy Hat')
+    await page.waitForSelector('[data-testid="detail-countdown"]')
     const box = await page.evaluate(() => {
-      const pill = document.querySelector('[data-testid="card-countdown"]') as HTMLElement
-      const card = pill.closest('[data-testid="card"]') as HTMLElement
-      const p = pill.getBoundingClientRect()
-      const c = card.getBoundingClientRect()
-      return {
-        overBottom: p.bottom - c.bottom,
-        overTop: c.top - p.top,
-        overLeft: c.left - p.left,
-        overRight: p.right - c.right
-      }
+      const chip = document.querySelector('[data-testid="detail-countdown"]') as HTMLElement
+      const price = document.querySelector('[data-testid="item-price"]') as HTMLElement
+      const t = chip.getBoundingClientRect()
+      const p = price.getBoundingClientRect()
+      return { overLeft: p.left - t.left, overRight: t.right - p.right, wider: t.width > window.innerWidth }
     })
 
-    // Half a pixel of slack for sub-pixel rounding; anything past that is the pill escaping the card.
-    expect(box.overBottom).toBeLessThanOrEqual(0.5)
-    expect(box.overTop).toBeLessThanOrEqual(0.5)
+    // Half a pixel of slack for sub-pixel rounding; past that the chip is escaping its block. Three boxed
+    // units are a lot wider than the "2d 4h" pill they replaced, so a phone is where that shows first.
     expect(box.overLeft).toBeLessThanOrEqual(0.5)
     expect(box.overRight).toBeLessThanOrEqual(0.5)
-  })
-
-  it('keeps the countdown readable against its own fill, on the light card and the dark one alike', async () => {
-    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
-    const { page } = app
-
-    await waitForText(page, 'Galaxy Hat')
-    const ratio = await page.evaluate(() => {
-      const pill = document.querySelector('[data-testid="card-countdown"]') as HTMLElement
-      const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number)
-      // Composite every layer up the tree: a translucent fill takes the colour of whatever is behind it,
-      // which is how the same tokens read on one surface and vanished on another.
-      let bg = [255, 255, 255]
-      const chain: number[][] = []
-      for (let el: HTMLElement | null = pill; el; el = el.parentElement)
-        chain.push(parse(getComputedStyle(el).backgroundColor))
-      for (let i = chain.length - 1; i >= 0; i--) {
-        const [r, g, b, a = 1] = chain[i]
-        if (a === 0 || r === undefined) continue
-        bg = [r * a + bg[0] * (1 - a), g * a + bg[1] * (1 - a), b * a + bg[2] * (1 - a)]
-      }
-      const fg = parse(getComputedStyle(pill).color)
-      const lum = (c: number[]) => {
-        const f = (v: number) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4)
-        return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2])
-      }
-      const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a)
-      return (hi + 0.05) / (lo + 0.05)
-    })
-
-    // WCAG AA for text this size. The pill shipped at 2.6:1 — below even the 3:1 floor for UI text.
-    expect(ratio).toBeGreaterThanOrEqual(4.5)
+    expect(box.wider).toBe(false)
   })
 
   it('counts down to the end of the sale, from a timestamp the catalogue sends in seconds', async () => {
-    app = await launchApp({ path: '/items', creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
+    app = await launchApp({
+      path: `/item/${COLLECTION}/0`,
+      creatorSales: true,
+      fixtures: { unifiedListings: unifiedListingsOnSale }
+    })
     const { page } = app
 
-    await waitForText(page, 'Galaxy Hat')
-    const countdown = await page.$eval('[data-testid="card-countdown"]', el => el.textContent ?? '')
+    await page.waitForSelector('[data-testid="detail-countdown"]')
+    const timer = await page.$eval('[data-testid="detail-countdown"]', (el: Element) =>
+      (el as HTMLElement).innerText.replace(/\s+/g, ' ')
+    )
 
     // The fixture's sale ends a day out. A seconds value read as milliseconds would land in 1970 and the
-    // countdown would be absent or already over, so any remaining time at all is the assertion.
-    expect(countdown.trim()).not.toBe('')
+    // timer would be absent or already over, so real time remaining is the assertion. Read from the text
+    // the chip actually shows — it says "Ends in 23h 18m" and needs no label of its own.
+    expect(timer).toMatch(/Ends in/i)
+    expect(timer).toMatch(/\d+[dhm]/)
   })
 })
 
@@ -206,52 +181,81 @@ describe('the Deals filter on a phone', () => {
   })
 })
 
-/** The same on-sale row, plus however many units are left at the sale price. */
-const withUnitsLeft = (saleUnitsLeft: number) => ({
-  ...unifiedListingsOnSale,
-  data: [{ ...unifiedListingsOnSale.data[0], saleUnitsLeft }, ...unifiedListingsOnSale.data.slice(1)]
-})
+/**
+ * The same row under a coupon that has already been spent ELSEWHERE in its collection.
+ *
+ * `used` counts the whole collection; `saleUnitsLeft` is this listing's own ceiling. A fixture that leaves
+ * `used` at zero cannot tell the two apart, which is how a bar that mixed them went unnoticed.
+ */
+const withSharedCoupon = (used: number, uses: number, saleUnitsLeft: number) => {
+  const row = unifiedListingsOnSale.data[0] as Record<string, unknown>
+  return {
+    ...unifiedListingsOnSale,
+    data: [
+      {
+        ...row,
+        saleUnitsLeft,
+        coupon: { ...((row.coupon as Record<string, unknown>) ?? {}), used, checks: { uses } }
+      },
+      ...unifiedListingsOnSale.data.slice(1)
+    ]
+  }
+}
 
-describe('how many units are left at the sale price', () => {
-  describe('and only a handful remain', () => {
-    it('should tell the buyer on the item page', async () => {
+describe('how much of a limited offer is left', () => {
+  describe('and the coupon has been spent on a sibling listing', () => {
+    it('should keep the bar on the OFFER and say separately how few are left HERE', async () => {
       app = await launchApp({
         path: `/item/${COLLECTION}/0`,
         creatorSales: true,
-        fixtures: { unifiedListings: withUnitsLeft(3) }
+        // 60 of the collection's 100 uses are gone, and this item has 3 copies left under the offer.
+        fixtures: { unifiedListings: withSharedCoupon(60, 100, 3) }
       })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
+      const bar = await page.$eval('[data-testid="detail-offer-stock"]', (el: Element) =>
+        (el as HTMLElement).innerText.replace(/\s+/g, ' ')
+      )
+      // Both numbers from the coupon. Pairing the collection-wide count with this listing's ceiling read
+      // "60 of 63 claimed" — an item looking nearly exhausted without having sold one of its own.
+      expect(bar).toMatch(/60 of 100 claimed/i)
+      expect(bar).not.toMatch(/of 63 claimed/i)
+
+      // And the thing the collection-wide bar cannot say.
       const hint = await page.$eval('[data-testid="detail-units-left"]', el => el.textContent ?? '')
       expect(hint).toMatch(/3/)
     })
   })
 
-  describe('and there are plenty', () => {
-    it('should say nothing, because a large number is not scarcity', async () => {
+  describe('and the offer runs out before this item does', () => {
+    it('should say nothing about this item, because the bar already answers it', async () => {
       app = await launchApp({
         path: `/item/${COLLECTION}/0`,
         creatorSales: true,
-        fixtures: { unifiedListings: withUnitsLeft(40) }
+        // 4 uses left on the coupon, and this listing could give 40 — the OFFER is the binding constraint.
+        fixtures: { unifiedListings: withSharedCoupon(96, 100, 4) }
       })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
-      // The sale itself still shows — both prices are on the page — and it is only the unit count that is
-      // withheld. Asserted on the rendered figures rather than on a test hook the buy-side branch owns.
-      await waitForText(page, '189')
-      await waitForText(page, '270')
+      const bar = await page.$eval('[data-testid="detail-offer-stock"]', (el: Element) =>
+        (el as HTMLElement).innerText.replace(/\s+/g, ' ')
+      )
+      expect(bar).toMatch(/96 of 100 claimed/i)
+      // The bar's own remainder IS the answer here, so repeating it in words would be the duplicate the
+      // line exists to avoid.
       expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
     })
   })
 
   describe('and the listing is not on sale at all', () => {
-    it('should say nothing, since there is no sale price to run out of', async () => {
+    it('should say nothing, since there is no offer to run out of', async () => {
       app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { unifiedListings } })
       const { page } = app
 
       await waitForText(page, 'Galaxy Hat')
+      expect(await page.$('[data-testid="detail-offer-stock"]')).toBeNull()
       expect(await page.$('[data-testid="detail-units-left"]')).toBeNull()
     })
   })

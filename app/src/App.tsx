@@ -9,6 +9,7 @@ import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
 import { initAnalytics, trackPage } from '~/lib/analytics'
@@ -115,6 +116,7 @@ export function AliasRedirect({ to }: { to: string }) {
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
+  useDialogScrollLock()
   const prelaunch = useShopPrelaunch()
   const location = useLocation()
 
