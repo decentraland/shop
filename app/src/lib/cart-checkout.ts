@@ -6,6 +6,12 @@ import { isOwnTrade } from '~/lib/ownership'
 // Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
 // lib/buy-mana owns the vocabulary for that.
 import type { PurchaseTarget } from '~/lib/buy-mana'
+import type { ListingCoupon } from '~/lib/trade-encoding'
+
+/** A rate discount is expressed in parts per million: 300_000 is 30% off. */
+const PPM = 1_000_000
+/** CollectionDiscountCoupon.DISCOUNT_TYPE_RATE — the only kind the Shop prices and settles. */
+const RATE_DISCOUNT = 1
 
 // Cart checkout review: resolve every cart item's LIVE listing before charging, so the buyer is never
 // silently charged a stale snapshot price and one bad item never aborts the whole basket.
@@ -22,7 +28,12 @@ import type { PurchaseTarget } from '~/lib/buy-mana'
  * with the buyer's credits, and a silent `undefined` there is the shape of a lost or wrong charge.
  */
 export type LineSettlement =
-  | { acquisition: 'trade'; trade: Trade }
+  /**
+   * `coupon` is the creator discount as re-read at review time, NOT the one the cart stored. A coupon
+   * decides both what the buyer is charged and which marketplace function settles the line, so a stale one
+   * is either a purchase that reverts forever (the sale ended) or a price the page is no longer showing.
+   */
+  | { acquisition: 'trade'; trade: Trade; coupon?: ListingCoupon }
   /**
    * A CollectionStore mint. `priceWei` is the LIVE MANA price re-read at review time, not the snapshot the
    * cart stored: CollectionStore.buy takes the price as an argument and the contract re-validates it against
@@ -48,7 +59,12 @@ export type ResolvedLine = {
  */
 export type PurchaseDraft =
   | { kind: 'store'; item: { collection: string; itemId: string; priceWei: string }; chainId: number }
-  | { kind: 'trade'; trade: Trade }
+  /**
+   * `coupon` rides along from the catalogue row because it decides which transaction the line settles in
+   * (see purchaseGroupKey) — and groups are formed from drafts, before any credit is authorized. A draft
+   * that dropped it would be grouped as undiscounted and then paid at the list price.
+   */
+  | { kind: 'trade'; trade: Trade; coupon?: ListingCoupon }
 
 /**
  * Draft one resolved line into the purchase it will settle as.
@@ -68,7 +84,7 @@ export function draftPurchase(line: ResolvedLine): PurchaseDraft {
       chainId: line.item.chainId
     }
   }
-  return { kind: 'trade', trade: line.trade }
+  return { kind: 'trade', trade: line.trade, coupon: line.coupon }
 }
 
 /**
@@ -138,6 +154,18 @@ export const RESUME_CART_KEY = 'dcl_shop_resume_cart'
 export type TradeResolver = (item: CatalogItem) => Promise<Trade | null>
 
 /**
+ * Re-reads the creator discount currently on a listing, or undefined when it is no longer on sale.
+ *
+ * The coupon is the one price input the cart persists, so without this a line added during a sale keeps
+ * quoting that sale forever: once the creator cancels the signature or the window closes, every checkout
+ * authorizes the discounted amount, submits `acceptWithCoupon`, and reverts — and the next attempt reads
+ * the same dead coupon back out of storage and reverts identically. Omitted, a stored coupon is IGNORED
+ * rather than trusted, which charges the list price: the same fail-closed choice `rate` and `resolveStore`
+ * already make.
+ */
+export type CouponResolver = (item: CatalogItem) => Promise<ListingCoupon | undefined>
+
+/**
  * Re-reads a CollectionStore mint's LIVE price and remaining supply, or null when it is no longer mintable.
  *
  * The mint equivalent of re-resolving a trade, and needed for the same reason: the cart's stored snapshot can
@@ -197,7 +225,7 @@ export function lineUsdCents(trade: Trade, rate?: ManaRate): number {
  * same row — and every rail (credits, MANA, credits + MANA) branches on the result rather than assuming a trade.
  */
 export function purchaseTargetFor(line: ResolvedLine): PurchaseTarget {
-  if (line.acquisition === 'trade') return { kind: 'trade', trade: line.trade }
+  if (line.acquisition === 'trade') return { kind: 'trade', trade: line.trade, coupon: line.coupon }
   return {
     kind: 'store',
     mint: {
@@ -237,7 +265,8 @@ export async function resolveLine(
   buyerAddress: string,
   resolve: TradeResolver,
   rate?: ManaRate,
-  resolveStore?: StoreResolver
+  resolveStore?: StoreResolver,
+  resolveCoupon?: CouponResolver
 ): Promise<LineOutcome> {
   // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
   const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
@@ -270,14 +299,73 @@ export async function resolveLine(
   const trade = await resolve(item)
   if (!trade) return { status: 'gone' }
   if (isOwnTrade(trade, buyerAddress)) return { status: 'own' }
-  const usdCents = lineUsdCents(trade, rate)
+  // Only a line that CLAIMS a discount pays for the extra lookup; one that never had a coupon prices off
+  // the trade alone, as it always did. A sale that started after the item was added is therefore a missed
+  // discount rather than a wrong charge — the price shown is the price taken.
+  const liveCoupon = item.coupon ? couponForTrade(await resolveCoupon?.(item), trade) : undefined
+  const usdCents = discountedUsdCents(lineUsdCents(trade, rate), liveCoupon)
   // A zero/NaN price (empty received, missing/bad amount) is not a real live listing — never let it
   // be charged at 0, which would authorize a $0 credit and revert on-chain.
   if (!Number.isFinite(usdCents) || usdCents <= 0) return { status: 'no-price' }
   return {
     status: 'buyable',
-    line: { item, acquisition: 'trade', trade, usdCents, priceCredits: centsToCredits(usdCents), quantity }
+    line: {
+      item,
+      acquisition: 'trade',
+      trade,
+      coupon: liveCoupon,
+      usdCents,
+      priceCredits: centsToCredits(usdCents),
+      quantity
+    }
   }
+}
+
+/**
+ * What the buyer actually pays for a line: the live listing's price, less the creator's discount.
+ *
+ * The trade is signed at the LIST price — the coupon is what lowers it, at settlement — so pricing a line
+ * off the trade alone authorizes a credit for the full price. That does not overcharge (the contract pulls
+ * only what it needs, and the buyer is debited what actually moved), but it reserves more of their balance
+ * than the sale costs, which makes a sale unaffordable to someone who can afford exactly the sale price.
+ *
+ * Rounded UP on purpose. An approval a wei short of what the marketplace asks for reverts the whole
+ * purchase; a slightly generous one is harmless, because the amount that moves is the discounted one.
+ */
+export function discountedUsdCents(listCents: number, coupon?: ListingCoupon): number {
+  if (!coupon || listCents <= 0) return listCents
+  return Math.ceil((listCents * (PPM - coupon.discount)) / PPM)
+}
+
+/**
+ * The coupon this trade can actually settle with, or undefined.
+ *
+ * Everything the CollectionDiscountCoupon checks on chain, checked here first, because a coupon that fails
+ * any of them does not merely go unused — it reverts the whole purchase after the buyer has confirmed and
+ * paid gas. Dropping it instead settles the line through plain `accept` at the list price, which is a
+ * recoverable outcome the buyer can see before confirming.
+ *
+ *  - a RATE discount: a flat one (type 2) subtracts a 1e18-scale amount, and running that through the rate
+ *    formula yields a nonsense negative price that would quietly sweep the row out of the basket as
+ *    "no longer available"
+ *  - inside its window, since the contract rejects one that has expired or has not become effective
+ *  - only COLLECTION_ITEM assets, since the coupon reverts on anything else — a secondary listing that
+ *    somehow carried one would burn the buyer's gas
+ */
+export function couponForTrade(
+  coupon: ListingCoupon | undefined,
+  trade: Trade,
+  now = Date.now()
+): ListingCoupon | undefined {
+  if (!coupon || coupon.discountType !== RATE_DISCOUNT) return undefined
+  if (coupon.discount <= 0 || coupon.discount >= PPM) return undefined
+  if (Number(coupon.checks.expiration) <= now || Number(coupon.checks.effective) > now) return undefined
+  // `?? []` because a malformed trade must fail closed here, not throw out of the review and take the
+  // whole basket with it.
+  const sent = trade.sent ?? []
+  const onlyCollectionItems =
+    sent.length > 0 && sent.every(asset => Number(asset.assetType) === Number(TradeAssetType.COLLECTION_ITEM))
+  return onlyCollectionItems ? coupon : undefined
 }
 
 /**
@@ -301,7 +389,9 @@ export async function reviewCart(
    * rather than being charged off the cart's snapshot — the same fail-closed choice as `rate` above, and it
    * is what keeps a client that has not wired the store path from charging one.
    */
-  resolveStore?: StoreResolver
+  resolveStore?: StoreResolver,
+  /** Re-reads each on-sale line's live discount. Omitted, a stored coupon is ignored — see CouponResolver. */
+  resolveCoupon?: CouponResolver
 ): Promise<CartReview> {
   const buyable: ResolvedLine[] = []
   const unavailable: CatalogItem[] = []
@@ -313,7 +403,7 @@ export async function reviewCart(
     // never abort the basket. A basket cares only whether a row is chargeable, so 'gone' and 'no-price'
     // land in the same bucket; the single-item checkout is where they read differently.
     try {
-      const outcome = await resolveLine(item, buyerAddress, resolve, rate, resolveStore)
+      const outcome = await resolveLine(item, buyerAddress, resolve, rate, resolveStore, resolveCoupon)
       if (outcome.status === 'buyable') buyable.push(outcome.line)
       else if (outcome.status === 'own') own.push(item)
       else unavailable.push(item)

@@ -17,15 +17,24 @@ import { requireChain } from '~/lib/network'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import {
   amoyGasOverrides,
+  buildAcceptCalldata,
+  buildAcceptWithCouponCalldata,
   encodeStoreBuy,
+  getOnChainCoupon,
   getOnChainTrade,
   itemsToBuyArg,
+  type ListingCoupon,
   type StoreItemToBuy
 } from '~/lib/trade-encoding'
 import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
 type MarketplaceAcceptContract = ethers.Contract & {
   accept(trades: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+  acceptWithCoupon(
+    trades: unknown[],
+    coupons: unknown[],
+    overrides?: ethers.Overrides
+  ): Promise<ethers.ContractTransaction>
 }
 
 type CollectionStoreContract = ethers.Contract & {
@@ -46,7 +55,9 @@ export type MintToBuy = {
  * What a purchase settles as, for the rails that accept either kind. A mint is not a trade and never gets one,
  * so every function below that can be handed both branches on this rather than on a possibly-absent `trade`.
  */
-export type PurchaseTarget = { kind: 'trade'; trade: Trade } | { kind: 'store'; mint: MintToBuy }
+export type PurchaseTarget =
+  /** `coupon` is the creator discount the listing sells at, when it has one — see ListingCoupon. */
+  { kind: 'trade'; trade: Trade; coupon?: ListingCoupon } | { kind: 'store'; mint: MintToBuy }
 
 /**
  * Buy a listed NFT by paying MANA DIRECTLY — the alternative to the credits rail for users who already
@@ -73,6 +84,8 @@ export type PurchaseTarget = { kind: 'trade'; trade: Trade } | { kind: 'store'; 
  */
 export async function buyWithMana(opts: {
   trade: Trade
+  /** The creator discount this listing sells at, when it has one. */
+  coupon?: ListingCoupon
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   /** Fired once the buyer confirms in their wallet, before on-chain settlement (UI: "completing…"). */
@@ -80,7 +93,11 @@ export async function buyWithMana(opts: {
   /** The trade's MANA price — what the allowance must cover. See buyManyWithMana. */
   manaWei?: bigint
 }): Promise<string> {
-  const [hash] = await buyManyWithMana({ ...opts, trades: [opts.trade] })
+  const [hash] = await buyManyWithMana({
+    ...opts,
+    trades: [opts.trade],
+    coupons: opts.coupon ? { [opts.trade.id]: opts.coupon } : undefined
+  })
   return hash
 }
 
@@ -116,6 +133,11 @@ export async function buyMintWithMana(opts: {
  */
 export async function buyManyWithMana(opts: {
   trades: Trade[]
+  /**
+   * The creator discounts in the basket, by trade id. Keyed rather than positional so a caller cannot
+   * silently pair a discount with the wrong listing, and optional because most baskets have none.
+   */
+  coupons?: Record<string, ListingCoupon>
   /** CollectionStore mints in the basket. Absent for a trade-only one. */
   mints?: MintToBuy[]
   buyer: string
@@ -129,13 +151,15 @@ export async function buyManyWithMana(opts: {
    */
   manaWei?: bigint
 }): Promise<string[]> {
-  const { trades, mints = [], buyer, signer, onSigned, manaWei } = opts
+  const { trades, coupons, mints = [], buyer, signer, onSigned, manaWei } = opts
   if (trades.length === 0 && mints.length === 0) throw new Error('No items to buy')
 
-  // Group by (chain, marketplace) so each group is one accept([...]).
+  // Group by (chain, marketplace, discounted?) so each group is one accept([...]) or one
+  // acceptWithCoupon([...], [...]). The discount splits the group for the same reason it does on the
+  // credits rail: acceptWithCoupon takes one coupon per trade, so a batch is all discounted or none.
   const groups = new Map<string, Trade[]>()
   for (const t of trades) {
-    const key = `${t.chainId}:${t.contract.toLowerCase()}`
+    const key = `${t.chainId}:${t.contract.toLowerCase()}:${coupons?.[t.id] ? 'coupon' : 'plain'}`
     const g = groups.get(key)
     if (g) g.push(t)
     else groups.set(key, [t])
@@ -151,7 +175,17 @@ export async function buyManyWithMana(opts: {
 
   const hashes: string[] = []
   for (const group of groups.values()) {
-    hashes.push(await acceptPayingMana({ trades: group, buyer, signer, onSigned, requiredManaWei: manaWei }))
+    const groupCoupons = coupons ? group.map(t => coupons[t.id]).filter((c): c is ListingCoupon => c != null) : []
+    hashes.push(
+      await acceptPayingMana({
+        trades: group,
+        coupons: groupCoupons.length ? groupCoupons : undefined,
+        buyer,
+        signer,
+        onSigned,
+        requiredManaWei: manaWei
+      })
+    )
   }
   for (const [chainId, group] of mintGroups) {
     // A mint carries the price the contract will verify, so its allowance can be sized exactly even when
@@ -166,12 +200,14 @@ export async function buyManyWithMana(opts: {
 // direct tx as the fallback). Shared by the single-item and cart rails.
 async function acceptPayingMana(opts: {
   trades: Trade[]
+  /** The creator discounts for this group, one per trade, when it is a discounted one. */
+  coupons?: ListingCoupon[]
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
   requiredManaWei?: bigint
 }): Promise<string> {
-  const { trades, buyer, signer, onSigned, requiredManaWei } = opts
+  const { trades, coupons, buyer, signer, onSigned, requiredManaWei } = opts
   const trade = trades[0] // same chain + marketplace across the group
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const mana = getContract(ContractName.MANAToken, trade.chainId)
@@ -190,11 +226,21 @@ async function acceptPayingMana(opts: {
   })
 
   const onChainTrades = trades.map(t => getOnChainTrade(t, buyer))
+  // Checked here, above BOTH submission paths. Inside the gasless branch the throw would be caught by its
+  // relayer-failure handler and fall through to the direct transaction, which submits the same mismatched
+  // arrays for real and reverts on chain after the buyer pays gas.
+  if (coupons?.length && coupons.length !== trades.length) {
+    throw new Error(`acceptWithCoupon needs one coupon per trade, got ${coupons.length} for ${trades.length} trades`)
+  }
+  const onChainCoupons = coupons?.length ? coupons.map((c, i) => getOnChainCoupon(c, trades[i].sent.length)) : undefined
 
   // 2. Fulfil the trade paying MANA directly: marketplace.accept([trade]).
   if (gaslessConfig.enabled) {
     try {
-      const functionData = new ethers.utils.Interface(marketplace.abi).encodeFunctionData('accept', [onChainTrades])
+      const { selector, data } = onChainCoupons
+        ? buildAcceptWithCouponCalldata(trades, coupons ?? [], buyer, marketplace.abi)
+        : buildAcceptCalldata(trades, buyer, marketplace.abi)
+      const functionData = selector + data.slice(2)
       const rpc = readProvider()
       const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
       const txHash = await sendMetaTransaction(provider, rpc, functionData, marketplace, {
@@ -224,7 +270,9 @@ async function acceptPayingMana(opts: {
   // never a side effect of clicking this. See lib/network.
   await requireChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceAcceptContract
-  const tx = await contract.accept(onChainTrades, amoyGasOverrides(trade.chainId))
+  const tx = onChainCoupons
+    ? await contract.acceptWithCoupon(onChainTrades, onChainCoupons, amoyGasOverrides(trade.chainId))
+    : await contract.accept(onChainTrades, amoyGasOverrides(trade.chainId))
   onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
@@ -316,6 +364,8 @@ async function mintPayingMana(opts: {
  */
 export async function buyWithCreditsAndMana(opts: {
   trade: Trade
+  /** The creator discount this listing sells at, when it has one. */
+  coupon?: ListingCoupon
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   /** The ephemeral credit(s) the server signed, sized to the buyer's credit balance. */
@@ -341,8 +391,8 @@ export async function buyWithCreditsAndMana(opts: {
    */
   onUnobservable?: () => void
 }): Promise<string> {
-  const { trade, ...rest } = opts
-  return payGapWithMana({ target: { kind: 'trade', trade }, ...rest })
+  const { trade, coupon, ...rest } = opts
+  return payGapWithMana({ target: { kind: 'trade', trade, coupon }, ...rest })
 }
 
 /** Pay for a MINT with credits first and MANA for the remainder — `buyWithCreditsAndMana` for a store item. */
@@ -458,7 +508,7 @@ export function targetChainId(target: PurchaseTarget): number {
 /** The credits-rail purchase for either kind of target, paid by the given credits. */
 export function purchaseFor(target: PurchaseTarget, credits: SpendableCredit[], maxCreditedValue: string): AnyPurchase {
   return target.kind === 'trade'
-    ? { kind: 'trade', trade: target.trade, credits, maxCreditedValue }
+    ? { kind: 'trade', trade: target.trade, coupon: target.coupon, credits, maxCreditedValue }
     : { kind: 'store', item: target.mint.item, chainId: target.mint.chainId, credits, maxCreditedValue }
 }
 
