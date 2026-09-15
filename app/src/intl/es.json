@@ -466,7 +466,8 @@
     "emoteProps": "Accesorios",
     "cancelRelayReverted": "No se completó — tu publicación sigue activa. Puedes darla de baja ahora pagando la comisión de red, o dejarla y probar más tarde.",
     "cancelRelayRetry": "No pudimos darla de baja ahora. Prueba de nuevo en un momento.",
-    "cancelSlowManaged": "Seguimos terminando. Puede tardar unos minutos — puedes dejar esto abierto."
+    "cancelSlowManaged": "Seguimos terminando. Puede tardar unos minutos — puedes dejar esto abierto.",
+    "becauseYouOwn": "Por lo que ya tienes"
   },
   "transfer": {
     "title": "Transferir artículo",

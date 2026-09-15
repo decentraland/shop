@@ -20,3 +20,33 @@ export function reasonCounts(items: SuggestedItem[]): Record<string, number> {
   }
   return counts
 }
+
+/** The fewest rows worth the space. An empty personalised rail is worse than no rail. */
+export const MIN_SUGGESTED_ROWS = 4
+
+/**
+ * Why the rail is not on the page, or null when it is.
+ *
+ * Ordered the way the decision is actually made, so the reported reason is the FIRST thing that stopped
+ * it rather than a later symptom: a rail that never asked cannot also be "not personalized".
+ *
+ * Shared rather than inlined because the PDP has to make the same call from outside the component — it
+ * shows its own collection cascade only when this rail is absent, and two copies of the rule would
+ * eventually disagree and render both rows or neither.
+ */
+export function suggestedHiddenReason(input: {
+  enabled: boolean
+  hasSignal: boolean
+  isLoading: boolean
+  isError: boolean
+  personalized?: boolean
+  rowCount: number
+}): HiddenReason | null {
+  if (!input.enabled) return 'flag_off'
+  if (!input.hasSignal) return 'no_signal'
+  if (input.isLoading) return null
+  if (input.isError) return 'error'
+  if (input.personalized !== true) return 'not_personalized'
+  if (input.rowCount < MIN_SUGGESTED_ROWS) return 'too_few'
+  return null
+}
