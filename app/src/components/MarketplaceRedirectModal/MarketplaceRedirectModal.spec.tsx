@@ -10,10 +10,6 @@ import { track } from '~/lib/analytics'
 
 const trackMock = vi.mocked(track)
 
-beforeEach(() => {
-  trackMock.mockClear()
-})
-
 const CONTRACT = '0x8adb4affb6c79d9dc018b792fa08c6d1cc7f5f09'
 // A real one. These are 63-digit decimals, and anything that mangles one (a Number round-trip, a
 // truncation) still produces a plausible-looking id — so the test uses the shape it will meet.
@@ -140,6 +136,10 @@ describe('when a buyer is handed off to the legacy marketplace to buy a resale',
 })
 
 describe('tracking the hand-off', () => {
+  beforeEach(() => {
+    trackMock.mockClear()
+  })
+
   it('should record a seller leaving to resell, with the token they were looking at', async () => {
     renderModal()
 

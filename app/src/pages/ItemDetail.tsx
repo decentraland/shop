@@ -1830,7 +1830,7 @@ export function ItemDetail() {
                               // Separate from the redirect event on purpose: the gap between them is the
                               // question worth answering, "wanted a resale" against "actually went looking".
                               track('Shop Clicked Buy Resale', {
-                                item_id: current.itemId ?? null,
+                                item_id: current.itemId,
                                 contract_address: current.contractAddress,
                                 has_shop_resale: !!cheapestResaleItem
                               })
