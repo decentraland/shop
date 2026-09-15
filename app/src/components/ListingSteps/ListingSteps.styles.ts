@@ -24,3 +24,11 @@ export const Hint = styled.p`
   color: ${theme.colors.muted};
   text-align: center;
 `
+
+export const Relay = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  line-height: 1.5;
+  color: ${theme.colors.text};
+`

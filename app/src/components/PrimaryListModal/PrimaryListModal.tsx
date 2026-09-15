@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Network } from '@dcl/schemas'
@@ -23,7 +23,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { ListingSteps, type ListingEdit, type ListingEditPhase } from '~/components/ListingSteps'
+import { ListingSteps, RelayNotice, useListingEdit, type ListingEdit } from '~/components/ListingSteps'
 import * as S from './PrimaryListModal.styles'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
@@ -49,14 +49,6 @@ export function PrimaryListModal({
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [price, setPrice] = useState(edit?.currentCredits ? String(edit.currentCredits) : '10') // whole credits
-  // Ends a re-price's post-cancel backoff if this modal goes away, so an abandoned edit never publishes later.
-  // Created in the effect so StrictMode's rehearsal unmount aborts a throwaway controller, not the live one.
-  const unmounted = useRef<AbortController | null>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    unmounted.current = controller
-    return () => controller.abort(new DOMException('Modal closed', 'AbortError'))
-  }, [])
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -64,12 +56,7 @@ export function PrimaryListModal({
   const [enabled, setEnabled] = useState<boolean | null>(null)
   // Set once the listing is live — swaps the form for a success view.
   const [listedCredits, setListedCredits] = useState<number | null>(null)
-  // Edit-price progress. `cancelDone` survives a failed publish so a retry skips straight to re-listing.
-  const [phase, setPhase] = useState<ListingEditPhase>('idle')
-  const [cancelDone, setCancelDone] = useState(false)
-  const [slow, setSlow] = useState(false)
-  // The fee-less removal was not confirmed: 'pending' may still land, 'reverted' provably did not.
-  const [cancelFailed, setCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
+  const { cancelDone, slow, cancelFailed, setCancelFailed, cancelCurrent, signal } = useListingEdit(edit, setError)
 
   const chainId = config.chainId
   // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
@@ -104,31 +91,8 @@ export function PrimaryListModal({
     }
   }, [item.contractAddress, chainId])
 
-  // Step 1 of an edit: take the current listing down. Resolves false when it did not happen (the error
-  // is already on screen), so the caller must not publish over a listing that is still up.
-  async function cancelCurrent(payGas?: boolean): Promise<boolean> {
-    if (!edit || cancelDone) return true
-    setPhase('cancel')
-    try {
-      const result = await edit.cancelCurrent({ payGas, onWaiting: elapsed => setSlow(elapsed > 20_000) })
-      if (result !== 'ok') {
-        setCancelFailed(result === 'relay-reverted' ? 'reverted' : 'pending')
-        return false
-      }
-      setCancelDone(true)
-      return true
-    } catch (e) {
-      captureError(e, { flow: 'edit_price_cancel' })
-      setError(friendlyError(e, t('listingEdit.cancelFailed')))
-      return false
-    } finally {
-      setSlow(false)
-    }
-  }
-
   async function publish(opts: { payGas?: boolean } = {}) {
     setError(null)
-    setCancelFailed(null)
     const value = Number(price)
     if (!Number.isInteger(value) || value <= 0) {
       setError(t('primaryList.errorWholeNumber'))
@@ -137,7 +101,6 @@ export function PrimaryListModal({
     setBusy(true)
     try {
       if (!(await cancelCurrent(opts.payGas))) return
-      setPhase('list')
       // Minter prereq: the Shop can only fulfil sales of this collection once it's enabled. This is a
       // one-time step per collection; skipped automatically if already enabled.
       if (!enabled) {
@@ -163,10 +126,10 @@ export function PrimaryListModal({
       setStatus(t('primaryList.statusFinishing'))
       // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
       const created = await (edit
-        ? postListingWithRetry(trade, session.identity, { signal: unmounted.current?.signal })
+        ? postListingWithRetry(trade, session.identity, { signal: signal() })
         : postTrade(trade, session.identity))
       // Unmounted while the request was in flight: no toast, caches or callbacks for a page that is gone.
-      unmounted.current?.signal.throwIfAborted()
+      signal()?.throwIfAborted()
 
       setStatus(null)
       setListedCredits(value) // already whole credits
@@ -190,14 +153,13 @@ export function PrimaryListModal({
       void queryClient.invalidateQueries({ queryKey: ['overview-listings'] })
       void queryClient.invalidateQueries({ queryKey: ['upsell-listings'] })
     } catch (e) {
-      if (unmounted.current?.signal.aborted) return
+      if (signal()?.aborted) return
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
       // Past step 1 the old listing is gone: say so, since "try again" now means putting it back on sale.
       setError(friendlyError(e, t(edit ? 'listingEdit.listFailedAfterCancel' : 'primaryList.errorGeneric')))
       setStatus(null)
     } finally {
-      setPhase('idle')
       setBusy(false)
     }
   }
@@ -280,7 +242,7 @@ export function PrimaryListModal({
               <Icon name="close" className="ico" />
             </S.Close>
           </S.Head>
-          <ListingSteps phase={phase} managed={isManaged} slow={slow} />
+          <ListingSteps phase={cancelDone ? 'list' : 'cancel'} managed={isManaged} slow={slow} />
         </S.Card>
       </S.Scrim>
     )
@@ -354,28 +316,14 @@ export function PrimaryListModal({
           <S.Note>{isManaged ? t('primaryList.readyManaged') : t('primaryList.readyConfirm')}</S.Note>
         ) : null}
 
-        {/* Not an error: the removal may still land, so offer the two honest options instead of a
-            "try again" that has the seller re-confirming something already in flight. */}
         {cancelFailed ? (
-          <S.RelayNotice data-testid="edit-cancel-relay-failed">
-            <p>
-              {!edit?.canPayGas
-                ? t('itemDetail.cancelRelayRetry')
-                : cancelFailed === 'reverted'
-                  ? t('itemDetail.cancelRelayReverted')
-                  : t('itemDetail.cancelRelayFailed')}
-            </p>
-            {edit?.canPayGas ? (
-              <S.RelayActions>
-                <S.LinkBtn type="button" onClick={() => void publish({ payGas: true })} disabled={busy}>
-                  {t('itemDetail.cancelPayGas')}
-                </S.LinkBtn>
-                <S.LinkBtn type="button" onClick={() => setCancelFailed(null)} disabled={busy}>
-                  {t('itemDetail.cancelLater')}
-                </S.LinkBtn>
-              </S.RelayActions>
-            ) : null}
-          </S.RelayNotice>
+          <RelayNotice
+            state={cancelFailed}
+            canPayGas={!!edit?.canPayGas}
+            busy={busy}
+            onPayGas={() => void publish({ payGas: true })}
+            onLater={() => setCancelFailed(null)}
+          />
         ) : null}
 
         {status && !edit ? <S.Status>{status}</S.Status> : null}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button } from '~/components/Button'
 import { Spinner } from '~/components/Spinner'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import type { ListingEdit } from '~/components/ListingSteps'
+import { RelayNotice, type ListingEdit, type RelayFailure } from '~/components/ListingSteps'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError, isRejection } from '~/lib/errors'
 import { t } from '~/intl/i18n'
@@ -26,7 +26,7 @@ export function RemoveListingModal({
   const [busy, setBusy] = useState(false)
   const [slow, setSlow] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [relayFailed, setRelayFailed] = useState<null | 'pending' | 'reverted'>(null)
+  const [relayFailed, setRelayFailed] = useState<RelayFailure | null>(null)
 
   async function submit(payGas?: boolean) {
     setError(null)
@@ -71,21 +71,13 @@ export function RemoveListingModal({
         ) : null}
 
         {relayFailed ? (
-          <p className="small" style={{ margin: 0 }} data-testid="cancel-gasless-failed">
-            {!canPayGas
-              ? t('itemDetail.cancelRelayRetry')
-              : relayFailed === 'reverted'
-                ? t('itemDetail.cancelRelayReverted')
-                : t('itemDetail.cancelRelayFailed')}
-            {canPayGas ? (
-              <>
-                {' '}
-                <M.LinkBtn type="button" data-testid="cancel-pay-gas" onClick={() => void submit(true)} disabled={busy}>
-                  {t('itemDetail.cancelPayGas')}
-                </M.LinkBtn>
-              </>
-            ) : null}
-          </p>
+          <RelayNotice
+            state={relayFailed}
+            canPayGas={canPayGas}
+            busy={busy}
+            onPayGas={() => void submit(true)}
+            testId="cancel-gasless-failed"
+          />
         ) : null}
 
         <ErrorNotice message={error} />

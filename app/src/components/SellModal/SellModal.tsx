@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Network } from '@dcl/schemas'
@@ -25,7 +25,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { ListingSteps, type ListingEdit, type ListingEditPhase } from '~/components/ListingSteps'
+import { ListingSteps, RelayNotice, useListingEdit, type ListingEdit } from '~/components/ListingSteps'
 import { creditsToUsd } from '~/lib/currency'
 import * as S from './SellModal.styles'
 
@@ -82,14 +82,6 @@ export function SellModal({
       : shortAddress(creatorAddress)
     : null
   const [price, setPrice] = useState(edit?.currentCredits ? String(edit.currentCredits) : '10') // whole credits
-  // Ends a re-price's post-cancel backoff if this modal goes away, so an abandoned edit never publishes later.
-  // Created in the effect so StrictMode's rehearsal unmount aborts a throwaway controller, not the live one.
-  const unmounted = useRef<AbortController | null>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    unmounted.current = controller
-    return () => controller.abort(new DOMException('Modal closed', 'AbortError'))
-  }, [])
   const [expiresDate, setExpiresDate] = useState<Date | null>(() => midnightDaysFromNow(DEFAULT_EXPIRATION_IN_DAYS))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -97,13 +89,7 @@ export function SellModal({
   // 'form' = the price/expiration form; 'authorize' = the first-time approval STEP (self-custody only).
   const [step, setStep] = useState<'form' | 'authorize'>('form')
   const afterAuthorize = useRef<{ payGas?: boolean }>({})
-  // Edit-price progress. `cancelDone` survives a failed publish so a retry skips straight to re-listing
-  // instead of trying to take down a listing that is already gone.
-  const [phase, setPhase] = useState<ListingEditPhase>('idle')
-  const [cancelDone, setCancelDone] = useState(false)
-  const [slow, setSlow] = useState(false)
-  // The fee-less removal was not confirmed: 'pending' may still land, 'reverted' provably did not.
-  const [cancelFailed, setCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
+  const { cancelDone, slow, cancelFailed, setCancelFailed, cancelCurrent, signal } = useListingEdit(edit, setError)
 
   // Managed (web2/OTP) wallets sign with no popup — never show them "confirm in wallet" language and
   // never a discrete approval step; a self-custody wallet must approve, so it sees both. Shared helper
@@ -156,31 +142,8 @@ export function SellModal({
     await list(opts)
   }
 
-  // Step 1 of an edit: take the current listing down. Resolves false when it did not happen (the error
-  // is already on screen), so the caller must not go on to publish over a listing that is still up.
-  async function cancelCurrent(payGas?: boolean): Promise<boolean> {
-    if (!edit || cancelDone) return true
-    setPhase('cancel')
-    try {
-      const result = await edit.cancelCurrent({ payGas, onWaiting: elapsed => setSlow(elapsed > 20_000) })
-      if (result !== 'ok') {
-        setCancelFailed(result === 'relay-reverted' ? 'reverted' : 'pending')
-        return false
-      }
-      setCancelDone(true)
-      return true
-    } catch (e) {
-      captureError(e, { flow: 'edit_price_cancel' })
-      setError(friendlyError(e, t('listingEdit.cancelFailed')))
-      return false
-    } finally {
-      setSlow(false)
-    }
-  }
-
   async function list(opts: { payGas?: boolean } = {}) {
     setError(null)
-    setCancelFailed(null)
     if (!priceValid) {
       setError(t('sellModal.errorWholeNumber'))
       return
@@ -192,7 +155,6 @@ export function SellModal({
     setBusy(true)
     try {
       if (!(await cancelCurrent(opts.payGas))) return
-      setPhase('list')
       await ensureApproval({
         signer: session.signer,
         contractAddress: asset.contractAddress,
@@ -215,10 +177,10 @@ export function SellModal({
       // state also gets a working "remove" target (avoids a no-op remove right after listing).
       // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
       const created = await (edit
-        ? postListingWithRetry(trade, session.identity, { signal: unmounted.current?.signal })
+        ? postListingWithRetry(trade, session.identity, { signal: signal() })
         : postTrade(trade, session.identity))
       // Unmounted while the request was in flight: no toast, caches or callbacks for a page that is gone.
-      unmounted.current?.signal.throwIfAborted()
+      signal()?.throwIfAborted()
 
       setListedCredits(priceValue) // already whole credits
       track('Shop Listed Item', {
@@ -234,13 +196,12 @@ export function SellModal({
       // Let the PDP show the new price at once and optimistically patch its own money/manage caches.
       onListed?.(priceValue, created.id)
     } catch (e) {
-      if (unmounted.current?.signal.aborted) return
+      if (signal()?.aborted) return
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
       // Past step 1 the old listing is gone: say so, since "try again" now means putting it back on sale.
       setError(friendlyError(e, t(edit ? 'listingEdit.listFailedAfterCancel' : 'sellModal.errorGeneric')))
     } finally {
-      setPhase('idle')
       setBusy(false)
     }
   }
@@ -321,7 +282,7 @@ export function SellModal({
               <Icon name="close" className="ico" />
             </S.Close>
           </S.Head>
-          <ListingSteps phase={phase} managed={isManaged} slow={slow} />
+          <ListingSteps phase={cancelDone ? 'list' : 'cancel'} managed={isManaged} slow={slow} />
         </S.Card>
       </S.Scrim>
     )
@@ -402,28 +363,14 @@ export function SellModal({
           <S.Note>{t('sellModal.proceedsCredits', { count: priceValue })}</S.Note>
         ) : null}
 
-        {/* Not an error: the removal may still land, so offer the two honest options instead of a
-            "try again" that has the seller re-confirming something already in flight. */}
         {cancelFailed ? (
-          <S.RelayNotice data-testid="edit-cancel-relay-failed">
-            <p>
-              {!edit?.canPayGas
-                ? t('itemDetail.cancelRelayRetry')
-                : cancelFailed === 'reverted'
-                  ? t('itemDetail.cancelRelayReverted')
-                  : t('itemDetail.cancelRelayFailed')}
-            </p>
-            {edit?.canPayGas ? (
-              <S.RelayActions>
-                <S.LinkBtn type="button" onClick={() => void handleSubmit({ payGas: true })} disabled={busy}>
-                  {t('itemDetail.cancelPayGas')}
-                </S.LinkBtn>
-                <S.LinkBtn type="button" onClick={() => setCancelFailed(null)} disabled={busy}>
-                  {t('itemDetail.cancelLater')}
-                </S.LinkBtn>
-              </S.RelayActions>
-            ) : null}
-          </S.RelayNotice>
+          <RelayNotice
+            state={cancelFailed}
+            canPayGas={!!edit?.canPayGas}
+            busy={busy}
+            onPayGas={() => void handleSubmit({ payGas: true })}
+            onLater={() => setCancelFailed(null)}
+          />
         ) : null}
 
         <ErrorNotice message={error} />
