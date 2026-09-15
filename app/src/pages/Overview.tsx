@@ -15,6 +15,7 @@ import { LivePromo } from '~/components/LivePromo'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
@@ -33,6 +34,8 @@ import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
+// Fewer live sales than this and the Best Deals rail stays hidden: two cards do not make a rail.
+const MIN_DEALS = 3
 
 // Horizontal card rail (Figma nodes 913:135571 "Featured Products" / 913:135593 "New Creations").
 // The track is a CSS grid showing a FIXED whole number of cards per view (5 desktop → 4 → 3 → 2 mobile,
@@ -44,7 +47,9 @@ function Carousel({
   title,
   items,
   loading,
-  source
+  source,
+  viewAllTo = '/items',
+  testId
 }: {
   title: string
   items: CatalogItem[]
@@ -52,6 +57,9 @@ function Carousel({
   // Which rail this is, so the cards' click and add-to-cart events name it. Without it every card in
   // every rail reported 'grid' and the rails could not be compared against the browse grid or each other.
   source: AddToCartSource
+  // Where "View all" lands. A rail fed by a filter sends it to the grid with that filter already applied.
+  viewAllTo?: string
+  testId?: string
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -101,10 +109,10 @@ function Carousel({
   const showControls = !loading && pageCount > 1
 
   return (
-    <S.Carousel>
+    <S.Carousel data-testid={testId}>
       <Row.Head>
         <Row.Title>{title}</Row.Title>
-        <Row.ViewAll to="/items">
+        <Row.ViewAll to={viewAllTo}>
           {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
         </Row.ViewAll>
       </Row.Head>
@@ -250,6 +258,40 @@ export function Overview() {
     )
   }
 
+  // The Best Deals rail: creators' live sales, biggest discount first and soonest-ending among equals. Both
+  // the filter and the order are the server's (`discounted` + `sortBy=discount` on the same feed the grid
+  // reads), so the rail shows exactly what the grid's Deals filter shows. Primaries only: a sale is set by a
+  // creator on their own collection, so a resale never carries one.
+  // Unlike Trending it reserves NO placeholders: there is nearly always something to rank, but most days
+  // there is nothing on sale, and a rail of placeholders that vanishes on most home loads is the very jump
+  // the placeholders exist to prevent. It appears once the feed answers with enough deals to fill a rail.
+  // Behind the creator-sales flag, exactly as the grid's Deals filter is. With the flag off the feed still
+  // answers — `withoutSale` only strips the sale fields from each row — so an ungated rail would headline
+  // "Best Deals" over a list of items at their ordinary price, on the Shop's most visible surface.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const { data: deals } = useQuery({
+    // The flag is part of the key, as it is for Trending above. `enabled: false` stops the refetch but keeps
+    // whatever is already cached, and nothing downstream re-checks the flag — so without this, turning the
+    // flag off would leave the rail standing for everyone with the page already open, which is the one
+    // moment it most needs to come down.
+    queryKey: ['overview-deals', creatorSalesEnabled],
+    queryFn: () => fetchShopItems({ first: 12, discounted: true, sortBy: 'discount', listingType: 'primary' }),
+    enabled: creatorSalesEnabled
+  })
+  /**
+   * NOT through `useLivePricedItems`, unlike the rails above, and deliberately.
+   *
+   * A discounted row's `priceCredits` and `compareAtCredits` are one pair, both computed by the server from
+   * the same USD figure. Re-converting only the first at the live MANA rate leaves the second as it was, and
+   * a sale price that no longer undercuts its own compare-at stops reading as a sale at all — the card drops
+   * its badge, its strike-through and its countdown, and simply shows a price.
+   *
+   * There is also nothing to convert: the catalogue joins coupons on the NATIVE branch only (legacy and
+   * CollectionStore rows are built with `withCoupons: false`), so a row that carries a discount is
+   * USD-pegged by construction and has no `manaWei` to re-price.
+   */
+  const dealItems = deals?.items ?? []
+
   return (
     <S.Overview className="overview">
       <S.Hero>
@@ -272,6 +314,17 @@ export function Overview() {
           {renderHeroCta()}
         </S.HeroInner>
       </S.Hero>
+
+      {dealItems.length >= MIN_DEALS ? (
+        <Carousel
+          title={t('overview.bestDeals')}
+          items={dealItems}
+          loading={false}
+          source="deals"
+          viewAllTo="/items?deals=true"
+          testId="best-deals-rail"
+        />
+      ) : null}
 
       {/* Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
           it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales
