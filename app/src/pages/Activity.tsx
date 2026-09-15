@@ -29,6 +29,7 @@ import nameGlyph from '~/assets/names/name-glyph.svg'
 import { Icon } from '~/components/Icon'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
@@ -590,11 +591,12 @@ export function Activity() {
       <EmptyStateCentered>
         <EmptyState
           testId="activity-signin"
-          icon={salesEmptyIllustration}
+          icon={signInIllustration}
           title={t('activity.signInTitle')}
           body={t('activity.signInBody')}
           cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
           ctaVariant="solid"
+          fill
         />
       </EmptyStateCentered>
     )

@@ -12,13 +12,15 @@ type Props = {
   variant?: 'dark' | 'light'
   /** `solid` gives the CTA the filled treatment, for a screen whose whole point is that action. */
   ctaVariant?: 'default' | 'solid'
+  /** Spans the column it is given and centres itself in it, for a whole-screen state. */
+  fill?: boolean
   testId?: string
 }
 
 /** The shared empty-state panel: illustration, title, body and an optional CTA. */
-export function EmptyState({ icon, title, body, cta, variant = 'dark', ctaVariant = 'default', testId }: Props) {
+export function EmptyState({ icon, title, body, cta, variant = 'dark', ctaVariant = 'default', fill, testId }: Props) {
   return (
-    <S.Root data-variant={variant} data-testid={testId}>
+    <S.Root data-variant={variant} data-fill={fill ? 'true' : undefined} data-testid={testId}>
       <S.Illustration src={icon} alt="" aria-hidden />
       <S.Text>
         <S.Title>{title}</S.Title>

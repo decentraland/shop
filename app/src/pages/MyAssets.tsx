@@ -34,6 +34,7 @@ import { NewPricingModal } from '~/components/NewPricingModal'
 import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
@@ -475,17 +476,16 @@ export function MyAssets() {
   if (!session) {
     return (
       <EmptyStateCentered>
-        <div>
-          <EmptyState
-            testId="my-items-signin"
-            icon={itemsEmptyIllustration}
-            title={t('nav.myAssets')}
-            body={t('myAssets.signInPrompt')}
-            cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
-            ctaVariant="solid"
-          />
-          <ErrorNotice message={error} />
-        </div>
+        <EmptyState
+          testId="my-items-signin"
+          icon={signInIllustration}
+          title={t('myAssets.signInTitle')}
+          body={t('myAssets.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
+        <ErrorNotice message={error} />
       </EmptyStateCentered>
     )
   }

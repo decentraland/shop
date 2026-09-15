@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '~/components/Button'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
-import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { Icon } from '~/components/Icon'
@@ -75,11 +75,12 @@ export function OutfitStudio() {
       <EmptyStateCentered>
         <EmptyState
           testId="outfit-studio-signin"
-          icon={itemsEmptyIllustration}
-          title={t('outfits.studio.title')}
-          body={t('outfits.studio.signInPrompt')}
+          icon={signInIllustration}
+          title={t('outfits.studio.signInTitle')}
+          body={t('outfits.studio.signInBody')}
           cta={{ label: t('outfits.studio.signIn'), onClick: () => signIn() }}
           ctaVariant="solid"
+          fill
         />
       </EmptyStateCentered>
     )

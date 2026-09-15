@@ -15,7 +15,7 @@ export const Root = styled.div`
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
-  padding: 16px 16px 32px;
+  padding: 16px 32px;
   border-radius: 16px;
   text-align: center;
   background: ${colors.overlayLight};
@@ -24,6 +24,14 @@ export const Root = styled.div`
   &[data-variant='light'] {
     background: ${colors.white};
     color: ${colors.text};
+  }
+
+  /* The signed-out screens hand the panel the whole content column and let it centre its own stack
+     inside it, which is how the design draws it (Figma 3351:319886: a 1495x618 panel with the 340px
+     stack centred at y=139). Every other empty state still hugs its copy. */
+  &[data-fill='true'] {
+    width: 100%;
+    flex: 1;
   }
 `
 
@@ -43,6 +51,10 @@ export const Text = styled.div`
   align-items: center;
   gap: 12px;
   padding-bottom: 16px;
+
+  &:last-child {
+    padding-bottom: 32px;
+  }
 `
 
 export const Title = styled.p`
@@ -74,6 +86,7 @@ const cta = `
   width: 310px;
   max-width: 100%;
   height: 52px;
+  margin-bottom: 16px;
   padding: 0 12px;
   border: 0;
   border-radius: ${radius.card};
@@ -101,8 +114,8 @@ const cta = `
      of it — a signed-out page, where the translucent default sits dark-on-dark and barely reads. Matches
      Button variant="white", which is what those pages used before they moved onto this component. */
   &[data-cta='solid'] {
-    background: ${colors.white};
-    color: ${colors.text};
+    background: ${colors.softWhite};
+    color: ${colors.text2};
   }
   &[data-cta='solid']:hover {
     background: ${colors.panel};
@@ -139,16 +152,19 @@ export const CtaButton = styled.button`
 `
 
 /**
- * Centres an empty state in the space the page hands it, vertically as well as horizontally.
+ * Gives a signed-out screen's empty state the content column to fill.
  *
- * Signed-out pages render one short panel into a column sized to fill the viewport. Left to sit at its
- * natural position the panel clings to the top and leaves most of a screen of empty purple under it,
- * which is what the three hand-rolled sign-in gates all did, each slightly differently.
+ * The design draws the panel across the whole column and centres its stack inside it, rather than
+ * letting a short panel cling to the top of a screen of empty purple — which is what the three
+ * hand-rolled sign-in gates all did, each slightly differently. 618px is the panel's height in
+ * Figma 3351:319886; the vh cap keeps a short viewport from scrolling to reach the button.
  */
 export const Centered = styled.div`
   display: flex;
+  flex-direction: column;
+  /* Centred rather than stretched: the panel spans the column on its own (it sets width: 100%), while
+     anything a page stacks under it — an ErrorNotice after a failed sign-in — stays sized to its content
+     instead of becoming a full-bleed, left-aligned bar. */
   align-items: center;
-  justify-content: center;
-  min-height: 52vh;
-  padding: 24px 16px;
+  min-height: min(618px, 70vh);
 `
