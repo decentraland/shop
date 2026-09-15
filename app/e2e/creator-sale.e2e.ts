@@ -169,7 +169,17 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Drip')
     await waitForText(page, '1 item listed')
     // 20% off by default: the cheapest listed item (30 credits) previews at 24.
-    await waitForText(page, 'sells for 24 credits')
+    await waitForText(page, 'sells for 24')
+    // The sentence names the unit with the currency mark rather than the word, and the mark comes first.
+    const amounts = await page.$$eval('[data-testid="creator-sale-preview"] b', els =>
+      els.map(el => {
+        const mark = el.firstElementChild
+        const style = mark && getComputedStyle(mark)
+        const masked = !!style && (style.maskImage || style.webkitMaskImage || 'none') !== 'none'
+        return `${masked ? 'mark' : 'no mark'}|${el.textContent}`
+      })
+    )
+    expect(amounts).toEqual(['mark|30', 'mark|24'])
     expect(await noOverflow(page)).toBe(true)
 
     // The collection is the scope, not a choice: it is stated, with nothing to untick.
@@ -177,7 +187,7 @@ describe('creator sales', () => {
 
     // Pick 30% → the example follows.
     expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^30% off$/i)).toBe(true)
-    await waitForText(page, 'sells for 21 credits')
+    await waitForText(page, 'sells for 21')
 
     // Nothing is signed from the form — the terms go to a review first.
     await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
@@ -340,7 +350,7 @@ describe('creator sales', () => {
     // Back returns to the terms with them intact.
     expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await waitForText(page, 'sells for 24 credits')
+    await waitForText(page, 'sells for 24')
   })
 
   it('grades the discount chips by how deep the cut is, and opens each input in its chip', async () => {

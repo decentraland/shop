@@ -29,13 +29,22 @@ import { SaleCountdown } from '~/components/SaleCountdown'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import * as S from './CreatorSaleModal.styles'
 
-/** One of the collection's creations, as the review step needs it. */
+/**
+ * One of the collection's creations, as the review step needs it.
+ *
+ * Three states, not two. A discount re-prices the Shop's own credit listings, so an item still quoted in
+ * MANA is left out — but it is NOT unlisted, and telling a creator it is "not for sale" when they can see
+ * it on sale a click away is worse than saying nothing. It has its own state so the review can name the
+ * one thing that would bring it in: updating its price.
+ */
 export type SaleItem = {
   key: string
   name: string
   thumbnail: string
-  /** Its Shop price in credits, or null when it is not listed — a sale has nothing to discount there. */
+  /** Its Shop price in credits. Null unless `state` is 'discounted'. */
   priceCredits: number | null
+  /** 'discounted' takes the sale, 'classic' is listed but quoted in MANA, 'unlisted' is not for sale. */
+  state: 'discounted' | 'classic' | 'unlisted'
   remainingSupply: number
 }
 
@@ -197,12 +206,13 @@ export function CreatorSaleModal({
 
   /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
   const review = useMemo(() => {
-    const listed = collection.items.filter(i => i.priceCredits != null)
-    const unlisted = collection.items.filter(i => i.priceCredits == null)
+    const listed = collection.items.filter(i => i.state === 'discounted')
+    const classic = collection.items.filter(i => i.state === 'classic')
+    const unlisted = collection.items.filter(i => i.state === 'unlisted')
     // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
     // listed item — the honest ceiling for "how many can be sold at this price".
     const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
-    return { listed, unlisted, supply }
+    return { listed, classic, unlisted, supply }
   }, [collection])
 
   async function submit() {
@@ -314,6 +324,18 @@ export function CreatorSaleModal({
   /** When the sale runs, in one line — the same two facts the success view repeats afterwards. */
   const bold = (chunks: React.ReactNode[]) => <b>{chunks}</b>
 
+  /**
+   * A price inside a sentence: the mark first, then the number. The message tags the amount rather than
+   * spelling the unit, so the example reads the way the prices right above it do — and the word the
+   * sentence used to carry cannot drift out of step with the currency's own name.
+   */
+  const amount = (chunks: React.ReactNode[]) => (
+    <S.PreviewAmount>
+      <CurrencyIcon className="ccy-mark" />
+      {chunks}
+    </S.PreviewAmount>
+  )
+
   /** How many copies the sale price can cover: the cap when set, otherwise the listed items' own supply. */
   const capCopy =
     terms.uses !== undefined
@@ -370,11 +392,11 @@ export function CreatorSaleModal({
                   <S.ReviewName data-testid="review-name">{i.name}</S.ReviewName>
                   <S.ReviewPrices>
                     <S.ReviewWas data-testid="review-was">
-                      <CurrencyIcon size={12} />
+                      <CurrencyIcon size={14} />
                       {formatCredits(i.priceCredits as number)}
                     </S.ReviewWas>
                     <S.ReviewNow data-heat={heatFor(pct)} data-testid="review-now">
-                      <CurrencyIcon size={14} />
+                      <CurrencyIcon size={16} />
                       {formatCredits(salePriceOf(i.priceCredits as number, pct))}
                     </S.ReviewNow>
                   </S.ReviewPrices>
@@ -382,6 +404,26 @@ export function CreatorSaleModal({
               ))}
             </S.ReviewList>
           </S.ReviewGroup>
+
+          {/* Its own section, above the unlisted ones: this is the group the creator can DO something about,
+              and the one where "not for sale" would have been a lie. */}
+          {review.classic.length > 0 ? (
+            <S.ReviewGroup>
+              <S.ReviewGroupTitle>
+                {t('creatorSale.reviewClassic', { count: review.classic.length })}
+              </S.ReviewGroupTitle>
+              <S.ReviewList data-testid="creator-sale-review-classic">
+                {review.classic.map(i => (
+                  <S.ReviewRow key={i.key} data-muted>
+                    <S.ReviewThumb src={i.thumbnail} alt="" />
+                    <S.ReviewName>{i.name}</S.ReviewName>
+                    <S.ReviewUnaffected>{t('creatorSale.reviewClassicTag')}</S.ReviewUnaffected>
+                  </S.ReviewRow>
+                ))}
+              </S.ReviewList>
+              <S.ReviewFootNote>{t('creatorSale.reviewClassicHint')}</S.ReviewFootNote>
+            </S.ReviewGroup>
+          ) : null}
 
           {/* Named explicitly rather than left out: an item the creator did not list is untouched by the
               sale, and silence there reads as "everything is covered". */}
@@ -668,9 +710,14 @@ export function CreatorSaleModal({
         </S.Field>
 
         <S.Preview data-testid="creator-sale-preview">
-          {example.sale < example.price
-            ? t('creatorSale.preview', { price: example.price, sale: example.sale })
-            : t('creatorSale.previewNoChange', { price: example.price })}
+          {/* One span, not the sentence's own pieces: the box centres its content with flex, and a flex
+              container drops the whitespace around an element child — which ate the spaces either side of
+              each amount. */}
+          <span>
+            {example.sale < example.price
+              ? tNode('creatorSale.preview', { price: example.price, sale: example.sale, c: amount })
+              : tNode('creatorSale.previewNoChange', { price: example.price, c: amount })}
+          </span>
         </S.Preview>
 
         {status ? <S.Status>{status}</S.Status> : null}

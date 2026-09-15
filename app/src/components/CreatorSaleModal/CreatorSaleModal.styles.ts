@@ -44,7 +44,7 @@ export const Title = styled.h2`
   margin: 0;
   font-family: ${theme.font.sans};
   font-weight: 600;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.6;
   color: ${theme.colors.text};
 `
@@ -77,7 +77,7 @@ export const Close = styled.button`
 export const Subtitle = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.57;
   color: ${theme.colors.text2};
 `
@@ -90,7 +90,7 @@ export const Field = styled.div`
 
 export const FieldLabel = styled.span`
   font-family: ${theme.font.sans};
-  font-size: 12px;
+  font-size: 13px;
   color: ${theme.colors.muted};
 `
 
@@ -140,7 +140,7 @@ export const RowInfo = styled.span`
 export const RowName = styled.span`
   font-family: ${theme.font.sans};
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   color: ${theme.colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
@@ -149,7 +149,7 @@ export const RowName = styled.span`
 
 export const RowMeta = styled.span`
   font-family: ${theme.font.sans};
-  font-size: 12px;
+  font-size: 13px;
   color: ${theme.colors.muted};
 `
 
@@ -170,7 +170,7 @@ export const Chip = styled.button`
   color: ${theme.colors.text};
   font-family: ${theme.font.sans};
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 
   &[data-selected] {
@@ -231,7 +231,7 @@ export const InlineInput = styled.span`
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.white};
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   color: ${theme.colors.muted};
 
   &:focus-within {
@@ -258,7 +258,7 @@ export const InlineInput = styled.span`
     outline: none;
     background: transparent;
     font-family: ${theme.font.sans};
-    font-size: 13px;
+    font-size: 14px;
     color: ${theme.colors.text};
 
     &::-webkit-outer-spin-button,
@@ -277,17 +277,17 @@ export const DateInput = styled.input`
   /* Chip height exactly: this field opens inside a row of chips, and two pixels of difference there
      resized the whole modal. */
   height: 40px;
-  /* Explicit, and wide enough for the whole date: the browser's intrinsic width for a datetime-local is
-     ~187px, and leaving it implicit made the row's fit depend on font metrics. With the compact duration
-     labels the row now has ~110px to spare, so this can be generous rather than lucky. */
-  width: 192px;
+  /* Explicit, and wide enough for the whole date: the browser's intrinsic width for a datetime-local
+     tracks the font size, and leaving it implicit made the row's fit depend on font metrics. With the
+     compact duration labels the row has room to spare, so this can be generous rather than lucky. */
+  width: 208px;
   box-sizing: border-box;
   padding: 0 10px;
   border: 0.5px solid ${theme.colors.text};
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.white};
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   color: ${theme.colors.text};
   max-width: 100%;
 
@@ -303,7 +303,7 @@ export const CapRow = styled.div`
   gap: 8px;
   min-height: 40px;
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   color: ${theme.colors.text};
   cursor: pointer;
 
@@ -337,15 +337,31 @@ export const Preview = styled.p`
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.panel};
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   color: ${theme.colors.text2};
+`
+
+/**
+ * An amount inside a sentence: the mark first, then the number, the way every price in the Shop reads.
+ *
+ * Plain inline, not the inline-flex the price rows use — a flex box here makes `innerText` break the line
+ * around it, which is the text the e2e suite reads the sentence from.
+ */
+export const PreviewAmount = styled.b`
+  font-weight: 700;
+  color: ${theme.colors.text};
+  white-space: nowrap;
+
+  .ico {
+    margin-right: 2px;
+  }
 `
 
 export const Status = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   color: ${theme.colors.muted};
   text-align: center;
 `
@@ -451,7 +467,7 @@ export const SuccessCheck = styled.div`
 export const SuccessText = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.4;
   color: ${theme.colors.text};
 `
@@ -464,7 +480,7 @@ export const SuccessDetail = styled.p`
   justify-content: center;
   gap: 6px;
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 15px;
   color: ${theme.colors.text2};
 `
 
@@ -538,7 +554,7 @@ export const ReviewPct = styled.span`
   border: 2px solid transparent;
   font-family: ${theme.font.sans};
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.02em;
 
   ${Object.entries(theme.saleHeat)
@@ -556,18 +572,20 @@ export const ReviewPct = styled.span`
 /** One row of the summary: its label, the value, and — for the window — how long until it. */
 export const ReviewWhenRow = styled.div`
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr) auto;
+  /* Fixed, not content-sized: each row is its own grid, so a max-content track would line each label up
+     with nothing. 78px clears the longest label in either locale ("Descuento" measures ~70px). */
+  grid-template-columns: 78px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 28px;
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
 `
 
 export const ReviewWhenLabel = styled.span`
   color: ${theme.colors.muted};
-  font-size: 13px;
+  font-size: 14px;
 `
 
 export const ReviewWhenValue = styled.b`
@@ -587,7 +605,7 @@ export const ReviewWhenLeft = styled(SaleCountdown)`
   padding: 0;
   background: none;
   color: ${theme.colors.muted};
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 `
 
@@ -601,7 +619,7 @@ export const ReviewGroupTitle = styled.h3`
   margin: 0;
   font-family: ${theme.font.sans};
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   color: ${theme.colors.text};
 `
 
@@ -643,7 +661,7 @@ export const ReviewThumb = styled.img`
 
 export const ReviewName = styled.span`
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 15px;
   color: ${theme.colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
@@ -661,22 +679,27 @@ export const ReviewName = styled.span`
  */
 export const ReviewPrices = styled.span`
   display: grid;
-  grid-template-columns: minmax(30px, auto) minmax(40px, auto);
+  grid-template-columns: minmax(34px, auto) minmax(46px, auto);
   align-items: center;
   gap: 6px;
   font-family: ${theme.font.sans};
   white-space: nowrap;
 `
 
+/**
+ * The price being left behind. `muted` rather than the lighter `muted2`: a line through a number already
+ * costs it legibility, and at Gray 3 on white the two together were closer to decoration than to a figure
+ * anyone could read.
+ */
 export const ReviewWas = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
-  color: ${theme.colors.muted2};
+  gap: 3px;
+  color: ${theme.colors.muted};
   text-decoration: line-through;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 17px;
 `
 
 /**
@@ -689,7 +712,7 @@ export const ReviewNow = styled.span`
   justify-content: flex-end;
   gap: 4px;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 20px;
 
   ${Object.entries(theme.saleHeat)
     .map(
@@ -703,7 +726,7 @@ export const ReviewNow = styled.span`
 
 export const ReviewUnaffected = styled.span`
   font-family: ${theme.font.sans};
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: ${theme.colors.muted};
@@ -716,11 +739,20 @@ export const ReviewFoot = styled.p`
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.promptLilac};
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
   color: ${theme.colors.text};
 
   b {
     font-weight: 700;
   }
+`
+
+/** The one line that says what to do about a group the discount cannot reach. */
+export const ReviewFootNote = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  line-height: 1.45;
+  color: ${theme.colors.muted};
 `
