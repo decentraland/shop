@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { saleTimeLeft, formatCountdown, countdownTickMs } from '~/lib/sale'
 import { Icon } from '~/components/Icon'
 import * as S from './SaleCountdown.styles'
@@ -11,13 +11,16 @@ export function SaleCountdown({
   until,
   className,
   testId,
-  iconSize = 13
+  iconSize = 13,
+  ...rest
 }: {
   until?: number
   className?: string
   testId?: string
   iconSize?: number
-}) {
+  // Forwarded so a wrapper can describe it — a Tooltip hands its trigger `aria-describedby`, and a
+  // component that swallows unknown props silently breaks that link.
+} & ComponentPropsWithoutRef<'span'>) {
   const [left, setLeft] = useState(() => saleTimeLeft(until))
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export function SaleCountdown({
   const label = formatCountdown(left)
   if (!label) return null
   return (
-    <S.Root className={className} data-testid={testId}>
+    <S.Root className={className} data-testid={testId} {...rest}>
       <Icon name="clock" size={iconSize} />
       {label}
     </S.Root>

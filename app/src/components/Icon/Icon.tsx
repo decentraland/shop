@@ -53,6 +53,7 @@ export type IconName =
   | 'chevron-down'
   | 'chevron-up-line'
   | 'clock'
+  | 'clock-filled'
   | 'close'
   | 'copy'
   | 'credits'
