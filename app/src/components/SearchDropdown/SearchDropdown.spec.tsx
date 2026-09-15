@@ -15,8 +15,8 @@ vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }
 const useManaRate = vi.fn(() => ({ data: undefined }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => useManaRate() }))
 
-const secondarySales = vi.fn(() => false)
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales() }))
+const secondaryPurchases = vi.fn(() => false)
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => secondaryPurchases() }))
 
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { fetchShopItems } from '~/lib/api'
@@ -48,7 +48,7 @@ async function lastSuggestCall() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  secondarySales.mockReturnValue(false)
+  secondaryPurchases.mockReturnValue(false)
 })
 
 describe('SearchDropdown suggestions', () => {
@@ -62,7 +62,7 @@ describe('SearchDropdown suggestions', () => {
   })
 
   it('should stop restricting to mints once resales are enabled, matching the grid', async () => {
-    secondarySales.mockReturnValue(true)
+    secondaryPurchases.mockReturnValue(true)
     renderDropdown('chapeau')
     expect(await lastSuggestCall()).toMatchObject({ onSale: true, listingType: undefined })
   })

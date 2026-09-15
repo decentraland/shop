@@ -499,6 +499,85 @@ export const salesResponse = {
 
 // A full signed Trade for the legacy Buy Now path (what fetchTrade('legacy-trade-1') returns). A
 // USD-pegged primary item order priced $27 (270 credits) on the real Amoy marketplace.
+/**
+ * A RESALE LISTED THROUGH THE CLASSIC MARKETPLACE — the shape this feature exists to buy.
+ *
+ * Distinct from `legacyTrade` in the two ways that matter, and both were untested before:
+ *   - `received[0].assetType` is 1 (plain ERC20), not 2 (USD_PEGGED_MANA). Only the oracle can say what an
+ *     ERC20 amount is worth, so this is the branch that needs the live rate; reading it as dollars would
+ *     misprice the line by the MANA price.
+ *   - it is a `public_nft_order` sending an ERC721, i.e. somebody's specific copy, which is what the
+ *     legacy branch of the unified feed returns once `includeLegacySecondary` opens it.
+ *
+ * Priced at 100 MANA so it lands on the same ~100 credits as the other legacy fixture at the mock rate.
+ */
+export const marketplaceResaleTrade = {
+  id: 'mkt-resale-1',
+  signer: '0x' + 'cc'.repeat(20),
+  signature: '0x' + 'ab'.repeat(65),
+  network: 'MATIC',
+  chainId: 80002,
+  type: 'public_nft_order',
+  contract: OFFCHAIN_MARKETPLACE_AMOY,
+  checks: {
+    uses: 1,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '00'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  sent: [{ assetType: 3, contractAddress: COLLECTION, value: '77', tokenId: '77', extra: '0x' }],
+  received: [
+    {
+      assetType: 1,
+      contractAddress: MANA_AMOY,
+      value: MANA_WEI_PER,
+      amount: MANA_WEI_PER,
+      beneficiary: '0x' + 'cc'.repeat(20),
+      extra: '0x'
+    }
+  ]
+}
+
+/**
+ * The unified feed with a MANA-priced RESALE of item 0 — what the server returns once the Shop opts in
+ * with `includeLegacySecondary`. `source: 'legacy'` + a `tokenId` is what routes the row to the
+ * market/credits checkout rather than the cart (see ResellersModal).
+ */
+export const unifiedWithMarketplaceResale = {
+  data: [
+    ...unifiedListings.data,
+    {
+      tradeId: 'mkt-resale-1',
+      listingType: 'secondary',
+      contractAddress: COLLECTION,
+      itemId: '0',
+      tokenId: '77',
+      issuedId: '77',
+      seller: '0x' + 'cc'.repeat(20),
+      name: 'Galaxy Hat',
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: TEST_ADDRESS,
+      source: 'legacy',
+      acquisition: 'trade',
+      manaWei: MANA_WEI_PER,
+      priceCredits: 100,
+      available: 1,
+      network: 'MATIC',
+      chainId: 80002,
+      createdAt: 1_700_000_100
+    }
+  ],
+  total: 5
+}
+
 export const legacyTrade = {
   id: 'legacy-trade-1',
   signer: '0x' + 'aa'.repeat(20),

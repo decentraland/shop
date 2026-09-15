@@ -28,9 +28,9 @@ vi.mock('~/lib/buy', () => ({
 
 const readManaUsdRate = vi.fn()
 const manaWeiToCredits = vi.fn()
-const getIsSecondarySalesEnabled = vi.fn()
+const getIsSecondaryListingEnabled = vi.fn()
 vi.mock('~/lib/featureFlags', () => ({
-  getIsSecondarySalesEnabled: () => getIsSecondarySalesEnabled()
+  getIsSecondaryListingEnabled: () => getIsSecondaryListingEnabled()
 }))
 // Stubbed at the lib level like the rest of this file: the real module pulls decentraland-transactions,
 // whose ESM build cannot be resolved under vitest.
@@ -105,7 +105,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
   // Secondary migration is what most cases below exercise, so default it ON — the case where the Shop
   // offers no resales has its own test.
-  getIsSecondarySalesEnabled.mockResolvedValue(true)
+  getIsSecondaryListingEnabled.mockResolvedValue(true)
   readManaUsdRate.mockResolvedValue({ rate: 1n, decimals: 8 })
   manaWeiToCredits.mockReturnValue(7)
   createPrimaryUsdPeggedListing.mockResolvedValue({ type: 'primary-trade' })
@@ -227,7 +227,7 @@ describe('when importing a primary (creation) listing', () => {
 // what SIGNS, and a listing signed here is indistinguishable from one signed by the Sell flow.
 describe('when the Shop offers no secondary sales', () => {
   it('should refuse to migrate a secondary listing', async () => {
-    getIsSecondarySalesEnabled.mockResolvedValue(false)
+    getIsSecondaryListingEnabled.mockResolvedValue(false)
 
     await expect(importListing(item({ listingType: 'secondary', tokenId: '7' }), 20, session)).rejects.toThrow(
       /does not offer secondary sales/i
@@ -241,7 +241,7 @@ describe('when the Shop offers no secondary sales', () => {
 
   it('should still migrate a primary listing', async () => {
     // Primaries are unaffected — creators keep listing from their collections.
-    getIsSecondarySalesEnabled.mockResolvedValue(false)
+    getIsSecondaryListingEnabled.mockResolvedValue(false)
 
     await importListing(item({ listingType: 'primary', itemId: '3' }), 20, session)
 
@@ -403,7 +403,7 @@ describe('importListing take-down accounting', () => {
     vi.clearAllMocks()
     readManaUsdRate.mockResolvedValue({ rate: 50_000_000n, decimals: 8 })
     manaWeiToCredits.mockReturnValue(10)
-    getIsSecondarySalesEnabled.mockResolvedValue(true)
+    getIsSecondaryListingEnabled.mockResolvedValue(true)
     fetchTrade.mockResolvedValue({ id: 'old-1', chainId: 80002 })
     createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'new-1' })
     postTrade.mockResolvedValue(undefined)
@@ -447,7 +447,7 @@ describe('importListing progress reporting', () => {
     vi.clearAllMocks()
     readManaUsdRate.mockResolvedValue({ rate: 50_000_000n, decimals: 8 })
     manaWeiToCredits.mockReturnValue(10)
-    getIsSecondarySalesEnabled.mockResolvedValue(true)
+    getIsSecondaryListingEnabled.mockResolvedValue(true)
     fetchTrade.mockResolvedValue({ id: 'old-1', chainId: 80002 })
     createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'new-1' })
     postTrade.mockResolvedValue(undefined)

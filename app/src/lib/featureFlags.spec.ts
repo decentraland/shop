@@ -6,6 +6,8 @@ import {
   getAddressListVariant,
   getIsFeatureEnabled,
   getIsProceedsToTreasuryEnabled,
+  getIsSecondaryListingEnabled,
+  getIsSecondaryPurchaseEnabled,
   resetFeatureFlagsCache
 } from '~/lib/featureFlags'
 
@@ -292,5 +294,71 @@ describe('featureFlags', () => {
       await expect(getAddressListVariant(FeatureFlag.SHOP_PRELAUNCH)).resolves.toEqual([ADDR_B])
       expect(fetchMock).toHaveBeenCalled()
     })
+  })
+})
+
+/**
+ * THE TWO SECONDARY PERMISSIONS, AS A TRUTH TABLE.
+ *
+ * The product wants one half of what `shop-secondary-sales` used to grant: the Shop sells resales listed
+ * through the Marketplace, and takes none of its own. That only works if buying and listing are separate
+ * reads, and if the separation is ASYMMETRIC — `shop-secondary-purchases` grants buying and never listing,
+ * while `shop-secondary-sales` keeps granting both so no environment loses behaviour on the day the split
+ * ships. This block is the whole contract; if the two accessors are ever wired to the same flag, it fails.
+ */
+describe('secondary purchase and listing permissions', () => {
+  const PURCHASES = 'dapps-shop-secondary-purchases'
+  const SALES = 'dapps-shop-secondary-sales'
+
+  beforeEach(() => {
+    resetFeatureFlagsCache()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('should grant neither when both flags are off — production today', async () => {
+    mockFlags({})
+
+    await expect(getIsSecondaryPurchaseEnabled()).resolves.toBe(false)
+    await expect(getIsSecondaryListingEnabled()).resolves.toBe(false)
+  })
+
+  it('should grant BUYING and NOT listing on the purchase flag alone — the feature being shipped', async () => {
+    mockFlags({ [PURCHASES]: true })
+
+    await expect(getIsSecondaryPurchaseEnabled()).resolves.toBe(true)
+    // The point of the split. If this ever goes true, turning the feature on re-opens the Sell flow.
+    await expect(getIsSecondaryListingEnabled()).resolves.toBe(false)
+  })
+
+  it('should grant BOTH on the old sales flag alone, so nothing running on it regresses', async () => {
+    mockFlags({ [SALES]: true })
+
+    await expect(getIsSecondaryPurchaseEnabled()).resolves.toBe(true)
+    await expect(getIsSecondaryListingEnabled()).resolves.toBe(true)
+  })
+
+  it('should grant both when both are on', async () => {
+    mockFlags({ [PURCHASES]: true, [SALES]: true })
+
+    await expect(getIsSecondaryPurchaseEnabled()).resolves.toBe(true)
+    await expect(getIsSecondaryListingEnabled()).resolves.toBe(true)
+  })
+
+  it('should fail closed on both when the flag service is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+
+    await expect(getIsSecondaryPurchaseEnabled()).resolves.toBe(false)
+    await expect(getIsSecondaryListingEnabled()).resolves.toBe(false)
+  })
+
+  it('should read the purchase flag under the dapps-prefixed key, like every other flag', async () => {
+    // A bare key is what a hand-written fixture reaches for, and it must NOT be honoured — the service
+    // publishes `dapps-shop-secondary-purchases`, and reading the wrong one would leave the feature dark
+    // after the flag is switched on in the dashboard.
+    mockFlags({ 'shop-secondary-purchases': true })
+
+    await expect(getIsSecondaryPurchaseEnabled()).resolves.toBe(false)
   })
 })

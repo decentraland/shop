@@ -5,7 +5,9 @@
     "soldOrRemoved": "Este artículo acaba de venderse o eliminarse.",
     "cantBuyOwn": "No puedes comprar tu propia publicación.",
     "wrongNetwork": "Tu wallet está en {current}. Cámbiala a {required} para continuar.",
-    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verifica que siga conectada al shop y en la red correcta, y prueba de nuevo."
+    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verifica que siga conectada al shop y en la red correcta, y prueba de nuevo.",
+    "creatorRoyalty": "Recibes una parte de cada reventa de este artículo, y ese pago no puede ocurrir en el mismo paso que pagar con Credits. Prueba otra opción de pago si tienes alguna.",
+    "resalesUnavailable": "Las reventas no se pueden comprar aquí en este momento. Inténtalo de nuevo más tarde."
   },
   "nav": {
     "overview": "Inicio",

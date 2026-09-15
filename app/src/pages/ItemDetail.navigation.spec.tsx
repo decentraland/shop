@@ -111,7 +111,8 @@ vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [],
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
 // Secondary sales OFF, deliberately: ownership alone decides the manage surface, so TRANSFER has to be
 // there with the selling CTAs gone. This is the configuration the report came from.
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => false }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => false }))
 
 import { ItemDetailRoute } from '~/pages/ItemDetail'
 

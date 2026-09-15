@@ -109,6 +109,49 @@ describe('when porting a trade to its on-chain shape', () => {
     expect(onchain.sent[0].value).toBe('5')
   })
 
+  /**
+   * A RESALE LISTED THROUGH THE CLASSIC MARKETPLACE — MANA-priced (plain ERC20), which is the shape the
+   * Shop buys once it sells resales.
+   *
+   * The product guarantee is that accepting one changes nothing about the order the seller signed: the
+   * copy goes to the BUYER and the MANA goes to whoever the seller named, at the amount they named. The
+   * only field this port may rewrite is the sent beneficiary, and only because a listing is signed before
+   * a buyer exists. If the received beneficiary were ever defaulted here, a reseller's proceeds would be
+   * paid to the person who bought from them.
+   */
+  it('sends the copy to the buyer and leaves a MANA-priced resale paying its seller, untouched', () => {
+    const resale = fakeTrade({
+      received: [
+        {
+          assetType: TradeAssetType.ERC20,
+          contractAddress: MANA,
+          value: '25000000000000000000',
+          amount: '25000000000000000000',
+          beneficiary: SELLER,
+          extra: '0x'
+        }
+      ]
+    } as unknown as Partial<Trade>)
+
+    const onchain = getOnChainTrade(resale, BUYER)
+
+    expect(onchain.sent).toEqual([
+      { assetType: TradeAssetType.ERC721, contractAddress: NFT, value: '5', beneficiary: BUYER, extra: '0x' }
+    ])
+    expect(onchain.received).toEqual([
+      {
+        assetType: TradeAssetType.ERC20,
+        contractAddress: MANA,
+        value: '25000000000000000000',
+        beneficiary: SELLER,
+        extra: '0x'
+      }
+    ])
+    // And the signature the seller produced travels verbatim — nothing here re-signs anything.
+    expect(onchain.signer).toBe(SELLER)
+    expect(onchain.signature).toBe(SIG)
+  })
+
   it('resolves the received value via valueForAsset (amount for USD-pegged MANA)', () => {
     const onchain = getOnChainTrade(fakeTrade(), BUYER)
     expect(onchain.received[0].value).toBe('1000000000000000000')

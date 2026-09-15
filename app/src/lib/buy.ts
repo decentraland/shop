@@ -25,6 +25,7 @@ import {
   type SpendableCredit,
   type StorePurchase
 } from '~/lib/trade-encoding'
+import { assertSecondaryPurchasesAllowed, tradesIn } from '~/lib/secondary-purchase'
 
 // Re-export the shared vocabulary so existing importers (Cart, tests) keep their `~/lib/buy` imports.
 export type { CreditPurchase, ListingCoupon, SpendableCredit, StorePurchase } from '~/lib/trade-encoding'
@@ -547,6 +548,9 @@ export async function buyOneWithCredits(opts: {
 }): Promise<string> {
   const { purchase, buyer, signer, onBroadcast, onReverted } = opts
   if (purchase.credits.length === 0) throw new Error('No credits to spend')
+  // Last stop before the calldata is built. See lib/secondary-purchase: the CTAs are hidden when the Shop
+  // is not selling resales, but a persisted cart / deep link / resumed top-up can still arrive here.
+  await assertSecondaryPurchasesAllowed(tradesIn([purchase]))
   // One purchase is one group by construction, so this is the same builder the cart's batches go through.
   const { args, chainId } = buildGroupUseCreditsArgs(groupPurchases([purchase])[0], buyer)
   try {
@@ -701,6 +705,10 @@ export async function buyManyWithCredits(opts: {
   const { buyer, signer, onSigned, onBroadcast, onSettled, onReverted } = opts
   const purchases = normalizePurchases(opts.purchases)
   if (purchases.length === 0) throw new Error('No items to buy')
+  // Guarded for the WHOLE basket before the first group is submitted: a mixed basket signs once per group,
+  // so refusing group by group would let the primary half settle and then abort — leaving the buyer charged
+  // for part of an order they asked for as one.
+  await assertSecondaryPurchasesAllowed(tradesIn(purchases))
 
   const groups = groupPurchases(purchases)
   const hashes: string[] = []

@@ -582,8 +582,32 @@ export type ShopListingFilters = {
    * Filtered SERVER-side on purpose (marketplace-server /v3/catalog/unified). This feed is paginated and
    * carries a total, so dropping resale rows here would return short pages and a count that overstates
    * what is shown.
+   *
+   * NOTE this is the only thing that keeps NATIVE (USD-pegged) resales out of a feed. `includeLegacySecondary`
+   * governs the legacy branch alone; the native branch has always returned secondary rows unconditionally,
+   * and those orders are DURABLE — switching the Shop's resale permission off does not cancel a single one.
+   * So a surface that may not sell resales has to say `listingType: 'primary'`, not assume the feed is
+   * primary because the Shop is not taking listings today.
    */
   listingType?: 'primary' | 'secondary'
+  /**
+   * Ask the server for CLASSIC (MANA-priced) RESALES as well.
+   *
+   * The unified feed's legacy branch is primary-only unless a request opts in (marketplace-server
+   * shop-catalog `buildUnifiedInner`), so a copy listed through the Marketplace — which is where resale
+   * listing lives — is invisible to the Shop until this is sent. Omitted/false is byte-for-byte the
+   * request the Shop sends today.
+   *
+   * Passed IN by the caller rather than read from the feature flag here, so this module stays a plain
+   * HTTP client: the permission belongs to the surfaces (`useSecondaryPurchases`) and to the money paths
+   * that must fail closed (`lib/secondary-purchase`, `lib/cart-checkout`), and a client that consulted it
+   * would make every read of the catalogue depend on the flag service being up.
+   *
+   * An explicit parameter rather than something the server infers from a missing `listingType`, because
+   * the PDP hydrate sends no `listingType` at all — inferring would make a Marketplace resale hydrate a
+   * deep-linked item page as buyable with the permission off.
+   */
+  includeLegacySecondary?: boolean
 }
 
 async function fetchShopListingsRaw(
@@ -662,10 +686,20 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
  */
 export async function fetchUnifiedListingForItem(
   contractAddress: string,
-  itemId: string
+  itemId: string,
+  {
+    includeLegacySecondary,
+    listingType
+  }: { includeLegacySecondary?: boolean; listingType?: 'primary' | 'secondary' } = {}
 ): Promise<UnifiedListing | null> {
   await primeCreatorSales()
-  const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
+  const { items } = await fetchUnified({
+    contractAddress,
+    itemId,
+    first: 5,
+    includeLegacySecondary,
+    listingType
+  })
   return pickItemListing(items)
 }
 
@@ -726,12 +760,23 @@ export async function fetchListings({ first = 100, ...filters }: ShopListingFilt
 // specific token → `tokenId` present) that carry a `tradeId`. A native row has `manaWei: null`; a
 // legacy row has `manaWei` set (drives the market/credits checkout).
 //
-// NOTE: the server's unified LEGACY branch is PRIMARY-ONLY (marketplace-server shop-catalog
-// getUnifiedListings → unifiedBranch({ source: 'legacy', primaryOnly: true })), so in practice every
-// secondary row this returns is NATIVE. The legacy branch below is kept so a legacy secondary row is
-// handled correctly the moment the feed starts returning them, but it is dormant today.
-export async function fetchItemResales(contractAddress: string, itemId: string): Promise<UnifiedListing[]> {
-  const { items } = await fetchUnified({ contractAddress, itemId, first: 100, sortBy: 'cheapest' })
+// NOTE: the server's unified LEGACY branch is PRIMARY-ONLY unless the request opts in -- see
+// `includeLegacySecondary`, which every unified fetch here sends exactly when the Shop is selling resales.
+// So with the permission off every secondary row this returns is NATIVE (a Shop-signed USD-pegged resale);
+// with it on, the MANA-priced copies listed through the Marketplace come back too and are handled by the
+// legacy branch below (an "~" price re-derived at the live rate, bought through MarketCheckout).
+export async function fetchItemResales(
+  contractAddress: string,
+  itemId: string,
+  { includeLegacySecondary }: { includeLegacySecondary?: boolean } = {}
+): Promise<UnifiedListing[]> {
+  const { items } = await fetchUnified({
+    contractAddress,
+    itemId,
+    first: 100,
+    sortBy: 'cheapest',
+    includeLegacySecondary
+  })
   return items.filter(i => !!i.tokenId && !!i.tradeId).sort((a, b) => a.priceCredits - b.priceCredits)
 }
 
@@ -826,6 +871,7 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
 // switches the server to ONE row per item (the browse grid); omitted keeps the default one-row-per-listing.
 function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy?: 'item'): URLSearchParams {
   const qs = new URLSearchParams()
+  if (filters.includeLegacySecondary) qs.set('includeLegacySecondary', 'true')
   if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
   qs.set('first', String(first))
   if (filters.skip != null) qs.set('skip', String(filters.skip))
@@ -911,9 +957,15 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
 export async function fetchRelatedItems(
   contractAddress: string,
   itemId: string,
-  { first = 10 }: { first?: number } = {}
+  {
+    first = 10,
+    includeLegacySecondary,
+    listingType
+  }: { first?: number; includeLegacySecondary?: boolean; listingType?: 'primary' | 'secondary' } = {}
 ): Promise<UnifiedListing[]> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: String(first) })
+  if (includeLegacySecondary) qs.set('includeLegacySecondary', 'true')
+  if (listingType) qs.set('listingType', listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/related?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchRelatedItems ${res.status}`)
   const json = (await res.json()) as { data?: ShopItemRaw[] }
@@ -931,16 +983,24 @@ export async function fetchRelatedItems(
  *
  * - `includeSocialEmotes=false`, always. The Shop hides social emotes, and the row is a fixed number of
  *   slots — filtering after the fact would spend slots on rows that are then thrown away, shrinking the row.
- * - `listingType`, from the secondary-sales flag (see pages/Overview). Same reason.
+ * - `listingType`, from the secondary-purchase permission (see pages/Overview). Same reason.
+ * - `includeLegacySecondary`, from the same permission — without it a Marketplace-listed copy can never
+ *   rank into the row, however much it trades.
  *
  * Unpaginated (the endpoint returns `{ data }` with no total): it is one carousel.
  */
 export async function fetchTrendingItems({
   first = 12,
-  listingType
-}: { first?: number; listingType?: 'primary' | 'secondary' } = {}): Promise<UnifiedListing[]> {
+  listingType,
+  includeLegacySecondary
+}: {
+  first?: number
+  listingType?: 'primary' | 'secondary'
+  includeLegacySecondary?: boolean
+} = {}): Promise<UnifiedListing[]> {
   const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
   if (listingType) qs.set('listingType', listingType)
+  if (includeLegacySecondary) qs.set('includeLegacySecondary', 'true')
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/trending?${qs.toString()}`)
   if (!res.ok) {
     // Read the body before throwing: the status alone cannot tell a 400 on a bad `first` apart from one
@@ -1323,26 +1383,108 @@ export async function fetchTrade(tradeId: string): Promise<Trade> {
   return ((json as { data?: Trade }).data ?? json) as Trade
 }
 
-// Resolve an item's CURRENT signed trade, tolerant of a stale/expired tradeId. Tries the known
-// tradeId first (fast path — no extra lookup); if that 404s (the trade was re-signed/retired) and we
-// can identify the item, re-resolves the live trade from the shop feed by (contract, itemId). Any
-// other failure propagates — we must never silently swap to a different trade on a transient error,
-// and we only ever re-resolve BY ITEM so a caller can't end up buying an unrelated trade. Returns
-// null when the item has no live listing at all (never listed / sold out / cancelled).
+/**
+ * Whether a signed trade really sells the asset the caller thinks it is buying.
+ *
+ * The identity check that the price check cannot do. A cart line carries a name, a thumbnail and an issued
+ * number, and none of those come from the trade — so a trade that sells something else renders as the row
+ * the buyer chose while moving a different asset. `reviewCart` compares PRICES, so two copies of the same
+ * item at the same price make the swap invisible.
+ *
+ * Judged on the SENT asset, which is what the contract moves, and deliberately ASYMMETRIC:
+ *
+ *   - a TOKEN-scoped line demands POSITIVE PROOF, and proof means an identity it can actually compare:
+ *     some sent asset must be an ERC721 whose contract and token id are both PRESENT and both match. An
+ *     asset that names neither cannot certify anything, so it is refused rather than waved through. This
+ *     is the direction money is lost in — "token 77" resolving to a mint or to token 88 is a different
+ *     asset bought under 77's name. Refusing an identity-less asset costs nothing either: `valueForAsset`
+ *     reads `tokenId` to build the calldata, so such a trade would fail in the ABI encoder a moment later
+ *     — this only turns a crash into "no longer available".
+ *   - an ITEM-scoped line is only rejected on a CONTRADICTION: a trade that sends tokens and no collection
+ *     item (a resale offered for an item line), or a collection item that names a different item. Here an
+ *     unjudgeable asset IS accepted, because this is the pre-existing mint path and tightening it would
+ *     reject purchases that work today for a field the API does not promise.
+ *
+ * The asymmetry is the point, and it is not a convenience: proof is demanded exactly where a wrong answer
+ * spends money on the wrong asset, and withheld where demanding it would break something that works.
+ */
+function tradeSellsExpectedAsset(
+  trade: Trade,
+  item: { contractAddress: string; itemId?: string | null; tokenId?: string | null }
+): boolean {
+  const sent = (trade.sent ?? []) as Array<{
+    assetType?: number
+    contractAddress?: string
+    tokenId?: string
+    itemId?: string
+    value?: string
+  }>
+  const isType = (a: { assetType?: number }, t: TradeAssetType) => Number(a.assetType) === Number(t)
+  const sameAddress = (a?: string, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
+  // Lenient form, for the item-scoped side only: an absent value cannot contradict anything.
+  const noConflict = (given: string | undefined, expected: string | null | undefined) =>
+    given == null || expected == null || String(given) === String(expected)
+
+  if (item.tokenId != null) {
+    return sent.some(a => {
+      if (!isType(a, TradeAssetType.ERC721)) return false
+      const id = a.tokenId ?? a.value
+      // Both REQUIRED: an asset with no contract or no token id proves nothing about identity.
+      return sameAddress(a.contractAddress, item.contractAddress) && id != null && String(id) === String(item.tokenId)
+    })
+  }
+
+  const mints = sent.filter(a => isType(a, TradeAssetType.COLLECTION_ITEM))
+  if (mints.length > 0) {
+    return mints.some(
+      a =>
+        (a.contractAddress == null || sameAddress(a.contractAddress, item.contractAddress)) &&
+        noConflict(a.itemId ?? a.value, item.itemId)
+    )
+  }
+  // No collection item anywhere, but it does send tokens: this is somebody's resale answering for an
+  // item-scoped line, which is the same swap in the other direction.
+  if (sent.some(a => isType(a, TradeAssetType.ERC721))) return false
+  return true
+}
+
+/**
+ * Resolve a line's CURRENT signed trade, tolerant of a stale/expired tradeId. Returns null when there is
+ * no live listing for THAT asset (never listed / sold / cancelled); any failure other than a 404
+ * propagates, so a transient error can never be read as "gone".
+ *
+ * A TOKEN-scoped line never falls back to the item-level resolver, and that is the whole point of the
+ * `tokenId` parameter. `fetchTradeForItem` answers "what is this ITEM's current listing", which for a
+ * resale of token 77 can be a fresh mint or somebody else's token 88 — a different asset at possibly the
+ * same price, bought under the name, image and issued number of the one the buyer picked. Re-resolving by
+ * item is only ever right for a line that IS the item.
+ *
+ * Whatever is resolved is then checked against the expected asset, so the fast path cannot swap the asset
+ * either (a re-used or mis-stored tradeId).
+ */
 export async function resolveLiveTrade(item: {
   tradeId?: string
   contractAddress: string
   itemId?: string | null
+  tokenId?: string | null
 }): Promise<Trade | null> {
+  const verified = (trade: Trade | null) => (trade && tradeSellsExpectedAsset(trade, item) ? trade : null)
+
   if (item.tradeId) {
     try {
-      return await fetchTrade(item.tradeId)
+      return verified(await fetchTrade(item.tradeId))
     } catch (e) {
-      if (!(e instanceof TradeNotFoundError) || !item.itemId) throw e
-      // fall through: the cached trade is gone — re-resolve the item's current listing.
+      if (!(e instanceof TradeNotFoundError)) throw e
+      // The signed trade is gone. Re-resolving is safe ONLY for an item-scoped line; for a specific token
+      // there is nothing to fall back TO, so the honest answer is that this copy is no longer buyable.
+      if (item.tokenId != null) return null
+      // Unchanged from before this check existed: with no item to re-resolve by, the not-found propagates
+      // rather than becoming a silent "no listing".
+      if (!item.itemId) throw e
     }
   }
-  if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
+  if (item.tokenId != null) return null
+  if (item.itemId) return verified(await fetchTradeForItem(item.contractAddress, item.itemId))
   return null
 }
 

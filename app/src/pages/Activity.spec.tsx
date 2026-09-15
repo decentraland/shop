@@ -84,7 +84,8 @@ const fetchImportable = vi.fn()
 vi.mock('~/lib/import', () => ({
   fetchImportable: (...args: unknown[]) => fetchImportable(...args)
 }))
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => true }))
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => true }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => true }))
 
 // The migration tool is lazy-loaded and covered by its own spec; this one is about the chip that
 // opens it and what replaces the feed when it does.

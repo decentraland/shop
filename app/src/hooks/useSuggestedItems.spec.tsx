@@ -95,7 +95,11 @@ describe('useSuggestedItems', () => {
     const { result } = render()
 
     await waitFor(() => expect(result.current.items).toHaveLength(15))
-    expect(fetchRelatedItems).toHaveBeenCalledWith(CONTRACT, 'anchor', { first: 15 })
+    expect(fetchRelatedItems).toHaveBeenCalledWith(CONTRACT, 'anchor', {
+      first: 15,
+      includeLegacySecondary: false,
+      listingType: 'primary'
+    })
   })
 
   it('should still reach the last resort when the creator request fails', async () => {

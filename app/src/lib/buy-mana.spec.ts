@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ProviderType, TradeAssetType, type Trade } from '@dcl/schemas'
 import type { ethers as Ethers } from 'ethers'
 
@@ -8,6 +8,16 @@ const acceptCalls: Array<{ trades: unknown[] }> = []
 const acceptWithCouponCalls: Array<{ trades: unknown[]; coupons: unknown[] }> = []
 const storeBuyCalls: Array<{ items: unknown[] }> = []
 let allowanceWei = '0' // current MANA→spender allowance the mocked ERC20 reports
+
+// The resale kill switch lives in the purchase rails (lib/secondary-purchase), so every spec that drives
+// one has to say where the permission stands. ON here: these tests are about calldata, grouping and
+// failure reporting, and a refusal would hide all of it. The switch itself is pinned in
+// secondary-purchase.spec.ts and in the dedicated blocks below.
+const secondaryPurchasesEnabled = { value: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchasesEnabled.value)
+}))
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: { MANAToken: 'MANAToken', CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
@@ -734,5 +744,69 @@ describe('paying MANA for a listing a creator put on sale', () => {
     expect(acceptWithCouponCalls[0].trades).toHaveLength(1)
     expect(acceptCalls).toHaveLength(1)
     expect(acceptCalls[0].trades).toHaveLength(1)
+  })
+})
+
+/**
+ * THE RESALE KILL SWITCH ON THE MANA RAILS.
+ *
+ * The credits rail is not the only way a trade gets accepted: a buyer holding MANA can settle one
+ * directly, and a mixed purchase relays through the CreditsManager before it ever reaches
+ * `buyOneWithCredits`. Both are guarded at their own funnel, or the switch would be a switch on one rail
+ * out of three.
+ */
+describe('when the Shop is not selling resales', () => {
+  beforeEach(() => {
+    approveCalls.length = 0
+    acceptCalls.length = 0
+    storeBuyCalls.length = 0
+    allowanceWei = '0'
+    secondaryPurchasesEnabled.value = false
+  })
+  afterEach(() => {
+    secondaryPurchasesEnabled.value = true
+  })
+
+  it('should refuse a MANA-paid resale before approving anything', async () => {
+    await expect(buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer })).rejects.toThrow(/resales/i)
+
+    // Refused BEFORE the allowance: an approval the buyer can never use is still a prompt they saw and a
+    // spender they granted.
+    expect(approveCalls).toHaveLength(0)
+    expect(acceptCalls).toHaveLength(0)
+  })
+
+  it('should refuse a resale paid with credits plus MANA', async () => {
+    await expect(
+      buyWithCreditsAndMana({
+        trade: fakeTrade(),
+        buyer: BUYER,
+        signer,
+        credits: [{ id: '0x01', amount: '100', availableAmount: '100', expiresAt: 9_999_999_999, signature: '0xsig' }],
+        manaGapWei: 10n ** 18n
+      })
+    ).rejects.toThrow(/resales/i)
+
+    expect(approveCalls).toHaveLength(0)
+  })
+
+  it('should still mint with MANA', async () => {
+    // A CollectionStore mint carries no trade at all, so the guard has nothing to refuse and primary
+    // purchases keep working with the switch off.
+    await buyMintWithMana({
+      mint: { item: { collection: ADDR('22'), itemId: '3', priceWei: '1000' }, chainId: 80002 },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(storeBuyCalls).toHaveLength(1)
+  })
+
+  it('should accept the resale once the permission is on', async () => {
+    secondaryPurchasesEnabled.value = true
+
+    await buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer })
+
+    expect(acceptCalls).toHaveLength(1)
   })
 })

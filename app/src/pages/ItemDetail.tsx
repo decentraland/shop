@@ -55,7 +55,8 @@ import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { ResellersModal } from '~/components/ResellersModal'
 import { MarketplaceRedirectModal } from '~/components/MarketplaceRedirectModal'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useSecondaryListings } from '~/hooks/useSecondaryListings'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 import { NotifyMe } from '~/components/NotifyMe'
 import { isNotifyAvailable } from '~/lib/notify'
 // import { MakeOfferButton } from '~/components/MakeOfferButton' // see the CTA block below
@@ -174,6 +175,17 @@ export function ItemDetail() {
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
 
+  /**
+   * The two secondary permissions, which are NOT the same question and are never read interchangeably:
+   *   - `secondaryPurchases` — may the Shop SELL somebody's copy to this visitor? Drives the resale list,
+   *     the lowest-price line, the buy-the-cheapest-resale CTA and whether a token-scoped listing is
+   *     buyable at all.
+   *   - `secondaryListings` — may this visitor LIST a copy they own? Drives `canPutOnSale` below, and
+   *     nothing else on this page. The Shop can sell resales while still refusing to take any.
+   */
+  const secondaryPurchases = useSecondaryPurchases()
+  const secondaryListings = useSecondaryListings()
+
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
   // (name/thumbnail/price then fill in from the collection fetch below).
@@ -183,9 +195,28 @@ export function ItemDetail() {
       // Pin identity to the ROUTE, not the passed state: on the item route force tokenId undefined (a
       // stale link could hand over a token-carrying item — it must NOT put a specific token on the
       // generic page); on the token route pin the exact tokenId. This is what kills the wrong-item bug.
-      return isTokenRoute
-        ? { ...seed, tokenId: routeTokenId, itemId: seed.itemId ?? pageItemId }
-        : { ...seed, tokenId: undefined, itemId: routeItemId ?? seed.itemId }
+      if (isTokenRoute) return { ...seed, tokenId: routeTokenId, itemId: seed.itemId ?? pageItemId }
+      /**
+       * A TOKEN-carrying seed on the ITEM route is a stale or crafted link — `detailRouteFor` sends a
+       * resale to `/token/:tokenId`, so nothing in the app produces this.
+       *
+       * Its `tokenId` was already dropped so the generic page cannot adopt one specific copy. Its TRADE
+       * has to go with it, for the same reason: that trade sells that copy. Keeping it let the page
+       * conclude "for sale" from a resale's order while presenting itself as the item — the wrong-item bug
+       * in its money form. With resales not on sale it offered Buy for one; with them on sale it offered
+       * to buy a token the projection no longer names, which the purchase path now refuses outright (see
+       * lib/api `tradeSellsExpectedAsset`). The price goes too: it is that copy's price, not the item's.
+       *
+       * What survives is presentation — name, image, rarity, creator — so the page still renders while the
+       * authoritative listing loads, and the sale section shows its skeleton rather than a verdict.
+       */
+      const seedNamesAToken = seed.tokenId != null
+      return {
+        ...seed,
+        tokenId: undefined,
+        itemId: routeItemId ?? seed.itemId,
+        ...(seedNamesAToken ? { tradeId: undefined, priceCredits: 0 } : {})
+      }
     }
     return {
       id: `${contractAddress}-${routeTokenId ?? routeItemId}`,
@@ -292,7 +323,7 @@ export function ItemDetail() {
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
   const { data: cachedItemListing, isLoading: deepLinkLoading } = useQuery({
-    queryKey: ['shop-item', current.contractAddress, pageItemId],
+    queryKey: ['shop-item', current.contractAddress, pageItemId, secondaryPurchases],
     // Runs even when the page was seeded from a card. Skipping it there was what let a stale grid price
     // stand as this page's price, with a Buy button under it.
     enabled: !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId,
@@ -301,7 +332,23 @@ export function ItemDetail() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchUnifiedListingForItem(current.contractAddress, pageItemId as string)
+    queryFn: () =>
+      // With resales on sale, a copy listed through the Marketplace is real liquidity for this item and
+      // `pickItemListing` still ranks the mint ahead of it — so this only ever ADDS a fallback price to an
+      // item whose own mint is gone. With the permission off the request is the one sent today.
+      fetchUnifiedListingForItem(current.contractAddress, pageItemId as string, {
+        includeLegacySecondary: secondaryPurchases,
+        /**
+         * Mints only while resales are not on sale — and this is load-bearing, not belt-and-braces.
+         *
+         * NATIVE (USD-pegged) resales are in this feed unconditionally and their orders are durable, so
+         * turning the permission off does not remove them. An item whose only remaining listing is one of
+         * those would otherwise hydrate THIS page with a resale's trade, and because the `/item/...` route
+         * deliberately strips `tokenId`, the page would read it as item-shaped and offer Buy for a copy the
+         * Shop may not sell.
+         */
+        listingType: secondaryPurchases ? undefined : 'primary'
+      })
   })
   /**
    * ITEM ROUTE ONLY — and enforced HERE, on the value, not by the `enabled` flag above.
@@ -334,6 +381,11 @@ export function ItemDetail() {
       return {
         ...prev,
         tradeId: deepLinkItem.tradeId,
+        // The token the resolved listing sells, when it sells one. Part of "which listing sells this now",
+        // exactly like `tradeId` — and required for the purchase to work: the buy path verifies the signed
+        // trade against the row's identity, so an item-shaped row holding a resale's trade is refused. With
+        // resales off this is always undefined anyway, because the hydrate asks for mints only.
+        tokenId: deepLinkItem.tokenId,
         priceCredits: deepLinkItem.priceCredits,
         manaWei: deepLinkItem.manaWei,
         available: deepLinkItem.available ?? prev.available,
@@ -527,21 +579,31 @@ export function ItemDetail() {
    * the store's own rails), so a mint and a listing offer the buyer exactly the same purchase.
    */
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
-  const forSale = !!buyableTradeId || isStoreMint
+  /**
+   * A TOKEN-scoped listing is somebody's resale, and this page can reach one without any resale surface
+   * being involved: `/token/:tokenId` hydrates from /v1/nfts, which hands over the token's open order
+   * (and therefore its `tradeId`) whatever the flag says. So the deep link — a shared URL, a refresh, a
+   * link from the Marketplace — was buyable here with resales switched off, which is the hole the kill
+   * switch has to close at the page level and not only in the cart.
+   *
+   * Reads NOT-FOR-SALE rather than not-found, because that is the truth: the copy exists and is listed,
+   * just not through the Shop, and the page keeps its "buy a resale on the Marketplace" hand-off.
+   */
+  const secondaryBuyBlocked = !!current.tokenId && !secondaryPurchases
+  const forSale = !secondaryBuyBlocked && (!!buyableTradeId || isStoreMint)
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
-  const secondarySales = useSecondarySales()
   const { data: resales = [] } = useQuery({
-    queryKey: ['item-resales', current.contractAddress, current.itemId],
+    queryKey: ['item-resales', current.contractAddress, current.itemId, secondaryPurchases],
     // Not fetched at all while resales are hidden: everything downstream of it (the "Lowest Price" line,
     // the resellers modal, the buy-the-cheapest-resale CTA on a sold-out item) resolves to empty from here,
     // so there is one switch rather than a condition per surface.
-    enabled: secondarySales && !isMarket && !!current.contractAddress && !!current.itemId,
+    enabled: secondaryPurchases && !isMarket && !!current.contractAddress && !!current.itemId,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchItemResales(current.contractAddress, current.itemId as string)
+    queryFn: () => fetchItemResales(current.contractAddress, current.itemId as string, { includeLegacySecondary: true })
   })
   const lowestResale = resales.length > 0 ? resales[0].priceCredits : null
 
@@ -623,7 +685,9 @@ export function ItemDetail() {
       createdAt: 0
     }
   }, [isMarket, state?.item])
-  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing
+  // `!secondaryBuyBlocked` for the same reason `forSale` carries it: a market row handed over in router
+  // state can be a resale, and this rail bypasses `forSale` entirely.
+  const canBuyMarket = isMarket && !secondaryBuyBlocked && marketPriceCredits != null && !!manaRate && !!marketListing
   // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
   // Kept up here with the other hooks so it's never called after an early return.
   const saleActive = useSaleActive({
@@ -907,7 +971,7 @@ export function ItemDetail() {
    *
    * With no listing and no permission the owner simply keeps Transfer.
    */
-  const canPutOnSale = manageAsPrimary || (manageAsSecondary && secondarySales)
+  const canPutOnSale = manageAsPrimary || (manageAsSecondary && secondaryListings)
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
@@ -1488,7 +1552,7 @@ export function ItemDetail() {
                       listing from a resale, and with resales off there is nothing to distinguish it from —
                       every listing in the Shop is a mint from its creator, so the row says something that is
                       true of the entire catalogue and reads as noise. It comes back with the flag. */}
-                  {secondarySales && !manage && !isMarket && forSale && !current.tokenId ? (
+                  {secondaryPurchases && !manage && !isMarket && forSale && !current.tokenId ? (
                     <S.PrimarySaleBanner data-testid="buy-from-creator">
                       <S.FromCreator>
                         <S.FromCreatorIco name="buy-from-creator" />
@@ -1867,7 +1931,7 @@ export function ItemDetail() {
         />
       ) : null}
 
-      {secondarySales && showResellers && current.itemId ? (
+      {secondaryPurchases && showResellers && current.itemId ? (
         <ResellersModal item={current} onClose={() => setShowResellers(false)} />
       ) : null}
 

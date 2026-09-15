@@ -17,8 +17,9 @@ import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendi
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
+import { assertSecondaryPurchasesAllowed } from '~/lib/secondary-purchase'
 import { t } from '~/intl/i18n'
-import { isRejection } from '~/lib/errors'
+import { isRejection, isSecondarySalesNotAllowedError, isSenderBalanceChangedError } from '~/lib/errors'
 import { captureError } from '~/lib/monitoring'
 import { createSpendGuard } from '~/lib/spend-guard'
 import * as S from './MarketCheckout.styles'
@@ -28,6 +29,10 @@ import type { SuccessNavState } from '~/pages/Success'
 // refetches live prices on this failure), so it maps locally rather than via the shared soldOrRemoved.
 function friendlyError(e: unknown): string {
   if (isRejection(e)) return t('errors.rejected')
+  // Checked before the substring tests below: both are final CreditsManager refusals, and this mapper's
+  // own "refreshing the market" wording would read as retryable. Detected from the revert (see lib/errors).
+  if (isSenderBalanceChangedError(e)) return t('errors.creatorRoyalty')
+  if (isSecondarySalesNotAllowedError(e)) return t('errors.resalesUnavailable')
   const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('marketCheckout.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('not found') || msg.includes('no active listing') || msg.includes('404')) {
@@ -208,6 +213,20 @@ export function MarketCheckout({
    */
   async function confirm() {
     if (!session || !quote) return
+    /**
+     * The resale kill switch, BEFORE anything is reserved.
+     *
+     * The purchase rails refuse this too, but they are reached after `authorizeUsdCredit` — and an
+     * ephemeral credit cannot be revoked once signed: it stays spendable until its own expiry and the
+     * buyer's balance keeps subtracting it for that whole time. Refusing here costs them nothing.
+     */
+    try {
+      await assertSecondaryPurchasesAllowed([quote.trade])
+    } catch (e) {
+      setPhase('error')
+      setError(friendlyError(e))
+      return
+    }
     // Not enough balance for this price → send them to top up (Get credits).
     if (needsMoreCredits) {
       // Funnel bridge: a purchase blocked by low balance that routes to Get Credits. Lets us join the

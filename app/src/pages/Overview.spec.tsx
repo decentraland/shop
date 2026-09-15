@@ -27,8 +27,8 @@ const { fetchShopItems, fetchTrendingItems } = vi.hoisted(() => ({
 vi.mock('~/lib/api', () => ({ fetchShopItems, fetchTrendingItems }))
 
 // The secondary-sales feature flag, which decides whether the trending row may show resales at all.
-const { useSecondarySales } = vi.hoisted(() => ({ useSecondarySales: vi.fn(() => false) }))
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales }))
+const { useSecondaryPurchases } = vi.hoisted(() => ({ useSecondaryPurchases: vi.fn(() => false) }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases }))
 
 // The creator-sales flag, which is what lets the Best Deals rail exist at all. On by default here so the
 // rail's own specs are about the rail; the one case below turns it off.
@@ -156,7 +156,7 @@ async function lastTrendingCall() {
 beforeEach(() => {
   vi.clearAllMocks()
   useCampaignHero.mockReturnValue(null)
-  useSecondarySales.mockReturnValue(false)
+  useSecondaryPurchases.mockReturnValue(false)
   useCreatorSalesEnabled.mockReturnValue(true)
   fetchTrendingItems.mockResolvedValue([])
   fetchShopItems.mockResolvedValue({ items: [], total: 0 })
@@ -181,7 +181,7 @@ describe('when the home page renders its trending row', () => {
   })
 
   it('should ask the server for primary listings only while the Shop does not sell resales', async () => {
-    useSecondarySales.mockReturnValue(false)
+    useSecondaryPurchases.mockReturnValue(false)
 
     renderOverview()
 
@@ -191,7 +191,7 @@ describe('when the home page renders its trending row', () => {
   })
 
   it('should stop constraining the listing type once resales are enabled', async () => {
-    useSecondarySales.mockReturnValue(true)
+    useSecondaryPurchases.mockReturnValue(true)
 
     renderOverview()
 

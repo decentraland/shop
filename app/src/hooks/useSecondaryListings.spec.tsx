@@ -4,7 +4,7 @@ import { PropsWithChildren } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resetFeatureFlagsCache } from '~/lib/featureFlags'
-import { useSecondarySales } from './useSecondarySales'
+import { useSecondaryListings } from './useSecondaryListings'
 
 /**
  * The Shop offers no secondary sales, and this hook is what every surface asks.
@@ -28,12 +28,12 @@ afterEach(() => {
   resetFeatureFlagsCache()
 })
 
-describe('useSecondarySales', () => {
+describe('useSecondaryListings', () => {
   it('should be false on the first render, before the flag has resolved', () => {
     resetFeatureFlagsCache()
     vi.stubGlobal('fetch', flagResponse({ 'dapps-shop-secondary-sales': true }))
 
-    const { result } = renderHook(() => useSecondarySales(), { wrapper })
+    const { result } = renderHook(() => useSecondaryListings(), { wrapper })
 
     // The window that matters: no Sell button may render here, even though the flag will come back true.
     expect(result.current).toBe(false)
@@ -43,7 +43,7 @@ describe('useSecondarySales', () => {
     resetFeatureFlagsCache()
     vi.stubGlobal('fetch', flagResponse({ 'dapps-shop-secondary-sales': true }))
 
-    const { result } = renderHook(() => useSecondarySales(), { wrapper })
+    const { result } = renderHook(() => useSecondaryListings(), { wrapper })
 
     await waitFor(() => expect(result.current).toBe(true))
   })
@@ -53,7 +53,7 @@ describe('useSecondarySales', () => {
     resetFeatureFlagsCache()
     vi.stubGlobal('fetch', flagResponse({ 'dapps-proceeds-to-treasury': true }))
 
-    const { result } = renderHook(() => useSecondarySales(), { wrapper })
+    const { result } = renderHook(() => useSecondaryListings(), { wrapper })
 
     await waitFor(() => expect(result.current).toBe(false))
   })
@@ -62,7 +62,7 @@ describe('useSecondarySales', () => {
     resetFeatureFlagsCache()
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
-    const { result } = renderHook(() => useSecondarySales(), { wrapper })
+    const { result } = renderHook(() => useSecondaryListings(), { wrapper })
 
     await waitFor(() => expect(result.current).toBe(false))
   })

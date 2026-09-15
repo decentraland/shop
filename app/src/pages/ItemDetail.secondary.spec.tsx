@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
- * THE SECONDARY-SALES FLAG, ON A TOKEN THE VIEWER OWNS AND HAS ALREADY LISTED.
+ * THE SECONDARY-SALES FLAGS, ON A TOKEN THE VIEWER OWNS AND HAS ALREADY LISTED.
  *
  * The shop is primary-sales only while `shop-secondary-sales` is off — and the flag is absent from the dapps
  * flag file, so it reads false in every environment today. Hiding "Put up for sale" was not enough: the page
@@ -14,6 +14,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  *
  * The rule these tests pin: with the flag off the EXIT stays open (Remove) and every ENTRANCE is shut (list,
  * re-price). Hiding Remove too would trap an owner with a listing they cannot take down.
+ *
+ * `shop-secondary-purchases` is pinned here too, from the other direction: it lets the Shop SELL other
+ * people's copies, and the last describe below is what stops it re-opening either entrance. If those two
+ * permissions ever merge back into one read, that block fails.
  */
 
 vi.mock('decentraland-transactions', () => ({
@@ -95,9 +99,11 @@ vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedVal
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [], isFetched: true }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
 
-// Mutable so both flag states are reachable — the whole point is the difference between them.
-const secondary = { enabled: false }
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondary.enabled }))
+// Mutable so every combination is reachable — the whole point is the difference between them, and the
+// difference between the two PERMISSIONS: listing is the seller's, purchases is the buyer's.
+const secondary = { listings: false, purchases: false }
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => secondary.listings }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => secondary.purchases }))
 
 import { ItemDetail } from '~/pages/ItemDetail'
 
@@ -134,7 +140,8 @@ const listCta = () => screen.queryByRole('button', { name: /put up for sale/i })
 
 beforeEach(() => {
   vi.clearAllMocks()
-  secondary.enabled = false
+  secondary.listings = false
+  secondary.purchases = false
   fetchOwnedToken.mockResolvedValue(ownedListedToken())
   fetchTokenById.mockResolvedValue(ownedListedToken())
 })
@@ -169,7 +176,7 @@ describe('ItemDetail — an owned, listed token while secondary sales are off', 
 
 describe('ItemDetail — an owned, listed token once secondary sales are on', () => {
   beforeEach(() => {
-    secondary.enabled = true
+    secondary.listings = true
   })
 
   it('should offer both re-pricing and removal', async () => {
@@ -177,6 +184,39 @@ describe('ItemDetail — an owned, listed token once secondary sales are on', ()
 
     await screen.findByTestId('manage-actions')
     expect(editPriceCta()).toBeInTheDocument()
+    expect(removeCta()).toBeInTheDocument()
+  })
+})
+
+describe('ItemDetail — an owned, listed token with secondary PURCHASES on and listings off', () => {
+  beforeEach(() => {
+    secondary.purchases = true
+    secondary.listings = false
+  })
+
+  it('should still not offer to re-price it', async () => {
+    renderTokenPdp()
+
+    await screen.findByTestId('manage-actions')
+    // The buy permission must not reach the seller's side. Re-pricing cancels and re-lists, so granting it
+    // here would have the Shop signing a secondary listing off the back of a permission to BUY one.
+    expect(editPriceCta()).not.toBeInTheDocument()
+  })
+
+  it('should still not offer to list an unlisted copy', async () => {
+    fetchOwnedToken.mockResolvedValue({ ...ownedListedToken(), isOnSale: false, tradeId: null })
+    fetchTokenById.mockResolvedValue({ ...ownedListedToken(), isOnSale: false, tradeId: null })
+
+    renderTokenPdp()
+
+    await screen.findByTestId('manage-actions')
+    expect(listCta()).not.toBeInTheDocument()
+  })
+
+  it('should keep the removal exit open', async () => {
+    renderTokenPdp()
+
+    await screen.findByTestId('manage-actions')
     expect(removeCta()).toBeInTheDocument()
   })
 })

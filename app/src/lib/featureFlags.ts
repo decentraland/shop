@@ -38,6 +38,41 @@ export enum FeatureFlag {
    * cancellation, not a flag.
    */
   SECONDARY_SALES = 'shop-secondary-sales',
+
+  /**
+   * Whether the Shop lets someone BUY a resale — and nothing else.
+   *
+   * The buyer's half of {@link FeatureFlag.SECONDARY_SALES}, split off because the product wants exactly
+   * one of the two halves: a Shop where you can buy a copy somebody listed on the Marketplace, while
+   * LISTING one stays over there. One flag could not express that — turning `shop-secondary-sales` on
+   * opens the Sell/Import surfaces in the same move.
+   *
+   * So the two are deliberately ASYMMETRIC, and the asymmetry is the whole design:
+   *   - this flag grants BUYING only. No combination of it enables listing, importing or re-pricing a
+   *     resale — `getIsSecondaryListingEnabled` does not read it.
+   *   - `shop-secondary-sales` still grants BOTH, so an environment already running on it behaves
+   *     exactly as before (see `getIsSecondaryPurchaseEnabled`).
+   *
+   * OFF by default, like every flag here.
+   *
+   * TURNING IT ON IS NOT ENOUGH, and this is the part a reader flipping it needs to know. Every credit
+   * purchase settles through `CreditsManagerPolygon.useCredits`, which refuses a trade that sends an
+   * ERC721 unless its own `secondarySalesAllowed` is true. That switch is on the CONTRACT, is admin-only,
+   * and is GLOBAL — it governs every programme sharing that manager, not just the Shop — so it is a
+   * deliberate operational decision, taken separately from this flag, and it reads `false` on mainnet
+   * today. With it false and this flag true, a buyer reaches checkout and the transaction reverts with
+   * `SecondarySalesNotAllowed`.
+   *
+   * One purchase stays impossible even with both on: whoever RECEIVES the royalty on a resale cannot buy
+   * that resale with credits. The royalty lands in their balance inside the same transaction, which trips
+   * the manager's `SenderBalanceChanged` guard. That recipient is whatever
+   * `RoyaltiesManager.getRoyaltiesReceiver` returns — the item's beneficiary when one is set, else the
+   * collection creator — so it is not predicted here; the revert is detected and explained instead (see
+   * `lib/errors.isSenderBalanceChangedError`). Paying entirely in MANA is unaffected: it settles through
+   * the marketplace directly and never enters the CreditsManager.
+   */
+  SECONDARY_PURCHASES = 'shop-secondary-purchases',
+
   /**
    * Whether creators can put their collections on sale from the Shop (a signed discount coupon the catalogue
    * applies to their listings) and whether the Shop shows them their running sales.
@@ -350,16 +385,45 @@ export async function getIsProceedsToTreasuryEnabled(): Promise<boolean> {
 }
 
 /**
- * Whether the Shop offers secondary sales.
+ * Whether this viewer may CREATE a secondary listing — sell an owned token, migrate one from the classic
+ * Marketplace, or change the price of one (which cancels and re-lists, so it creates a new one).
+ *
+ * Reads `shop-secondary-sales` and NOTHING else. `shop-secondary-purchases` is deliberately not consulted:
+ * the buy flag is meant to open the Shop to Marketplace resales without the Shop taking listings, and if
+ * this read it too, the one flag product wants to turn on would re-open the Sell flow as a side effect.
  *
  * Fails CLOSED like every other accessor here, and here that is the direction the product wants anyway: an
  * unreachable flag service hides resales rather than offering a flow the Shop is not meant to have.
  */
-export async function getIsSecondarySalesEnabled(): Promise<boolean> {
+export async function getIsSecondaryListingEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SECONDARY_SALES)
 }
 
 /** Whether creators can put their collections on sale from the Shop. Fails closed like every other accessor. */
 export async function getIsCreatorSalesEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/**
+ * Whether the Shop may SELL a resale to a buyer — discovery, the PDP resale list, the cart and checkout.
+ *
+ * Either flag grants it, which is what keeps the split backwards-compatible: `shop-secondary-sales` has
+ * always meant "resales exist in the Shop", buying included, so an environment running on it must not lose
+ * the buy half the day the buy flag appears. The four combinations are therefore:
+ *
+ *   purchases | sales | buy | list
+ *   ----------|-------|-----|-----
+ *   off       | off   | no  | no    (production today)
+ *   ON        | off   | YES | no    (this feature)
+ *   off       | ON    | yes | yes   (unchanged)
+ *   ON        | ON    | yes | yes   (unchanged)
+ *
+ * Fails CLOSED: both reads resolve to `false` on an unreachable flag service.
+ */
+export async function getIsSecondaryPurchaseEnabled(): Promise<boolean> {
+  const [purchases, sales] = await Promise.all([
+    getIsFeatureEnabled(FeatureFlag.SECONDARY_PURCHASES),
+    getIsFeatureEnabled(FeatureFlag.SECONDARY_SALES)
+  ])
+  return purchases || sales
 }

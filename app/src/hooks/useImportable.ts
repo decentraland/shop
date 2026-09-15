@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchImportable, type ImportItem } from '~/lib/import'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useSecondaryListings } from '~/hooks/useSecondaryListings'
 
 /**
  * The signed-in seller's classic (MANA-priced) listings the Shop can take over, as ONE flat list.
@@ -12,7 +12,7 @@ import { useSecondarySales } from '~/hooks/useSecondarySales'
  */
 export function useImportable(): { items: ImportItem[]; count: number | undefined; isLoading: boolean } {
   const address = useWallet(s => s.session?.address)
-  const secondarySales = useSecondarySales()
+  const secondaryListings = useSecondaryListings()
 
   const { data, isLoading } = useQuery({
     queryKey: ['importable', address],
@@ -24,12 +24,13 @@ export function useImportable(): { items: ImportItem[]; count: number | undefine
     staleTime: 5 * 60_000
   })
 
-  // The secondary half is dropped while resales are off, so no surface can offer to move a resale the
-  // Shop does not sell. Both the count and the tool's rows come from this one list, so the badge can
-  // never promise more rows than the tool then shows.
+  // The secondary half is dropped unless the Shop TAKES resale listings. Importing one creates a Shop
+  // listing, so this is the seller's permission (`useSecondaryListings`) and never the buyer's — the Shop
+  // can be selling other people's resales while still refusing to hold any of its own. Both the count and
+  // the tool's rows come from this one list, so the badge can never promise more rows than the tool shows.
   const items = useMemo(
-    () => [...(data?.creations ?? []), ...(secondarySales ? (data?.owned ?? []) : [])],
-    [data, secondarySales]
+    () => [...(data?.creations ?? []), ...(secondaryListings ? (data?.owned ?? []) : [])],
+    [data, secondaryListings]
   )
 
   return { items, count: data ? items.length : undefined, isLoading }

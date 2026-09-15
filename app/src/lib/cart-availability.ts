@@ -1,5 +1,7 @@
 import type { Trade } from '@dcl/schemas'
 import { resolveLiveTrade, fetchStoreMintState, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
+import { getIsSecondaryPurchaseEnabled } from '~/lib/featureFlags'
+import { isSecondaryItem, isSecondaryTrade } from '~/lib/secondary-purchase'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable
@@ -63,6 +65,15 @@ export function classifyStoreMint(state: { priceWei: string; available: number }
 export async function resolveLineAvailability(
   item: Pick<CatalogItem, 'tradeId' | 'tokenId' | 'itemId' | 'contractAddress' | 'acquisition'>
 ): Promise<CartLineAvailability> {
+  /**
+   * A resale the Shop is not selling reads UNAVAILABLE here, not just at checkout.
+   *
+   * `reviewCart` already refuses to charge it, but this is what the drawer SHOWS, and the two have to
+   * agree: without this a cart persisted from a session when resales were on came back with the line
+   * priced, counted and inside the total, and only the Confirm click revealed it was never buyable. The
+   * same fail-closed read as everywhere else — an unreachable flag service hides the line.
+   */
+  if (isSecondaryItem(item) && !(await getIsSecondaryPurchaseEnabled())) return 'unavailable'
   // A CollectionStore mint has no trade to resolve, so asking resolveLiveTrade for one always fails —
   // which classified as sold-out and made EVERY store line permanently unbuyable in the cart, excluded
   // from the total and from checkout, even though the store purchase path itself works. Its availability
@@ -73,6 +84,9 @@ export async function resolveLineAvailability(
   }
   try {
     const trade = await resolveLiveTrade(item)
+    // A row can be a resale without carrying a `tokenId` (see resolveLine): the trade is the authority, so
+    // the drawer reads it too rather than trusting the row's shape.
+    if (trade && isSecondaryTrade(trade) && !(await getIsSecondaryPurchaseEnabled())) return 'unavailable'
     const status = classifyTrade(item, trade)
     return status === 'sold-out' ? await mintFallback(item) : status
   } catch (e) {

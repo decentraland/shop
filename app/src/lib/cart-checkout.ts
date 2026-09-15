@@ -3,6 +3,8 @@ import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
 import { isOwnTrade } from '~/lib/ownership'
+import { isSecondaryItem, isSecondaryTrade } from '~/lib/secondary-purchase'
+import { getIsSecondaryPurchaseEnabled } from '~/lib/featureFlags'
 // Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
 // lib/buy-mana owns the vocabulary for that.
 import type { PurchaseTarget } from '~/lib/buy-mana'
@@ -271,6 +273,20 @@ export async function resolveLine(
   // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
   const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
 
+  /**
+   * The RESALE kill switch, checked before anything is resolved.
+   *
+   * Every checkout surface passes through here — the cart and the item page's Buy now both — so this is
+   * the one place that has to know, and it is what makes the flag cover the paths no render can: a cart
+   * persisted from a session when resales were being sold, a deep-linked token, a Stripe top-up resumed
+   * after the flag went off.
+   *
+   * Reported as `gone` rather than a state of its own: from the buyer's side the Shop no longer offers
+   * this copy, which is exactly what "no longer available" says, and it keeps the flag from needing its
+   * own sentence in six surfaces. `lib/secondary-purchase` refuses it again at the signing step.
+   */
+  if (isSecondaryItem(item) && !(await getIsSecondaryPurchaseEnabled())) return { status: 'gone' }
+
   // A CollectionStore mint has no trade to resolve, so it takes its own branch. `?? 'trade'` because a
   // cart persisted before mints existed carries no value, and every one of those rows is a trade.
   if ((item.acquisition ?? 'trade') === 'store') {
@@ -298,7 +314,27 @@ export async function resolveLine(
 
   const trade = await resolve(item)
   if (!trade) return { status: 'gone' }
+  /**
+   * The resale kill switch AGAIN, now against the signed trade.
+   *
+   * The check above reads the cart row's `tokenId`, and a row can be a resale without carrying one: the
+   * item page's projection strips `tokenId` on the `/item/...` route by design, and a native (USD-pegged)
+   * resale reaches the catalogue unconditionally — those orders are durable and switching the permission
+   * off does not cancel them. So a row can arrive looking item-shaped while its trade moves one specific
+   * token. `sent` is what the contract will actually move, which makes this the check that cannot be
+   * dodged by a projection.
+   */
+  if (isSecondaryTrade(trade) && !(await getIsSecondaryPurchaseEnabled())) return { status: 'gone' }
   if (isOwnTrade(trade, buyerAddress)) return { status: 'own' }
+  /**
+   * A resale is ONE unique token, and the TRADE is what says so.
+   *
+   * `quantity` above is derived from the row's `tokenId`, so an item-shaped row whose trade turns out to
+   * sell an ERC721 asked for as many copies as the stepper allowed — and every unit authorizes its own
+   * credit and accepts the same trade again, against a `checks.uses` of 1. Re-derived from `sent`, which
+   * cannot be wrong about how many of the asset exist.
+   */
+  const units = isSecondaryTrade(trade) ? 1 : quantity
   // Only a line that CLAIMS a discount pays for the extra lookup; one that never had a coupon prices off
   // the trade alone, as it always did. A sale that started after the item was added is therefore a missed
   // discount rather than a wrong charge — the price shown is the price taken.
@@ -316,7 +352,7 @@ export async function resolveLine(
       coupon: liveCoupon,
       usdCents,
       priceCredits: centsToCredits(usdCents),
-      quantity
+      quantity: units
     }
   }
 }

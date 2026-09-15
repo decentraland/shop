@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { bodyText, clickByText, waitForText } from './helpers/dom'
+import { COLLECTION, ownedNfts, unifiedWithItem0Resale } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -47,6 +48,44 @@ describe('with secondary sales off (the shipped default)', () => {
     expect(text).not.toMatch(/make an offer/i)
     // Nor the buyer's "Not for sale" label — the owner knows; the manage CTAs carry the state.
     expect(text).not.toMatch(/not for sale/i)
+  })
+
+  it("should not offer to buy another owner's resale of an item", async () => {
+    // The BUYER's half of the same default. The resale query is not even enabled, so the lowest-price
+    // line and the way into the reseller list are both absent — one switch rather than a gate per surface.
+    app = await launchApp({
+      path: `/item/${COLLECTION}/0`,
+      secondarySales: false,
+      fixtures: { unifiedListings: unifiedWithItem0Resale }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    expect(await page.$('[data-testid="lowest-price"]')).toBeNull()
+    expect(await page.$('[data-testid="view-resellers"]')).toBeNull()
+  })
+
+  it('should not make a DEEP-LINKED listed token buyable', async () => {
+    /**
+     * The hole a flag on the resale SURFACES never closed. `/token/:contract/:tokenId` hydrates from
+     * /v1/nfts, which hands over the token's open order — and its tradeId — whatever the flag says, so the
+     * page concluded "for sale" and rendered a Buy now under it. Reachable from a shared URL, a refresh,
+     * or a link out of the Marketplace, with no resale surface involved at any point.
+     */
+    app = await launchApp({
+      path: `/token/${COLLECTION}/42`,
+      secondarySales: false,
+      fixtures: { ownedNfts: { data: [], total: 0 }, publicNfts: ownedNfts }
+    })
+    const { page } = app
+
+    // The page still renders the copy: the link is not broken, the purchase is simply not on offer here.
+    await waitForText(page, 'Galaxy Hat')
+    const text = await bodyText(page)
+    expect(text).not.toMatch(/buy now/i)
+    expect(text).not.toMatch(/add to cart/i)
+    // And it keeps pointing at the place that can sell it today.
+    await page.waitForSelector('[data-testid="buy-resale"]', { timeout: 20000 })
   })
 
   // NOTE: that the browse grid asks the server for `listingType=primary` is asserted in lib/api.spec.ts

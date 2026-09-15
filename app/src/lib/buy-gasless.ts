@@ -25,6 +25,7 @@ import { type SpendableCredit } from '~/lib/trade-encoding'
 // The grouping and the per-group calldata live in ~/lib/buy so BOTH rails build the money call the same
 // way. buy.ts does not import this module, so the dependency runs one way only.
 import { buildGroupUseCreditsArgs, groupPurchases, type AnyPurchase, type MixedPurchases } from '~/lib/buy'
+import { assertSecondaryPurchasesAllowed, tradesIn } from '~/lib/secondary-purchase'
 import { reportSubmittedTx } from '~/lib/purchase-report'
 
 const { Interface, hexZeroPad } = ethers.utils
@@ -402,6 +403,10 @@ export async function buyOneGasless(opts: {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
   const { purchase, buyer, signer } = opts
   if (purchase.credits.length === 0) throw new Error('No credits to spend')
+  // The resale kill switch, on the RELAYED rail as well as the direct one (lib/secondary-purchase). This is
+  // the rail that matters most for it: every surface tries the relayer FIRST and only falls back to the
+  // buyer's own transaction, so a guard that lived solely in `lib/buy` would be a guard on the fallback.
+  await assertSecondaryPurchasesAllowed(tradesIn([purchase]))
 
   const { args, chainId } = buildGroupUseCreditsArgs(groupPurchases([purchase])[0], buyer)
   const cm = getContract(ContractName.CreditsManager, chainId)
@@ -453,6 +458,9 @@ export async function buyManyGasless(opts: {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
   const { purchases, buyer, signer, onSigned, onBroadcast, onGroupSettling } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
+  // Guarded for the WHOLE basket before the first group is signed, exactly as `buyManyWithCredits` does:
+  // this rail also signs once per group, so refusing partway would relay the primary half and abort.
+  await assertSecondaryPurchasesAllowed(tradesIn(purchases))
 
   const hashes: string[] = []
   const groups = groupPurchases(purchases)

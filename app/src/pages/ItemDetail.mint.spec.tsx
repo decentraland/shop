@@ -94,7 +94,8 @@ vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [],
 vi.mock('~/hooks/useManaRate', () => ({
   useManaRate: () => ({ data: { rate: 6_800_000n, decimals: 8 }, isError: false, isPending: false })
 }))
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => false }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => false }))
 
 import { ItemDetail } from '~/pages/ItemDetail'
 

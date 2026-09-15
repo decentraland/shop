@@ -64,12 +64,12 @@ import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
-import { isRejection, isInsufficient } from '~/lib/errors'
+import { isInsufficient, isRejection, isSecondarySalesNotAllowedError, isSenderBalanceChangedError } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { Icon } from '~/components/Icon'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 import type { CatalogItem } from '~/lib/api'
 import type { SuccessNavState } from '~/pages/Success'
 import * as S from './Cart.styles'
@@ -89,6 +89,12 @@ export type CartNavState = {
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
 function friendlyError(e: unknown): string {
   if (isRejection(e)) return t('errors.rejected')
+  // The two CreditsManager refusals the generic copy is actively wrong about: both are final, so "try
+  // again" would have the buyer clicking a purchase that can never settle. Detected from the revert (see
+  // lib/errors) — all three mappers in the app check them, because the one that silently generalises is
+  // the one nobody notices.
+  if (isSenderBalanceChangedError(e)) return t('errors.creatorRoyalty')
+  if (isSecondarySalesNotAllowedError(e)) return t('errors.resalesUnavailable')
   const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('no active listing') || msg.includes('your own listing')) return t('cart.error.listingChanged')
@@ -153,7 +159,7 @@ export function Cart() {
   const { session, signIn } = useWallet()
   // Drives the per-line "Creator" chip below. False while the flag loads, which is the right default here:
   // the chip appearing a moment after the cart paints is worse than it never appearing.
-  const secondarySales = useSecondarySales()
+  const secondaryPurchases = useSecondaryPurchases()
   // The top-up packs offered when the buyer is short on credits (same set the PDP uses — all four the
   // credits-server returns, shown in one widened row). Sourced from the credits-server catalogue
   // (single source of truth); falls back to the bundled packs so this critical picker always renders.
@@ -170,9 +176,11 @@ export function Cart() {
   const hasWearable = items.some(i => i.category !== 'emote')
 
   // Last-minute upsell: more credit-buyable listings not already in the cart.
+  // Same reason as the browse grid: native resales are in this feed whether or not the Shop is selling
+  // them, so the upsell asks for mints unless it may offer one. In the key, so a flip refetches.
   const { data: suggested } = useQuery({
-    queryKey: ['upsell-listings'],
-    queryFn: () => fetchListings({ first: 40 }),
+    queryKey: ['upsell-listings', secondaryPurchases],
+    queryFn: () => fetchListings({ first: 40, ...(secondaryPurchases ? {} : { listingType: 'primary' as const }) }),
     staleTime: 60_000
   })
   const { data: balance } = useBalance(session)
@@ -1385,7 +1393,7 @@ export function Cart() {
                               Gated on secondary sales for the same reason as the item page's banner: the chip
                               exists to tell a mint apart from a resale, and with resales off every line in
                               every cart is a mint, so it labels all of them with the same word. */}
-                          {secondarySales && isPrimary ? (
+                          {secondaryPurchases && isPrimary ? (
                             <S.CreatorTag data-testid="cart-creator-tag">
                               <S.CreatorTagIco name="buy-from-creator" />
                               {t('cart.creatorTag')}
