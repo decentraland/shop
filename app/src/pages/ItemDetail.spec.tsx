@@ -75,7 +75,8 @@ vi.mock('~/lib/analytics', () => ({
 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
 import { track } from '~/lib/analytics'
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => false }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => false }))
 // The seasonal-event chip. Stubbed like the other data hooks so this file stays about the page; whether an
 // item belongs to the running event is `useCampaignBadge`'s own spec.
 const { useCampaignBadge } = vi.hoisted(() => ({ useCampaignBadge: vi.fn<() => string | null>(() => null) }))
@@ -693,7 +694,10 @@ describe('ItemDetail — an item id arriving with a query fragment stuck to it',
     renderPdp('1&utm_source=client')
 
     await waitFor(() => expect(api.fetchUnifiedListingForItem).toHaveBeenCalled())
-    expect(api.fetchUnifiedListingForItem).toHaveBeenCalledWith(ANCHOR, '1')
+    expect(api.fetchUnifiedListingForItem).toHaveBeenCalledWith(ANCHOR, '1', {
+      includeLegacySecondary: false,
+      listingType: 'primary'
+    })
   })
 
   it('should still hydrate the item, which is what made the broken link look like a genuine "Not for sale"', async () => {

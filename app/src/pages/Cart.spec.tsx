@@ -31,12 +31,25 @@ const session = {
   identity: { authChain: [] } as never,
   providerType: 'injected' as never
 }
+// `resolveLine` (via lib/cart-checkout) reads the secondary-purchase permission, so this file has to say
+// where it stands. ON: the subject here is the checkout flow, and a refusal would hide all of it.
+const secondaryPurchasesEnabled = { value: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchasesEnabled.value)
+}))
+
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session, signIn: vi.fn() }) }))
 
 // decentraland-transactions ships an ESM directory import that vitest's node resolver cannot follow, so it is
 // mocked wholesale (the same workaround MarketCheckout.spec.tsx documents). Nothing here reaches a contract.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore', OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
+  ContractName: {
+    CreditsManager: 'CreditsManager',
+    CollectionStore: 'CollectionStore',
+    OffChainMarketplaceV3: 'OffChainMarketplaceV3',
+    OffChainMarketplaceV2: 'OffChainMarketplaceV2'
+  },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: ['function accept(uint256[] x)'] }),
   sendMetaTransaction: vi.fn(),
@@ -60,9 +73,9 @@ vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: mana.w
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: { rate: 50_000_000n, decimals: 8 } }) }))
 // Every line buyable: availability is a different concern with its own specs.
 vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) }))
-// The per-line "Creator" chip is gated on this; `secondarySales` lets a test pick the state it needs.
-const secondarySales = { on: false }
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales.on }))
+// The per-line "Creator" chip is gated on this; `secondaryPurchases` lets a test pick the state it needs.
+const secondaryPurchases = { on: false }
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => secondaryPurchases.on }))
 
 const { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } = vi.hoisted(() => ({
   authorizeUsdCredit: vi.fn(),
@@ -118,7 +131,11 @@ const { manaQuote } = vi.hoisted(() => ({ manaQuote: { wei: 0n } }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
   // The shared options the callers now use. Same stubbed rate, resolved without touching a chain.
-  manaRateQueryOptions: () => ({ queryKey: ['mana-rate', 80002], queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }), staleTime: 60_000 }),
+  manaRateQueryOptions: () => ({
+    queryKey: ['mana-rate', 80002],
+    queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }),
+    staleTime: 60_000
+  }),
   usdCentsToManaWei: () => manaQuote.wei,
   manaWeiToUsdCents: () => 0,
   manaWeiToCredits: () => 0,
@@ -623,14 +640,14 @@ describe('when the credits balance cannot cover the cart', () => {
 
 describe('when a cart line is a primary (mint) listing', () => {
   it('should hide the Creator chip while secondary sales are off', async () => {
-    secondarySales.on = false
+    secondaryPurchases.on = false
     renderCart([item('a')])
     expect(await screen.findByText('Item a')).toBeTruthy()
     expect(screen.queryByTestId('cart-creator-tag')).toBeNull()
   })
 
   it('should show the Creator chip once secondary sales are on', async () => {
-    secondarySales.on = true
+    secondaryPurchases.on = true
     renderCart([item('a')])
     expect(await screen.findByTestId('cart-creator-tag')).toBeTruthy()
   })

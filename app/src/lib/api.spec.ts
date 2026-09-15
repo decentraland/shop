@@ -55,6 +55,8 @@ import {
   fetchTradeForItem,
   pickItemListing,
   fetchItemResales,
+  fetchUnifiedListingForItem,
+  fetchRelatedItems,
   fetchClassicItemOrders,
   resolveLiveTrade,
   fetchAssetDisplay,
@@ -1939,5 +1941,249 @@ describe('when reading the remaining supply off an item row', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))
 
     expect((await fetchItemMeta('0xabc', '1'))?.available).toBeNull()
+  })
+})
+
+/**
+ * `includeLegacySecondary` — THE ONE REQUEST-SHAPED HALF OF THE SECONDARY PURCHASE PERMISSION.
+ *
+ * The server's unified feed keeps its legacy (MANA) branch primary-only unless a request asks otherwise,
+ * so a copy listed through the Marketplace — which is where resale listing lives — is invisible to the
+ * Shop until this parameter is sent. Two properties matter and both are pinned here:
+ *
+ *  - ABSENT by default, so the request is byte-for-byte the one production sends today. A parameter that
+ *    leaked in would show resales in an environment whose flag is off.
+ *  - carried by EVERY feed drawn from the unified core (listings, the grouped grid, related, trending),
+ *    because a grid that includes a row the related rail excludes is a catalogue that contradicts itself.
+ */
+describe('when asking the unified feeds for Marketplace resales', () => {
+  it('should send nothing by default, on every unified feed', async () => {
+    for (const call of [
+      () => fetchUnified(),
+      () => fetchShopItems(),
+      () => fetchItemResales('0xc', '9'),
+      () => fetchUnifiedListingForItem('0xc', '9'),
+      () => fetchRelatedItems('0xc', '9'),
+      () => fetchTrendingItems()
+    ]) {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+      await call()
+      expect(lastUrl()).not.toContain('includeLegacySecondary')
+    }
+  })
+
+  it('should send it on every unified feed when the caller opts in', async () => {
+    for (const call of [
+      () => fetchUnified({ includeLegacySecondary: true }),
+      () => fetchShopItems({ includeLegacySecondary: true }),
+      () => fetchItemResales('0xc', '9', { includeLegacySecondary: true }),
+      () => fetchUnifiedListingForItem('0xc', '9', { includeLegacySecondary: true }),
+      () => fetchRelatedItems('0xc', '9', { includeLegacySecondary: true }),
+      () => fetchTrendingItems({ includeLegacySecondary: true })
+    ]) {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+      await call()
+      expect(lastUrl()).toContain('includeLegacySecondary=true')
+    }
+  })
+
+  it('should send nothing when the caller opts out explicitly', async () => {
+    // `false` is how a surface whose permission is off reports it, and it must produce the SAME request as
+    // omitting it — not `includeLegacySecondary=false`, which the server would reject as an unknown value.
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({ includeLegacySecondary: false })
+    expect(lastUrl()).not.toContain('includeLegacySecondary')
+  })
+
+  it('should keep a MANA-priced resale row, which is what opting in brings back', async () => {
+    // The row the feature exists for: a `public_nft_order` priced in MANA. It reaches the Shop as a legacy
+    // secondary row carrying both a tradeId (so credits can fulfil it) and manaWei (so the price is
+    // re-derived at the live rate rather than trusted from the server's snapshot).
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            listingType: 'secondary',
+            tradeId: 't-mkt',
+            tokenId: '42',
+            issuedId: '7',
+            seller: '0xseller',
+            priceCredits: 12,
+            manaWei: '25000000000000000000'
+          }
+        ]
+      })
+    )
+
+    const resales = await fetchItemResales('0xc', '9', { includeLegacySecondary: true })
+
+    expect(resales).toHaveLength(1)
+    expect(resales[0]).toMatchObject({
+      tradeId: 't-mkt',
+      tokenId: '42',
+      issuedId: '7',
+      seller: '0xseller',
+      source: 'legacy',
+      manaWei: '25000000000000000000'
+    })
+  })
+})
+
+/**
+ * ASSET IDENTITY — the check the price check cannot do.
+ *
+ * `resolveLiveTrade` used to fall back to `fetchTradeForItem(contract, itemId)` whenever a known tradeId
+ * 404'd, "so a caller can't end up buying an unrelated trade". That premise holds only for a line that IS
+ * the item. For a resale of token 77 the item's current listing can be a fresh mint or somebody else's
+ * token 88 — a DIFFERENT asset, and `reviewCart` compares prices, so at the same price the swap is
+ * invisible: the row still shows 77's name, image and issued number.
+ *
+ * Driven through the mocked fetch rather than a stubbed resolver, so what is exercised is the real
+ * request sequence: the 404 on the stale trade, and whether a second request is made at all.
+ */
+describe('when a resale of a specific token loses its listing', () => {
+  const erc721 = (tokenId: string, contract = '0xc') => ({
+    id: `tr-${tokenId}`,
+    sent: [{ assetType: TradeAssetType.ERC721, contractAddress: contract, tokenId }],
+    received: [{ assetType: TradeAssetType.USD_PEGGED_MANA, amount: USD1 }]
+  })
+
+  it('should report no live listing instead of buying another copy at the same price', async () => {
+    fetchMock
+      .mockResolvedValueOnce(httpError(404)) // token 77's signed trade is gone
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-88', itemId: '9', tokenId: '88' }] }))
+      .mockResolvedValueOnce(jsonOk({ data: erc721('88') }))
+
+    const trade = await resolveLiveTrade({ tradeId: 'tr-77', contractAddress: '0xc', itemId: '9', tokenId: '77' })
+
+    expect(trade).toBeNull()
+    // And it never even asked: re-resolving BY ITEM is meaningless for a token-scoped line, so the only
+    // request made is the one for the token's own trade.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-77')
+  })
+
+  it('should still re-resolve for an ITEM-scoped line, which is what the fallback is for', async () => {
+    // The behaviour that must survive: a mint whose trade was re-signed resolves to the fresh one.
+    fetchMock
+      .mockResolvedValueOnce(httpError(404))
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-fresh', itemId: '9' }] }))
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-fresh' } }))
+
+    const trade = await resolveLiveTrade({ tradeId: 'tr-stale', contractAddress: '0xc', itemId: '9' })
+
+    expect(trade).toEqual({ id: 'tr-fresh' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('should refuse a trade that names a DIFFERENT token, even on the fast path', async () => {
+    // Defence for the other way in: a re-used or mis-stored tradeId that resolves fine but sells token 88.
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: erc721('88') }))
+
+    expect(await resolveLiveTrade({ tradeId: 'tr-88', contractAddress: '0xc', itemId: '9', tokenId: '77' })).toBeNull()
+  })
+
+  it('should refuse a trade on a different collection', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: erc721('77', '0xother') }))
+
+    expect(await resolveLiveTrade({ tradeId: 'tr-77', contractAddress: '0xc', itemId: '9', tokenId: '77' })).toBeNull()
+  })
+
+  it('should accept the token it was asked for, case-insensitively on the contract', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: erc721('77', '0xC') }))
+
+    const trade = await resolveLiveTrade({ tradeId: 'tr-77', contractAddress: '0xc', itemId: '9', tokenId: '77' })
+    expect(trade).toMatchObject({ id: 'tr-77' })
+  })
+
+  it('should refuse a MINT offered for a token-scoped line', async () => {
+    // The shape the old fallback actually produced most often: the item is still being minted, so the
+    // item-level resolver answers with a COLLECTION_ITEM trade.
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: {
+          id: 'tr-mint',
+          sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xc', itemId: '9' }],
+          received: [{ assetType: TradeAssetType.USD_PEGGED_MANA, amount: USD1 }]
+        }
+      })
+    )
+
+    expect(await resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: '9', tokenId: '77' })).toBeNull()
+  })
+
+  it('should refuse a RESALE offered for an item-scoped line', async () => {
+    // The same swap in the other direction.
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: erc721('77') }))
+
+    expect(await resolveLiveTrade({ tradeId: 'tr-77', contractAddress: '0xc', itemId: '9' })).toBeNull()
+  })
+
+  it('should refuse a COLLECTION_ITEM trade that names a different item', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: {
+          id: 'tr-other',
+          sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xc', itemId: '42' }],
+          received: [{ assetType: TradeAssetType.USD_PEGGED_MANA, amount: USD1 }]
+        }
+      })
+    )
+
+    expect(await resolveLiveTrade({ tradeId: 'tr-other', contractAddress: '0xc', itemId: '9' })).toBeNull()
+  })
+})
+
+/**
+ * NATIVE RESALES ARE DURABLE — so "primary only" has to be ASKED FOR, not assumed.
+ *
+ * `includeLegacySecondary` governs the LEGACY branch alone. The native (USD-pegged) branch has always
+ * returned secondary rows unconditionally, and those are real signed orders: turning the Shop's resale
+ * permission off cancels exactly none of them. Any surface that reasons "the feed is effectively primary
+ * because the Shop is not taking listings today" is relying on a fact about today, not a property — and
+ * every one of these feeds was doing that, because none of them sent `listingType` at all.
+ */
+describe('when a surface may not sell resales', () => {
+  it('should ask the item hydrate for mints only', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchUnifiedListingForItem('0xc', '9', { listingType: 'primary' })
+    expect(lastUrl()).toContain('listingType=primary')
+  })
+
+  it('should ask the related rail for mints only', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchRelatedItems('0xc', '9', { listingType: 'primary' })
+    expect(lastUrl()).toContain('listingType=primary')
+  })
+
+  it('should ask the cart upsell feed for mints only', async () => {
+    // `/v3/catalog/shop` is NATIVE-only, which is exactly why it needed this: native-only does not mean
+    // primary-only. The parameter is honoured server-side (marketplace-server getShopListings).
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchListings({ first: 40, listingType: 'primary' })
+    expect(lastUrl()).toContain('https://market.test/v3/catalog/shop?')
+    expect(lastUrl()).toContain('listingType=primary')
+  })
+
+  it('should send no listingType when resales ARE on sale, so both kinds come back', async () => {
+    for (const call of [
+      () => fetchUnifiedListingForItem('0xc', '9', { includeLegacySecondary: true }),
+      () => fetchRelatedItems('0xc', '9', { includeLegacySecondary: true }),
+      () => fetchListings({ first: 40 })
+    ]) {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+      await call()
+      expect(lastUrl()).not.toContain('listingType')
+    }
+  })
+
+  it('should keep a native secondary row out of the hydrate when the server is asked for primary', async () => {
+    // End to end through the mapper: the server honours the filter, so `pickItemListing` never sees a
+    // resale and cannot return one as the page's listing.
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    expect(await fetchUnifiedListingForItem('0xc', '9', { listingType: 'primary' })).toBeNull()
   })
 })

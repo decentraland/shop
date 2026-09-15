@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TradeAssetType } from '@dcl/schemas'
 import type { LegacyListing } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
 
@@ -48,6 +49,13 @@ vi.mock('~/lib/mana-rate', () => ({
 }))
 
 vi.mock('~/lib/ownership', () => ({ isOwnTrade: () => false }))
+// The resale kill switch, read via lib/secondary-purchase. ON for the bulk of this file; the block at the
+// end turns it off to pin WHERE the refusal happens.
+const secondaryPurchases = { enabled: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchases.enabled)
+}))
 // The gasless rail is the production DEFAULT and was previously hard-mocked off, so nothing exercised it —
 // which is where the broadcast bookkeeping lives. `gaslessOn` lets a test pick the rail.
 // Declared inside vi.hoisted so the mock factories (which are hoisted above module scope) can reach them.
@@ -128,6 +136,7 @@ function priceMatcher(expected: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  secondaryPurchases.enabled = true
   fetchTrade.mockResolvedValue({ signer: '0xseller' })
   // ECHOES the requested price, rounded up to a whole credit — exactly what the credits-server does
   // (`Math.ceil(rawPrice / 10) * 10`). A fixed number would silently disagree with the quote this modal
@@ -673,5 +682,48 @@ describe('when the modal goes away mid-purchase', () => {
     unmount()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+})
+
+/**
+ * THE KILL SWITCH HAS TO FIRE BEFORE THE CREDIT IS RESERVED.
+ *
+ * The purchase rails refuse a resale too, but they are reached AFTER `authorizeUsdCredit` — and an
+ * ephemeral credit cannot be revoked once signed: it stays spendable until its own expiry and the buyer's
+ * balance keeps subtracting it for that whole time. So "refused at the signing step" would mean the buyer
+ * loses the use of that money for the credit's lifetime to be told no.
+ */
+describe('when the Shop is not selling resales', () => {
+  beforeEach(() => {
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    secondaryPurchases.enabled = false
+    // A resale: what the trade SENDS is an existing token. The listing projection carries no tokenId
+    // (MarketCheckout receives a LegacyListing), so the trade is the only thing that can say so.
+    fetchTrade.mockResolvedValue({
+      signer: '0xseller',
+      sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xcontract', tokenId: '77' }]
+    })
+  })
+
+  it('should refuse without reserving a credit', async () => {
+    renderModal()
+
+    expect(await screen.findByRole('button', { name: /confirm purchase/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /confirm purchase/i }))
+
+    await waitFor(() => expect(authorizeUsdCredit).not.toHaveBeenCalled())
+    expect(buyWithCredits).not.toHaveBeenCalled()
+  })
+
+  it('should still settle a MINT, which this permission says nothing about', async () => {
+    fetchTrade.mockResolvedValue({
+      signer: '0xseller',
+      sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xcontract', itemId: '1' }]
+    })
+    renderModal()
+
+    await userEvent.click(await screen.findByRole('button', { name: /confirm purchase/i }))
+
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
   })
 })

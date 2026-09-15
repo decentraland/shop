@@ -65,7 +65,8 @@ vi.mock('~/lib/analytics', () => ({
   isUserRejection: () => false
 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => false }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => false }))
 
 const walletState = {
   session: null,

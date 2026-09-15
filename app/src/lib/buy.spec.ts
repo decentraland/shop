@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { ethers as Ethers } from 'ethers'
 
@@ -19,6 +19,16 @@ let contractName = 'DecentralandMarketplacePolygon'
 let aggAddr = '0xaggregator'
 let aggDecimals = 8
 let aggAnswer = '50000000' // int256 latestRoundData answer: $0.50/MANA at 8 decimals
+
+// The resale kill switch lives in the purchase rails (lib/secondary-purchase), so every spec that drives
+// one has to say where the permission stands. ON here: these tests are about calldata, grouping and
+// failure reporting, and a refusal would hide all of it. The switch itself is pinned in
+// secondary-purchase.spec.ts and in the dedicated blocks below.
+const secondaryPurchasesEnabled = { value: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchasesEnabled.value)
+}))
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
@@ -1222,5 +1232,119 @@ describe('when checking the grouping against what is submitted', () => {
     expect(useCreditsCalls.map(c => c.externalCall.target)).toEqual(
       groups.map(g => (g.kind === 'store' ? '0xstore' : '0xmarket'))
     )
+  })
+})
+
+/**
+ * THE RESALE KILL SWITCH ON THE CREDITS RAILS.
+ *
+ * `lib/secondary-purchase` is asked here, at the last step before calldata exists, because this is where
+ * the paths no render covers arrive: a persisted cart, a `/token/…` deep link, a checkout resumed after a
+ * Stripe top-up. The switch cannot un-broadcast a transaction and does not pretend to — what it stops is
+ * one being built.
+ *
+ * A MINT is a fresh copy (COLLECTION_ITEM), so `fakeMint` below is the control: primary sales are
+ * untouched by this permission, and a guard that caught them would take the Shop's whole catalogue down
+ * with the flag.
+ */
+describe('when the Shop is not selling resales', () => {
+  // A mint, told apart from a resale by what it SENDS — the same discriminator the CreditsManager uses.
+  const fakeMint = (contract: string): Trade =>
+    ({
+      ...fakeTrade(contract),
+      type: 'public_item_order',
+      sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: NFT, value: '3', itemId: '3', extra: '0x' }]
+    }) as unknown as Trade
+
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
+    secondaryPurchasesEnabled.value = false
+  })
+  afterEach(() => {
+    secondaryPurchasesEnabled.value = true
+  })
+
+  it('should refuse a single resale and submit nothing', async () => {
+    await expect(
+      buyOneWithCredits({
+        purchase: {
+          kind: 'trade',
+          trade: fakeTrade('0xmarket'),
+          credits: [credit(B32('1'), '100')],
+          maxCreditedValue: '100'
+        },
+        buyer: BUYER,
+        signer
+      })
+    ).rejects.toThrow(/resales/i)
+
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('should refuse a basket containing a resale WHOLE, before the first group goes out', async () => {
+    await expect(
+      buyManyWithCredits({
+        purchases: [
+          { trade: fakeMint('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+          { trade: fakeTrade('0xmarket'), credits: [credit(B32('2'), '200')], maxCreditedValue: '200' }
+        ],
+        buyer: BUYER,
+        signer
+      })
+    ).rejects.toThrow(/resales/i)
+
+    // The important half: a mixed basket signs once per group, so refusing group-by-group would let the
+    // mint settle and charge the buyer for part of an order they placed as one.
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('should still buy a MINT', async () => {
+    await buyOneWithCredits({
+      purchase: {
+        kind: 'trade',
+        trade: fakeMint('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(useCreditsCalls).toHaveLength(1)
+  })
+
+  it('should still buy a CollectionStore mint, which carries no trade at all', async () => {
+    await buyOneWithCredits({
+      purchase: {
+        kind: 'store',
+        item: { collection: NFT, itemId: '3', priceWei: '1000' },
+        chainId: 80002,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(useCreditsCalls).toHaveLength(1)
+  })
+
+  it('should buy the resale once the permission is on', async () => {
+    secondaryPurchasesEnabled.value = true
+
+    await buyOneWithCredits({
+      purchase: {
+        kind: 'trade',
+        trade: fakeTrade('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(useCreditsCalls).toHaveLength(1)
   })
 })

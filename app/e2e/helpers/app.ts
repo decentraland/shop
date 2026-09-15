@@ -254,6 +254,15 @@ function toCatalogRow(l: any) {
 
 // Set per launchApp run; read by the flag-file handler below.
 let secondarySalesFlag = true
+/**
+ * `shop-secondary-purchases` — the BUY-only permission, kept separate from the flag above.
+ *
+ * `undefined` leaves it OUT of the flag file entirely, which is the shipped state and what every existing
+ * spec runs in: the buy permission then comes from `shop-secondary-sales` alone (either flag grants it), so
+ * the resale specs keep working unchanged. A spec passes `true` to exercise the combination the feature
+ * actually ships as — buying on, listing off.
+ */
+let secondaryPurchasesFlag: boolean | undefined
 let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
@@ -379,6 +388,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       body: JSON.stringify({
         flags: {
           'dapps-shop-secondary-sales': secondarySalesFlag,
+          // Spread so an unset value leaves the key ABSENT rather than present-and-false: absent is what
+          // the shipped flag file looks like, and the two are not the same shape to read against.
+          ...(secondaryPurchasesFlag === undefined ? {} : { 'dapps-shop-secondary-purchases': secondaryPurchasesFlag }),
           'dapps-shop-outfit-creators': outfitCreatorFlag,
           'dapps-shop-follows': followsFlag,
           'dapps-shop-creator-sales': creatorSalesFlag,
@@ -996,6 +1008,14 @@ export async function launchApp(
      */
     secondarySales?: boolean
     /**
+     * Whether the mocked flag file reports secondary PURCHASES as available — the Shop selling other
+     * people's resales while taking none of its own. Omitted leaves the flag out of the file, which is the
+     * shipped state; the buy permission then rides on `secondarySales`.
+     *
+     * Pass `secondaryPurchases: true, secondarySales: false` for the combination the feature ships as.
+     */
+    secondaryPurchases?: boolean
+    /**
      * Arm the shop-outfit-creators flag with the test user's address in the variant, so the outfit
      * studio surfaces render (outfits.e2e.ts). Off by default — everyone else sees no studio.
      */
@@ -1038,6 +1058,7 @@ export async function launchApp(
   const errors = opts.errors ?? {}
   const appBase = opts.base ?? BASE
   secondarySalesFlag = opts.secondarySales ?? true
+  secondaryPurchasesFlag = opts.secondaryPurchases
   outfitCreatorFlag = opts.outfitCreator ?? false
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false

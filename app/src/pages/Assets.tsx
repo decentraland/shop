@@ -4,7 +4,7 @@ import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useUrlFilters } from '~/hooks/useUrlFilters'
 import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -161,7 +161,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
   const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
-  const secondarySales = useSecondarySales()
+  const secondaryPurchases = useSecondaryPurchases()
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
   const sortOptions = deals ? DEALS_SORTS : SORTS
   const sortBy = (sortOptions.find(s => s.key === sort) ?? sortOptions[0]).server
@@ -184,7 +184,11 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
     // shows a result count, so dropping rows here would give short pages and a count that lies. Note this
     // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
     // they are not purchasable in the Shop.
-    listingType: secondarySales ? undefined : ('primary' as const),
+    listingType: secondaryPurchases ? undefined : ('primary' as const),
+    // Opens the server's legacy branch to RESALES, which is where a copy listed through the Marketplace
+    // lives. Part of the filter set (and therefore of the query key), so flipping the permission refetches
+    // the grid rather than leaving a cached resale-free page behind.
+    includeLegacySecondary: secondaryPurchases,
     contractAddresses: contracts?.length ? contracts : undefined
   }
   // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,

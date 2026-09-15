@@ -1,9 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
 
 // Only resolveLiveTrade is stubbed; usdWeiToCents + TradeNotFoundError stay real so the classifier and
 // the not-found branch exercise the production code paths.
+/**
+ * `resolveLineAvailability` reads the secondary-purchase permission: what the cart drawer SHOWS has to
+ * agree with what checkout will do. ON for the bulk of this file; the block at the end turns it off.
+ */
+const secondaryPurchases = { enabled: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchases.enabled)
+}))
+
 vi.mock('~/lib/api', async importActual => {
   const actual = await importActual<typeof import('~/lib/api')>()
   return { ...actual, resolveLiveTrade: vi.fn(), fetchStoreMintState: vi.fn() }
@@ -191,5 +201,73 @@ describe('cart-availability', () => {
       await expect(resolveLineAvailability(primary as CatalogItem)).resolves.toBe('available')
       expect(storeMock).not.toHaveBeenCalled()
     })
+  })
+})
+
+/**
+ * THE KILL SWITCH ON A PERSISTED CART LINE.
+ *
+ * The cart is persisted to localStorage, so a resale added while the Shop was selling them comes back
+ * whole — priced, counted, inside the total — with no resale surface involved in the return trip.
+ * `reviewCart` already refuses to charge it, but the DRAWER is what the buyer reads, and the two have to
+ * say the same thing: a line that shows a price and contributes to the total, then vanishes on Confirm,
+ * is the version of this that reached a buyer.
+ */
+describe('a persisted resale line while the Shop is not selling resales', () => {
+  beforeEach(() => {
+    // The reset above lives inside another describe, so this block owns its own.
+    resolveMock.mockReset()
+    storeMock.mockReset()
+    secondaryPurchases.enabled = false
+  })
+  afterEach(() => {
+    secondaryPurchases.enabled = true
+  })
+
+  it('should read as unavailable, and never resolve a trade for it', async () => {
+    resolveMock.mockResolvedValue(trade(2))
+
+    expect(await resolveLineAvailability({ tokenId: '42', tradeId: 'tr-1', contractAddress: '0xc', itemId: '1' })).toBe(
+      'unavailable'
+    )
+    // Not a read wasted on a line that cannot be sold — and it is what makes the answer independent of
+    // whether the listing happens to still be live.
+    expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it('should be excluded from the total and from checkout by the shared predicate', async () => {
+    const status = await resolveLineAvailability({
+      tokenId: '42',
+      tradeId: 'tr-1',
+      contractAddress: '0xc',
+      itemId: '1'
+    })
+
+    expect(isLineBuyable(status)).toBe(false)
+  })
+
+  it('should leave a PRIMARY line alone', async () => {
+    resolveMock.mockResolvedValue(trade(2))
+
+    expect(
+      await resolveLineAvailability({ tokenId: undefined, tradeId: 'tr-1', contractAddress: '0xc', itemId: '1' })
+    ).toBe('available')
+  })
+
+  it('should leave a CollectionStore mint alone', async () => {
+    storeMock.mockResolvedValue({ priceWei: '1000', available: 3 })
+
+    expect(
+      await resolveLineAvailability({ acquisition: 'store', contractAddress: '0xc', itemId: '1', tokenId: undefined })
+    ).toBe('available')
+  })
+
+  it('should read as available again once the permission is on', async () => {
+    secondaryPurchases.enabled = true
+    resolveMock.mockResolvedValue(trade(2))
+
+    expect(await resolveLineAvailability({ tokenId: '42', tradeId: 'tr-1', contractAddress: '0xc', itemId: '1' })).toBe(
+      'available'
+    )
   })
 })

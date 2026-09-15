@@ -14,7 +14,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { LivePromo } from '~/components/LivePromo'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
@@ -206,10 +206,15 @@ export function Overview() {
   // it does, so the first request asks for primaries only and a flag-on environment refetches once it
   // resolves (the flag is part of the query key). That order matters: the wrong way round shows a row of
   // resales for a moment on a Shop that does not sell them.
-  const secondarySales = useSecondarySales()
+  const secondaryPurchases = useSecondaryPurchases()
   const { data: trending, isLoading: trendingLoading } = useQuery({
-    queryKey: ['overview-trending', secondarySales],
-    queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' })
+    queryKey: ['overview-trending', secondaryPurchases],
+    queryFn: () =>
+      fetchTrendingItems({
+        first: 12,
+        listingType: secondaryPurchases ? undefined : 'primary',
+        includeLegacySecondary: secondaryPurchases
+      })
   })
   const trendingItems = useLivePricedItems(trending ?? [])
 

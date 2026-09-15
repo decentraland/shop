@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
 import {
@@ -16,6 +16,17 @@ import {
   type TradeResolver,
   type ResolvedLine
 } from '~/lib/cart-checkout'
+
+/**
+ * `resolveLine` reads the secondary-purchase permission — it is the kill switch every checkout surface
+ * passes through. ON for the bulk of this file, which is about pricing and classification; the block at
+ * the end turns it off and pins what happens then.
+ */
+const secondaryPurchases = { enabled: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchases.enabled)
+}))
 
 const BUYER = '0xBUYER'
 
@@ -144,7 +155,13 @@ describe('reviewCart', () => {
 
   it('returns an empty, unchanged review for an empty cart', async () => {
     const review = await reviewCart([], BUYER, resolverFrom({}))
-    expect(review).toEqual({ buyable: [], unavailable: [], own: [], liveTotalCredits: 0, orderChanged: false })
+    expect(review).toEqual({
+      buyable: [],
+      unavailable: [],
+      own: [],
+      liveTotalCredits: 0,
+      orderChanged: false
+    })
   })
 
   it('multiplies a PRIMARY line by its quantity in the live total and carries quantity on the line', async () => {
@@ -998,5 +1015,185 @@ describe('when resolving a line whose listing is on sale', () => {
     const resolveCoupon = vi.fn(async () => coupon(300_000))
     await resolveLine(plain, BUYER, async () => primaryTrade(10), undefined, undefined, resolveCoupon)
     expect(resolveCoupon).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * THE RESALE KILL SWITCH AND THE CREATOR-ROYALTY TRAP, AT THE ONE GATE EVERY CHECKOUT PASSES.
+ *
+ * `resolveLine` is where the cart and the item page's Buy now agree on what may be charged, so it is where
+ * both of these belong:
+ *
+ *  - the SWITCH. With resales off, a resale line is not chargeable however it got into the basket. This is
+ *    the path no render can cover: a cart persisted to localStorage while the Shop was selling resales
+ *    comes back whole, and the buyer reaches Confirm without a resale surface ever rendering.
+ *
+ *  - the TRAP. A creator buying a resale of their OWN item can never settle through the CreditsManager:
+ *    the royalty it pays them moves their MANA balance inside the same transaction and trips
+ *    `SenderBalanceChanged`. The contract says so itself. Reported as its own outcome rather than as
+ *    "no longer available", because that copy IS available — to anybody else.
+ */
+describe('reviewCart when the Shop is not selling resales', () => {
+  afterEach(() => {
+    secondaryPurchases.enabled = true
+  })
+
+  it('should drop a persisted resale line instead of charging it', async () => {
+    secondaryPurchases.enabled = false
+    const resale = item('r', 20, { tokenId: '77' })
+
+    const review = await reviewCart([resale], BUYER, resolverFrom({ r: trade(2) }))
+
+    expect(review.buyable).toEqual([])
+    expect(review.unavailable.map(i => i.id)).toEqual(['r'])
+    expect(review.liveTotalCredits).toBe(0)
+    // The buyer is told the basket changed rather than silently charged a smaller total.
+    expect(review.orderChanged).toBe(true)
+  })
+
+  it('should keep the PRIMARY half of a mixed basket buyable', async () => {
+    secondaryPurchases.enabled = false
+    const mint = item('a', 20, { tokenId: undefined })
+    const resale = item('r', 20, { tokenId: '77' })
+
+    const review = await reviewCart([mint, resale], BUYER, resolverFrom({ a: trade(2), r: trade(2) }))
+
+    // Primary sales are untouched by this permission — the switch must not empty a whole cart.
+    expect(review.buyable.map(l => l.item.id)).toEqual(['a'])
+    expect(review.unavailable.map(i => i.id)).toEqual(['r'])
+    expect(review.liveTotalCredits).toBe(20)
+  })
+
+  it('should not even resolve the resale line, so nothing is read on its behalf', async () => {
+    secondaryPurchases.enabled = false
+    const resolve = vi.fn().mockResolvedValue(trade(2))
+
+    await reviewCart([item('r', 20, { tokenId: '77' })], BUYER, resolve)
+
+    expect(resolve).not.toHaveBeenCalled()
+  })
+
+  it('should drop a MANA-priced resale too, not only a Shop-signed one', async () => {
+    // The feature's whole point is Marketplace (MANA) resales, so the switch has to cover the kind of row
+    // it was built to let in.
+    secondaryPurchases.enabled = false
+
+    const review = await reviewCart(
+      [item('r', 50, { tokenId: '77' })],
+      BUYER,
+      resolverFrom({ r: legacyTrade(10) }),
+      RATE
+    )
+
+    expect(review.buyable).toEqual([])
+    expect(review.unavailable.map(i => i.id)).toEqual(['r'])
+  })
+
+  it('should still charge the resale once the permission is on', async () => {
+    secondaryPurchases.enabled = true
+
+    const review = await reviewCart([item('r', 20, { tokenId: '77' })], BUYER, resolverFrom({ r: trade(2) }), RATE)
+
+    expect(review.buyable.map(l => l.item.id)).toEqual(['r'])
+    expect(review.buyable[0].quantity).toBe(1)
+    expect(review.liveTotalCredits).toBe(20)
+  })
+
+  it('should convert a MANA-priced resale at the LIVE rate once the permission is on', async () => {
+    secondaryPurchases.enabled = true
+
+    // 10 MANA at $0.50 = $5 = 50 credits, re-derived from the rate rather than trusted from the row.
+    const review = await reviewCart(
+      [item('r', 3, { tokenId: '77' })],
+      BUYER,
+      resolverFrom({ r: legacyTrade(10) }),
+      RATE
+    )
+
+    expect(review.buyable[0].priceCredits).toBe(50)
+    expect(review.buyable[0].usdCents).toBe(500)
+    // The cart's stale snapshot said 3; the buyer is asked to confirm the number that will be charged.
+    expect(review.orderChanged).toBe(true)
+  })
+
+  it('should report a resale with no live listing as unavailable either way', async () => {
+    // Sold, cancelled or expired under us. Nothing about the switch may change this answer, or a
+    // permission flip would start describing a dead listing as a policy refusal.
+    for (const enabled of [true, false]) {
+      secondaryPurchases.enabled = enabled
+      const review = await reviewCart([item('r', 20, { tokenId: '77' })], BUYER, resolverFrom({ r: null }))
+      expect(review.unavailable.map(i => i.id)).toEqual(['r'])
+    }
+  })
+})
+
+/**
+ * A RESALE THAT DOES NOT LOOK LIKE ONE.
+ *
+ * The row-shaped check (`item.tokenId`) is not enough, because a row can be a resale without carrying a
+ * token id:
+ *
+ *  - the item page strips `tokenId` on the `/item/...` route by design, so anything seeded from there is
+ *    item-shaped whatever its trade sells;
+ *  - NATIVE (USD-pegged) resales reach the catalogue unconditionally — the opt-in governs only the legacy
+ *    branch — and those orders are DURABLE, so switching the permission off cancels none of them.
+ *
+ * `sent` is what the contract will actually move, which makes it the only check a projection cannot dodge.
+ */
+describe('reviewCart with a resale whose row carries no token id', () => {
+  const resaleTrade = (dollars: number, signer = '0xseller'): Trade =>
+    ({
+      ...trade(dollars, signer),
+      sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xcontract', tokenId: '77' }]
+    }) as unknown as Trade
+
+  afterEach(() => {
+    secondaryPurchases.enabled = true
+  })
+
+  it('should refuse it on the trade when the Shop is not selling resales', async () => {
+    secondaryPurchases.enabled = false
+    // tokenId undefined — exactly what the item route hands over.
+    const row = item('r', 20, { tokenId: undefined })
+
+    const review = await reviewCart([row], BUYER, resolverFrom({ r: resaleTrade(2) }))
+
+    expect(review.buyable).toEqual([])
+    expect(review.unavailable.map(i => i.id)).toEqual(['r'])
+  })
+
+  it('should charge it once the permission is on', async () => {
+    secondaryPurchases.enabled = true
+    const row = item('r', 20, { tokenId: undefined })
+
+    const review = await reviewCart([row], BUYER, resolverFrom({ r: resaleTrade(2) }))
+
+    expect(review.buyable.map(l => l.item.id)).toEqual(['r'])
+  })
+
+  it('should leave a MINT alone with the permission off', async () => {
+    // The control: a COLLECTION_ITEM trade is untouched by this check, so primary sales keep working.
+    secondaryPurchases.enabled = false
+    const mint = item('a', 20, { tokenId: undefined })
+    const mintTrade = {
+      ...trade(2),
+      sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xcontract', itemId: 'a' }]
+    } as unknown as Trade
+
+    const review = await reviewCart([mint], BUYER, resolverFrom({ a: mintTrade }))
+
+    expect(review.buyable.map(l => l.item.id)).toEqual(['a'])
+  })
+
+  it('should force quantity 1 for a resale even when the row looks item-shaped', async () => {
+    // Quantity comes from the row (`!item.tokenId`), so an item-shaped resale row could ask for several
+    // copies of one unique token. The trade is ERC721: `checks.uses` is 1 and a second unit cannot exist.
+    secondaryPurchases.enabled = true
+    const row = { ...item('r', 20, { tokenId: undefined }), quantity: 3 }
+
+    const review = await reviewCart([row], BUYER, resolverFrom({ r: resaleTrade(2) }))
+
+    expect(review.buyable[0].quantity).toBe(1)
+    expect(review.liveTotalCredits).toBe(20)
   })
 })

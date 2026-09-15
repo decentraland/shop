@@ -10,6 +10,7 @@ import {
 } from 'decentraland-transactions'
 import { AuthorizationKind, ensureAuthorization, metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { buyOneWithCredits, type AnyPurchase, type SpendableCredit } from '~/lib/buy'
+import { assertSecondaryPurchasesAllowed, tradesIn } from '~/lib/secondary-purchase'
 import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { captureError } from '~/lib/monitoring'
@@ -153,6 +154,9 @@ export async function buyManyWithMana(opts: {
 }): Promise<string[]> {
   const { trades, coupons, mints = [], buyer, signer, onSigned, manaWei } = opts
   if (trades.length === 0 && mints.length === 0) throw new Error('No items to buy')
+  // The MANA rail's own copy of the resale kill switch (see lib/secondary-purchase). Checked here rather
+  // than in `buyWithMana`, which delegates to this — one funnel, one guard.
+  await assertSecondaryPurchasesAllowed(trades)
 
   // Group by (chain, marketplace, discounted?) so each group is one accept([...]) or one
   // acceptWithCoupon([...], [...]). The discount splits the group for the same reason it does on the
@@ -425,6 +429,9 @@ async function payGapWithMana(opts: {
   const { target, buyer, signer, credits, manaGapWei, providerType, onBroadcast, onReverted, onUnobservable } = opts
   if (credits.length === 0) throw new Error('No credits to spend — use the MANA-only rail for that')
   if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use the credits-only rail for that')
+  // Guarded HERE and not only in the `buyOneWithCredits` this ends in: the relayed leg below submits
+  // without going through it, so a guard down there would leave the gasless path open (lib/secondary-purchase).
+  await assertSecondaryPurchasesAllowed(tradesIn([target]))
 
   const chainId = targetChainId(target)
   const mana = getContract(ContractName.MANAToken, chainId)

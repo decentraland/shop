@@ -1,6 +1,6 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { fetchShopItems, type CatalogItem } from '~/lib/api'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
 import { useProfile } from '~/hooks/useProfile'
@@ -80,14 +80,21 @@ export function SearchDropdown({
   const enabled = query.length >= MIN_QUERY_LEN
   // Read once so both render paths decide off the same value, as NavBar does (the module memoises it anyway).
   const iap = isIapMode()
-  const secondarySales = useSecondarySales()
+  const secondaryPurchases = useSecondaryPurchases()
   // Mirror the default state of the grid this dropdown links into (see pages/Assets.tsx): on-sale
   // only, resales hidden unless the flag says otherwise, no category constraint.
-  const listingType = secondarySales ? undefined : ('primary' as const)
+  const listingType = secondaryPurchases ? undefined : ('primary' as const)
 
   const { data: itemData, isFetching: itemsFetching } = useQuery({
     queryKey: ['search-suggest', query, listingType],
-    queryFn: () => fetchShopItems({ search: query, first: SUGGEST_COUNT, onSale: true, listingType }),
+    queryFn: () =>
+      fetchShopItems({
+        search: query,
+        first: SUGGEST_COUNT,
+        onSale: true,
+        listingType,
+        includeLegacySecondary: secondaryPurchases
+      }),
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,

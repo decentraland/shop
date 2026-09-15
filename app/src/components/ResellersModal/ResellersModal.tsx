@@ -14,6 +14,7 @@ import {
   type UnifiedListing
 } from '~/lib/api'
 import { useManaRate } from '~/hooks/useManaRate'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 import { useProfile } from '~/hooks/useProfile'
 import { formatCredits } from '~/lib/currency'
 import { capitalizeFirst } from '~/lib/text'
@@ -269,16 +270,22 @@ export function ResellersModal({ item, onClose }: { item: CatalogItem; onClose: 
     }
   }, [checkoutOpen, onClose])
 
+  // Shares react-query's cache with the PDP (identical key), so the permission belongs IN the key — two
+  // surfaces reading the same rows must not disagree about whether Marketplace resales are among them.
+  const secondaryPurchases = useSecondaryPurchases()
+
   const { data: resales = [], isLoading } = useQuery({
-    queryKey: ['item-resales', contractAddress, itemId],
-    enabled: !!contractAddress && !!itemId,
+    queryKey: ['item-resales', contractAddress, itemId, secondaryPurchases],
+    // The modal only opens from a surface that already checked the permission, but it is gated here too:
+    // it is the one component that opens a checkout of its own, so it must not fetch rows it may not sell.
+    enabled: secondaryPurchases && !!contractAddress && !!itemId,
     // Money-sensitive: secondary listings/prices can change under us (3rd-party buy/list/cancel). Never
     // serve the 30s-stale default — revalidate on every remount and tab refocus (see ItemDetail PDP).
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     // Cheapest-first (fetchItemResales sorts ascending by credit price) so the best price is on top.
-    queryFn: () => fetchItemResales(contractAddress, itemId as string)
+    queryFn: () => fetchItemResales(contractAddress, itemId as string, { includeLegacySecondary: true })
   })
 
   const sorted = useMemo(

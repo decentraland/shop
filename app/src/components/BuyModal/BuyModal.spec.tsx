@@ -31,6 +31,14 @@ const session = {
   identity: { authChain: [] } as never,
   providerType: 'injected' as never
 }
+// `resolveLine` (via lib/cart-checkout) reads the secondary-purchase permission, so this file has to say
+// where it stands. ON: the subject here is the checkout flow, and a refusal would hide all of it.
+const secondaryPurchasesEnabled = { value: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchasesEnabled.value)
+}))
+
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
 
 // The completed state fires the confetti, which lazy-loads lottie-web — a canvas/rAF runtime that throws on

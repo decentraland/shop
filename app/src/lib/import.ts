@@ -12,7 +12,7 @@ import {
   isMarketplaceMinter
 } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
-import { getIsSecondarySalesEnabled } from '~/lib/featureFlags'
+import { getIsSecondaryListingEnabled } from '~/lib/featureFlags'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 // "Import your listings": bring a seller's OLD classic (MANA-priced) listings into the Shop as
@@ -191,7 +191,7 @@ export async function importListing(
   // BEFORE the cancel below, deliberately. The cancel is the one irreversible step in here: refusing
   // after it would take the seller's live listing down and put nothing back, leaving them unlisted for a
   // reason they never asked about.
-  if (item.listingType === 'secondary' && !(await getIsSecondarySalesEnabled())) {
+  if (item.listingType === 'secondary' && !(await getIsSecondaryListingEnabled())) {
     throw new Error('The Shop does not offer secondary sales; this listing cannot be migrated.')
   }
 

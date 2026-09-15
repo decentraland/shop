@@ -106,7 +106,8 @@ vi.mock('~/lib/wearable-rules', () => ({ fetchVrmExportBlocked }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]), fetchItemVideoUrl }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [], isFetched: true }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+vi.mock('~/hooks/useSecondaryListings', () => ({ useSecondaryListings: () => false }))
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => false }))
 
 import { ItemDetail } from '~/pages/ItemDetail'
 

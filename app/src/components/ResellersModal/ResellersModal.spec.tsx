@@ -25,6 +25,12 @@ vi.mock('~/store/locale', () => ({
 // No legacy rows here → the rate hook is inert.
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined }) }))
 
+// The modal reads the secondary-purchase permission itself — it is the one surface here that opens a
+// checkout of its own, so it must not list rows it may not sell. ON for this file; the refusal is pinned
+// in its own block at the end.
+const secondaryPurchases = { enabled: true }
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => secondaryPurchases.enabled }))
+
 // CreatorBadge resolves the seller via useProfile; mock it so the badge falls back to a short address.
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 

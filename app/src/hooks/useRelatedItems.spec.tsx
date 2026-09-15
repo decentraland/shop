@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useRelatedItems } from './useRelatedItems'
 
+// The hook reads the secondary-purchase permission to decide whether the rail may include
+// Marketplace-listed copies. Mocked so this file keeps asserting on the RELATED request alone.
+const secondaryPurchases = { enabled: false }
+vi.mock('~/hooks/useSecondaryPurchases', () => ({ useSecondaryPurchases: () => secondaryPurchases.enabled }))
+
 /**
  * The PDP's similar-items read.
  *
@@ -120,5 +125,40 @@ describe('useRelatedItems', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(result.current.items).toEqual([])
+  })
+})
+
+/**
+ * The rail is drawn from the same universe as the grid, so it carries the same two constraints — and the
+ * second one is the easy one to miss: NATIVE resales are in this feed unconditionally and their orders are
+ * durable, so a rail that may not sell one has to ask for mints rather than assume the feed has none.
+ */
+describe('useRelatedItems and the resale permission', () => {
+  afterEach(() => {
+    secondaryPurchases.enabled = false
+  })
+
+  it('should ask for mints only, and not opt in to legacy resales, while resales are off', async () => {
+    secondaryPurchases.enabled = false
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: [] }) })
+
+    const { result } = renderHook(() => useRelatedItems(CONTRACT, '3'), { wrapper })
+    await waitFor(() => expect(result.current.isFetched).toBe(true))
+
+    const url = new URL(fetchMock.mock.calls.at(-1)![0] as string)
+    expect(url.searchParams.get('listingType')).toBe('primary')
+    expect(url.searchParams.get('includeLegacySecondary')).toBeNull()
+  })
+
+  it('should drop both constraints once resales are on sale', async () => {
+    secondaryPurchases.enabled = true
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: [] }) })
+
+    const { result } = renderHook(() => useRelatedItems(CONTRACT, '3'), { wrapper })
+    await waitFor(() => expect(result.current.isFetched).toBe(true))
+
+    const url = new URL(fetchMock.mock.calls.at(-1)![0] as string)
+    expect(url.searchParams.get('listingType')).toBeNull()
+    expect(url.searchParams.get('includeLegacySecondary')).toBe('true')
   })
 })

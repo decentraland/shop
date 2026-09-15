@@ -5,7 +5,9 @@
     "soldOrRemoved": "This item was just sold or removed.",
     "cantBuyOwn": "You can't buy your own listing.",
     "wrongNetwork": "Your wallet is on {current}. Switch it to {required} to continue.",
-    "walletUnauthorized": "Your wallet blocked this request. Check that it's still connected to the shop and on the right network, then try again."
+    "walletUnauthorized": "Your wallet blocked this request. Check that it's still connected to the shop and on the right network, then try again.",
+    "creatorRoyalty": "You earn a share of every resale of this item, and that payment can't happen in the same step as paying with Credits. Try another payment option if you have one.",
+    "resalesUnavailable": "Resales can't be bought here right now. Please try again later."
   },
   "nav": {
     "overview": "Overview",

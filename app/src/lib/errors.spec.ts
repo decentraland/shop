@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ChainId } from '@dcl/schemas'
-import { friendlyError, isRejection } from '~/lib/errors'
+import { friendlyError, isRejection, isSecondarySalesNotAllowedError, isSenderBalanceChangedError } from '~/lib/errors'
 import { WrongNetworkError } from '~/lib/network'
 
 const FALLBACK = "Couldn't complete checkout."
@@ -50,5 +50,66 @@ describe('friendlyError — wallet state', () => {
 
   it('keeps mapping sale failures when asked to', () => {
     expect(friendlyError(new Error('no active listing'), FALLBACK, { sale: true })).not.toBe(FALLBACK)
+  })
+})
+
+/**
+ * THE TWO CREDITSMANAGER REFUSALS, READ OFF THE REVERT.
+ *
+ * Both are final: retrying changes nothing, so the generic "please try again" is not vague but wrong — it
+ * has the buyer clicking a purchase that can never settle.
+ *
+ * They are detected from the revert SELECTOR rather than predicted before the purchase, and that is the
+ * whole point of this block. An earlier version predicted the royalty case client-side by comparing the
+ * buyer against the item's `creator`, and it was wrong in both directions: the contract pays the item's
+ * `beneficiary` when one is set (`RoyaltiesManager.getRoyaltiesReceiver`), so a beneficiary who is not the
+ * creator sailed through to the on-chain revert, while a creator whose item names someone else was refused
+ * a purchase that would have settled. It also refused MANA-ONLY purchases, which never touch the
+ * CreditsManager and so cannot trip the guard at all. A selector cannot be wrong in either direction.
+ */
+describe('friendlyError — the CreditsManager refusals', () => {
+  // keccak256('SenderBalanceChanged()')[0:4] and keccak256('SecondarySalesNotAllowed()')[0:4].
+  const SENDER_BALANCE_CHANGED = '0x55dd312d'
+  const SECONDARY_NOT_ALLOWED = '0x112aa548'
+
+  it('should explain a purchase that would pay the buyer, instead of offering a retry', () => {
+    const revert = { data: SENDER_BALANCE_CHANGED }
+
+    expect(friendlyError(revert, FALLBACK)).toMatch(/share of every resale/i)
+    expect(friendlyError(revert, FALLBACK)).not.toBe(FALLBACK)
+  })
+
+  it('should explain that resales cannot be bought when the contract is not settling them', () => {
+    // The rollout trap: the feature flag can be on while the CreditsManager's own `secondarySalesAllowed`
+    // is still false, and then EVERY resale purchase reverts. Saying "try again later" is at least true.
+    expect(friendlyError({ data: SECONDARY_NOT_ALLOWED }, FALLBACK)).toMatch(/resales/i)
+  })
+
+  it.each([
+    ['ethers top-level data', { data: SENDER_BALANCE_CHANGED }],
+    ['a nested provider error', { error: { data: SENDER_BALANCE_CHANGED } }],
+    ['a doubly-nested provider error', { error: { error: { data: SENDER_BALANCE_CHANGED } } }],
+    ['a JSON-RPC body string', { body: `{"error":{"data":"${SENDER_BALANCE_CHANGED}"}}` }],
+    ['the message ethers builds', { message: `execution reverted (data="${SENDER_BALANCE_CHANGED}")` }]
+  ])('should find the selector in %s', (_label, err) => {
+    // Revert data sits at a different depth per provider, so the detector searches the shapes it is
+    // actually found in rather than naming one.
+    expect(isSenderBalanceChangedError(err)).toBe(true)
+  })
+
+  it('should match the selector case-insensitively', () => {
+    expect(isSenderBalanceChangedError({ data: SENDER_BALANCE_CHANGED.toUpperCase() })).toBe(true)
+  })
+
+  it('should not confuse the two refusals for each other', () => {
+    expect(isSenderBalanceChangedError({ data: SECONDARY_NOT_ALLOWED })).toBe(false)
+    expect(isSecondarySalesNotAllowedError({ data: SENDER_BALANCE_CHANGED })).toBe(false)
+  })
+
+  it("should leave an ordinary failure on the caller's generic copy", () => {
+    // A revert that mined carries no reason at all, and that has to stay generic rather than be guessed at.
+    expect(friendlyError({ message: 'transaction failed' }, FALLBACK)).toBe(FALLBACK)
+    expect(isSenderBalanceChangedError({})).toBe(false)
+    expect(isSenderBalanceChangedError(new Error('boom'))).toBe(false)
   })
 })

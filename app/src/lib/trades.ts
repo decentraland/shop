@@ -11,7 +11,7 @@ import {
 } from '~/lib/authorizations'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
-import { getIsProceedsToTreasuryEnabled, getIsSecondarySalesEnabled } from '~/lib/featureFlags'
+import { getIsProceedsToTreasuryEnabled, getIsSecondaryListingEnabled } from '~/lib/featureFlags'
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
 
@@ -35,10 +35,14 @@ const toSeconds = (ms: number) => Math.floor(ms / 1000)
 // feature existed. The dangerous direction is routing proceeds to the treasury while unsure that anything
 // can credit the seller for them.
 export async function resaleBeneficiary(seller: string): Promise<string> {
-  // Belt and braces while the Shop offers no resales at all: the callers that could reach this are hidden,
+  // Belt and braces while the Shop takes no resale listings: the callers that could reach this are hidden,
   // so this should be unreachable — and if a path is ever un-hidden without revisiting the routing decision,
   // the seller keeps being paid directly rather than silently having their MANA sent to the treasury.
-  if (!(await getIsSecondarySalesEnabled())) return seller
+  //
+  // The LISTING permission, never the buy one. The Shop can be selling somebody's resale while taking none
+  // of its own, and where the proceeds of a sale go is a property of the listing that was signed — so a
+  // permission to BUY must not be able to redirect one.
+  if (!(await getIsSecondaryListingEnabled())) return seller
   return (await getIsProceedsToTreasuryEnabled()) ? config.treasuryAddress : seller
 }
 

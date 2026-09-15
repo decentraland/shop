@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { ethers as Ethers } from 'ethers'
 
@@ -61,6 +61,16 @@ const {
     ]
   }
 })
+
+// The resale kill switch is asked on this rail too (lib/secondary-purchase). ON for the bulk of this
+// file, whose subject is the relayed payload and the failure reporting; the block at the end turns it off.
+// It also has to be mocked rather than left to the real reader: `stubFetch` answers EVERY fetch with the
+// relayer body, so an unmocked flag read would parse that as a flag file and come back false.
+const secondaryPurchasesEnabled = { value: true }
+vi.mock('~/lib/featureFlags', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  getIsSecondaryPurchaseEnabled: () => Promise.resolve(secondaryPurchasesEnabled.value)
+}))
 
 vi.mock('~/lib/gasless-config', () => ({
   gaslessConfig: gasless,
@@ -921,5 +931,125 @@ describe('GaslessUnavailableError', () => {
    */
   it('separates a relayer refusal from an unreachable relayer', () => {
     expect(new GaslessUnavailableError('x', 'relayer-unreachable').reason).toBe('relayer-unreachable')
+  })
+})
+
+/**
+ * THE RESALE KILL SWITCH ON THE RELAYED RAIL.
+ *
+ * This is the rail the switch most needs to cover, and the one it is easiest to miss. Every checkout
+ * surface — the item page's Buy now, the Marketplace (MANA) checkout, the cart, the mixed credits+MANA
+ * rail — tries the RELAYER first and falls back to the buyer's own gas-paying transaction only if the
+ * relayer refuses. A guard living solely in `lib/buy` would therefore be a guard on the fallback, while
+ * the path almost every buyer actually takes went through unchecked.
+ */
+describe('when the Shop is not selling resales', () => {
+  // A mint sends a fresh copy rather than an existing token — the control, since primary sales are
+  // untouched by this permission.
+  const fakeMint = (contract: string): Trade =>
+    ({
+      ...fakeTrade(contract),
+      type: 'public_item_order',
+      sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: NFT, value: '3', itemId: '3', extra: '0x' }]
+    }) as unknown as Trade
+
+  beforeEach(() => {
+    secondaryPurchasesEnabled.value = false
+  })
+  afterEach(() => {
+    secondaryPurchasesEnabled.value = true
+  })
+
+  it('should refuse a relayed resale without asking the buyer to sign', async () => {
+    const fetchMock = stubFetch({ txHash: '0xabc' })
+    const signer = makeSigner(async () => '0x' + '11'.repeat(64) + '1b')
+
+    await expect(
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
+    ).rejects.toThrow(/resales/i)
+
+    // Refused BEFORE the signature: a buyer who has signed a meta-tx has done something they cannot
+    // take back, and nothing reaches the relayer either.
+    expect(signer._signTypedData).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('should refuse a relayed BASKET containing a resale, before the first group is signed', async () => {
+    const fetchMock = stubFetch({ txHash: '0xabc' })
+    const signer = makeSigner(async () => '0x' + '11'.repeat(64) + '1b')
+
+    await expect(
+      buyManyGasless({
+        purchases: [
+          { trade: fakeMint('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+          { trade: fakeTrade('0xmarket'), credits: [credit(B32('2'), '200')], maxCreditedValue: '200' }
+        ],
+        buyer: BUYER,
+        signer
+      })
+    ).rejects.toThrow(/resales/i)
+
+    expect(signer._signTypedData).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('should still relay a MINT', async () => {
+    const fetchMock = stubFetch({ txHash: '0xabc' })
+    const signer = makeSigner(async () => '0x' + '11'.repeat(64) + '1b')
+
+    const hash = await buyOneGasless({
+      purchase: {
+        kind: 'trade',
+        trade: fakeMint('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(hash).toBe('0xabc')
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it('should still relay a CollectionStore mint, which carries no trade at all', async () => {
+    const fetchMock = stubFetch({ txHash: '0xabc' })
+    const signer = makeSigner(async () => '0x' + '11'.repeat(64) + '1b')
+
+    await buyOneGasless({
+      purchase: {
+        kind: 'store',
+        item: { collection: NFT, itemId: '3', priceWei: '1000' },
+        chainId: 80002,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it('should relay the resale once the permission is on', async () => {
+    secondaryPurchasesEnabled.value = true
+    const fetchMock = stubFetch({ txHash: '0xabc' })
+    const signer = makeSigner(async () => '0x' + '11'.repeat(64) + '1b')
+
+    await buyGasless({
+      trade: fakeTrade('0xmarket'),
+      buyer: BUYER,
+      signer,
+      credits: [credit(B32('1'), '100')],
+      maxCreditedValue: '100'
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
   })
 })

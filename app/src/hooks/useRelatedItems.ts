@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { fetchRelatedItems, type UnifiedListing } from '~/lib/api'
+import { useSecondaryPurchases } from '~/hooks/useSecondaryPurchases'
 
 /**
  * Items similar to one item, for the PDP's fallback rail.
@@ -17,11 +18,23 @@ export function useRelatedItems(
   itemId: string | null,
   { enabled = true, first }: { enabled?: boolean; first?: number } = {}
 ): { items: UnifiedListing[]; isFetched: boolean } {
+  // The rail is meant to be indistinguishable from the browse grid, so it is drawn from the same universe:
+  // with resales on sale, a Marketplace-listed copy can be the only liquidity an otherwise sold-out
+  // neighbour has, and leaving it out would show the rail a stale, primary-only version of the catalogue.
+  const secondaryPurchases = useSecondaryPurchases()
+
   const { data, isFetched } = useQuery({
-    queryKey: ['related-items', contractAddress, itemId, first],
+    queryKey: ['related-items', contractAddress, itemId, first, secondaryPurchases],
     enabled: enabled && !!contractAddress && !!itemId,
     staleTime: 5 * 60_000,
-    queryFn: () => fetchRelatedItems(contractAddress as string, itemId as string, { first })
+    queryFn: () =>
+      fetchRelatedItems(contractAddress as string, itemId as string, {
+        first,
+        includeLegacySecondary: secondaryPurchases,
+        // Not only the legacy opt-in: NATIVE resales reach this feed unconditionally and their orders are
+        // durable, so a rail that may not sell one has to ask for mints explicitly.
+        listingType: secondaryPurchases ? undefined : 'primary'
+      })
   })
 
   return { items: data ?? [], isFetched }
