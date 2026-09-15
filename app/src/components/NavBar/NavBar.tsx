@@ -9,6 +9,8 @@ import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useIsOutfitCreator } from '~/hooks/useOutfits'
+import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
+import { useIsCreator } from '~/hooks/useIsCreator'
 import { useEventTab } from '~/hooks/useEventTab'
 import { useBalance } from '~/hooks/useBalance'
 import { useWalletChain } from '~/hooks/useWalletChain'
@@ -44,6 +46,8 @@ const NotificationsBell = lazy(() => import('~/components/NotificationsBell/Noti
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const isOutfitCreator = useIsOutfitCreator()
+  const myStoreEnabled = useMyStoreEnabled()
+  const isCreator = useIsCreator(session?.address)
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
@@ -301,6 +305,13 @@ export function NavBar() {
                to somewhere they are already standing. */}
             {iap ? null : <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>}
             {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
+            {/* The creator's own dashboard. Behind its flag AND behind having published something: to a
+               buyer the page is an empty room, and a nav entry that leads to one is worse than none. */}
+            {session && myStoreEnabled && isCreator ? (
+              <NavLink to="/my-store" data-testid="nav-my-store">
+                {t('myStore.title')}
+              </NavLink>
+            ) : null}
             {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
                jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
             {session && showsWalletConfirmations(session.providerType) ? (
