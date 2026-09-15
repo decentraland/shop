@@ -157,8 +157,12 @@ export const PriceBox = styled.span`
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.1);
 
+  /* theme.colors.orange, which theme.ts already designates for input borders — not a rarity hue. This
+     was theme.rarities.epic, the colour EPIC means everywhere else in the app, which read as unrelated
+     to the Shop and quietly overloaded a semantic token. The accent purple is the focus colour on the
+     app's light surfaces, but it would vanish against this sidebar's own purple. */
   &:focus-within {
-    border-color: ${theme.rarities.epic};
+    border-color: ${theme.colors.orange};
   }
 `
 

@@ -13,7 +13,6 @@ import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
-import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
@@ -30,7 +29,7 @@ import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { EmptyState } from '~/components/EmptyState'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import { NewPricingModal } from '~/components/NewPricingModal'
 import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
@@ -475,14 +474,19 @@ export function MyAssets() {
   // ---------------- Sign-in gate ----------------
   if (!session) {
     return (
-      <S.Gate>
-        <S.GateTitle>{t('nav.myAssets')}</S.GateTitle>
-        <S.GateText>{t('myAssets.signInPrompt')}</S.GateText>
-        <Button variant="white" onClick={() => signIn()}>
-          {t('storeSettings.signIn')}
-        </Button>
-        <ErrorNotice message={error} />
-      </S.Gate>
+      <EmptyStateCentered>
+        <div>
+          <EmptyState
+            testId="my-items-signin"
+            icon={itemsEmptyIllustration}
+            title={t('nav.myAssets')}
+            body={t('myAssets.signInPrompt')}
+            cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+            ctaVariant="solid"
+          />
+          <ErrorNotice message={error} />
+        </div>
+      </EmptyStateCentered>
     )
   }
 

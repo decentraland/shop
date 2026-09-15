@@ -96,6 +96,21 @@ const cta = `
   &:active {
     background: rgba(0, 0, 0, 0.65);
   }
+
+  /* The solid treatment, for an empty state whose CTA is the point of the screen rather than a way out
+     of it — a signed-out page, where the translucent default sits dark-on-dark and barely reads. Matches
+     Button variant="white", which is what those pages used before they moved onto this component. */
+  &[data-cta='solid'] {
+    background: ${colors.white};
+    color: ${colors.text};
+  }
+  &[data-cta='solid']:hover {
+    background: ${colors.panel};
+  }
+  &[data-cta='solid']:active {
+    background: ${colors.panel};
+    transform: translateY(1px);
+  }
   &:focus-visible {
     outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
@@ -121,4 +136,19 @@ export const CtaLink = styled(Link)`
 
 export const CtaButton = styled.button`
   ${cta}
+`
+
+/**
+ * Centres an empty state in the space the page hands it, vertically as well as horizontally.
+ *
+ * Signed-out pages render one short panel into a column sized to fill the viewport. Left to sit at its
+ * natural position the panel clings to the top and leaves most of a screen of empty purple under it,
+ * which is what the three hand-rolled sign-in gates all did, each slightly differently.
+ */
+export const Centered = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52vh;
+  padding: 24px 16px;
 `
