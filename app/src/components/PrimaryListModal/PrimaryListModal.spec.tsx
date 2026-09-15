@@ -59,14 +59,21 @@ const item = {
 function renderModal(providerType = 'injected', edit?: ListingEdit) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onClose = vi.fn()
+  const onListed = vi.fn()
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <PrimaryListModal item={item} session={makeSession(providerType)} edit={edit} onClose={onClose} />
+        <PrimaryListModal
+          item={item}
+          session={makeSession(providerType)}
+          edit={edit}
+          onListed={onListed}
+          onClose={onClose}
+        />
       </MemoryRouter>
     </QueryClientProvider>
   )
-  return { onClose }
+  return { onClose, onListed }
 }
 
 beforeEach(() => {
@@ -164,13 +171,16 @@ describe('PrimaryListModal edit price', () => {
         calls.push('list')
         return { id: 'trade-2' }
       })
-      renderModal('magic', { canPayGas: false, cancelCurrent })
+      postTrade.mockResolvedValue({ id: 'trade-2' })
+      const { onListed } = renderModal('magic', { canPayGas: false, cancelCurrent })
 
       await userEvent.click(await screen.findByRole('button', { name: /update price/i }))
 
       await waitFor(() => expect(postTrade).toHaveBeenCalledTimes(1))
       expect(calls).toEqual(['cancel', 'list'])
       expect(screen.getByText('Your price is updated')).toBeInTheDocument()
+      // The page needs the NEW trade to manage the listing before the feed catches up.
+      expect(onListed).toHaveBeenCalledWith(10, 'trade-2')
     })
   })
 

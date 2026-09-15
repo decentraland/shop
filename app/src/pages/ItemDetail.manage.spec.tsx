@@ -64,15 +64,17 @@ vi.mock('~/lib/analytics', async importOriginal => ({
   track: vi.fn()
 }))
 
-const { fetchShopListingForItem, fetchTradeForItem, fetchTrade } = vi.hoisted(() => ({
+const { fetchShopListingForItem, fetchTradeForItem, fetchTrade, TradeNotFound } = vi.hoisted(() => ({
   fetchShopListingForItem: vi.fn(),
   fetchTradeForItem: vi.fn(),
-  fetchTrade: vi.fn()
+  fetchTrade: vi.fn(),
+  TradeNotFound: class TradeNotFoundError extends Error {}
 }))
 vi.mock('~/lib/api', () => ({
   fetchShopListingForItem,
   fetchTradeForItem,
   fetchTrade,
+  TradeNotFoundError: TradeNotFound,
   fetchItemResales: vi.fn().mockResolvedValue([]),
   fetchItemDescription: vi.fn().mockResolvedValue(''),
   fetchOwnedToken: vi.fn().mockResolvedValue(null),
@@ -206,6 +208,27 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
     expect(screen.getByTestId('remove-confirm')).toBeEnabled()
     expect(listCta()).not.toBeInTheDocument()
     expect(screen.getByTestId('item-price')).toHaveTextContent('10')
+  })
+})
+
+describe('ItemDetail — confirming the take-down landed', () => {
+  it('should count only this exact listing being gone, never another live listing for the same item', async () => {
+    renderPdp(newClient())
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await confirmRemove()
+    await waitFor(() => expect(cancelListing).toHaveBeenCalledTimes(1))
+    const { watch } = cancelListing.mock.calls[0][0] as { watch: { isCancelled: () => Promise<boolean> } }
+
+    // A resale of the same item is live and answers the item-level lookup — this listing is still up.
+    fetchTradeForItem.mockResolvedValue({ id: 'someone-elses-resale' })
+    fetchTrade.mockResolvedValue({ id: LIVE_TRADE, signer: CREATOR })
+    expect(await watch.isCancelled()).toBe(false)
+    // A read that fails is not evidence either.
+    fetchTrade.mockRejectedValue(new Error('network'))
+    expect(await watch.isCancelled()).toBe(false)
+    // Only this trade disappearing is.
+    fetchTrade.mockRejectedValue(new TradeNotFound('fetchTrade 404'))
+    expect(await watch.isCancelled()).toBe(true)
   })
 })
 

@@ -18,6 +18,7 @@ import {
   fetchOwnedItemCount,
   fetchTokenById,
   fetchTrade,
+  TradeNotFoundError,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
@@ -965,11 +966,15 @@ export function ItemDetail() {
       mode: opts.payGas ? 'direct' : 'gasless-only',
       watch: {
         // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
-        // one). Asking the feed keeps "confirmed" and "what the seller will see" the same thing.
+        // one). Only THIS trade disappearing (404) counts: another live listing for the same item — a resale,
+        // or the primary next to a resale — says nothing about this one, and a failed read is not evidence.
         isCancelled: async () => {
-          if (!current.itemId) return false
-          const live = await fetchTradeForItem(current.contractAddress, current.itemId).catch(() => undefined)
-          return live !== undefined && live?.id !== manageTradeId
+          try {
+            await fetchTrade(manageTradeId)
+            return false
+          } catch (e) {
+            return e instanceof TradeNotFoundError
+          }
         },
         onWaiting: opts.onWaiting
       }
@@ -1920,7 +1925,12 @@ export function ItemDetail() {
           item={publishableItem}
           session={session}
           edit={editing ? editListing : undefined}
-          onListed={credits => setJustListedCredits(credits)}
+          onListed={(credits, tradeId) => {
+            setJustListedCredits(credits)
+            // The new trade is what Remove / Edit act on until the feed catches up; without it the page would
+            // still point at the retired one.
+            if (tradeId) setCurrent(prev => ({ ...prev, tradeId }))
+          }}
           onClose={closeManageModal}
         />
       ) : null}
