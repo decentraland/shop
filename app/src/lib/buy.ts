@@ -410,7 +410,7 @@ export async function transferItem(opts: {
         signer: signer as ethers.providers.JsonRpcSigner
       })
     } catch (e) {
-      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      if (declinedPrompt(e)) throw e
       // A PENDING meta-tx must NOT fall through to the direct path. Pending means no receipt yet, so the
       // relayed transaction may still mine — re-submitting the transfer directly would run it TWICE.
       // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
@@ -452,6 +452,14 @@ export type CancelWatch = {
  * Surfaced so a caller can offer the gas-paying path as the user's own decision instead of firing a second
  * wallet prompt behind their back.
  */
+// The relayer lib only recognises MetaMask's legacy "User denied message signature"; EIP-1193 wallets say
+// "User rejected the request", which comes back as UNKNOWN with the message intact. Either way the prompt
+// was declined — the seller's answer, not a relay failure.
+function declinedPrompt(e: unknown): boolean {
+  if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) return true
+  return /user (rejected|denied)/i.test((e as { message?: string } | null)?.message ?? '')
+}
+
 export class GaslessCancelFailedError extends Error {
   constructor(public readonly cause: unknown) {
     super('The gasless cancellation was not confirmed')
@@ -497,7 +505,7 @@ export async function cancelListing(opts: {
     try {
       return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller, watch)
     } catch (e) {
-      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      if (declinedPrompt(e)) throw e
       console.warn('[cancelListing] gasless meta-tx failed:', e)
       // The caller asked to be told rather than have gas spent on their behalf.
       if (mode === 'gasless-only') throw new GaslessCancelFailedError(e)

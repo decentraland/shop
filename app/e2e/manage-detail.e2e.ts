@@ -46,6 +46,8 @@ describe('owner management on the item detail page', () => {
 
     // Take it down — fetchTrade(trade-2) → cancelListing → real cancelSignature through the mock wallet.
     expect(await clickByText(page, 'button', /remove from sale/i)).toBe(true)
+    await waitForText(page, 'Remove from sale?')
+    expect(await clickByText(page, '[data-testid="remove-confirm"]', /remove from sale/i)).toBe(true)
     await waitForText(page, 'no longer for sale')
     const after = await page.evaluate(() => document.body.innerText)
     expect(/no longer for sale/i.test(after)).toBe(true)

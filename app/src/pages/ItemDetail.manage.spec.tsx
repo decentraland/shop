@@ -149,7 +149,11 @@ function renderPdp(qc: QueryClient, item = listedItem()) {
 }
 
 const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
-const removeCta = () => screen.getByRole('button', { name: /remove from sale/i })
+// Opens the confirmation and confirms it: nothing is taken down from the page button alone.
+async function confirmRemove() {
+  await userEvent.click(screen.getByTestId('remove-listing'))
+  await userEvent.click(await screen.findByTestId('remove-confirm'))
+}
 const listCta = () => screen.queryByRole('button', { name: /put up for sale/i })
 
 beforeEach(() => {
@@ -167,10 +171,10 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
 
     // The state the report came from: the creator's listed item, price shown, Remove offered.
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
 
     await waitFor(() => expect(listCta()).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /remove from sale/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('remove-listing')).not.toBeInTheDocument()
     expect(screen.queryByTestId('item-price')).not.toBeInTheDocument()
   })
 
@@ -179,7 +183,7 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
     const { unmount } = renderPdp(qc)
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
     await waitFor(() => expect(listCta()).toBeInTheDocument())
     unmount()
 
@@ -195,9 +199,11 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
     renderPdp(newClient())
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /remove from sale/i })).toBeEnabled())
+    // The failure stays inside the dialog, which can be tried again.
+    await screen.findByRole('alert')
+    expect(screen.getByTestId('remove-confirm')).toBeEnabled()
     expect(listCta()).not.toBeInTheDocument()
     expect(screen.getByTestId('item-price')).toHaveTextContent('10')
   })
@@ -235,7 +241,7 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
       renderPdp(newClient())
 
       expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-      await userEvent.click(removeCta())
+      await confirmRemove()
 
       const notice = await screen.findByTestId('cancel-gasless-failed')
       expect(notice).toBeInTheDocument()
@@ -249,7 +255,7 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     gaslessFails()
     renderPdp(newClient())
 
-    await userEvent.click(removeCta())
+    await confirmRemove()
 
     expect(await screen.findByTestId('cancel-pay-gas')).toBeInTheDocument()
   })
@@ -259,12 +265,12 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     renderPdp(newClient())
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
 
     const notice = await screen.findByTestId('cancel-gasless-failed')
     expect(notice).toBeInTheDocument()
     expect(screen.getByTestId('cancel-pay-gas')).toBeInTheDocument()
-    expect(screen.getByTestId('cancel-later')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
     // And it never claims the listing is gone: the price and the Remove CTA are still there.
     expect(screen.getByTestId('item-price')).toHaveTextContent('10')
     expect(listCta()).not.toBeInTheDocument()
@@ -275,7 +281,7 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     renderPdp(newClient())
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
     // The relay attempt asked NOT to spend gas.
     expect(cancelListing.mock.calls[0][0]).toMatchObject({ mode: 'gasless-only' })
 
@@ -299,14 +305,14 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     renderPdp(newClient())
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
 
     const notice = await screen.findByTestId('cancel-gasless-failed')
     expect(notice.textContent ?? '').not.toMatch(/may still/i)
     expect(notice.textContent ?? '').toMatch(/didn't go through/i)
     // Both ways out are still offered.
     expect(screen.getByTestId('cancel-pay-gas')).toBeInTheDocument()
-    expect(screen.getByTestId('cancel-later')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument()
   })
 
   it('should still say an unconfirmed relay may land, when that is true', async () => {
@@ -314,7 +320,7 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     renderPdp(newClient())
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
+    await confirmRemove()
 
     const notice = await screen.findByTestId('cancel-gasless-failed')
     expect(notice.textContent ?? '').toMatch(/may still/i)
@@ -325,8 +331,9 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     renderPdp(newClient())
 
     expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
-    await userEvent.click(removeCta())
-    await userEvent.click(await screen.findByTestId('cancel-later'))
+    await confirmRemove()
+    await screen.findByTestId('cancel-gasless-failed')
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
 
     await waitFor(() => expect(screen.queryByTestId('cancel-gasless-failed')).not.toBeInTheDocument())
     expect(cancelListing).toHaveBeenCalledTimes(1)

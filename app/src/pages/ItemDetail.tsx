@@ -34,13 +34,13 @@ import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
+import { RemoveListingModal } from '~/components/RemoveListingModal'
+import { isManagedWallet } from '~/lib/wallet'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { IssueModal } from '~/components/IssueModal'
 import { VideoShowcaseModal } from '~/components/VideoShowcaseModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
-import { captureError } from '~/lib/monitoring'
-import { friendlyError, isRejection } from '~/lib/errors'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import type { ListingCancelResult, ListingEdit } from '~/components/ListingSteps'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -58,7 +58,6 @@ import { NotifyMe } from '~/components/NotifyMe'
 import { isNotifyAvailable } from '~/lib/notify'
 // import { MakeOfferButton } from '~/components/MakeOfferButton' // see the CTA block below
 import { Tooltip } from '~/components/Tooltip'
-import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
@@ -721,22 +720,14 @@ export function ItemDetail() {
   // price the SellModal just submitted immediately, then let the authoritative ownedAsset refetch take
   // over (cleared below once it reports the matching listing). Bridges the MV lag on the Edit-price flow.
   const [justListedCredits, setJustListedCredits] = useState<number | null>(null)
-  // Which manage action is in flight, so ONLY its button shows a working label. null = idle.
-  const [managing, setManaging] = useState<'remove' | null>(null)
+  // The remove-from-sale confirmation is open; it owns the take-down's working/error/relay state.
+  const [removing, setRemoving] = useState(false)
   // The list modal is open to re-price the CURRENT listing (it takes the old one down before publishing).
   const [editing, setEditing] = useState(false)
-  const [manageError, setManageError] = useState<string | null>(null)
-  // The relay did not get the cancellation confirmed. Holds the choice open — pay the gas now, or leave it —
-  // instead of spending the seller's gas behind their back (see cancelListing's `mode`).
-  // null when nothing failed. 'pending' means the relay may still land, 'reverted' that it provably did
-  // not — the two need different words, and only one of them may say "it may still go through".
-  const [gaslessCancelFailed, setGaslessCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
   // Whether the gas-paying route is a route AT ALL for this seller. A managed wallet holds no POL, so
   // offering it a "pay the fee" button leads to an INSUFFICIENT_FUNDS revert — and the fee/network wording
   // around it is what these users must never be shown. Same question the checkout surfaces ask.
   const canPayGas = canPayGasItself(session?.providerType)
-  // Shown once the wait passes the point where "a moment" stops being true, so the spinner explains itself.
-  const [cancelSlow, setCancelSlow] = useState(false)
 
   const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
@@ -956,8 +947,8 @@ export function ItemDetail() {
   }
 
   // Take the current listing down (invalidates its signature on-chain) and flip every cache that renders
-  // it. Throws on failure — the Remove button (takeDown) and the Edit-price modal (editListing) each turn
-  // that into their own on-screen state. `silent` skips the "no longer for sale" toast.
+  // it. Throws on failure — the Remove and Edit-price modals each turn that into their
+  // own on-screen state. `silent` skips the "no longer for sale" toast.
   async function cancelCurrentListing(opts: {
     silent?: boolean
     payGas?: boolean
@@ -1004,54 +995,27 @@ export function ItemDetail() {
     )
   }
 
-  // The Remove button: owns the 'remove' working state and the manage-area error / relay notices.
-  async function takeDown(opts: { payGas?: boolean } = {}): Promise<boolean> {
-    if (!session || !manageTradeId) return false
-    setManageError(null)
-    setGaslessCancelFailed(null)
-    setCancelSlow(false)
-    setManaging('remove')
-    try {
-      await cancelCurrentListing({ payGas: opts.payGas, onWaiting: elapsed => setCancelSlow(elapsed > 20_000) })
-      return true
-    } catch (e) {
-      const rejected = isRejection(e)
-      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
-      if (e instanceof GaslessCancelFailedError) {
-        // Offer the gas-paying route either way, but say which situation it is: a reverted relay is dead and
-        // paying gas is the real next step, while an unconfirmed one may still land on its own — and telling
-        // someone that about a revert is simply false.
-        setGaslessCancelFailed(e.definitive ? 'reverted' : 'pending')
-        return false
-      }
-      // Through friendlyError so a wrong network or a wallet that refused the request says which of those
-      // it was — "couldn't remove the listing" is true but useless when the fix is a network switch.
-      setManageError(rejected ? t('getCredits.errorCanceled') : friendlyError(e, t('myAssets.removeListingError')))
-      return false
-    } finally {
-      setManaging(null)
-      setCancelSlow(false)
-    }
-  }
-
   // Edit price: the shop's listings are independent signed trades (unlike the classic marketplace's
   // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
   // price still fulfillable. The list modal runs both halves on submit — take the current listing down,
   // then publish the new price — through this adapter, so the seller picks the price BEFORE anything
   // happens. A relay that could not confirm the removal is reported, not thrown: the modal offers the
   // seller their options instead of a bare error.
-  const editListing: ListingEdit = {
-    currentCredits: managePriceCredits || current.priceCredits || undefined,
-    canPayGas,
-    cancelCurrent: async ({ payGas, onWaiting }): Promise<ListingCancelResult> => {
+  const cancelForModal =
+    (silent: boolean): ListingEdit['cancelCurrent'] =>
+    async ({ payGas, onWaiting }): Promise<ListingCancelResult> => {
       try {
-        await cancelCurrentListing({ silent: true, payGas, onWaiting })
+        await cancelCurrentListing({ silent, payGas, onWaiting })
         return 'ok'
       } catch (e) {
         if (e instanceof GaslessCancelFailedError) return e.definitive ? 'relay-reverted' : 'relay-pending'
         throw e
       }
     }
+  const editListing: ListingEdit = {
+    currentCredits: managePriceCredits || current.priceCredits || undefined,
+    canPayGas,
+    cancelCurrent: cancelForModal(true)
   }
 
   // `edit` suppresses the funnel-entry event: re-pricing is an EDIT, not a new listing. Counting it would
@@ -1649,49 +1613,6 @@ export function ItemDetail() {
                       </S.DetailCta>
                     ) : manage ? (
                       <S.ManageActions data-testid="manage-actions">
-                        <ErrorNotice message={manageError} />
-                        {/* The relay could not confirm it. Deliberately NOT an error: the transaction may
-                            still land, so the seller gets the two honest options instead of a "try again"
-                            that has them re-signing something already in flight. */}
-                        {gaslessCancelFailed && !canPayGas ? (
-                          <S.GaslessNotice data-testid="cancel-gasless-failed">
-                            <p>{t('itemDetail.cancelRelayRetry')}</p>
-                          </S.GaslessNotice>
-                        ) : null}
-                        {gaslessCancelFailed && canPayGas ? (
-                          <S.GaslessNotice data-testid="cancel-gasless-failed">
-                            <p>
-                              {gaslessCancelFailed === 'reverted'
-                                ? t('itemDetail.cancelRelayReverted')
-                                : t('itemDetail.cancelRelayFailed')}
-                            </p>
-                            <S.GaslessActions>
-                              <S.LinkCta
-                                type="button"
-                                data-testid="cancel-pay-gas"
-                                onClick={() => void takeDown({ payGas: true })}
-                                disabled={managing !== null}
-                              >
-                                {t('itemDetail.cancelPayGas')}
-                              </S.LinkCta>
-                              <S.LinkCta
-                                type="button"
-                                data-testid="cancel-later"
-                                onClick={() => setGaslessCancelFailed(null)}
-                                disabled={managing !== null}
-                              >
-                                {t('itemDetail.cancelLater')}
-                              </S.LinkCta>
-                            </S.GaslessActions>
-                          </S.GaslessNotice>
-                        ) : null}
-                        {/* A relayed cancel on a congested network takes minutes. Say so, instead of a mute
-                            spinner that reads as "nothing is happening". */}
-                        {managing === 'remove' && cancelSlow ? (
-                          <S.GaslessNotice data-testid="cancel-slow">
-                            <p>{t(canPayGas ? 'itemDetail.cancelSlow' : 'itemDetail.cancelSlowManaged')}</p>
-                          </S.GaslessNotice>
-                        ) : null}
                         {manageListed ? (
                           <>
                             {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. Absent when
@@ -1700,17 +1621,15 @@ export function ItemDetail() {
                             {canPutOnSale ? (
                               <S.SoftCta
                                 onClick={() => openListModal({ edit: true })}
-                                disabled={managing !== null || !canOpenListModal}
+                                disabled={!canOpenListModal}
                                 data-testid="edit-price"
                               >
                                 <Icon name="pen" className="ico" />
                                 <span>{t('itemDetail.manageUpdatePrice')}</span>
                               </S.SoftCta>
                             ) : null}
-                            <S.ScrimCta onClick={() => void takeDown()} disabled={managing !== null}>
-                              <span>
-                                {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
-                              </span>
+                            <S.ScrimCta onClick={() => setRemoving(true)} data-testid="remove-listing">
+                              <span>{t('itemDetail.manageRemove')}</span>
                             </S.ScrimCta>
                           </>
                         ) : (
@@ -1718,10 +1637,7 @@ export function ItemDetail() {
                             {/* Put up for sale (Figma 1527-302810): dark-solid primary. Absent when the
                             viewer may not sell — an owned token with secondary sales off. */}
                             {canPutOnSale ? (
-                              <S.DarkCta
-                                onClick={() => openListModal()}
-                                disabled={managing !== null || !canOpenListModal}
-                              >
+                              <S.DarkCta onClick={() => openListModal()} disabled={!canOpenListModal}>
                                 <span>{t('itemDetail.manageList')}</span>
                               </S.DarkCta>
                             ) : null}
@@ -1729,7 +1645,7 @@ export function ItemDetail() {
                             (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
                             {manageAsSecondary ? (
                               <>
-                                <S.ScrimCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
+                                <S.ScrimCta onClick={() => setShowTransfer(true)}>
                                   <span>{t('itemDetail.manageTransfer')}</span>
                                 </S.ScrimCta>
                                 {/* RESELL ITEM (Figma 1526:300789): a text link under the CTA, not a third
@@ -1741,7 +1657,6 @@ export function ItemDetail() {
                                   data-on-purple
                                   data-testid="resell-item"
                                   onClick={() => setShowResell(true)}
-                                  disabled={managing !== null}
                                 >
                                   {t('itemDetail.manageResell')}
                                 </S.LinkCta>
@@ -1753,12 +1668,7 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <S.LinkCta
-                            type="button"
-                            data-on-purple
-                            onClick={() => setShowIssue(true)}
-                            disabled={managing !== null}
-                          >
+                          <S.LinkCta type="button" data-on-purple onClick={() => setShowIssue(true)}>
                             {t('itemDetail.manageIssue')}
                           </S.LinkCta>
                         ) : null}
@@ -1964,6 +1874,15 @@ export function ItemDetail() {
             )
           }}
           onClose={closeManageModal}
+        />
+      ) : null}
+      {removing && session ? (
+        <RemoveListingModal
+          name={current.name}
+          managed={isManagedWallet(session)}
+          canPayGas={canPayGas}
+          cancel={cancelForModal(false)}
+          onClose={() => setRemoving(false)}
         />
       ) : null}
       {showTransfer && session && current.tokenId ? (
