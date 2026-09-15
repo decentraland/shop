@@ -99,7 +99,7 @@ export type CatalogItem = {
    * `accept`. Absent on a listing with no live discount, and on every row saved before this existed.
    */
   coupon?: ListingCoupon
-   /**
+  /**
    * How many units are still buyable AT THE SALE PRICE: the sale's remaining uses capped by the listing's
    * own stock, whichever runs out first. Absent when the listing is not on sale.
    *
@@ -444,7 +444,7 @@ type ShopListingRaw = {
    * for THIS listing's collection, so the buy side applies it without rebuilding the tree. Its `checks`
    * timestamps arrive in MILLISECONDS like a trade's; `trade-encoding` converts them at the boundary.
    */
-  coupon?: ListingCoupon | null,
+  coupon?: ListingCoupon | null
   /** Units still buyable at the sale price — see CatalogItem.saleUnitsLeft. Null when not on sale. */
   saleUnitsLeft?: number | null
 }

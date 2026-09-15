@@ -711,7 +711,7 @@ describe('when a checkout was left unfinished', () => {
     await clickResume()
 
     await waitFor(() =>
-      expect(toastSuccess).toHaveBeenCalledWith('You already paid for this — your credits are on the way.')
+      expect(toastSuccess).toHaveBeenCalledWith('You already paid for this — your Credits are on the way.')
     )
     expect(window.location.href).toBe('')
   })

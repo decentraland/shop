@@ -1,6 +1,6 @@
 # Shop — project guidance for Claude
 
-A web2-first storefront for Decentraland wearables and emotes. Prices show in **fixed-USD credits** (1 credit = $0.10); the blockchain plumbing (MANA, signatures, gas, chains) is hidden. Credits are backed by USD and settle in MANA at spend time, so the existing on-chain marketplace guarantees hold.
+A web2-first storefront for Decentraland wearables and emotes. Prices show in **fixed-USD Credits** (1 Credit = $0.10); the blockchain plumbing (MANA, signatures, gas, chains) is hidden. Credits are backed by USD and settle in MANA at spend time, so the existing on-chain marketplace guarantees hold.
 
 ## Repo layout
 
@@ -20,7 +20,7 @@ The `app/` directory is a working directory. **Run `npm`, tests, and `tsc` from 
 The Shop targets mass web2 users. **Never** surface crypto jargon in any user-facing copy — buttons, labels, statuses, errors, tooltips, empty states. This is a strict convention; see `CONVENTIONS.md` for the full banned-word list and the approved replacements. The short version:
 
 - Banned: wallet, MetaMask, sign / signature, chain / network, on-chain, gas, transaction / tx, approval, contract, MANA, blockchain, mint, token, "wallet address".
-- Say instead: "Sign in" / "Sign out" (not connect/disconnect wallet); "credits" (not MANA/token); "account" (not wallet address); generic friendly errors (not raw web3 errors).
+- Say instead: "Sign in" / "Sign out" (not connect/disconnect wallet); "Credits" — capitalized, it is the currency's name (not MANA/token); "account" (not wallet address); generic friendly errors (not raw web3 errors).
 
 Internally, listings are **chain-agnostic**: creating a listing is an off-chain EIP-712 signature, so **do not gate listing on the wallet's chain.** Read contract state via the dedicated Amoy RPC (`config.rpcUrl`), not the wallet provider. Only real transactions (e.g. `setApprovalForAll`) need the right chain — switch just-in-time, silently.
 
