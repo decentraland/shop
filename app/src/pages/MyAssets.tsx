@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { fetchMyAssets, fetchSecondarySaleState, type CatalogItem, type MyAsset } from '~/lib/api'
-import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
+import { fetchCreatorSaleState, type CollectionSaleState } from '~/lib/collections'
+import { readCreationsHint, writeCreationsHint } from '~/lib/creations-hint'
 import { displayCredits } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
@@ -14,7 +15,6 @@ import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import type { CreatorSaleStatus } from '~/lib/coupons'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
-import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
@@ -31,11 +31,12 @@ import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { heatFor, theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { EmptyState } from '~/components/EmptyState'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import { NewPricingModal } from '~/components/NewPricingModal'
 import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
@@ -328,6 +329,12 @@ export function MyAssets() {
   )
 
   // ---------------- Creations (builder feed) ----------------
+  // Two reads for the whole section, started together: the builder's address-wide item list (with its
+  // collections, for names and minters) and the creator's sale state from the marketplace. Neither waits
+  // for the other. For an account that showed creations before (see lib/creations-hint) both start the
+  // moment the page mounts, so the tab opens warm; a first-time visitor pays them when the tab is opened.
+  const creationsHint = useMemo(() => readCreationsHint(address), [address])
+  const creationsWanted = !!session && (section === 'creations' || creationsHint !== null)
   const {
     data: publishable,
     isLoading: publishableLoading,
@@ -335,26 +342,37 @@ export function MyAssets() {
   } = useQuery({
     queryKey: ['publishable-items', address],
     queryFn: () => fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true }),
-    enabled: !!session && section === 'creations',
+    enabled: creationsWanted,
+    // What a creator has published changes when they publish, which invalidates this key; re-reading it
+    // on every visit to the tab only repeated the slowest request on the page.
+    staleTime: 5 * 60_000,
     retry: false
   })
+  useEffect(() => {
+    if (address && publishable) writeCreationsHint(address, publishable.length)
+  }, [address, publishable])
 
-  const contractAddresses = useMemo(() => [...new Set((publishable ?? []).map(p => p.contractAddress))], [publishable])
-  const { data: saleState } = useQuery({
-    queryKey: ['collection-sale-state', address, contractAddresses],
-    enabled: contractAddresses.length > 0,
-    queryFn: async () => {
-      const maps = await Promise.all(
-        contractAddresses.map(async ca => [ca, await fetchCollectionSaleState(ca)] as const)
-      )
-      const merged: Record<string, CollectionSaleState> = {}
-      for (const [ca, m] of maps) {
-        for (const [itemId, v] of Object.entries(m)) merged[`${ca}-${itemId}`] = v
-      }
-      return merged
-    }
+  // Same key prefix the listing flows invalidate ('collection-sale-state'), now one read per creator rather
+  // than one per collection, and independent of the items read so the two overlap instead of chaining.
+  const {
+    data: saleState,
+    isPending: salePending,
+    isError: saleError
+  } = useQuery({
+    queryKey: ['collection-sale-state', address],
+    queryFn: () => fetchCreatorSaleState(address as string),
+    enabled: creationsWanted,
+    staleTime: 60_000
   })
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
+  // Hold the skeleton until prices are known too: cards that land unpriced and then flip to "on sale" read
+  // as a glitch. The sale read is the faster of the two, so this rarely adds any wait.
+  // `creationsWanted` first: a disabled query reports pending too, so the guard says what is meant rather
+  // than leaning on the item count happening to be zero while nothing has been asked for.
+  const saleSettling = creationsWanted && salePending && !saleError && (publishable?.length ?? 0) > 0
+  const creationsLoading = publishableLoading || saleSettling
+  // Sized to the count last seen for this account, so the grid does not jump when the real cards land.
+  const creationsSkeletonCount = Math.min(12, Math.max(4, creationsHint?.count ?? 12))
 
   // Only a MANA-denominated listing needs the oracle, and most sellers have none — don't poll for nothing.
   const hasManaListing = useMemo(() => Object.values(saleState ?? {}).some(v => !!v.manaWei), [saleState])
@@ -532,19 +550,23 @@ export function MyAssets() {
   // ---------------- Sign-in gate ----------------
   if (!session) {
     return (
-      <S.Gate>
-        <S.GateTitle>{t('nav.myAssets')}</S.GateTitle>
-        <S.GateText>{t('myAssets.signInPrompt')}</S.GateText>
-        <Button variant="white" onClick={() => signIn()}>
-          {t('storeSettings.signIn')}
-        </Button>
+      <EmptyStateCentered>
+        <EmptyState
+          testId="my-items-signin"
+          icon={signInIllustration}
+          title={t('myAssets.signInTitle')}
+          body={t('myAssets.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
         <ErrorNotice message={error} />
-      </S.Gate>
+      </EmptyStateCentered>
     )
   }
 
   // ---------------- Toolbar count + applied-filter chips ----------------
-  const loading = section === 'creations' ? publishableLoading : ownedLoading || isPlaceholderData
+  const loading = section === 'creations' ? creationsLoading : ownedLoading || isPlaceholderData
   const total = section === 'creations' ? creations.length : status === 'not_for_sale' ? ownedAssets.length : ownedTotal
 
   const chips: FilterChip[] = []
@@ -765,9 +787,9 @@ export function MyAssets() {
                 onClose={() => setSaleModalOpen(false)}
               />
             ) : null}
-            {publishableLoading ? (
+            {creationsLoading ? (
               <S.Grid data-testid="grid">
-                <SkeletonCards count={12} />
+                <SkeletonCards count={creationsSkeletonCount} />
               </S.Grid>
             ) : (
               creationGroups.map(group => (
@@ -837,7 +859,7 @@ export function MyAssets() {
                 </S.CollectionGroup>
               ))
             )}
-            {!publishableLoading && creations.length === 0 ? (
+            {!creationsLoading && creations.length === 0 ? (
               <EmptyState
                 testId="creations-empty"
                 icon={collectionsEmptyIllustration}

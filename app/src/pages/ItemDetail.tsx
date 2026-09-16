@@ -45,6 +45,9 @@ import { toast } from '~/store/toast'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import type { ListingCancelResult, ListingEdit } from '~/components/ListingSteps'
 import { useManaRate } from '~/hooks/useManaRate'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
+import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
+import { suggestedHiddenReason } from '~/lib/suggestionEvents'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { useCampaignBadge } from '~/hooks/useCampaignBadge'
@@ -114,6 +117,10 @@ function categoryLabel(item: CatalogItem): string {
  * PATHNAME only, not the search or the router state: navigating to the SAME asset with new state (the
  * buy-modal resume after a sign-in round-trip) must not throw the page away and reopen it.
  */
+// The PDP rail is shorter than the home page's: it sits under a page the reader came to for one
+// specific item, not under a browsing surface.
+const PERSONAL_RAIL_SIZE = 8
+
 export function ItemDetailRoute() {
   const { pathname } = useLocation()
   return <ItemDetail key={pathname} />
@@ -266,6 +273,26 @@ export function ItemDetail() {
     openBuy()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
+
+  // `contract-itemId`, the identity the recommender keys on. Null for anything it cannot speak about.
+  const anchorExclude = useMemo(() => {
+    const id = current.contractAddress && (current.itemId ?? pageItemId)
+    return id ? [`${current.contractAddress.toLowerCase()}-${current.itemId ?? pageItemId}`] : undefined
+  }, [current.contractAddress, current.itemId, pageItemId])
+
+  // The PERSONAL rail, asked for this reader rather than for this item, and told to leave the anchor out
+  // -- offering back the very item the page is about is the one thing it must never do. Asked here as
+  // well as inside the component on purpose: react-query dedupes on the key, so this is the same single
+  // request, and the page needs the answer to decide whether its own cascade below is still wanted.
+  const personal = useSuggestedForYou(PERSONAL_RAIL_SIZE, { exclude: anchorExclude })
+  const personalHidden = suggestedHiddenReason({
+    enabled: personal.enabled,
+    hasSignal: personal.hasSignal,
+    isLoading: personal.isLoading,
+    isError: personal.isError,
+    personalized: personal.result?.personalized,
+    rowCount: personal.result?.data.length ?? 0
+  })
 
   // The rail below the fold: this collection's other items, padded with the creator's and then with
   // similar ones so it never shows up as two or three lonely cards. `siblings` also backfills the item.
@@ -1878,16 +1905,27 @@ export function ItemDetail() {
         </S.Info>
       </S.Main>
 
-      {/* CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
-      <CollectionCarousel
-        title={carouselTitle}
-        items={carouselItems}
-        onViewAll={
-          isCollectionOnly && current.contractAddress
-            ? () => navigate(`/collection/${current.contractAddress}`)
-            : undefined
-        }
+      {/* Two rails, never both: the personal one answers "what should YOU buy", the cascade below answers
+          "what else is like THIS". Showing both stacks two carousels of largely the same items. */}
+      <SuggestedForYouRow
+        exclude={anchorExclude}
+        title={t('itemDetail.becauseYouOwn')}
+        surface="pdp"
+        first={PERSONAL_RAIL_SIZE}
       />
+
+      {/* CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
+      {personalHidden !== null && (
+        <CollectionCarousel
+          title={carouselTitle}
+          items={carouselItems}
+          onViewAll={
+            isCollectionOnly && current.contractAddress
+              ? () => navigate(`/collection/${current.contractAddress}`)
+              : undefined
+          }
+        />
+      )}
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout

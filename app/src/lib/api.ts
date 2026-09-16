@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
@@ -349,6 +350,40 @@ export async function fetchPeggedPrimaryPrices(
          * Left in seconds it lands in 1970 and every card decides the sale is already over — which looks
          * exactly like the fields never arriving at all.
          */
+        ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
+        ...(creatorSalesLive && l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+      }
+    }
+    if (listings.length < PAGE || (total > 0 && skip + listings.length >= total)) break
+  }
+  return map
+}
+
+// The same map for EVERY collection a creator sells, keyed by `contract-itemId`. One paged read for the
+// whole catalogue instead of one per collection: My Creations used to fan this out per collection, which
+// put one heavy catalogue query on the server for each collection the creator had.
+export async function fetchCreatorPeggedPrimaryPrices(
+  creator: string
+): Promise<Record<string, { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }>> {
+  const map: Record<
+    string,
+    { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }
+  > = {}
+  const PAGE = 200
+  for (let skip = 0; ; skip += PAGE) {
+    const { listings, total, creatorSalesLive } = await fetchShopListingsRaw({
+      creator: creator.toLowerCase(),
+      first: PAGE,
+      skip,
+      listingType: 'primary'
+    })
+    for (const l of listings) {
+      if (l.listingType !== 'primary' || l.itemId == null) continue
+      map[`${l.contractAddress.toLowerCase()}-${l.itemId}`] = {
+        priceCredits: l.priceCredits,
+        ...(l.tradeId ? { tradeId: l.tradeId } : {}),
+        // Same two corrections the per-collection read makes: the kill switch lives in the mapping these
+        // raw rows skip, and `saleEndsAt` arrives in seconds while every consumer works in milliseconds.
         ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
         ...(creatorSalesLive && l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
       }
@@ -978,6 +1013,122 @@ export async function fetchTrendingItems({
   }
   const json = (await res.json()) as { data?: ShopItemRaw[] }
   return (json.data ?? []).map(shopItemToItem)
+}
+
+/** Why a suggested item is being shown. The Shop turns the kind into a line of copy per card. */
+export type SuggestionReasonKind =
+  'co_owned' | 'creator_affinity' | 'favorite_similar' | 'equipped_similar' | 'seed_similar' | 'trending'
+
+export type SuggestionReason = {
+  kind: SuggestionReasonKind
+  /** The profile item that pulled this row in, as `contract-itemId`. Absent for `creator_affinity`
+   * and `trending`, which are not about one item. */
+  itemId?: string
+  creator?: string
+}
+
+export type SuggestedItem = UnifiedListing & {
+  reason: SuggestionReason
+  score: number
+}
+
+export type SuggestedItemsResult = {
+  data: SuggestedItem[]
+  /** False when the rail is the generic trending fallback. The row hides itself rather than show it. */
+  personalized: boolean
+  /** Which scorer produced this, so analytics can compare versions. */
+  algorithm: string
+}
+
+/**
+ * The items suggested for one visitor — what backs the home page's "Suggested for you" row.
+ *
+ * Ranked and explained server-side, and returned IN that order, so the caller must not re-sort it.
+ * Rows are the same item-unified shape as fetchTrendingItems, which is what lets the identical
+ * AssetCard render them at a real credit price.
+ *
+ * Everything that identifies the visitor is optional and additive: an address personalises from what
+ * the account holds and bought, and `seeds` (what this browser has looked at or put in its cart)
+ * personalises a visitor who is not signed in at all. Sending neither is pointless — the caller is
+ * expected not to ask, and the server would answer with the trending fallback.
+ *
+ * Fails loudly on a bad status like fetchTrendingItems, for the same reason: the row hides itself on
+ * error, so the thrown message is the only place the cause survives.
+ */
+/**
+ * `urn:decentraland:matic:collections-v2:<contract>:<id>` -> `<contract>-<id>`.
+ *
+ * The equipped list is the only thing here the Catalyst hands over as URNs, and thirty of them is 2.5 KB
+ * of query string against 1.4 KB as ids. The server accepts both, so this is a size saving rather than a
+ * contract both sides have to agree on at the same moment.
+ */
+const EQUIPPED_URN = /^urn:decentraland:(?:matic|amoy):collections-v2:(0x[0-9a-f]{40}):(\d+)$/i
+
+export function compactEquipped(urns: string[]): string[] {
+  const ids: string[] = []
+  for (const urn of urns) {
+    const match = EQUIPPED_URN.exec(urn.trim())
+    // Anything else — a base avatar, a name — is dropped: the recommender has nothing to say about it
+    // and it would only spend room in the request.
+    if (match) ids.push(`${match[1].toLowerCase()}-${match[2]}`)
+  }
+  return ids
+}
+
+export async function fetchSuggestedItems({
+  address,
+  identity,
+  seeds,
+  bodyShape,
+  equipped,
+  exclude,
+  category,
+  first = 12
+}: {
+  address?: string
+  /** Present only for a signed-in shopper. It is what lets the server read their favourites. */
+  identity?: AuthIdentity
+  seeds?: string[]
+  bodyShape?: string
+  equipped?: string[]
+  exclude?: string[]
+  category?: string
+  first?: number
+} = {}): Promise<SuggestedItemsResult> {
+  const qs = new URLSearchParams({ first: String(first) })
+  if (address) qs.set('address', address)
+  if (seeds?.length) qs.set('seeds', seeds.join(','))
+  if (bodyShape) qs.set('bodyShape', bodyShape)
+  if (equipped?.length) qs.set('equipped', compactEquipped(equipped).join(','))
+  if (exclude?.length) qs.set('exclude', exclude.join(','))
+  if (category) qs.set('category', category)
+
+  // Signed when we can, plain when we cannot: the signature unlocks favourites and nothing else, so a
+  // signed-out visitor still gets a rail from their seeds.
+  const url = `${config.marketplaceServerUrl}/v3/catalog/suggested?${qs.toString()}`
+  const res = identity ? await signedFetch(url, { method: 'GET', identity, metadata: {} }) : await fetch(url)
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchSuggestedItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
+
+  const json = (await res.json()) as {
+    data?: Array<ShopItemRaw & { reason?: SuggestionReason; score?: number }>
+    personalized?: boolean
+    algorithm?: string
+  }
+
+  return {
+    data: (json.data ?? []).map(row => ({
+      ...shopItemToItem(row),
+      // An older server, or a row the scorer could not explain, still renders — as trending, which is
+      // the one kind that claims nothing about this visitor.
+      reason: row.reason ?? { kind: 'trending' },
+      score: row.score ?? 0
+    })),
+    personalized: json.personalized === true,
+    algorithm: json.algorithm ?? 'unknown'
+  }
 }
 
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row

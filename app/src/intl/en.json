@@ -215,7 +215,8 @@
       "own": "{count} you can't buy (your own listing)",
       "and": "and",
       "removed": "Removed {items} from your cart."
-    }
+    },
+    "suggestedTitle": "Goes with your cart"
   },
   "getCredits": {
     "title": "Stock up on Credits",
@@ -479,7 +480,8 @@
     "emoteProps": "Props",
     "cancelRelayReverted": "That didn't go through — your listing is still up. You can remove it now by paying the network fee yourself, or leave it and try again later.",
     "cancelRelayRetry": "We couldn't remove it just now. Please try again in a moment.",
-    "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open."
+    "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open.",
+    "becauseYouOwn": "Because of what you own"
   },
   "transfer": {
     "title": "Transfer item",
@@ -598,7 +600,8 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Sign in to view your items.",
+    "signInTitle": "Sign In to view your items",
+    "signInBody": "Sign in to see the items you own and manage them.",
     "removedFromSale": "“{name}” is no longer for sale.",
     "removeListingError": "Couldn’t remove the listing — please try again.",
     "ownedTitle": "Items you own",
@@ -681,7 +684,8 @@
     "emptyCta": "Start exploring",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "loadError": "We couldn't load your favorites.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "suggestedTitle": "More like what you saved"
   },
   "favorites": {
     "updateError": "We couldn't update your favorites. Please try again."
@@ -710,7 +714,19 @@
     "promoOutfitsAria": "Find your look — explore wearables",
     "promoOutfitsAlt": "Find your look",
     "emptyTitle": "New drops are on the way",
-    "emptyBody": "There are no items on sale right now — check back soon."
+    "emptyBody": "There are no items on sale right now — check back soon.",
+    "suggested": {
+      "title": "Suggested for you",
+      "reason": {
+        "coOwned": "Because you have {item}",
+        "generic": "Picked for you",
+        "creatorAffinity": "More from a creator you collect",
+        "favoriteSimilar": "Similar to your favorites",
+        "equippedSimilar": "Goes with what you're wearing",
+        "seedSimilar": "Similar to items you've looked at",
+        "trending": "Trending"
+      }
+    }
   },
   "app": {
     "crash": {
@@ -777,7 +793,8 @@
       "myOutfits": "My outfits",
       "new": "New outfit",
       "editTitle": "Edit outfit",
-      "signInPrompt": "Sign in to manage outfits.",
+      "signInTitle": "Sign in to manage your outfits",
+      "signInBody": "Sign in to build and save outfits from the items you own.",
       "signIn": "Sign in",
       "notAvailable": "This area is only for the shop's styling team.",
       "backToShop": "Back to the shop",

@@ -233,6 +233,12 @@ h2 {
 .page[data-route="/credits"] {
   min-height: 0;
 }
+/* Same reasoning, but keyed on state rather than route: a signed-out page is one short empty-state panel,
+   and it is the signed-out variant of three different routes. Holding the viewport open under it parks the
+   same screenful of empty purple and pushes the footer off the fold. */
+.page:has([data-fill="true"]) {
+  min-height: 0;
+}
 /* The overview's hero is full-bleed and must sit FLUSH against the sub-nav: the shell's top padding left a
    white band between the two, which on an edge-to-edge banner reads as a gap rather than as breathing room.
    Dropped on the route instead of pulled up with a negative margin on the hero, so the value does not have

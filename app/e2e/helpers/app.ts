@@ -257,6 +257,8 @@ let secondarySalesFlag = true
 let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
+let suggestedForYouFlag = false
+let suggestedConfig: { personalized?: boolean; count?: number } = {}
 // The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
 let couponStore: any[] = []
 let campaignFlag = false
@@ -382,7 +384,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
           'dapps-shop-outfit-creators': outfitCreatorFlag,
           'dapps-shop-follows': followsFlag,
           'dapps-shop-creator-sales': creatorSalesFlag,
-          'dapps-shop-campaign': campaignFlag
+          'dapps-shop-campaign': campaignFlag,
+          'dapps-shop-suggested-for-you': suggestedForYouFlag
         },
         variants: outfitCreatorFlag
           ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
@@ -569,8 +572,17 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         )
         return json(req, { data: rows, total: rows.length })
       }
+      // fetchCreatorSaleState reads the creator's PRIMARY listings in one pass. When a spec provides the
+      // narrower `collectionSaleState` fixture, that is what this read must see: it models what the shop
+      // feed knows about the creator's primaries, and a row present in the catalogue but absent from it is
+      // how a spec says "MANA-priced". Only the row source changes; every filter below still applies.
+      const saleStateRows = (F.collectionSaleState as { data: any[] } | undefined)?.data
+      const creatorSaleStateRead =
+        !ca && !itemId && u.searchParams.get('creator') && u.searchParams.get('listingType') === 'primary'
+      const baseRows =
+        creatorSaleStateRead && saleStateRows ? saleStateRows : ((F.shopListings as { data: any[] }).data ?? [])
       // Honor the server-side filters so filter/search/sort + item-detail specs are meaningful.
-      let items = [...((F.shopListings as { data: any[] }).data ?? [])]
+      let items = [...baseRows]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
@@ -614,6 +626,40 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (Number.isFinite(trendingFirst) && trendingFirst > 0) items = items.slice(0, trendingFirst)
       // Unpaginated: `{ data }` only, no total — same as the real handler.
       return json(req, { data: items })
+    }
+    /**
+     * The home page's PERSONALISED rail. Served from the same fixture as every other feed, because what
+     * an e2e can observe is which endpoint fills the row, what the client sent to it, and whether the row
+     * shows or hides itself — not the ranking, which is the server's own business and has its own tests
+     * against a database. `personalized` is the switch the row's visibility hangs on, so it is what a
+     * spec overrides.
+     */
+    if (path === '/v3/catalog/suggested') {
+      const rows = [...((F.unifiedListings as { data: any[] }).data ?? [])]
+      const wanted = Number(u.searchParams.get('first') ?? 12)
+      const count = suggestedConfig.count ?? (Number.isFinite(wanted) && wanted > 0 ? wanted : 12)
+      // The shared fixture holds three listings, fewer than a rail shows and fewer than the row's own
+      // minimum, so it is cycled up to the asked-for size with distinct ids. The alternative — a rail
+      // that can never be longer than three — would make the row's "too few to be worth showing" rule
+      // untestable, which is precisely one of the behaviours this endpoint exists to drive.
+      const padded = Array.from({ length: count }, (_, i) => {
+        const row = rows[i % Math.max(1, rows.length)]
+        return i < rows.length ? row : { ...row, tradeId: `${row.tradeId}-s${i}`, itemId: `${100 + i}` }
+      })
+      const kinds = ['co_owned', 'creator_affinity', 'favorite_similar', 'equipped_similar', 'seed_similar']
+      const data = padded.map((row, i) => ({
+        ...row,
+        reason:
+          kinds[i % kinds.length] === 'creator_affinity'
+            ? { kind: 'creator_affinity', creator: row.creator }
+            : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
+        score: 1 - i / 100
+      }))
+      return json(req, {
+        data,
+        personalized: suggestedConfig.personalized !== false,
+        algorithm: 'v1'
+      })
     }
     if (path === '/v3/catalog/unified') {
       // The ONE browse grid: native + legacy in one feed. `groupBy=item` (the browse grid, fetchShopItems)
@@ -821,6 +867,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Which collections carry a campaign's tag. Answered only while a campaign is published — an event
     // whose tag nobody has applied yet is the ordinary state, and the tab has to stay hidden for it.
     if (path === '/v1/addresses') return json(req, { ok: true, data: campaignFlag ? [fx.COLLECTION] : [] })
+    // Everything the address has in the builder, across its collections — the read My Creations makes
+    // (lib/builder → fetchPublishableItems). Served from the same rows as the per-collection route below,
+    // so one fixture describes the creator whichever route the app takes.
+    if (/^\/v1\/0x[0-9a-fA-F]{40}\/items$/.test(path)) return json(req, F.builderItems)
     // Per-collection endpoint, so honour the id in the path — answering every collection with the whole
     // item list made a multi-collection creator look like one collection repeated.
     if (/\/v1\/collections\/.+\/items/.test(path)) {
@@ -1015,6 +1065,16 @@ export async function launchApp(
      * the creator-sale spec passes true to exercise the flow.
      */
     creatorSales?: boolean
+    /**
+     * Whether the mocked flag file reports the personalised rail as available. Defaults to FALSE, the
+     * shipped state; the suggested-for-you spec passes true to exercise the row.
+     */
+    suggestedForYou?: boolean
+    /**
+     * What `/v3/catalog/suggested` answers. Omit for the default: the unified fixture rows, personalised.
+     * A spec passes `{ personalized: false }` to exercise the row hiding itself.
+     */
+    suggested?: { personalized?: boolean; count?: number }
     /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
     delays?: Delays
     /**
@@ -1042,6 +1102,8 @@ export async function launchApp(
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
   creatorSalesFlag = opts.creatorSales ?? false
+  suggestedForYouFlag = opts.suggestedForYou ?? false
+  suggestedConfig = opts.suggested ?? {}
   couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
   campaignFlag = opts.campaign ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests

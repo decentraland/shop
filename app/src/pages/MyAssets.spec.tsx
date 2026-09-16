@@ -30,7 +30,7 @@ vi.mock('~/store/wallet', () => ({
 const fetchMyAssets = vi.fn()
 const postTrade = vi.fn()
 const fetchTrade = vi.fn()
-const fetchCollectionSaleState = vi.fn()
+const fetchCreatorSaleState = vi.fn()
 vi.mock('~/lib/api', () => ({
   fetchMyAssets: (...args: unknown[]) => fetchMyAssets(...args),
   postTrade: (...args: unknown[]) => postTrade(...args),
@@ -40,7 +40,7 @@ vi.mock('~/lib/api', () => ({
 // Partial mock: CollectionThumb and friends still need the real exports from this module.
 vi.mock('~/lib/collections', async importOriginal => ({
   ...(await importOriginal<typeof import('~/lib/collections')>()),
-  fetchCollectionSaleState: (...args: unknown[]) => fetchCollectionSaleState(...args)
+  fetchCreatorSaleState: (...args: unknown[]) => fetchCreatorSaleState(...args)
 }))
 
 // 0.28 USD per MANA, so 5 MANA is $1.40 = 14 credits.
@@ -148,7 +148,7 @@ beforeEach(() => {
   localStorage.clear()
   walletState.session = session
   fetchMyAssets.mockResolvedValue({ assets: [wearable()], total: 1 })
-  fetchCollectionSaleState.mockResolvedValue({})
+  fetchCreatorSaleState.mockResolvedValue({})
   fetchPublishableItems.mockResolvedValue([])
   fetchImportable.mockResolvedValue({ creations: [], owned: [] })
 })
@@ -329,7 +329,7 @@ describe('when viewing My Creations', () => {
   it('should show a MANAGE cta on each creation (listing happens on the item detail page)', async () => {
     const user = userEvent.setup()
     fetchPublishableItems.mockResolvedValue([creation])
-    fetchCollectionSaleState.mockResolvedValue({}) // nothing on sale yet
+    fetchCreatorSaleState.mockResolvedValue({}) // nothing on sale yet
     renderPage()
     await screen.findByText('Cool Hat')
 
@@ -349,8 +349,8 @@ describe('when viewing My Creations', () => {
   it('should price a MANA listing at the live rate, not the server snapshot', async () => {
     const user = userEvent.setup()
     fetchPublishableItems.mockResolvedValue([creation])
-    fetchCollectionSaleState.mockResolvedValue({
-      '4': { isOnSale: true, priceCredits: 4, manaWei: '5000000000000000000' }
+    fetchCreatorSaleState.mockResolvedValue({
+      '0xcreated-4': { isOnSale: true, priceCredits: 4, manaWei: '5000000000000000000' }
     })
     renderPageWithRoutes()
     await screen.findByText('Cool Hat')
@@ -366,15 +366,15 @@ describe('when viewing My Creations', () => {
   it('should show the listed price, not NOT FOR SALE, for a creation on sale', async () => {
     const user = userEvent.setup()
     fetchPublishableItems.mockResolvedValue([creation])
-    // Keyed by itemId: the page prefixes the contract itself when merging across collections.
-    fetchCollectionSaleState.mockResolvedValue({ '4': { isOnSale: true, priceCredits: 14 } })
+    // Keyed by contract-itemId, the shape the creator-wide sale state comes in.
+    fetchCreatorSaleState.mockResolvedValue({ '0xcreated-4': { isOnSale: true, priceCredits: 14 } })
     renderPageWithRoutes()
     await screen.findByText('Cool Hat')
 
     await user.click(screen.getByRole('button', { name: /my creations/i }))
     await screen.findByTestId('card-manage')
 
-    // findBy, not getBy: the sale state is a second query, so the card first renders unpriced.
+    // findBy, not getBy: the sale state is its own query, and the grid holds its skeleton until it lands.
     expect(await screen.findByTestId('card-price')).toHaveTextContent('14')
     expect(screen.queryByTestId('card-nfs')).not.toBeInTheDocument()
   })
@@ -382,7 +382,7 @@ describe('when viewing My Creations', () => {
   it('should navigate to the creation’s item detail page when MANAGE is clicked', async () => {
     const user = userEvent.setup()
     fetchPublishableItems.mockResolvedValue([creation])
-    fetchCollectionSaleState.mockResolvedValue({
+    fetchCreatorSaleState.mockResolvedValue({
       '0xcreated-4': { isOnSale: true, priceCredits: 20, tradeId: 'trade-7' }
     })
     renderPageWithRoutes()
@@ -495,5 +495,80 @@ describe('when the seller opts out of the pricing prompt', () => {
     renderPage()
 
     expect(await screen.findByTestId('new-pricing-modal')).toBeInTheDocument()
+  })
+})
+
+describe('when My Creations loads', () => {
+  const creation = {
+    id: 'builder-uuid-9',
+    collectionId: 'col-9',
+    collectionName: 'Warm Collection',
+    contractAddress: '0xwarm',
+    blockchainItemId: '1',
+    name: 'Warm Boots',
+    category: 'wearable',
+    rarity: 'rare',
+    thumbnail: '',
+    type: 'wearable' as const,
+    isPublished: true,
+    isApproved: true,
+    totalSupply: 0,
+    maxSupply: 5000,
+    remainingSupply: 5000,
+    minters: []
+  }
+
+  it('should not read the builder until the tab is opened for an account never seen with creations', async () => {
+    renderPage()
+    await screen.findByText('Cool Hat')
+
+    expect(fetchPublishableItems).not.toHaveBeenCalled()
+    expect(fetchCreatorSaleState).not.toHaveBeenCalled()
+  })
+
+  it('should start both reads on mount for an account that showed creations before', async () => {
+    localStorage.setItem('shop:creations-hint:v1', JSON.stringify({ [session.address.toLowerCase()]: { count: 3 } }))
+    fetchPublishableItems.mockResolvedValue([creation])
+    renderPage()
+    await screen.findByText('Cool Hat')
+
+    // Still on Wearables, and the creations are already on their way — in one request each.
+    expect(fetchPublishableItems).toHaveBeenCalledTimes(1)
+    expect(fetchCreatorSaleState).toHaveBeenCalledTimes(1)
+    expect(fetchCreatorSaleState).toHaveBeenCalledWith(session.address)
+  })
+
+  it('should remember the account as a creator once creations have loaded', async () => {
+    const user = userEvent.setup()
+    fetchPublishableItems.mockResolvedValue([creation])
+    renderPage()
+    await screen.findByText('Cool Hat')
+
+    await user.click(screen.getByRole('button', { name: /my creations/i }))
+    await screen.findByText('Warm Boots')
+
+    expect(JSON.parse(localStorage.getItem('shop:creations-hint:v1') ?? '{}')).toEqual({
+      [session.address.toLowerCase()]: { count: 1 }
+    })
+  })
+
+  it('should hold the skeleton until the sale state has landed, so cards never flip from unpriced to priced', async () => {
+    const user = userEvent.setup()
+    fetchPublishableItems.mockResolvedValue([creation])
+    let resolveSale: (value: Record<string, unknown>) => void = () => undefined
+    fetchCreatorSaleState.mockReturnValue(new Promise(resolve => (resolveSale = resolve)))
+    renderPage()
+    await screen.findByText('Cool Hat')
+
+    await user.click(screen.getByRole('button', { name: /my creations/i }))
+
+    // Items are known but prices are not: skeleton, no card.
+    await screen.findAllByTestId('skeleton-card')
+    expect(screen.queryByText('Warm Boots')).not.toBeInTheDocument()
+
+    resolveSale({ '0xwarm-1': { isOnSale: true, priceCredits: 9 } })
+
+    expect(await screen.findByText('Warm Boots')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('skeleton-card')).toHaveLength(0)
   })
 })

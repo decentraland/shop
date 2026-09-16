@@ -215,7 +215,8 @@
       "own": "{count} que no puedes comprar (tu propia publicación)",
       "and": "y",
       "removed": "Eliminamos {items} de tu carrito."
-    }
+    },
+    "suggestedTitle": "Combina con tu carrito"
   },
   "getCredits": {
     "title": "Carga tus Créditos",
@@ -479,7 +480,8 @@
     "emoteProps": "Accesorios",
     "cancelRelayReverted": "No se completó — tu publicación sigue activa. Puedes darla de baja ahora pagando la comisión de red, o dejarla y probar más tarde.",
     "cancelRelayRetry": "No pudimos darla de baja ahora. Prueba de nuevo en un momento.",
-    "cancelSlowManaged": "Seguimos terminando. Puede tardar unos minutos — puedes dejar esto abierto."
+    "cancelSlowManaged": "Seguimos terminando. Puede tardar unos minutos — puedes dejar esto abierto.",
+    "becauseYouOwn": "Por lo que ya tienes"
   },
   "transfer": {
     "title": "Transferir artículo",
@@ -598,7 +600,8 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Inicia sesión para ver tus artículos.",
+    "signInTitle": "Inicia sesión para ver tus artículos",
+    "signInBody": "Inicia sesión para ver los artículos que tienes y gestionarlos.",
     "removedFromSale": "«{name}» ya no está a la venta.",
     "removeListingError": "No pudimos quitar la publicación. Inténtalo de nuevo.",
     "ownedTitle": "Artículos que tienes",
@@ -681,7 +684,8 @@
     "emptyCta": "Empieza a explorar",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "loadError": "No pudimos cargar tus favoritos.",
-    "tryAgain": "Prueba de nuevo"
+    "tryAgain": "Prueba de nuevo",
+    "suggestedTitle": "Más como lo que guardaste"
   },
   "favorites": {
     "updateError": "No pudimos actualizar tus favoritos. Prueba de nuevo."
@@ -710,7 +714,19 @@
     "promoOutfitsAria": "Encuentra tu look: explora los wearables",
     "promoOutfitsAlt": "Encuentra tu look",
     "emptyTitle": "Se avecinan nuevos lanzamientos",
-    "emptyBody": "No hay artículos a la venta en este momento; vuelve pronto."
+    "emptyBody": "No hay artículos a la venta en este momento; vuelve pronto.",
+    "suggested": {
+      "title": "Sugeridos para ti",
+      "reason": {
+        "coOwned": "Porque tienes {item}",
+        "generic": "Elegido para ti",
+        "creatorAffinity": "Más de un creador que coleccionas",
+        "favoriteSimilar": "Parecido a tus favoritos",
+        "equippedSimilar": "Combina con lo que llevas puesto",
+        "seedSimilar": "Parecido a lo que miraste",
+        "trending": "Tendencia"
+      }
+    }
   },
   "app": {
     "crash": {
@@ -777,7 +793,8 @@
       "myOutfits": "Mis outfits",
       "new": "Nuevo outfit",
       "editTitle": "Editar outfit",
-      "signInPrompt": "Inicia sesión para gestionar outfits.",
+      "signInTitle": "Inicia sesión para gestionar tus outfits",
+      "signInBody": "Inicia sesión para crear y guardar outfits con los artículos que tienes.",
       "signIn": "Inicia sesión",
       "notAvailable": "Esta sección es solo para el equipo de estilismo de la tienda.",
       "backToShop": "Volver a la tienda",

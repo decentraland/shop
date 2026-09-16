@@ -206,32 +206,6 @@ export const Grid = styled.div`
   }
 `
 
-// Sign-in gate (no connected account).
-export const Gate = styled.section`
-  max-width: 520px;
-  margin: 48px auto;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: center;
-`
-
-export const GateTitle = styled.h1`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-weight: 700;
-  font-size: 24px;
-  color: ${theme.colors.softWhite};
-`
-
-export const GateText = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 15px;
-  color: ${theme.colors.gray4};
-`
-
 // Import banner (surfaces classic listings the seller can bring into the Shop).
 export const ImportBanner = styled(ManaPricingBanner)`
   margin-bottom: 16px;
