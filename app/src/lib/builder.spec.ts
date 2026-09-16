@@ -480,6 +480,26 @@ describe("when fetching every publishable item across a creator's collections", 
     expect(items.find(i => i.id === 'i2')).toMatchObject({ contractAddress: '0xbbb', collectionName: 'B' })
   })
 
+  it("should keep the collections' order — newest first — however the address feed orders its items", async () => {
+    routeSigned({
+      '/0xcreator/collections?is_published=true': twoCollections,
+      // The feed answers oldest collection first; the page groups by collection in the order given here.
+      '/0xcreator/items': okRes({
+        data: [
+          rawItem('b1', 'col-2', '0', 'B one'),
+          rawItem('a1', 'col-1', '0', 'A one'),
+          rawItem('b2', 'col-2', '1', 'B two'),
+          rawItem('a2', 'col-1', '1', 'A two')
+        ]
+      })
+    })
+
+    const items = await fetchPublishableItems('0xcreator', identity)
+
+    // Collections' order first, and the feed's order kept inside each collection.
+    expect(items.map(i => i.id)).toEqual(['a1', 'a2', 'b1', 'b2'])
+  })
+
   it('should drop items whose collection is not published — drafts and third-party items', async () => {
     routeSigned({
       '/0xcreator/collections?is_published=true': twoCollections,
