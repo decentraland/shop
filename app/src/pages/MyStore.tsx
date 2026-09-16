@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
 import { useStoreStats, type StoreCollection, type StorePeriod } from '~/hooks/useStoreStats'
@@ -9,15 +9,54 @@ import { useMyStoreFlag } from '~/hooks/useMyStoreEnabled'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { SaleTag } from '~/components/SaleTag'
+import { Tooltip } from '~/components/Tooltip'
 import { Button } from '~/components/Button'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { SkeletonCards } from '~/components/SkeletonCards'
-import { t } from '~/intl/i18n'
+import { useQuery } from '@tanstack/react-query'
+import { rarityMedia } from '~/lib/rarity'
+import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
+import { shortAddress } from '~/lib/address'
+import { capitalizeFirst } from '~/lib/text'
+import type { SaleRow } from '~/lib/sales'
+import { t, tNode } from '~/intl/i18n'
 import * as A from '~/styles/browseLayout.styles'
 import * as S from './MyStore.styles'
 import manaSymbol from '~/assets/mana-matic.svg'
 
 const PERIODS: StorePeriod[] = ['7d', '30d', 'all']
+
+/** A prolific creator has dozens of collections; the list opens on the ones that sold. */
+const COLLECTIONS_SHOWN = 8
+
+/** Who bought, for the handful of rows on screen — one batched profile read, not one per row. */
+function useBuyerNames(rows: SaleRow[]) {
+  const addresses = [...new Set(rows.map(row => row.buyer.toLowerCase()))].sort()
+  return useQuery({
+    queryKey: ['store-buyers', addresses],
+    enabled: addresses.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchProfiles(addresses)
+  })
+}
+
+function buyerName(address: string, profiles?: Map<string, ProfileAvatar>): string {
+  const name = profiles?.get(address.toLowerCase())?.name
+  return name ? capitalizeFirst(name) : shortAddress(address)
+}
+
+/**
+ * The `?viewAs=0x…` development override: read another creator's store from the public feeds.
+ *
+ * DEV builds only — `import.meta.env.DEV` is statically false in a production build, so this and the public
+ * catalogue behind it are dropped from the bundle rather than merely never reached. It exists because the
+ * page cannot otherwise be judged: the only store a signed-in creator can open is their own, and a test
+ * account with no sales is the one shape this design must not be tuned for.
+ */
+function devViewAs(raw: string | null): string | null {
+  if (!import.meta.env.DEV || !raw) return null
+  const address = raw.trim().toLowerCase()
+  return /^0x[0-9a-f]{40}$/.test(address) ? address : null
+}
 
 /** MANA wei to a readable figure. Two decimals under ten, none above: a creator reads 0.37 and 1,204. */
 function mana(wei: bigint): string {
@@ -136,10 +175,27 @@ function CollectionRow({
         <S.Items id={panelId} data-testid="store-items">
           {collection.items.map(item => (
             <S.ItemRow key={item.key} data-testid="store-item">
-              <S.ItemThumb src={item.thumbnail} alt="" loading="lazy" />
-              <S.ItemName to={`/item/${collection.contractAddress}/${item.itemId}`} title={item.name}>
-                {item.name}
-              </S.ItemName>
+              <S.ItemThumb style={{ backgroundImage: rarityMedia(item.rarity) }}>
+                {item.thumbnail ? <img src={item.thumbnail} alt="" loading="lazy" /> : null}
+              </S.ItemThumb>
+              <S.ItemCell>
+                <S.ItemName to={`/item/${collection.contractAddress}/${item.itemId}`} title={item.name}>
+                  {item.name}
+                </S.ItemName>
+                {/* The listing state. Not for a sold-out item: the stock column beside it already says so,
+                    and saying it twice in one row reads as a mistake. */}
+                {item.state === 'soldout' ? null : (
+                  <S.ItemState data-state={item.state}>
+                    {item.state === 'classic'
+                      ? t('myStore.stateClassic')
+                      : item.state === 'unlisted'
+                        ? t('myStore.stateUnlisted')
+                        : item.state === 'unknown'
+                          ? t('myStore.stateUnknown')
+                          : t('myStore.stateOnSale')}
+                  </S.ItemState>
+                )}
+              </S.ItemCell>
               <S.ItemNum>
                 {item.sold}
                 <small> {t('myStore.sold')}</small>
@@ -154,15 +210,17 @@ function CollectionRow({
               >
                 <i style={{ width: `${Math.round((item.minted / Math.max(1, item.minted + item.left)) * 100)}%` }} />
               </S.Run>
-              <S.ItemState data-state={item.state}>
-                {item.state === 'soldout'
-                  ? t('myStore.stateSoldOut')
-                  : item.state === 'classic'
-                    ? t('myStore.stateClassic')
-                    : item.state === 'unlisted'
-                      ? t('myStore.stateUnlisted')
-                      : t('myStore.stateLeft', { count: item.left })}
-              </S.ItemState>
+              {/* Copies left of the whole run, always: "9 left" does not say of how many, and a bare
+                  ratio does not say which number is which. */}
+              <S.Stock data-out={item.left === 0} data-testid="store-item-stock">
+                {item.left === 0
+                  ? t('myStore.stockOut')
+                  : tNode('myStore.stockLeft', {
+                      b: (c: ReactNode) => <b>{c}</b>,
+                      left: item.left,
+                      total: item.minted + item.left
+                    })}
+              </S.Stock>
             </S.ItemRow>
           ))}
         </S.Items>
@@ -174,19 +232,26 @@ function CollectionRow({
 export function MyStore() {
   useSeo({ title: t('myStore.title'), noindex: true })
   const { session, error, signIn } = useWallet()
+  const [params] = useSearchParams()
   const [period, setPeriod] = useState<StorePeriod>('30d')
   const [open, setOpen] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
   const creatorSalesEnabled = useCreatorSalesEnabled()
   const flag = useMyStoreFlag()
-  const { stats, isLoading, error: statsError } = useStoreStats(session, period)
-  const { data: discounts } = useCreatorSales(session?.address, creatorSalesEnabled && !!session)
+  const viewAs = devViewAs(params.get('viewAs'))
+  const { stats, isLoading, error: statsError } = useStoreStats(session, period, viewAs)
+  const { data: buyers } = useBuyerNames(stats?.recent ?? [])
+  const { data: discounts } = useCreatorSales(
+    viewAs ?? session?.address,
+    creatorSalesEnabled && (!!session || !!viewAs)
+  )
 
   // The flag closes the page, not just the nav entry — otherwise the link is off and the URL is still live.
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
   // every visitor home before the flag file arrives.
   if (flag.data === false) return <Navigate to="/" replace />
 
-  if (!session) {
+  if (!session && !viewAs) {
     return (
       <A.Root>
         <A.Main>
@@ -218,24 +283,34 @@ export function MyStore() {
       sev: 'act',
       n: stats?.classic ?? 0,
       title: t('myStore.attnClassic'),
-      why: t('myStore.attnClassicWhy')
+      why: t('myStore.attnClassicWhy'),
+      hint: t('myStore.attnClassicHint'),
+      to: '/activity?section=listings',
+      cta: t('myStore.attnClassicCta')
     },
     {
       id: 'soldout',
       sev: 'soon',
       n: stats?.soldOut ?? 0,
       title: t('myStore.attnSoldOut'),
-      why: t('myStore.attnSoldOutWhy')
+      why: t('myStore.attnSoldOutWhy'),
+      hint: undefined,
+      to: undefined,
+      cta: undefined
     },
     {
       id: 'unlisted',
       sev: undefined,
       n: stats?.neverListed ?? 0,
       title: t('myStore.attnUnlisted'),
-      why: t('myStore.attnUnlistedWhy')
+      why: t('myStore.attnUnlistedWhy'),
+      hint: t('myStore.attnUnlistedHint'),
+      to: '/my-items?section=creations',
+      cta: t('myStore.attnUnlistedCta')
     }
   ].filter(row => row.n > 0)
   const names = Object.fromEntries((stats?.collections ?? []).map(c => [c.contractAddress, c.name]))
+  const items = (stats?.collections ?? []).reduce((n, c) => n + c.items.length, 0)
 
   return (
     <A.Root>
@@ -245,14 +320,7 @@ export function MyStore() {
             <div>
               <S.Eyebrow>{t('myStore.eyebrow')}</S.Eyebrow>
               <S.Title>{t('myStore.title')}</S.Title>
-              {stats ? (
-                <S.Sub>
-                  {t('myStore.summary', {
-                    collections: stats.collections.length,
-                    items: stats.collections.reduce((n, c) => n + c.items.length, 0)
-                  })}
-                </S.Sub>
-              ) : null}
+              {stats ? <S.Sub>{t('myStore.summary', { collections: stats.collections.length, items })}</S.Sub> : null}
             </div>
             <S.Periods role="group" aria-label={t('myStore.period')}>
               {PERIODS.map(key => (
@@ -269,15 +337,33 @@ export function MyStore() {
             </S.Periods>
           </S.Masthead>
 
+          {viewAs ? (
+            <S.Preview data-testid="store-view-as">{t('myStore.viewingAs', { address: viewAs })}</S.Preview>
+          ) : null}
+
           <ErrorNotice message={statsError ? t('myStore.error') : null} testId="my-store-error" />
 
           {isLoading || !stats ? (
-            <SkeletonCards count={4} />
+            <div data-testid="store-skeleton">
+              <S.Tiles aria-hidden>
+                {[0, 1, 2, 3].map(i => (
+                  <S.Bone key={i} className="skeleton" data-shape="tile" />
+                ))}
+              </S.Tiles>
+              <S.Columns style={{ marginTop: 22 }} aria-hidden>
+                <S.Bone className="skeleton" data-shape="panel" />
+                <S.Bone className="skeleton" data-shape="panel" />
+              </S.Columns>
+              <S.Bone className="skeleton" data-shape="feed" style={{ marginTop: 22 }} aria-hidden />
+            </div>
           ) : (
             <>
               <S.Tiles aria-label={t('myStore.summaryAria')}>
                 <S.Tile>
-                  <S.TileKey>{t('myStore.tileSold')}</S.TileKey>
+                  <S.TileKey>
+                    {t('myStore.tileSold')}
+                    <S.TileMark aria-hidden>🛍️</S.TileMark>
+                  </S.TileKey>
                   <S.TileValue data-testid="store-sold">{stats.sold.toLocaleString()}</S.TileValue>
                   <S.TileFoot>
                     {/* Past the cap the split is exact for the rows fetched, not for the total above it —
@@ -292,7 +378,10 @@ export function MyStore() {
                   </S.TileFoot>
                 </S.Tile>
                 <S.Tile>
-                  <S.TileKey>{t('myStore.tileEarnings')}</S.TileKey>
+                  <S.TileKey>
+                    {t('myStore.tileEarnings')}
+                    <S.TileMark aria-hidden>💰</S.TileMark>
+                  </S.TileKey>
                   <S.TileValue>
                     <S.ManaMark src={manaSymbol} alt="" aria-hidden />
                     {mana(stats.earningsWei)}
@@ -309,19 +398,25 @@ export function MyStore() {
                   </S.TileFoot>
                 </S.Tile>
                 <S.Tile>
-                  <S.TileKey>{t('myStore.tileListed')}</S.TileKey>
+                  <S.TileKey>
+                    {t('myStore.tileListed')}
+                    <S.TileMark aria-hidden>🏷️</S.TileMark>
+                  </S.TileKey>
                   <S.TileValue>
                     {stats.listed + stats.classic}
-                    <S.TileUnit>
-                      {t('myStore.ofTotal', {
-                        n: stats.collections.reduce((n, c) => n + c.items.length, 0)
-                      })}
-                    </S.TileUnit>
+                    <S.TileUnit>{t('myStore.ofTotal', { n: items })}</S.TileUnit>
                   </S.TileValue>
-                  <S.TileFoot>{t('myStore.tileListedFoot', { count: stats.neverListed })}</S.TileFoot>
+                  <S.TileFoot>
+                    {items === 0
+                      ? t('myStore.tileListedNone')
+                      : t('myStore.tileListedFoot', { count: stats.neverListed })}
+                  </S.TileFoot>
                 </S.Tile>
                 <S.Tile>
-                  <S.TileKey>{t('myStore.tileDiscounts')}</S.TileKey>
+                  <S.TileKey>
+                    {t('myStore.tileDiscounts')}
+                    <S.TileMark aria-hidden>🔥</S.TileMark>
+                  </S.TileKey>
                   <S.TileValue data-testid="store-discounts">{running.length}</S.TileValue>
                   <S.TileFoot>
                     {running.length > 0 ? t('myStore.tileDiscountsFoot') : t('myStore.tileDiscountsNone')}
@@ -333,23 +428,34 @@ export function MyStore() {
                 <S.Panel aria-labelledby="store-coll-h">
                   <S.PanelHead>
                     <S.PanelTitle id="store-coll-h">{t('myStore.collections')}</S.PanelTitle>
-                    <S.PanelHint>{t(`myStore.sold${period}`)}</S.PanelHint>
+                    <S.PanelHint>
+                      {stats.partial
+                        ? t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })
+                        : t(`myStore.sold${period}`)}
+                    </S.PanelHint>
                   </S.PanelHead>
                   {stats.collections.length === 0 ? (
                     <S.Empty>{t('myStore.noCollections')}</S.Empty>
                   ) : (
-                    stats.collections.map(collection => (
-                      <CollectionRow
-                        key={collection.contractAddress}
-                        collection={collection}
-                        discountPct={pctByCollection.get(collection.contractAddress) ?? null}
-                        open={open === collection.contractAddress}
-                        onToggle={() =>
-                          setOpen(open === collection.contractAddress ? null : collection.contractAddress)
-                        }
-                      />
-                    ))
+                    stats.collections
+                      .slice(0, showAll ? undefined : COLLECTIONS_SHOWN)
+                      .map(collection => (
+                        <CollectionRow
+                          key={collection.contractAddress}
+                          collection={collection}
+                          discountPct={pctByCollection.get(collection.contractAddress) ?? null}
+                          open={open === collection.contractAddress}
+                          onToggle={() =>
+                            setOpen(open === collection.contractAddress ? null : collection.contractAddress)
+                          }
+                        />
+                      ))
                   )}
+                  {stats.collections.length > COLLECTIONS_SHOWN && !showAll ? (
+                    <S.More type="button" onClick={() => setShowAll(true)} data-testid="store-show-all">
+                      {t('myStore.showAll', { count: stats.collections.length })}
+                    </S.More>
+                  ) : null}
                   {stats.unattributed > 0 ? (
                     <S.Note data-testid="store-unattributed">
                       {t('myStore.unattributed', { count: stats.unattributed })}
@@ -372,8 +478,21 @@ export function MyStore() {
                         <S.AttnRow key={row.id}>
                           <S.Stripe data-sev={row.sev} aria-hidden />
                           <S.AttnText>
-                            <b>{row.title}</b>
+                            {row.hint ? (
+                              <Tooltip content={row.hint}>
+                                <b tabIndex={0} data-testid={`store-attn-${row.id}-hint`}>
+                                  {row.title}
+                                </b>
+                              </Tooltip>
+                            ) : (
+                              <b>{row.title}</b>
+                            )}
                             <span>{row.why}</span>
+                            {row.to ? (
+                              <S.AttnLink to={row.to} data-testid={`store-attn-${row.id}-cta`}>
+                                {row.cta}
+                              </S.AttnLink>
+                            ) : null}
                           </S.AttnText>
                           <S.AttnNum data-testid={`store-attn-${row.id}`}>{row.n}</S.AttnNum>
                         </S.AttnRow>
@@ -381,7 +500,7 @@ export function MyStore() {
                     )}
                   </S.Panel>
 
-                  {creatorSalesEnabled && running.length > 0 ? (
+                  {creatorSalesEnabled && running.length > 0 && !viewAs && session ? (
                     <S.Panel aria-labelledby="store-disc-h">
                       <S.PanelHead>
                         <S.PanelTitle id="store-disc-h">{t('creatorSale.salesTitle')}</S.PanelTitle>
@@ -407,6 +526,7 @@ export function MyStore() {
                       <thead>
                         <tr>
                           <th scope="col">{t('myStore.colItem')}</th>
+                          <th scope="col">{t('myStore.colBuyer')}</th>
                           <th scope="col">{t('myStore.colKind')}</th>
                           <th scope="col">{t('myStore.colWhen')}</th>
                           <th scope="col" style={{ textAlign: 'right' }}>
@@ -422,7 +542,8 @@ export function MyStore() {
                           const item = collection?.items.find(i => i.itemId === row.itemId)
                           return (
                             <tr key={row.id} data-testid="store-sale">
-                              <td>{item?.name ?? collection?.name ?? row.itemId}</td>
+                              <td>{item?.name ?? collection?.name ?? row.itemId ?? t('myStore.unknownItem')}</td>
+                              <td data-dim>{buyerName(row.buyer, buyers)}</td>
                               <td>
                                 <S.Kind data-kind={row.type}>
                                   {row.type === 'mint' ? t('myStore.kindMint') : t('myStore.kindResale')}

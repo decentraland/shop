@@ -33,7 +33,7 @@ export const Mosaic = styled.span`
     grid-template-rows: minmax(0, 1fr);
   }
   /* 3 items: first spans the full top row, the other two share the bottom row. */
-  &[data-count='3'] [data-testid='coll-thumb-cell']:first-child {
+  &[data-count='3'] [data-testid='coll-thumb-cell']:first-of-type {
     grid-column: span 2;
   }
 

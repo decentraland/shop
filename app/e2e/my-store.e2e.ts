@@ -160,13 +160,17 @@ describe('when a creator opens their store', () => {
       rows.map(row => (row as HTMLElement).innerText.replace(/\s+/g, ' ').trim())
     )
     expect(items).toHaveLength(4)
-    // Best-selling first, each with its own count and what is left of its run.
-    expect(items[0]).toMatch(/^Galaxy Hat 4 sold/)
-    expect(items[0]).toMatch(/988 LEFT/i)
-    expect(items[1]).toMatch(/^Galaxy Boots 3 sold/)
-    expect(items[2]).toMatch(/^Galaxy Cape 1 sold/)
+    // Best-selling first, each with its own count, its listing state and what is left of its run.
+    expect(items[0]).toMatch(/^Galaxy Hat/)
+    expect(items[0]).toMatch(/4 sold/)
+    expect(items[0]).toMatch(/STOCK 988\/1,?000/i)
+    expect(items[1]).toMatch(/^Galaxy Boots/)
+    expect(items[1]).toMatch(/3 sold/)
+    expect(items[2]).toMatch(/^Galaxy Cape/)
     expect(items[2]).toMatch(/NOT LISTED/i)
-    expect(items[3]).toMatch(/^Galaxy Crown 0 sold/)
+    // Stock stands whatever the listing state: an unlisted item still has a run.
+    expect(items[2]).toMatch(/STOCK 997\/1,?000/i)
+    expect(items[3]).toMatch(/^Galaxy Crown/)
     expect(items[3]).toMatch(/SOLD OUT/i)
 
     // And it closes again.

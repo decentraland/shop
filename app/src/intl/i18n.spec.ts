@@ -74,7 +74,7 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * FIVE deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
+   * SIX deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
    * surfaces:
    *
    * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
@@ -90,10 +90,11 @@ describe('web2-first copy rule', () => {
    * therefore has nothing to re-price. The whole message exists to name that currency: the creator opened
    * this to run a discount and the answer is which rail their listings are on.
    *
-   * `myStore.attnClassic` and `myStore.manaUnit`, in the creator's store dashboard. The first is the row that
-   * points at the listings a discount cannot reach, which is the same fact `creatorSale.reviewClassicWhy`
-   * exists to state; the second labels the earnings figure, and creators ARE paid in MANA — calling that
-   * total anything else would misreport what they were paid.
+   * `myStore.attnClassic`, its tooltip `myStore.attnClassicHint`, and `myStore.manaUnit`, in the creator's
+   * store dashboard. The first two are the row that points at the listings a discount cannot reach and the
+   * explanation behind it, which is the same fact `creatorSale.reviewClassicWhy` exists to state; the last
+   * labels the earnings figure, and creators ARE paid in MANA — calling that total anything else would
+   * misreport what they were paid.
    *
    * Note none of these sections is creator-only: any signed-in account can open My Creations and find it empty.
    * Grant exceptions the same way if it happens again — named, reasoned, and attributed — rather than
@@ -139,6 +140,7 @@ describe('web2-first copy rule', () => {
     'manaPricingBanner.lead',
     'migrate.phaseConfirmingCancel',
     'myStore.attnClassic',
+    'myStore.attnClassicHint',
     'myStore.manaUnit',
     'network.confirmInWallet',
     'network.current',

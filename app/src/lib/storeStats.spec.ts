@@ -235,6 +235,27 @@ describe('buildStoreStats', () => {
     expect(stats.collections[0].items.find(i => i.itemId === '1')?.state).toBe('soldout')
   })
 
+  it('draws the trend over what was actually read when the window is capped, not over the whole period', () => {
+    // The cap keeps the most recent rows, so a busy store's fetched sales cover only the tail of the
+    // period. Spanning the nominal 30 days would draw one spike against thirteen empty points.
+    const rows = Array.from({ length: 6 }, (_, i) => row({ itemId: '0', daysAgo: i * 0.4 }))
+    const stats = build({ rows, total: 5000, truncated: true, catalogue: [item({ blockchainItemId: '0' })] })
+
+    expect(stats.trendDays).toBeLessThan(30)
+    expect(stats.collections[0].trend.filter(n => n > 0).length).toBeGreaterThan(1)
+  })
+
+  it('keeps the whole period when the rows do cover it, so a quiet stretch reads as quiet', () => {
+    const stats = build({
+      rows: [row({ itemId: '0', daysAgo: 0 })],
+      total: 1,
+      catalogue: [item({ blockchainItemId: '0' })]
+    })
+
+    expect(stats.trendDays).toBe(30)
+    expect(stats.collections[0].trend.filter(n => n > 0)).toHaveLength(1)
+  })
+
   it('gives a collection with no sales a flat trend rather than none', () => {
     const stats = build({ catalogue: [item({ blockchainItemId: '0' })] })
     expect(stats.collections[0].trend).toEqual(new Array(TREND_POINTS).fill(0))

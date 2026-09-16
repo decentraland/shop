@@ -114,12 +114,22 @@ export const Tile = styled.div`
 `
 
 export const TileKey = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-family: ${theme.font.sans};
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: ${theme.colors.muted1};
+`
+
+export const TileMark = styled.span`
+  font-size: 13px;
+  line-height: 1;
+  filter: saturate(0.9);
 `
 
 export const TileValue = styled.span`
@@ -215,11 +225,17 @@ export const PanelHint = styled.span`
 
 export const CollRow = styled.div`
   display: grid;
-  grid-template-columns: 24px 40px minmax(0, 1fr) 76px 96px auto;
+  grid-template-columns: 24px 40px minmax(0, 1fr) 76px 96px 116px;
   align-items: center;
   gap: 14px;
   padding: 14px 18px;
   border-top: 1px solid ${theme.colors.line};
+
+  /* The last cell holds either a sale tag or a button; a fixed track keeps every row's columns aligned
+     whichever it is, and the content sits at its end. */
+  > *:last-child {
+    justify-self: end;
+  }
 
   ${theme.media.maxWidth('mobile')} {
     grid-template-columns: 24px 40px minmax(0, 1fr) auto;
@@ -342,31 +358,54 @@ export const Spark = styled.svg`
 export const Items = styled.div`
   border-top: 1px solid ${theme.colors.line};
   background: ${theme.colors.panel};
-  padding: 4px 18px 10px;
+  padding: 4px 18px 10px 56px;
+
+  ${theme.media.maxWidth('mobile')} {
+    padding-left: 32px;
+  }
 `
 
 export const ItemRow = styled.div`
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 64px 84px auto;
+  grid-template-columns: 40px minmax(0, 1fr) 64px 84px 92px;
   align-items: center;
   gap: 12px;
   padding: 9px 0;
+
+  > *:last-child {
+    justify-self: end;
+  }
 
   & + & {
     border-top: 1px solid ${theme.colors.line};
   }
 
   ${theme.media.maxWidth('mobile')} {
-    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
   }
 `
 
-export const ItemThumb = styled.img`
-  width: 32px;
-  height: 32px;
-  border-radius: ${theme.radius.chip};
-  object-fit: cover;
+/** The item's own thumbnail over its rarity wash — the same treatment its card gets in the grid. */
+export const ItemThumb = styled.span`
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
+  overflow: hidden;
   background: ${theme.colors.media};
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`
+
+export const ItemCell = styled.span`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 `
 
 export const ItemName = styled(Link)`
@@ -446,6 +485,27 @@ export const ItemState = styled.span`
   }
 `
 
+/** Copies left against the whole run — always shown, because "9 left" of what is not an answer. */
+export const Stock = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-align: right;
+  color: ${theme.colors.muted};
+  font-variant-numeric: tabular-nums;
+
+  b {
+    color: ${theme.colors.text};
+    font-weight: 700;
+  }
+  &[data-out='true'] {
+    color: ${theme.colors.accent};
+  }
+`
+
 export const AttnRow = styled.div`
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr) auto;
@@ -481,6 +541,22 @@ export const AttnText = styled.span`
     font-family: ${theme.font.sans};
     font-size: 12px;
     color: ${theme.colors.muted};
+  }
+`
+
+/** The row's way out: where the creator goes to do something about it. */
+export const AttnLink = styled(Link)`
+  display: inline-block;
+  margin-top: 4px;
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  color: ${theme.colors.accent};
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
   }
 `
 
@@ -556,6 +632,40 @@ export const ManaMark = styled.img`
   margin-right: 3px;
 `
 
+/** The development preview's own strip, on the purple field rather than on a white panel. */
+export const Preview = styled.p`
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px dashed rgba(252, 252, 252, 0.32);
+  border-radius: ${theme.radius.btn};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: rgba(252, 252, 252, 0.72);
+  word-break: break-all;
+`
+
+export const More = styled.button`
+  display: block;
+  width: 100%;
+  padding: 13px 18px;
+  border: 0;
+  border-top: 1px solid ${theme.colors.line};
+  background: none;
+  cursor: pointer;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  color: ${theme.colors.accent};
+
+  &:hover {
+    background: ${theme.colors.panel};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: -2px;
+  }
+`
+
 /** A line of context under a panel's rows — why they do not add up, or what could not be read. */
 export const Note = styled.p`
   margin: 0;
@@ -564,6 +674,28 @@ export const Note = styled.p`
   font-family: ${theme.font.sans};
   font-size: 12px;
   color: ${theme.colors.muted};
+`
+
+/**
+ * The page's own shape while it loads, rather than a stack of generic cards.
+ *
+ * Every block is the box its real content will occupy — four tiles, the two panels, the feed — so the
+ * layout does not jump when the figures arrive. `.skeleton` is the shared shimmer from index.css.
+ */
+export const Bone = styled.div`
+  border-radius: ${theme.radius.card};
+  background: ${theme.colors.softWhite};
+  opacity: 0.55;
+
+  &[data-shape='tile'] {
+    height: 108px;
+  }
+  &[data-shape='panel'] {
+    height: 268px;
+  }
+  &[data-shape='feed'] {
+    height: 300px;
+  }
 `
 
 export const Empty = styled.p`

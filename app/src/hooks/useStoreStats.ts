@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSellerSales } from '~/lib/sales'
 import { fetchPublishableItems } from '~/lib/builder'
+import { fetchPublicCatalogue } from '~/lib/storePreview'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
 import type { Session } from '~/lib/auth'
@@ -19,8 +20,8 @@ const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: nu
  * that never sold; the per-collection sale state knows what is listed and at what price. `buildStoreStats`
  * turns the three into the page's numbers.
  */
-export function useStoreStats(session: Session | null, period: StorePeriod) {
-  const address = session?.address
+export function useStoreStats(session: Session | null, period: StorePeriod, viewAs?: string | null) {
+  const address = viewAs ?? session?.address
   const days = WINDOW[period]
   // Pinned to the day so the key does not change on every render and refetch the window each time.
   const now = useMemo(() => Math.floor(Date.now() / DAY_MS) * DAY_MS + DAY_MS - 1, [])
@@ -32,10 +33,15 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
     queryFn: () => fetchSellerSales({ seller: address as string, from })
   })
 
+  // Someone else's store can only be read from the public feeds: the builder answers for the signed-in
+  // creator alone.
   const catalogue = useQuery({
-    queryKey: ['store-catalogue', address],
-    enabled: !!session,
-    queryFn: () => fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
+    queryKey: ['store-catalogue', address, !!viewAs],
+    enabled: !!address && (!!viewAs || !!session),
+    queryFn: () =>
+      viewAs
+        ? fetchPublicCatalogue(viewAs)
+        : fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
   })
 
   const addresses = useMemo(

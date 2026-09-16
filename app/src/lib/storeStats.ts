@@ -8,6 +8,7 @@ export type StoreItem = {
   itemId: string
   name: string
   thumbnail: string
+  rarity: string
   /** Copies still mintable. */
   left: number
   /** Copies minted, from the item's own supply — not from the sales feed, which only covers the window. */
@@ -48,6 +49,8 @@ export type StoreStats = {
   unattributed: number
   /** Collections whose listing state could not be read, so their items carry no status. */
   unknownCollections: number
+  /** Days the trend lines span. Shorter than the period when the rows do not reach back that far. */
+  trendDays: number
   listed: number
   neverListed: number
   classic: number
@@ -125,10 +128,17 @@ export function buildStoreStats({
     rowsByCollection.set(ca, list)
   }
 
-  // All time has no window of its own, so the chart spans from the oldest sale fetched to now. A fixed year
-  // would draw a store older than that as if it had opened twelve months ago, against totals that say otherwise.
+  /**
+   * What the chart can honestly span: the period, unless the rows do not cover it.
+   *
+   * All time has no window of its own. And a busy store hits the fetch cap, whose rows are the most recent
+   * ones — spanning the nominal period would then draw a single spike at the end against thirteen empty
+   * points, which reads as "nothing sold for weeks" about a store that sold thousands. In both cases the
+   * chart covers what was actually read, and the panel says so.
+   */
   const oldest = rows.reduce((min, row) => (row.timestamp < min ? row.timestamp : min), now)
-  const allTimeDays = Math.max(TREND_POINTS, Math.ceil((now - oldest) / DAY_MS))
+  const covered = Math.max(1, Math.ceil((now - oldest) / DAY_MS))
+  const trendDays = days != null && !truncated ? days : Math.max(days == null ? TREND_POINTS : 1, covered)
 
   const byAddress = new Map<string, StoreCollection>()
   let listed = 0
@@ -171,6 +181,7 @@ export function buildStoreStats({
       itemId: item.blockchainItemId,
       name: item.name,
       thumbnail: item.thumbnail,
+      rarity: item.rarity,
       left: item.remainingSupply,
       minted: item.totalSupply,
       sold,
@@ -185,7 +196,7 @@ export function buildStoreStats({
   }
 
   for (const [ca, entry] of byAddress) {
-    entry.trend = bucketSales(rowsByCollection.get(ca) ?? [], days ?? allTimeDays, now)
+    entry.trend = bucketSales(rowsByCollection.get(ca) ?? [], trendDays, now)
     // Best-selling first: a store's own page should open on what is working.
     entry.items.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
   }
@@ -202,6 +213,7 @@ export function buildStoreStats({
     partial: truncated,
     fetched: rows.length,
     unattributed: rows.length - attributed,
+    trendDays,
     unknownCollections: [...byAddress.keys()].filter(ca => unreadable?.has(ca)).length,
     listed,
     neverListed,
