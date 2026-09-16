@@ -281,3 +281,68 @@ describe('buildStoreStats', () => {
     expect(stats.collections[0].trend).toEqual(new Array(TREND_POINTS).fill(0))
   })
 })
+
+/**
+ * The server answers the window exactly, however big the store; the rows behind the breakdown are capped.
+ * These pin which figure comes from which, because the failure they guard against is silent: a headline
+ * that is right beside a breakdown that no longer admits it is only part of the story.
+ */
+describe('buildStoreStats with the server summary', () => {
+  const summary = {
+    total: 9_000,
+    mints: 8_400,
+    resales: 600,
+    earnedWei: '4500000000000000000000',
+    byCollection: [{ contractAddress: COLLECTION, sold: 8_400, earnedWei: '4200000000000000000000' }],
+    byItem: [{ contractAddress: COLLECTION, itemId: '0', soldLifetime: 12_345 }],
+    royalties: { resales: 77, volumeWei: '900000000000000000000' }
+  }
+
+  const withSummary = (over: Partial<Parameters<typeof buildStoreStats>[0]> = {}) =>
+    build({
+      summary,
+      rows: [row({ itemId: '0', daysAgo: 1 }), row({ itemId: '0', daysAgo: 2 })],
+      total: 2,
+      mints: 2,
+      catalogue: [item({ blockchainItemId: '0' })],
+      ...over
+    })
+
+  it('takes every headline figure from the server rather than from the rows it happens to hold', () => {
+    const stats = withSummary()
+
+    expect(stats.sold).toBe(9_000)
+    expect(stats.mints).toBe(8_400)
+    expect(stats.resales).toBe(600)
+    expect(stats.earningsWei).toBe(4_500_000_000_000_000_000_000n)
+    expect(stats.royalties).toEqual({ resales: 77, volumeWei: 900_000_000_000_000_000_000n })
+  })
+
+  it("carries each item's lifetime sales, which no window of rows can answer", () => {
+    expect(withSummary().collections[0].items[0].lifetimeSold).toBe(12_345)
+  })
+
+  it('stops calling the earnings a partial sum, because the server summed the whole window', () => {
+    expect(withSummary({ truncated: true }).partial).toBe(false)
+  })
+
+  it('still says the breakdown is partial, because the items under it come from the capped rows', () => {
+    const stats = withSummary({ truncated: true })
+
+    expect(stats.breakdownPartial).toBe(true)
+    // The header is the server's; the rows under it are what was fetched. The caveat above is what keeps
+    // the difference from reading as a miscount.
+    expect(stats.collections[0].sold).toBe(8_400)
+    expect(stats.collections[0].items[0].sold).toBe(2)
+  })
+
+  it('counts unattributed sales against the rows it read, never against the server total', () => {
+    // A row on an item the catalogue does not carry: one of the two is attributable, the other is not.
+    const stats = withSummary({
+      rows: [row({ itemId: '0', daysAgo: 1 }), row({ itemId: '404', daysAgo: 1 })],
+      truncated: true
+    })
+
+    expect(stats.unattributed).toBe(1)
+  })
+})

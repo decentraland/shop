@@ -574,7 +574,7 @@ export function CreatorSaleModal({
                   <S.RowName>{choice.name}</S.RowName>
                   <S.RowMeta>{t('creatorSale.collectionListed', { count: choice.listedCount })}</S.RowMeta>
                 </S.RowText>
-                <Chevron />
+                <Chevron className="ico" />
               </S.PickRow>
             ))}
           </S.PickList>

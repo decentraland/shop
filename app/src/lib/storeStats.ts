@@ -52,8 +52,17 @@ export type StoreStats = {
   resales: number
   /** MANA wei, summed from the rows the cap allowed. */
   earningsWei: bigint
-  /** True when the window held more sales than the cap fetched, so the sums cover only part of it. */
+  /** True when the headline sums cover only part of the window, which the server's aggregate never does. */
   partial: boolean
+  /**
+   * True when the per-item and per-day breakdown covers only part of the window.
+   *
+   * Separate from `partial` because the two stopped moving together once the server answered the headline
+   * figures: those are exact at any size, while the item counts and the trend are still grouped from the
+   * rows the cap allowed. Reporting one flag for both would drop the caveat from a breakdown that still
+   * needs it.
+   */
+  breakdownPartial: boolean
   /** How many rows the figures summed from — the whole window unless `partial`. */
   fetched: number
   /**
@@ -179,6 +188,10 @@ export function buildStoreStats({
   )
 
   const byAddress = new Map<string, StoreCollection>()
+  // Counted here rather than from the collections afterwards: their totals are overwritten with the
+  // server's exact ones below, which would make this subtraction compare a whole window against a capped
+  // page of it and go negative.
+  let attributed = 0
   let listed = 0
   let classic = 0
   let soldOut = 0
@@ -233,6 +246,7 @@ export function buildStoreStats({
       state
     })
     entry.sold += sold
+    attributed += sold
     if (item.createdAt && (entry.createdAt == null || item.createdAt > entry.createdAt)) {
       entry.createdAt = item.createdAt
     }
@@ -255,8 +269,6 @@ export function buildStoreStats({
     entry.items.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
   }
 
-  const attributed = [...byAddress.values()].reduce((n, entry) => n + entry.sold, 0)
-
   return {
     collections: [...byAddress.values()].sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name)),
     sold: summary?.total ?? total,
@@ -265,6 +277,7 @@ export function buildStoreStats({
     earningsWei: summary ? weiOf(summary.earnedWei) : rows.reduce((sum, row) => sum + weiOf(row.price), 0n),
     // The server's sum covers the whole window whatever its size; only a client-side one can fall short.
     partial: summary ? false : truncated,
+    breakdownPartial: truncated,
     fetched: rows.length,
     unattributed: rows.length - attributed,
     trendDays,

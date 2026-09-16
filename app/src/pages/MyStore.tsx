@@ -724,7 +724,7 @@ export function MyStore() {
                     <S.PanelTitle id="store-coll-h">{t('myStore.collections')}</S.PanelTitle>
                     <S.HeadRight>
                       <S.PanelHint>
-                        {stats.partial
+                        {stats.breakdownPartial
                           ? t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })
                           : t(`myStore.sold${period}`)}
                       </S.PanelHint>

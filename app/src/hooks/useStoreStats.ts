@@ -15,11 +15,16 @@ const DAY_MS = 86_400_000
 const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: null }
 
 /**
- * The three fetches the store dashboard runs, composed into one figure set.
+ * The reads the store dashboard runs, composed into one figure set.
  *
- * The sales feed covers the window once; the builder feed knows every item's supply, including the ones
- * that never sold; the per-collection sale state knows what is listed and at what price. `buildStoreStats`
- * turns the three into the page's numbers.
+ * The server's summary answers the window exactly, whatever the size of the store. Beside it, the sales
+ * feed covers the window once for the table and the trends, the builder feed knows every item's supply
+ * including the ones that never sold, and the per-collection sale state knows what is listed and at what
+ * price. `buildStoreStats` turns them into the page's numbers, preferring the summary wherever it answers.
+ *
+ * The feed and the per-kind count are also what the page falls back to when the summary read fails, which
+ * is why they run unconditionally rather than behind it: a degraded page that reports the most recent
+ * sales is worth more than one that reports nothing.
  */
 export function useStoreStats(session: Session | null, period: StorePeriod, viewAs?: string | null) {
   const address = viewAs ?? session?.address
