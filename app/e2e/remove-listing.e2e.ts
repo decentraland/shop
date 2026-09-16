@@ -32,6 +32,8 @@ describe('remove (cancel) a listing from the detail page', () => {
 
     // Take it down.
     expect(await clickByText(page, 'button', /remove from sale/i)).toBe(true)
+    await waitForText(page, 'Remove from sale?')
+    expect(await clickByText(page, '[data-testid="remove-confirm"]', /remove from sale/i)).toBe(true)
 
     // Success toast — and no error surfaced (the encode/tx succeeded).
     await waitForText(page, 'no longer for sale')

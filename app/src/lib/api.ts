@@ -4,6 +4,7 @@ import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
 import { ZERO_ADDRESS } from '~/lib/address'
+import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
 import { captureError } from '~/lib/monitoring'
 import type { ListingCoupon } from '~/lib/trade-encoding'
 
@@ -99,6 +100,15 @@ export type CatalogItem = {
    * `accept`. Absent on a listing with no live discount, and on every row saved before this existed.
    */
   coupon?: ListingCoupon
+  /**
+   * How many units are still buyable AT THE SALE PRICE: the sale's remaining uses capped by the listing's
+   * own stock, whichever runs out first. Absent when the listing is not on sale.
+   *
+   * Resolved by the server rather than derived here. It already holds all three inputs, and the "no unit
+   * cap" case needs no sentinel on its side — an uncapped sale's remaining uses dwarf the stock, so the
+   * minimum is the stock, which is the true answer anyway.
+   */
+  saleUnitsLeft?: number
 }
 
 type RawCatalogItem = {
@@ -436,6 +446,8 @@ type ShopListingRaw = {
    * timestamps arrive in MILLISECONDS like a trade's; `trade-encoding` converts them at the boundary.
    */
   coupon?: ListingCoupon | null
+  /** Units still buyable at the sale price — see CatalogItem.saleUnitsLeft. Null when not on sale. */
+  saleUnitsLeft?: number | null
 }
 
 /**
@@ -456,7 +468,46 @@ function listingRowId(l: ShopListingRaw): string {
   return `${(l.contractAddress ?? '').toLowerCase()}-${suffix}`
 }
 
-function shopListingToItem(l: ShopListingRaw): CatalogItem {
+/**
+ * Whether the Shop honours creator sales at all, cached so the row mapper can read it synchronously.
+ *
+ * `false` until primed, and primed by every catalogue fetch before it maps a row, so a listing is never
+ * rendered at a discount the flag has not allowed — and never flickers from list price to sale price either.
+ */
+let creatorSalesLive = false
+
+async function primeCreatorSales(): Promise<void> {
+  creatorSalesLive = await getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/**
+ * The listing as the Shop should treat it while creator sales are switched off: not on sale, at its LIST
+ * price.
+ *
+ * The kill switch has to erase the discount from the WHOLE row, not just from checkout. The catalogue keeps
+ * serving sale prices while the coupons exist — turning off only the settlement half would show a buyer the
+ * discounted price and then charge them the list price, which reverts after they have confirmed. Stripping
+ * it here is what keeps every surface saying the same number: the card, the item page, the cart and the
+ * transaction all see a listing that simply is not on sale.
+ */
+function withoutSale(l: ShopListingRaw): ShopListingRaw {
+  // `coupon` goes with the rest, and it is the half that matters most. The other fields only decide what a
+  // price LOOKS like; the coupon is what the checkout hands to `acceptWithCoupon`. Leaving it behind would
+  // switch the discount off everywhere a buyer can see it and still apply it to the trade they sign —
+  // every surface quoting the list price while the sale price is what settles.
+  if (l.compareAtCredits == null) return { ...l, saleUnitsLeft: null, coupon: null }
+  return {
+    ...l,
+    priceCredits: l.compareAtCredits,
+    compareAtCredits: null,
+    saleEndsAt: null,
+    saleUnitsLeft: null,
+    coupon: null
+  }
+}
+
+function shopListingToItem(raw: ShopListingRaw): CatalogItem {
+  const l = creatorSalesLive ? raw : withoutSale(raw)
   return {
     id: listingRowId(l),
     tradeId: l.tradeId ?? undefined,
@@ -488,11 +539,14 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
     saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
-    coupon: l.coupon ?? undefined
+    coupon: l.coupon ?? undefined,
+    saleUnitsLeft: l.saleUnitsLeft ?? undefined
   }
 }
 
-export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name'
+// `discount` orders by the sale's percentage off (largest first), then by soonest-ending; rows without a
+// live sale trail. Only meaningful together with `discounted: true`.
+export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name' | 'discount'
 
 export type ShopListingFilters = {
   category?: string
@@ -520,6 +574,9 @@ export type ShopListingFilters = {
   isSmart?: boolean
   // Listing status (Figma "Status" filter): true = on sale, false = not for sale, undefined = all.
   onSale?: boolean
+  // Creator sale: true = only listings with a live discount (a struck compare-at price and an end time),
+  // false = only listings without one, undefined = both. Distinct from `onSale`, which means "listed".
+  discounted?: boolean
   /**
    * Restrict to mint listings or to resales. Omitted = both.
    *
@@ -548,6 +605,7 @@ async function fetchShopListingsRaw(
   if (params.sortBy) qs.set('sortBy', params.sortBy)
   if (params.isSmart) qs.set('isSmart', 'true')
   if (params.onSale != null) qs.set('onSale', String(params.onSale))
+  if (params.discounted != null) qs.set('discounted', String(params.discounted))
   if (params.listingType) qs.set('listingType', params.listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
@@ -582,6 +640,7 @@ export async function fetchStoreMintState(
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
 // page on deep-link/refresh, where the route segment is the itemId. Null if it's not on sale.
 export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
+  await primeCreatorSales()
   const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
@@ -606,8 +665,20 @@ export async function fetchUnifiedListingForItem(
   contractAddress: string,
   itemId: string
 ): Promise<UnifiedListing | null> {
+  await primeCreatorSales()
   const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
   return pickItemListing(items)
+}
+
+// The creator's live PRIMARY listing for an item — a shop trade or a legacy MANA order alike — or null when
+// there is none. Asked of the UNIFIED feed on purpose: the shop-only feed omits legacy orders, and the take-down
+// watcher that uses this must not read a still-live legacy listing as "gone".
+export async function fetchPrimaryListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5, listingType: 'primary' })
+  return items.find(l => !l.tokenId) ?? null
 }
 
 /**
@@ -644,6 +715,7 @@ export async function fetchListings({ first = 100, ...filters }: ShopListingFilt
   items: CatalogItem[]
   total: number
 }> {
+  await primeCreatorSales()
   const { listings, total } = await fetchShopListingsRaw({ ...filters, first })
   return { items: listings.map(shopListingToItem), total }
 }
@@ -779,10 +851,12 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
   if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
   if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
+  if (filters.listingType) qs.set('listingType', filters.listingType)
   if (filters.search) qs.set('search', filters.search)
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
   if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
+  if (filters.discounted != null) qs.set('discounted', String(filters.discounted))
   if (filters.listingType) qs.set('listingType', filters.listingType)
   if (groupBy) qs.set('groupBy', groupBy)
   return qs
@@ -796,6 +870,7 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   items: UnifiedListing[]
   total: number
 }> {
+  await primeCreatorSales()
   const qs = unifiedSearchParams(first, filters)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
@@ -820,6 +895,7 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
   items: UnifiedListing[]
   total: number
 }> {
+  await primeCreatorSales()
   const qs = unifiedSearchParams(first, filters, 'item')
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopItems ${res.status}`)
@@ -1330,7 +1406,10 @@ export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
   // lib barrel, so keeping it dynamic keeps that weight out of the browse/initial bundle.
   const { TradeService } = await import('decentraland-dapps/dist/modules/trades/TradeService')
   const service = new TradeService(API_SIGNER, config.marketplaceServerUrl, () => identity)
-  return service.addTrade(trade)
+  const created = await service.addTrade(trade)
+  // Remove / Edit act on this id right after listing, so a response without one is a broken contract, not a success.
+  if (!created?.id) throw new Error('marketplace returned a listing without an id')
+  return created
 }
 
 // The signed trade behind a listing is not immutable: the server re-signs it as availability
