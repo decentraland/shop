@@ -74,7 +74,7 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * SIX deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
+   * SEVEN deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
    * surfaces:
    *
    * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
@@ -95,6 +95,10 @@ describe('web2-first copy rule', () => {
    * explanation behind it, which is the same fact `creatorSale.reviewClassicWhy` exists to state; the last
    * labels the earnings figure, and creators ARE paid in MANA — calling that total anything else would
    * misreport what they were paid.
+   *
+   * `currency.polygonMana`, the tooltip on the MANA mark. It never introduces the word anywhere new: the
+   * mark only appears beside an amount ALREADY denominated in MANA, and what it answers is which mana —
+   * a buyer holding Ethereum MANA cannot spend it here, and the glyph alone does not say so.
    *
    * Note none of these sections is creator-only: any signed-in account can open My Creations and find it empty.
    * Grant exceptions the same way if it happens again — named, reasoned, and attributed — rather than
@@ -139,6 +143,7 @@ describe('web2-first copy rule', () => {
     'itemDetail.cancelSlow',
     'manaPricingBanner.lead',
     'migrate.phaseConfirmingCancel',
+    'currency.polygonMana',
     'myStore.attnClassic',
     'myStore.attnClassicHint',
     'myStore.manaUnit',

@@ -1,4 +1,4 @@
-import { weiOf, type SaleRow } from '~/lib/sales'
+import { weiOf, type SaleRow, type SalesSummary } from '~/lib/sales'
 import type { PublishableItem } from '~/lib/builder'
 
 import type { CollectionSaleState } from '~/lib/collections'
@@ -16,6 +16,8 @@ export type StoreItem = {
   /** Copies minted, from the item's own supply — not from the sales feed, which only covers the window. */
   minted: number
   sold: number
+  /** First sales over the item's whole life, when the server can say — not the window's count. */
+  lifetimeSold: number | null
   priceCredits: number | null
   /** Set when the listing is priced in MANA, so the row can show what it actually asks. */
   manaWei: string | null
@@ -26,6 +28,8 @@ export type StoreItem = {
 
 export type StoreCollection = {
   contractAddress: string
+  /** The builder's own id for it — what its management page is keyed by. */
+  collectionId: string
   name: string
   items: StoreItem[]
   listed: number
@@ -59,6 +63,8 @@ export type StoreStats = {
   unattributed: number
   /** Collections whose listing state could not be read, so their items carry no status. */
   unknownCollections: number
+  /** Resales of this creator's items, by anyone. Volume traded, not what they were paid. */
+  royalties: { resales: number; volumeWei: bigint } | null
   /** Days the trend lines span. Shorter than the period when the rows do not reach back that far. */
   trendDays: number
   listed: number
@@ -107,6 +113,7 @@ export function buildStoreStats({
   total,
   truncated,
   mints,
+  summary,
   catalogue,
   saleState,
   unreadable,
@@ -118,6 +125,13 @@ export function buildStoreStats({
   truncated: boolean
   /** Exact count of first sales in the window, counted by the feed rather than derived from the rows. */
   mints: number
+  /**
+   * The server's own aggregate, when it answers.
+   *
+   * Every figure it carries is exact at any size, so it wins over anything derived from the fetched rows —
+   * which are capped. The rows are still what the per-item counts and the trend are drawn from.
+   */
+  summary?: SalesSummary | null
   catalogue: StoreCatalogueItem[]
   saleState: Record<string, CollectionSaleState>
   /** Collections whose sale state could not be read. Their items get no status rather than a wrong one. */
@@ -157,6 +171,13 @@ export function buildStoreStats({
   const covered = Math.max(1, Math.ceil((now - oldest) / DAY_MS))
   const trendDays = days != null && !truncated ? days : Math.max(days == null ? TREND_POINTS : 1, covered)
 
+  const lifetimeByItem = new Map(
+    (summary?.byItem ?? []).map(row => [`${row.contractAddress.toLowerCase()}-${row.itemId}`, row.soldLifetime])
+  )
+  const summaryByCollection = new Map(
+    (summary?.byCollection ?? []).map(row => [row.contractAddress.toLowerCase(), row])
+  )
+
   const byAddress = new Map<string, StoreCollection>()
   let listed = 0
   let classic = 0
@@ -184,6 +205,7 @@ export function buildStoreStats({
 
     const entry = byAddress.get(ca) ?? {
       contractAddress: ca,
+      collectionId: item.collectionId,
       name: item.collectionName,
       items: [],
       listed: 0,
@@ -204,6 +226,7 @@ export function buildStoreStats({
       left: item.remainingSupply,
       minted: item.totalSupply,
       sold,
+      lifetimeSold: lifetimeByItem.get(`${ca}-${item.blockchainItemId}`) ?? null,
       priceCredits: sale?.priceCredits ?? null,
       manaWei: sale?.manaWei ?? null,
       createdAt: item.createdAt ?? null,
@@ -221,7 +244,12 @@ export function buildStoreStats({
 
   for (const [ca, entry] of byAddress) {
     const own = rowsByCollection.get(ca) ?? []
-    entry.earningsWei = own.reduce((sum, row) => sum + weiOf(row.price), 0n)
+    // Exact from the server where it answers; otherwise summed from the rows the cap allowed.
+    const fromSummary = summaryByCollection.get(ca)
+    entry.earningsWei = fromSummary
+      ? weiOf(fromSummary.earnedWei)
+      : own.reduce((sum, row) => sum + weiOf(row.price), 0n)
+    if (fromSummary) entry.sold = fromSummary.sold
     entry.trend = bucketSales(own, trendDays, now)
     // Best-selling first: a store's own page should open on what is working.
     entry.items.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
@@ -231,15 +259,17 @@ export function buildStoreStats({
 
   return {
     collections: [...byAddress.values()].sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name)),
-    sold: total,
-    mints,
-    resales: total - mints,
-    earningsWei: rows.reduce((sum, row) => sum + weiOf(row.price), 0n),
-    partial: truncated,
+    sold: summary?.total ?? total,
+    mints: summary?.mints ?? mints,
+    resales: summary ? summary.resales : total - mints,
+    earningsWei: summary ? weiOf(summary.earnedWei) : rows.reduce((sum, row) => sum + weiOf(row.price), 0n),
+    // The server's sum covers the whole window whatever its size; only a client-side one can fall short.
+    partial: summary ? false : truncated,
     fetched: rows.length,
     unattributed: rows.length - attributed,
     trendDays,
     unknownCollections: [...byAddress.keys()].filter(ca => unreadable?.has(ca)).length,
+    royalties: summary ? { resales: summary.royalties.resales, volumeWei: weiOf(summary.royalties.volumeWei) } : null,
     listed,
     neverListed,
     classic,

@@ -51,6 +51,43 @@ export function weiOf(value: string | null | undefined): bigint {
   }
 }
 
+/**
+ * Everything about a seller's sales that is an AGGREGATE rather than a row.
+ *
+ * `/v1/sales` serves rows, so a total costs a page walk and a sum costs all of them — which is why the
+ * figures here used to be capped, and why royalties could not be shown at all: the feed filters by `seller`
+ * and `buyer`, and whoever earns a royalty is neither. This is one request, exact at any size.
+ */
+export type SalesSummary = {
+  total: number
+  mints: number
+  resales: number
+  /** MANA wei. */
+  earnedWei: string
+  byCollection: { contractAddress: string; sold: number; earnedWei: string }[]
+  /** First sales per item over its WHOLE life, not the window — what says how many copies were issued. */
+  byItem: { contractAddress: string; itemId: string; soldLifetime: number }[]
+  /** Resales of items this address CREATED, by anyone. Traded, not paid out. */
+  royalties: { resales: number; volumeWei: string }
+}
+
+export async function fetchSalesSummary(filters: {
+  seller: string
+  from?: number
+  to?: number
+}): Promise<SalesSummary> {
+  const qs = new URLSearchParams({ seller: filters.seller })
+  if (filters.from != null) qs.set('from', String(filters.from))
+  if (filters.to != null) qs.set('to', String(filters.to))
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/sales/summary?${qs.toString()}`)
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new Error(`fetchSalesSummary ${res.status}`)
+  }
+  const { data } = (await res.json()) as { data: SalesSummary }
+  return data
+}
+
 export type SalesFilters = {
   /** Omitted when the question is about an item rather than about one account's sales. */
   seller?: string

@@ -5,11 +5,12 @@ import { useSeo } from '~/hooks/useSeo'
 import { useStoreStats, type StoreCollection, type StoreItem, type StorePeriod } from '~/hooks/useStoreStats'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
-import { useMyStoreFlag } from '~/hooks/useMyStoreEnabled'
+import { useMyStoreAccess } from '~/hooks/useMyStoreEnabled'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
+import { CreatorSaleModal } from '~/components/CreatorSaleModal'
 import { SaleTag } from '~/components/SaleTag'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CurrencyMark } from '~/components/CurrencyMark'
 import { Price } from '~/components/Price'
 import { Tooltip } from '~/components/Tooltip'
 import { Icon } from '~/components/Icon'
@@ -18,7 +19,8 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { useQuery } from '@tanstack/react-query'
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
-import { countSales, fetchSalesPage, weiOf } from '~/lib/sales'
+import { useProfile } from '~/hooks/useProfile'
+import { fetchSalesPage, weiOf } from '~/lib/sales'
 import { config } from '~/config'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
@@ -26,7 +28,6 @@ import type { SaleRow } from '~/lib/sales'
 import { t, tNode } from '~/intl/i18n'
 import * as A from '~/styles/browseLayout.styles'
 import * as S from './MyStore.styles'
-import manaSymbol from '~/assets/mana-matic.svg'
 
 const PERIODS: StorePeriod[] = ['7d', '30d', 'all']
 
@@ -132,6 +133,20 @@ function devViewAs(raw: string | null): string | null {
   return /^0x[0-9a-f]{40}$/.test(address) ? address : null
 }
 
+/**
+ * The creator's cut of a resale.
+ *
+ * `royaltiesRate` on the Polygon marketplace, read from the live contract (0xa40b…716f) rather than taken
+ * from a doc: 25_000 of 1_000_000, i.e. 2.5%. Approximate on purpose — a resale settled through the legacy
+ * marketplace splits its fees differently, and the royalty is paid to the item's beneficiary, who is the
+ * creator only when nobody set another one.
+ */
+const ROYALTY_RATE_PPM = 25_000n
+
+function royaltyOf(volumeWei: bigint): bigint {
+  return (volumeWei * ROYALTY_RATE_PPM) / 1_000_000n
+}
+
 /** MANA wei to a readable figure. Two decimals under ten, none above: a creator reads 0.37 and 1,204. */
 function mana(wei: bigint): string {
   const whole = Number(wei / 10n ** 14n) / 10_000
@@ -194,34 +209,6 @@ function Sparkline({ series }: { series: number[] }) {
   )
 }
 
-/**
- * First sales of each item over its whole life, not just the window.
- *
- * It answers a row that reads "0 sold" beside a run with nothing left: the copies exist, they were issued
- * rather than sold. Counted by the feed (`first=1`, read `total`), one small request per item, and only
- * for the collection the creator actually opened.
- */
-function useLifetimeSales(items: StoreItem[], enabled: boolean) {
-  const keys = items.map(item => `${item.key}`).join(',')
-  return useQuery({
-    queryKey: ['store-lifetime-sales', keys],
-    enabled: enabled && items.length > 0 && items.length <= 24,
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const counts = await Promise.all(
-        items.map(item =>
-          countSales({
-            contractAddress: item.key.slice(0, item.key.lastIndexOf('-')),
-            itemId: item.itemId,
-            type: 'mint'
-          }).catch(() => null)
-        )
-      )
-      return new Map(items.map((item, i) => [item.key, counts[i]]))
-    }
-  })
-}
-
 function CollectionRow({
   collection,
   discountPct,
@@ -236,7 +223,6 @@ function CollectionRow({
   env: string | null
 }) {
   const panelId = `store-items-${collection.contractAddress}`
-  const { data: lifetime } = useLifetimeSales(collection.items, open)
   return (
     <>
       <S.CollRow data-testid="store-collection">
@@ -254,9 +240,12 @@ function CollectionRow({
           <CollectionThumb contractAddress={collection.contractAddress} />
         </S.Mosaic>
         <S.CollName>
-          <Link to={withEnv(`/collection/${collection.contractAddress}`, env)} data-testid="store-collection-name">
-            {collection.name}
-          </Link>
+          <S.NameLine>
+            <Link to={withEnv(`/collection/${collection.contractAddress}`, env)} data-testid="store-collection-name">
+              {collection.name}
+            </Link>
+            {discountPct != null ? <SaleTag pct={discountPct} /> : null}
+          </S.NameLine>
           <span>
             {t('myStore.itemsCount', { count: collection.items.length })}
             {collection.listed > 0 ? ` · ${t('myStore.listedCount', { count: collection.listed })}` : ''}
@@ -270,13 +259,17 @@ function CollectionRow({
         <S.SparkCell>
           <Sparkline series={collection.trend} />
         </S.SparkCell>
-        {discountPct != null ? (
-          <SaleTag pct={discountPct} />
-        ) : (
-          <Button as={Link} to={withEnv('/my-items?section=creations', env)} variant="purple" size="sm">
-            {t('myStore.manage')}
-          </Button>
-        )}
+        <Button
+          as="a"
+          href={`${config.builderUrl}/collections/${collection.collectionId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="purple"
+          size="sm"
+          data-testid="store-manage"
+        >
+          {t('myStore.manage')}
+        </Button>
       </S.CollRow>
 
       {open ? (
@@ -284,7 +277,7 @@ function CollectionRow({
           <S.CollStats data-testid="store-collection-stats">
             <span>
               <b>
-                <S.ManaMark src={manaSymbol} alt="" aria-hidden />
+                <CurrencyMark kind="mana" />
                 {mana(collection.earningsWei)}
               </b>
               {t('myStore.collEarned')}
@@ -306,8 +299,7 @@ function CollectionRow({
             // Copies that exist with no sale behind them. Only over the whole life of the item, where it is
             // the other half of what sold: against a 30-day count it would read as though the two should
             // add up to the run, and they never would.
-            const lifetimeSold = lifetime?.get(item.key) ?? null
-            const sentDirectly = issued(item, lifetimeSold)
+            const sentDirectly = issued(item, item.lifetimeSold)
             return (
               <S.ItemRow key={item.key} data-testid="store-item">
                 <S.ItemThumb style={{ backgroundImage: rarityMedia(item.rarity) }}>
@@ -334,12 +326,13 @@ function CollectionRow({
                           <S.OnSaleFor>{t('myStore.onSaleFor')}</S.OnSaleFor>
                           {item.manaWei ? (
                             <>
-                              <S.ManaMark src={manaSymbol} alt="" aria-hidden />
+                              <CurrencyMark kind="mana" />
                               {mana(weiOf(item.manaWei))}
                             </>
                           ) : (
                             <>
-                              <CurrencyIcon className="ccy-mark" /> <Price credits={item.priceCredits ?? 0} />
+                              <CurrencyMark kind="credits" />
+                              <Price credits={item.priceCredits ?? 0} />
                             </>
                           )}
                         </>
@@ -348,7 +341,7 @@ function CollectionRow({
                   </S.ItemMeta>
                 </S.ItemCell>
                 <S.ItemNum>
-                  {item.sold}
+                  {item.sold.toLocaleString()}
                   <small> {t('myStore.sold')}</small>
                 </S.ItemNum>
                 {/* The run, not the offer: how much of this item's supply is gone. */}
@@ -365,12 +358,12 @@ function CollectionRow({
                     thing that says whether this was a 1-of-1 or a drop of a thousand. */}
                 <S.StockCell
                   title={
-                    lifetimeSold == null
+                    item.lifetimeSold == null
                       ? undefined
                       : t('myStore.runBreakdown', {
                           total: item.minted + item.left,
-                          sold: lifetimeSold,
-                          sent: item.minted - lifetimeSold,
+                          sold: item.lifetimeSold,
+                          sent: item.minted - item.lifetimeSold,
                           left: item.left
                         })
                   }
@@ -378,13 +371,13 @@ function CollectionRow({
                   <S.Stock data-out={item.left === 0} data-testid="store-item-stock">
                     {tNode(item.left === 0 ? 'myStore.stockNone' : 'myStore.stockLeft', {
                       b: (c: ReactNode) => <b>{c}</b>,
-                      left: item.left,
-                      total: item.minted + item.left
+                      left: item.left.toLocaleString(),
+                      total: (item.minted + item.left).toLocaleString()
                     })}
                   </S.Stock>
                   {sentDirectly ? (
                     <S.Issued data-testid="store-item-issued">
-                      {t('myStore.sentDirectly', { count: sentDirectly, total: item.minted + item.left })}
+                      {t('myStore.sentDirectly', { count: sentDirectly.toLocaleString() })}
                     </S.Issued>
                   ) : null}
                 </S.StockCell>
@@ -485,17 +478,22 @@ export function MyStore() {
   const { session, error, signIn } = useWallet()
   const [params] = useSearchParams()
   const [period, setPeriod] = useState<StorePeriod>('30d')
-  const [open, setOpen] = useState<string | null>(null)
+  // A set, not one id: opening a second collection to compare it with the first should not close the first.
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const [showAll, setShowAll] = useState(false)
   const [page, setPage] = useState(0)
+  const [saleOpen, setSaleOpen] = useState(false)
   const [sort, setSort] = useState<Sort>('sold')
   const creatorSalesEnabled = useCreatorSalesEnabled()
-  const flag = useMyStoreFlag()
+  const access = useMyStoreAccess()
   const viewAs = devViewAs(params.get('viewAs'))
   const env = params.get('env')
-  const { stats, isLoading, error: statsError } = useStoreStats(session, period, viewAs)
+  const { data: profile } = useProfile(viewAs ?? session?.address)
+  const face = profile?.avatar?.snapshots?.face256
+  const creatorName = profile?.name ? capitalizeFirst(profile.name) : null
+  const { stats, saleable, isLoading, error: statsError } = useStoreStats(session, period, viewAs)
   const sales = useSalesPage(viewAs ?? session?.address, period, page)
-  const { data: buyers } = useBuyerNames(sales.rows)
+  const { data: buyers, isLoading: buyersLoading } = useBuyerNames(sales.rows)
   const { data: discounts } = useCreatorSales(
     viewAs ?? session?.address,
     creatorSalesEnabled && (!!session || !!viewAs)
@@ -503,8 +501,9 @@ export function MyStore() {
 
   // The flag closes the page, not just the nav entry — otherwise the link is off and the URL is still live.
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
-  // every visitor home before the flag file arrives.
-  if (flag.data === false) return <Navigate to="/" replace />
+  // every visitor home before the flag file arrives, or before the wallet an allowlist is checked against
+  // has been read back.
+  if (access === 'off') return <Navigate to="/" replace />
 
   if (!session && !viewAs) {
     return (
@@ -571,20 +570,34 @@ export function MyStore() {
     <A.Root>
       <A.Main>
         <S.Root data-testid="my-store">
+          {saleOpen && session ? (
+            <CreatorSaleModal session={session} collections={saleable} onClose={() => setSaleOpen(false)} />
+          ) : null}
+
           <S.Masthead>
-            <div>
-              <S.Eyebrow>{t('myStore.eyebrow')}</S.Eyebrow>
-              <S.Title>{t('myStore.title')}</S.Title>
-              {/* The line holds its place while the figures load, so the masthead does not grow a row under
+            <S.Identity>
+              <S.Avatar
+                style={face ? { backgroundImage: `url(${face})` } : undefined}
+                data-testid="store-avatar"
+                aria-hidden
+              />
+              <div>
+                <S.Eyebrow>
+                  {t('myStore.eyebrow')}
+                  {creatorName ? <S.Who>{creatorName}</S.Who> : null}
+                </S.Eyebrow>
+                <S.Title>{t('myStore.title')}</S.Title>
+                {/* The line holds its place while the figures load, so the masthead does not grow a row under
                   the reader. */}
-              {stats ? (
-                <S.Sub>{t('myStore.summary', { collections: stats.collections.length, items })}</S.Sub>
-              ) : (
-                <S.Sub>
-                  <S.Bar style={{ width: 170, background: 'rgba(252, 252, 252, 0.18)', animation: 'none' }} />
-                </S.Sub>
-              )}
-            </div>
+                {stats ? (
+                  <S.Sub>{t('myStore.summary', { collections: stats.collections.length, items })}</S.Sub>
+                ) : (
+                  <S.Sub>
+                    <S.Bar style={{ width: 170, background: 'rgba(252, 252, 252, 0.18)', animation: 'none' }} />
+                  </S.Sub>
+                )}
+              </div>
+            </S.Identity>
             <S.Periods role="group" aria-label={t('myStore.period')}>
               {PERIODS.map(key => (
                 <S.Period
@@ -628,7 +641,7 @@ export function MyStore() {
                     <S.TileMark aria-hidden>💰</S.TileMark>
                   </S.TileKey>
                   <S.TileValue>
-                    <S.ManaMark src={manaSymbol} alt="" aria-hidden />
+                    <CurrencyMark kind="mana" />
                     {mana(stats.earningsWei)}
                     <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>
                   </S.TileValue>
@@ -657,6 +670,42 @@ export function MyStore() {
                       : t('myStore.tileListedFoot', { count: stats.neverListed })}
                   </S.TileFoot>
                 </S.Tile>
+                {stats.royalties ? (
+                  <S.Tile>
+                    <S.TileKey>
+                      <span>
+                        {t('myStore.tileRoyalties')}
+                        <Tooltip content={t('myStore.royaltiesHint')}>
+                          <S.Info
+                            type="button"
+                            aria-label={t('myStore.tileRoyalties')}
+                            data-testid="store-royalties-hint"
+                          >
+                            <Icon name="info" className="ico" aria-hidden />
+                          </S.Info>
+                        </Tooltip>
+                      </span>
+                      <S.TileMark aria-hidden>🔁</S.TileMark>
+                    </S.TileKey>
+                    <S.TileValue data-testid="store-royalties">
+                      <S.Approx>≈</S.Approx>
+                      <CurrencyMark kind="mana" />
+                      {mana(royaltyOf(stats.royalties.volumeWei))}
+                    </S.TileValue>
+                    <S.TileFoot>
+                      {tNode('myStore.tileRoyaltiesFoot', {
+                        m: (c: ReactNode) => (
+                          <>
+                            <CurrencyMark kind="mana" />
+                            {c}
+                          </>
+                        ),
+                        count: stats.royalties.resales,
+                        volume: mana(stats.royalties.volumeWei)
+                      })}
+                    </S.TileFoot>
+                  </S.Tile>
+                ) : null}
                 <S.Tile>
                   <S.TileKey>
                     {t('myStore.tileDiscounts')}
@@ -708,9 +757,13 @@ export function MyStore() {
                           collection={collection}
                           discountPct={pctByCollection.get(collection.contractAddress) ?? null}
                           env={env}
-                          open={open === collection.contractAddress}
+                          open={open.has(collection.contractAddress)}
                           onToggle={() =>
-                            setOpen(open === collection.contractAddress ? null : collection.contractAddress)
+                            setOpen(current => {
+                              const next = new Set(current)
+                              if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
+                              return next
+                            })
                           }
                         />
                       ))
@@ -769,14 +822,23 @@ export function MyStore() {
                     )}
                   </S.Panel>
 
-                  {creatorSalesEnabled && running.length > 0 && !viewAs && session ? (
+                  {creatorSalesEnabled && !viewAs && session && (running.length > 0 || saleable.length > 0) ? (
                     <S.Panel aria-labelledby="store-disc-h">
                       <S.PanelHead>
                         <S.PanelTitle id="store-disc-h">{t('creatorSale.salesTitle')}</S.PanelTitle>
                       </S.PanelHead>
-                      <S.PanelBody>
-                        <CreatorSales sales={running} session={session} names={names} />
-                      </S.PanelBody>
+                      {running.length > 0 ? (
+                        <S.PanelBody>
+                          <CreatorSales sales={running} session={session} names={names} />
+                        </S.PanelBody>
+                      ) : (
+                        <S.Empty>{t('myStore.noDiscounts')}</S.Empty>
+                      )}
+                      {saleable.length > 0 ? (
+                        <S.More type="button" onClick={() => setSaleOpen(true)} data-testid="store-new-discount">
+                          {t('myStore.newDiscount')}
+                        </S.More>
+                      ) : null}
                     </S.Panel>
                   ) : null}
                 </S.Side>
@@ -796,7 +858,16 @@ export function MyStore() {
                         <tr>
                           <th scope="col">{t('myStore.colItem')}</th>
                           <th scope="col">{t('myStore.colBuyer')}</th>
-                          <th scope="col">{t('myStore.colKind')}</th>
+                          <th scope="col">
+                            <S.HeadWithHint>
+                              {t('myStore.colKind')}
+                              <Tooltip content={t('myStore.kindHint')}>
+                                <S.Info type="button" aria-label={t('myStore.colKind')} data-testid="store-kind-hint">
+                                  <Icon name="info" className="ico" aria-hidden />
+                                </S.Info>
+                              </Tooltip>
+                            </S.HeadWithHint>
+                          </th>
                           <th scope="col">{t('myStore.colWhen')}</th>
                           <th scope="col" style={{ textAlign: 'right' }}>
                             {t('myStore.colPaid')}
@@ -834,15 +905,28 @@ export function MyStore() {
                                 </S.SaleItem>
                               </td>
                               <td>
-                                <S.Buyer
-                                  href={`${config.profileUrl}/${row.buyer}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  data-testid="store-sale-buyer"
-                                >
-                                  <S.Face style={face ? { backgroundImage: `url(${face})` } : undefined} aria-hidden />
-                                  {buyerName(row.buyer, buyers)}
-                                </S.Buyer>
+                                {/* A shortened address is the ANSWER for a buyer with no profile name, not a
+                                    loading state — writing it first and swapping it for the real name reads
+                                    as a glitch, so the row holds its place until the lookup answers. */}
+                                {buyersLoading ? (
+                                  <S.FaceSkeleton aria-hidden>
+                                    <i />
+                                    <b />
+                                  </S.FaceSkeleton>
+                                ) : (
+                                  <S.Buyer
+                                    href={`${config.profileUrl}/${row.buyer}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    data-testid="store-sale-buyer"
+                                  >
+                                    <S.Face
+                                      style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                      aria-hidden
+                                    />
+                                    {buyerName(row.buyer, buyers)}
+                                  </S.Buyer>
+                                )}
                               </td>
                               <td>
                                 <S.Kind data-kind={row.type}>
@@ -851,7 +935,7 @@ export function MyStore() {
                               </td>
                               <td data-dim>{ago(row.timestamp)}</td>
                               <td data-money>
-                                <S.ManaMark src={manaSymbol} alt="" aria-hidden />
+                                <CurrencyMark kind="mana" />
                                 {mana(weiOf(row.price))}
                               </td>
                             </tr>

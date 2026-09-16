@@ -21,6 +21,42 @@ export const Masthead = styled.header`
   flex-wrap: wrap;
 `
 
+export const Identity = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+`
+
+/** The creator's own face, so the page opens on whose store it is. */
+export const Avatar = styled.span`
+  flex: none;
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.22);
+  background-size: cover;
+  background-position: center top;
+  border: 2px solid rgba(252, 252, 252, 0.22);
+
+  ${theme.media.maxWidth('mobile')} {
+    width: 48px;
+    height: 48px;
+  }
+`
+
+export const Who = styled.span`
+  color: ${theme.colors.softWhite};
+  letter-spacing: 0.04em;
+
+  &::before {
+    content: '·';
+    margin: 0 7px;
+    color: rgba(252, 252, 252, 0.4);
+  }
+`
+
 export const Eyebrow = styled.p`
   margin: 0 0 6px;
   font-family: ${theme.font.sans};
@@ -92,7 +128,9 @@ export const Period = styled.button`
 
 export const Tiles = styled.section`
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Five tiles when the store has resales to report, four when it does not — auto-fit rather than a fixed
+     count so neither case leaves a hole. */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 14px;
 
   ${theme.media.maxWidth('lg')} {
@@ -137,11 +175,32 @@ export const TileValue = styled.span`
   display: flex;
   align-items: baseline;
   gap: 8px;
+
+  /* The currency mark is a box, not a glyph with a baseline: sized to the digits' cap height and centred
+     against them, rather than left to sit on the line's bottom edge. */
+  [data-kind] {
+    align-self: center;
+    margin-right: 6px;
+  }
+  [data-kind] img,
+  [data-kind] .ico {
+    width: 0.74em;
+    height: 0.74em;
+    vertical-align: baseline;
+  }
   font-family: ${theme.font.sans};
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+`
+
+/** Marks a figure the Shop can only approximate, without shouting about it. */
+export const Approx = styled.span`
+  font-size: 20px;
+  font-weight: 600;
+  color: ${theme.colors.muted};
+  margin-right: -2px;
 `
 
 export const TileUnit = styled.span`
@@ -335,6 +394,17 @@ export const Mosaic = styled.span`
   background: ${theme.colors.media};
 `
 
+export const NameLine = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+
+  a {
+    min-width: 0;
+  }
+`
+
 export const CollName = styled.span`
   min-width: 0;
 
@@ -423,6 +493,12 @@ export const CollStats = styled.div`
     color: ${theme.colors.muted};
   }
   b {
+    /* The currency mark is its own inline-flex element, so the figure needs a row of its own or the two
+       break onto separate lines. */
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 0;
@@ -434,10 +510,10 @@ export const CollStats = styled.div`
 
 export const ItemRow = styled.div`
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 64px 84px 92px;
+  grid-template-columns: 40px minmax(0, 1fr) 80px 96px max-content;
   align-items: center;
-  gap: 12px;
-  padding: 9px 0;
+  gap: 22px;
+  padding: 13px 0;
 
   > *:last-child {
     justify-self: end;
@@ -516,6 +592,7 @@ export const ItemName = styled(Link)`
 export const ItemNum = styled.span`
   font-family: ${theme.font.sans};
   font-size: 13px;
+  white-space: nowrap;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -540,8 +617,7 @@ export const ItemNum = styled.span`
  */
 export const Run = styled.span`
   display: block;
-  width: 84px;
-  margin-right: 10px;
+  width: 96px;
   height: 6px;
   border-radius: 100px;
   background: rgba(22, 21, 24, 0.1);
@@ -588,7 +664,8 @@ export const StockCell = styled.span`
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 5px;
+  gap: 4px;
+  line-height: 1.25;
 `
 
 /** The label before a listed item's price, so the number is not a bare figure in a column of counts. */
@@ -605,6 +682,7 @@ export const OnSaleFor = styled.span`
 export const Issued = styled.span`
   font-family: ${theme.font.sans};
   font-size: 10px;
+  opacity: 0.85;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -616,6 +694,7 @@ export const Issued = styled.span`
 export const Stock = styled.span`
   font-family: ${theme.font.sans};
   font-size: 11px;
+  letter-spacing: 0.03em;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -725,6 +804,29 @@ export const FeedWrap = styled.div`
 export const Feed = styled.table`
   width: 100%;
   border-collapse: collapse;
+  /* Fixed, so a page of short names and one of long ones lay their columns out identically — the widths
+     come from the header row rather than from whatever this page happens to hold. */
+  table-layout: fixed;
+
+  thead th:nth-of-type(1) {
+    width: 36%;
+  }
+  thead th:nth-of-type(2) {
+    width: 24%;
+  }
+  thead th:nth-of-type(3) {
+    width: 120px;
+  }
+  thead th:nth-of-type(4) {
+    width: 14%;
+  }
+  thead th:nth-of-type(5) {
+    width: 110px;
+  }
+  tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   font-family: ${theme.font.sans};
   font-size: 13px;
   min-width: 520px;
@@ -808,6 +910,28 @@ export const Buyer = styled.a`
   }
 `
 
+/** Holds the buyer line's place while the profile resolves, so the name is written once. */
+export const FaceSkeleton = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  i {
+    display: block;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ededed;
+  }
+  b {
+    display: block;
+    width: 84px;
+    height: 10px;
+    border-radius: 100px;
+    background: #ededed;
+  }
+`
+
 export const Face = styled.span`
   flex: none;
   display: block;
@@ -881,6 +1005,13 @@ export const PageGap = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
   color: ${theme.colors.muted};
+`
+
+/** A column header that carries its own explanation. */
+export const HeadWithHint = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 `
 
 export const Kind = styled.span`

@@ -138,8 +138,9 @@ describe('when a creator opens their store', () => {
     expect(await text(app, 'store-sold')).toBe('15')
     expect(await text(app, 'store-discounts')).toBe('1')
     const body = await bodyText(page)
-    // Counted by the feed per kind, not derived from the rows the cap let through.
-    expect(body).toContain('14 first sales · 1 resale')
+    // Counted by the server's own aggregate, not derived from the page of rows the table happens to hold,
+    // and named by who did the selling: a resale is the creator's, a royalty is somebody else's.
+    expect(body).toContain('14 first sales · 1 resold by you')
 
     // Only what the creator can act on: nothing is priced in MANA here, so that row is absent rather than
     // sitting at zero.
@@ -252,5 +253,57 @@ describe('when the store dashboard is switched off', () => {
       app.page.click('[data-testid="nav-my-store"]')
     ])
     await waitForText(app.page, 'My Store')
+  })
+})
+
+/**
+ * The dashboard rolls out to named creators first, through the flag's address-list variant. A creator not on
+ * the list is not left worse off than before it existed: My Items keeps its own creations section, which is
+ * the only thing standing between them and their collections while the new page is closed to them.
+ */
+describe('when the store dashboard is rolled out to a list of creators', () => {
+  it('should open it for an address the list names', async () => {
+    app = await launchApp({
+      path: '/my-store',
+      myStore: true,
+      myStoreAllowed: `0x1111111111111111111111111111111111111111,${TEST_ADDRESS}`,
+      creatorSales: true,
+      fixtures: storeFixtures
+    })
+    await waitForText(app.page, 'My Store')
+
+    expect(await app.page.evaluate(() => location.pathname)).toBe('/my-store')
+  })
+
+  it('should close it for an address the list leaves out', async () => {
+    app = await launchApp({
+      path: '/my-store',
+      myStore: true,
+      myStoreAllowed: '0x1111111111111111111111111111111111111111',
+      fixtures: storeFixtures
+    })
+    await app.page.waitForFunction(() => location.pathname !== '/my-store')
+
+    expect(await app.page.evaluate(() => location.pathname)).toBe('/overview')
+    expect(await app.page.$('[data-testid="nav-my-store"]')).toBeNull()
+  })
+
+  it('should leave my items its creations section for a creator the list leaves out', async () => {
+    app = await launchApp({
+      path: '/my-items',
+      myStore: true,
+      myStoreAllowed: '0x1111111111111111111111111111111111111111',
+      fixtures: storeFixtures
+    })
+    await app.page.waitForSelector('[data-testid="filter-collections"]')
+
+    expect(await app.page.$('[data-testid="filter-collections"]')).not.toBeNull()
+  })
+
+  it('should take that section away once the dashboard is theirs', async () => {
+    app = await launchApp({ path: '/my-items', myStore: true, myStoreAllowed: TEST_ADDRESS, fixtures: storeFixtures })
+    await app.page.waitForSelector('[data-testid="nav-my-store"]')
+
+    expect(await app.page.$('[data-testid="filter-collections"]')).toBeNull()
   })
 })

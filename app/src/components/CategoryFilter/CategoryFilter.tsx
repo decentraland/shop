@@ -219,7 +219,13 @@ export function CategoryFilter({
 
       {onCollections ? (
         <S.Group>
-          <S.Cat type="button" data-cat data-selected={collections || undefined} onClick={onCollections}>
+          <S.Cat
+            type="button"
+            data-cat
+            data-testid="filter-collections"
+            data-selected={collections || undefined}
+            onClick={onCollections}
+          >
             <S.CatLabel>{t(extraLabelKey)}</S.CatLabel>
           </S.Cat>
         </S.Group>

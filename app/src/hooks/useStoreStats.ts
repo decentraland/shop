@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { countSales, fetchSellerSales } from '~/lib/sales'
+import { countSales, fetchSalesSummary, fetchSellerSales } from '~/lib/sales'
 import { fetchPublishableItems } from '~/lib/builder'
 import { fetchPublicCatalogue } from '~/lib/storePreview'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
+import { toSaleableCollections } from '~/lib/saleableCollections'
 import type { Session } from '~/lib/auth'
 
 export type StorePeriod = '7d' | '30d' | 'all'
@@ -35,6 +36,17 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
 
   // Someone else's store can only be read from the public feeds: the builder answers for the signed-in
   // creator alone.
+  /**
+   * The server's aggregate for the window: totals, earnings, per-collection and per-item figures, and the
+   * royalties that no client-side grouping can reach. Every number in it is exact whatever the size of the
+   * store; the reads below stay as the fallback for a server that has not shipped it yet.
+   */
+  const summary = useQuery({
+    queryKey: ['store-summary', address, period],
+    enabled: !!address,
+    queryFn: () => fetchSalesSummary({ seller: address as string, from })
+  })
+
   // Exact, and one request: the feed counts by kind server-side, so the split never depends on how many
   // rows the cap above let through.
   const mints = useQuery({
@@ -90,16 +102,29 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
       total: sales.data?.total ?? 0,
       truncated: !!sales.data?.truncated,
       mints: mints.data ?? 0,
+      summary: summary.data ?? null,
       catalogue: catalogue.data,
       saleState: saleState.data?.states ?? {},
       unreadable: saleState.data?.unreadable,
       days,
       now
     })
-  }, [catalogue.data, sales.data, mints.data, saleState.data, days, now])
+  }, [catalogue.data, sales.data, mints.data, summary.data, saleState.data, days, now])
+
+  /**
+   * The same collections a discount can run on, from the reads the page already made.
+   *
+   * Shared with My Creations through `toSaleableCollections` rather than derived twice: which collections
+   * a creator may discount is one rule, and two copies of it would drift.
+   */
+  const saleable = useMemo(
+    () => toSaleableCollections(catalogue.data ?? [], saleState.data?.states),
+    [catalogue.data, saleState.data]
+  )
 
   return {
     stats,
+    saleable,
     isLoading: catalogue.isLoading || sales.isLoading,
     error: catalogue.error ?? sales.error ?? null
   }

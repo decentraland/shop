@@ -32,6 +32,7 @@ import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { CollectionThumb } from '~/components/CollectionThumb'
+import { Chevron } from '~/components/Chevron'
 import * as S from './CreatorSaleModal.styles'
 
 /**
@@ -167,23 +168,37 @@ function MorphField({
 export function CreatorSaleModal({
   session,
   collection,
+  collections,
   onCreated,
   onClose
 }: {
   session: Session
   /**
-   * The one collection this sale covers. The modal is always opened from a collection's own header, so
-   * the collection is the context rather than a choice — it is shown, not picked.
+   * The one collection this sale covers, when the modal is opened from that collection's own context —
+   * then it is shown rather than picked.
    */
-  collection: SaleableCollection
+  collection?: SaleableCollection
+  /**
+   * Opened from the discounts panel instead, where no collection is implied: the modal asks for one
+   * first. Exactly one of the two is given.
+   */
+  collections?: SaleableCollection[]
   onCreated?: (sale: CreatorSale) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const selected = useMemo(() => [collection.contractAddress], [collection.contractAddress])
+  const choices = collections ?? []
+  // Picked here when the modal was opened without one. A single choice is not a choice: skip straight in.
+  const [picked, setPicked] = useState<SaleableCollection | null>(
+    () => collection ?? (choices.length === 1 ? choices[0] : null)
+  )
+  const current = picked ?? collection ?? choices[0]
+  const selected = useMemo(() => (current ? [current.contractAddress] : []), [current])
   // The terms are agreed on the first step and confirmed on the second; nothing is signed until 'review'.
-  const [step, setStep] = useState<'form' | 'review'>('form')
+  const [step, setStep] = useState<'pick' | 'form' | 'review'>(() =>
+    collection || choices.length === 1 ? 'form' : 'pick'
+  )
   const [pctPreset, setPctPreset] = useState<number | 'custom'>(20)
   const [customPct, setCustomPct] = useState('15')
   const [duration, setDuration] = useState<DurationKey>('72h')
@@ -220,20 +235,20 @@ export function CreatorSaleModal({
   }, [selected, pct, duration, customEnd, startMode, startAt, capOn, cap])
 
   const example = useMemo(() => {
-    const price = collection.examplePriceCredits ?? 100
+    const price = current.examplePriceCredits ?? 100
     return { price, sale: salePriceOf(price, pct) }
-  }, [collection, pct])
+  }, [current, pct])
 
   /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
   const review = useMemo(() => {
-    const listed = collection.items.filter(i => i.state === 'discounted')
-    const classic = collection.items.filter(i => i.state === 'classic')
-    const unlisted = collection.items.filter(i => i.state === 'unlisted')
+    const listed = current.items.filter(i => i.state === 'discounted')
+    const classic = current.items.filter(i => i.state === 'classic')
+    const unlisted = current.items.filter(i => i.state === 'unlisted')
     // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
     // listed item — the honest ceiling for "how many can be sold at this price".
     const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
     return { listed, classic, unlisted, supply }
-  }, [collection])
+  }, [current])
 
   async function submit() {
     setTouched(true)
@@ -518,6 +533,57 @@ export function CreatorSaleModal({
   const startLaterOpen = startMode === 'later'
 
   /**
+   * Which collection, when the modal was opened from the discounts panel rather than from a collection.
+   *
+   * First rather than last because everything after it is about this collection: the price the preview
+   * quotes, what the review promises to leave alone, the cap. Asking for the terms first and the subject
+   * afterwards would mean re-reading all of it.
+   */
+  if (step === 'pick') {
+    return (
+      <S.Scrim onClick={onClose} role="presentation">
+        <S.Card
+          data-testid="creator-sale-pick"
+          onClick={e => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('creatorSale.pickTitle')}
+        >
+          <S.Head>
+            <S.Title>{t('creatorSale.pickTitle')}</S.Title>
+            <S.Close onClick={onClose} aria-label={t('creatorSale.cancel')}>
+              <Icon name="close" className="ico" />
+            </S.Close>
+          </S.Head>
+          <S.Subtitle>{t('creatorSale.pickBody')}</S.Subtitle>
+          <S.PickList>
+            {choices.map(choice => (
+              <S.PickRow
+                key={choice.contractAddress}
+                type="button"
+                onClick={() => {
+                  setPicked(choice)
+                  setStep('form')
+                }}
+                data-testid="creator-sale-pick-row"
+              >
+                <S.RowThumb>
+                  <CollectionThumb contractAddress={choice.contractAddress} />
+                </S.RowThumb>
+                <S.RowText>
+                  <S.RowName>{choice.name}</S.RowName>
+                  <S.RowMeta>{t('creatorSale.collectionListed', { count: choice.listedCount })}</S.RowMeta>
+                </S.RowText>
+                <Chevron />
+              </S.PickRow>
+            ))}
+          </S.PickList>
+        </S.Card>
+      </S.Scrim>
+    )
+  }
+
+  /**
    * Nothing here a discount can reach: every listing in this collection is priced in MANA.
    *
    * Offered anyway, and answered here. The button used to be absent for these collections, which told the
@@ -587,11 +653,11 @@ export function CreatorSaleModal({
               {/* A collection has no image of its own, so it is shown the way the rest of the Shop shows
                   one: a mosaic of its first items, each over its rarity gradient. */}
               <S.RowThumb>
-                <CollectionThumb contractAddress={collection.contractAddress} />
+                <CollectionThumb contractAddress={current.contractAddress} />
               </S.RowThumb>
               <S.RowInfo>
-                <S.RowName>{collection.name}</S.RowName>
-                <S.RowMeta>{t('creatorSale.collectionListed', { count: collection.listedCount })}</S.RowMeta>
+                <S.RowName>{current.name}</S.RowName>
+                <S.RowMeta>{t('creatorSale.collectionListed', { count: current.listedCount })}</S.RowMeta>
               </S.RowInfo>
             </S.CollectionRow>
           </S.CollectionList>

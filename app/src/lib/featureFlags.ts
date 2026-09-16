@@ -63,7 +63,13 @@ export enum FeatureFlag {
   /**
    * The creator's own dashboard at /my-store: how each collection is selling, what needs attention, and the
    * discounts running. Off means the page is unreachable and its nav entry is absent — nothing about
-   * selling changes, only whether the creator can see it in one place.
+   * selling changes, only whether the creator can see it in one place. On, My Items stops offering its own
+   * creations section, so the collections are reachable from one place rather than two.
+   *
+   * Reads an address-list VARIANT to roll out gradually: with one, only those addresses get the dashboard
+   * and everyone else keeps today's My Items; without one, the flag alone answers and it is on for all.
+   * An empty list therefore means "no restriction", not "nobody" — the opposite of the pre-launch gate,
+   * because this flag opens a surface rather than closing the Shop.
    */
   SHOP_MY_STORE = 'shop-my-store',
   /**
