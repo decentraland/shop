@@ -188,9 +188,8 @@ export const CardHead = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  /* A faint lift instead of the softWhite band: on the dark fill the separation has to come from
-     light, not from a darker grey. */
-  background: ${theme.colors.glassFaint};
+  /* No fill of its own: the head is the card's main surface, and what sits inside it is lifted off
+     that rather than the other way round (design review, 2026-09-16). */
   border-bottom: 1px solid ${theme.colors.cardLine};
 
   ${theme.media.maxWidth('mobile')} {
@@ -321,9 +320,10 @@ export const Total = styled.div`
     height: 16px;
   }
 
-  // Money received (a sale) reads as income in the shop's success green.
+  /* Income used to read in the success green. It is white like every other total now: the plus sign
+     already says money came in, and the green was the one colour shouting on the page. */
   &[data-kind='income'] {
-    color: ${theme.colors.successBorder};
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -377,6 +377,8 @@ export const FailedNote = styled.p`
 export const Lines = styled.div`
   display: flex;
   flex-direction: column;
+  /* Lifted above the head so what you bought reads as nested inside the purchase, not level with it. */
+  background: ${theme.colors.glassFaint};
 `
 
 // A line item. Rendered as a router <Link> when the item detail resolves, else a plain <div>.
@@ -397,7 +399,8 @@ export const Line = styled.div`
     transition: background 0.15s;
   }
   &[data-link='true']:hover {
-    background: ${theme.colors.glassFaint};
+    /* One step above the lift the rows now sit on, so the hover still registers. */
+    background: ${theme.colors.glass};
   }
   &[data-link='true']:focus-visible {
     /* White, like the filter chips above: the accent purple was drawn for the white card and all but
