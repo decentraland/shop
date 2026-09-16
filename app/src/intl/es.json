@@ -584,7 +584,8 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Inicia sesión para ver tus artículos.",
+    "signInTitle": "Inicia sesión para ver tus artículos",
+    "signInBody": "Inicia sesión para ver los artículos que tienes y gestionarlos.",
     "removedFromSale": "«{name}» ya no está a la venta.",
     "removeListingError": "No pudimos quitar la publicación. Inténtalo de nuevo.",
     "ownedTitle": "Artículos que tienes",
@@ -774,7 +775,8 @@
       "myOutfits": "Mis outfits",
       "new": "Nuevo outfit",
       "editTitle": "Editar outfit",
-      "signInPrompt": "Inicia sesión para gestionar outfits.",
+      "signInTitle": "Inicia sesión para gestionar tus outfits",
+      "signInBody": "Inicia sesión para crear y guardar outfits con los artículos que tienes.",
       "signIn": "Inicia sesión",
       "notAvailable": "Esta sección es solo para el equipo de estilismo de la tienda.",
       "backToShop": "Volver a la tienda",

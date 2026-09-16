@@ -584,7 +584,8 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Sign in to view your items.",
+    "signInTitle": "Sign In to view your items",
+    "signInBody": "Sign in to see the items you own and manage them.",
     "removedFromSale": "“{name}” is no longer for sale.",
     "removeListingError": "Couldn’t remove the listing — please try again.",
     "ownedTitle": "Items you own",
@@ -774,7 +775,8 @@
       "myOutfits": "My outfits",
       "new": "New outfit",
       "editTitle": "Edit outfit",
-      "signInPrompt": "Sign in to manage outfits.",
+      "signInTitle": "Sign in to manage your outfits",
+      "signInBody": "Sign in to build and save outfits from the items you own.",
       "signIn": "Sign in",
       "notAvailable": "This area is only for the shop's styling team.",
       "backToShop": "Back to the shop",

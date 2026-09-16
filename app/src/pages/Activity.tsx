@@ -27,13 +27,13 @@ import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
 import nameGlyph from '~/assets/names/name-glyph.svg'
 import { Icon } from '~/components/Icon'
-import { EmptyState } from '~/components/EmptyState'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
 import * as S from './Activity.styles'
-import { theme } from '~/styles/theme'
 
 // Same styling as S.Line, but rendered as a router <Link> (emotion carries the styles onto Link's
 // props so `to` type-checks — `as={Link}` only works on polymorphic components like Button).
@@ -505,7 +505,7 @@ function ActivityEmpty({ filter }: { filter: ActivityFilter }) {
 }
 
 export function Activity() {
-  const { session } = useWallet()
+  const { session, signIn } = useWallet()
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const [params, setParams] = useSearchParams()
   const migrating =
@@ -588,11 +588,17 @@ export function Activity() {
 
   if (!session) {
     return (
-      <S.Gate>
-        <Icon name="clock" size={40} color={theme.colors.muted2} />
-        <S.EmptyTitle>{t('activity.signInTitle')}</S.EmptyTitle>
-        <S.EmptyBody>{t('activity.signInBody')}</S.EmptyBody>
-      </S.Gate>
+      <EmptyStateCentered>
+        <EmptyState
+          testId="activity-signin"
+          icon={signInIllustration}
+          title={t('activity.signInTitle')}
+          body={t('activity.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
+      </EmptyStateCentered>
     )
   }
 

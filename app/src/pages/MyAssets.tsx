@@ -13,7 +13,6 @@ import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
-import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
@@ -30,11 +29,12 @@ import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { EmptyState } from '~/components/EmptyState'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import { NewPricingModal } from '~/components/NewPricingModal'
 import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
@@ -475,14 +475,18 @@ export function MyAssets() {
   // ---------------- Sign-in gate ----------------
   if (!session) {
     return (
-      <S.Gate>
-        <S.GateTitle>{t('nav.myAssets')}</S.GateTitle>
-        <S.GateText>{t('myAssets.signInPrompt')}</S.GateText>
-        <Button variant="white" onClick={() => signIn()}>
-          {t('storeSettings.signIn')}
-        </Button>
+      <EmptyStateCentered>
+        <EmptyState
+          testId="my-items-signin"
+          icon={signInIllustration}
+          title={t('myAssets.signInTitle')}
+          body={t('myAssets.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
         <ErrorNotice message={error} />
-      </S.Gate>
+      </EmptyStateCentered>
     )
   }
 
