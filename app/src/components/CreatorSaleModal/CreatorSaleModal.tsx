@@ -33,40 +33,19 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { Chevron } from '~/components/Chevron'
+import type { SaleableCollection } from '~/lib/saleableCollections'
 import * as S from './CreatorSaleModal.styles'
 
 /**
- * One of the collection's creations, as the review step needs it.
+ * Which collection the sale is for, as a choice between two shapes rather than two optional props.
  *
- * Three states, not two. A discount re-prices the Shop's own credit listings, so an item still quoted in
- * MANA is left out — but it is NOT unlisted, and telling a creator it is "not for sale" when they can see
- * it on sale a click away is worse than saying nothing. It has its own state so the review can name the
- * one thing that would bring it in: updating its price.
+ * `collection` is the modal opened from that collection's own context, where it is shown rather than
+ * picked. `collections` is the modal opened from the discounts panel, where nothing is implied yet and
+ * picking one is the first step. Written as a union so "exactly one of the two" is checked at the call
+ * site: with both optional, passing neither compiled and then rendered nothing.
  */
-export type SaleItem = {
-  key: string
-  name: string
-  thumbnail: string
-  /** Its Shop price in credits. Null unless `state` is 'discounted'. */
-  priceCredits: number | null
-  /** 'discounted' takes the sale, 'classic' is listed but quoted in MANA, 'unlisted' is not for sale. */
-  state: 'discounted' | 'classic' | 'unlisted'
-  remainingSupply: number
-}
-
-/** A collection the creator can put on sale: one of theirs with at least one item listed in the Shop. */
-export type SaleableCollection = {
-  contractAddress: string
-  name: string
-  listedCount: number
-  /**
-   * The highest listed price, for the example line. The highest rather than the cheapest because a 1-credit
-   * item rounds any discount away and the example would read "1 credit sells for 1 credit". Null when unknown.
-   */
-  examplePriceCredits: number | null
-  /** Every creation in it, listed or not — the review step has to account for both. */
-  items: SaleItem[]
-}
+type CollectionSource =
+  { collection: SaleableCollection; collections?: never } | { collection?: never; collections: SaleableCollection[] }
 
 /** What a listed item will ring up at, rounded the way the checkout rounds the discounted amount. */
 function salePriceOf(price: number, pct: number): number {
@@ -173,19 +152,9 @@ export function CreatorSaleModal({
   onClose
 }: {
   session: Session
-  /**
-   * The one collection this sale covers, when the modal is opened from that collection's own context —
-   * then it is shown rather than picked.
-   */
-  collection?: SaleableCollection
-  /**
-   * Opened from the discounts panel instead, where no collection is implied: the modal asks for one
-   * first. Exactly one of the two is given.
-   */
-  collections?: SaleableCollection[]
   onCreated?: (sale: CreatorSale) => void
   onClose: () => void
-}) {
+} & CollectionSource) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const choices = collections ?? []

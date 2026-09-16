@@ -130,7 +130,12 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
   return {
     stats,
     saleable,
-    isLoading: catalogue.isLoading || sales.isLoading,
+    // The summary counts, because the tiles read from it the moment it lands: leaving it out let the page
+    // declare itself ready on the row-derived fallback and then rewrite every headline figure under the
+    // creator a beat later. Its ERROR deliberately does not count — a summary that cannot be read leaves a
+    // page that still works off the rows, and calling that a failure would replace a good page with a
+    // notice.
+    isLoading: catalogue.isLoading || sales.isLoading || summary.isLoading,
     error: catalogue.error ?? sales.error ?? null
   }
 }
