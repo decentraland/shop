@@ -19,10 +19,14 @@ import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
 import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
+import { Global } from '@emotion/react'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 import { t, tNode } from '~/intl/i18n'
 import { heatFor } from '~/styles/theme'
 import { formatCredits } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import manaSymbol from '~/assets/mana-matic.svg'
 import { Tooltip } from '~/components/Tooltip'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -84,6 +88,21 @@ function toLocalInput(ms: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+/**
+ * The picker speaks Date, the terms speak the `datetime-local` string the rest of this file already uses.
+ * Converting at the boundary keeps the change to the control itself.
+ */
+function asDate(value: string): Date | null {
+  const ms = fromLocalInput(value)
+  return ms === undefined ? null : new Date(ms)
+}
+
+/**
+ * The calendar renders into a node of its own at body level. Inside the card it was clipped: the card
+ * scrolls (`overflow-y: auto`), and a popup anchored inside a scrolling box is cut off by it.
+ */
+const CALENDAR_PORTAL = 'creator-sale-calendar'
+
 function fromLocalInput(value: string): number | undefined {
   if (!value) return undefined
   const ms = new Date(value).getTime()
@@ -337,6 +356,14 @@ export function CreatorSaleModal({
     </S.Marked>
   )
 
+  /** The same treatment for the other currency: both are the platform's, so both wear their mark. */
+  const manaMarked = (chunks: React.ReactNode[]) => (
+    <S.Marked>
+      <S.ManaMark src={manaSymbol} alt="" aria-hidden />
+      {chunks}
+    </S.Marked>
+  )
+
   /** How many copies the sale price can cover: the cap when set, otherwise the listed items' own supply. */
   const capCopy =
     terms.uses !== undefined
@@ -490,8 +517,51 @@ export function CreatorSaleModal({
   const customEndOpen = duration === 'custom'
   const startLaterOpen = startMode === 'later'
 
+  /**
+   * Nothing here a discount can reach: every listing in this collection is priced in MANA.
+   *
+   * Offered anyway, and answered here. The button used to be absent for these collections, which told the
+   * creator nothing — least of all that the fix is one page away.
+   */
+  if (review.listed.length === 0 && review.classic.length > 0) {
+    return (
+      <S.Scrim onClick={onClose} role="presentation">
+        <S.Card
+          data-testid="creator-sale-blocked"
+          onClick={e => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('creatorSale.title')}
+        >
+          <S.Head>
+            <S.Title>{t('creatorSale.title')}</S.Title>
+            <S.Close onClick={onClose} aria-label={t('creatorSale.cancel')}>
+              <Icon name="close" className="ico" />
+            </S.Close>
+          </S.Head>
+          <S.Subtitle>
+            {tNode('creatorSale.blockedBody', { c: marked, m: manaMarked, count: review.classic.length })}
+          </S.Subtitle>
+          <S.Actions>
+            <S.OutlineBtn onClick={onClose}>{t('creatorSale.cancel')}</S.OutlineBtn>
+            <S.PurpleBtn
+              onClick={() => {
+                onClose()
+                navigate('/activity?section=listings')
+              }}
+            >
+              {t('creatorSale.blockedCta')}
+            </S.PurpleBtn>
+          </S.Actions>
+        </S.Card>
+      </S.Scrim>
+    )
+  }
+
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
+      {/* The calendar renders outside this tree, so its theme cannot be scoped by a generated class. */}
+      <Global styles={S.calendarPortalStyles} />
       <S.Card
         data-testid="creator-sale-modal"
         onClick={e => e.stopPropagation()}
@@ -624,18 +694,25 @@ export function CreatorSaleModal({
                 </S.Chip>
               }
               field={
-                <S.DateInput
-                  type="datetime-local"
-                  value={customEnd}
-                  min={toLocalInput(Date.now())}
-                  disabled={busy}
-                  tabIndex={customEndOpen ? undefined : -1}
-                  aria-label={t('creatorSale.endLabel')}
-                  onChange={e => {
-                    setTouched(true)
-                    setCustomEnd(e.target.value)
-                  }}
-                />
+                <S.DateField>
+                  <DatePicker
+                    selected={asDate(customEnd)}
+                    onChange={date => {
+                      setTouched(true)
+                      setCustomEnd(date ? toLocalInput(date.getTime()) : '')
+                    }}
+                    minDate={new Date()}
+                    showTimeSelect
+                    timeIntervals={30}
+                    dateFormat="Pp"
+                    disabled={busy}
+                    tabIndex={customEndOpen ? undefined : -1}
+                    showPopperArrow={false}
+                    portalId={CALENDAR_PORTAL}
+                    placeholderText={t('creatorSale.endLabel')}
+                    aria-label={t('creatorSale.endLabel')}
+                  />
+                </S.DateField>
               }
             />
           </S.Chips>
@@ -667,18 +744,25 @@ export function CreatorSaleModal({
                 </S.Chip>
               }
               field={
-                <S.DateInput
-                  type="datetime-local"
-                  value={startAt}
-                  min={toLocalInput(Date.now())}
-                  disabled={busy}
-                  tabIndex={startLaterOpen ? undefined : -1}
-                  aria-label={t('creatorSale.startLabel')}
-                  onChange={e => {
-                    setTouched(true)
-                    setStartAt(e.target.value)
-                  }}
-                />
+                <S.DateField>
+                  <DatePicker
+                    selected={asDate(startAt)}
+                    onChange={date => {
+                      setTouched(true)
+                      setStartAt(date ? toLocalInput(date.getTime()) : '')
+                    }}
+                    minDate={new Date()}
+                    showTimeSelect
+                    timeIntervals={30}
+                    dateFormat="Pp"
+                    disabled={busy}
+                    tabIndex={startLaterOpen ? undefined : -1}
+                    showPopperArrow={false}
+                    portalId={CALENDAR_PORTAL}
+                    placeholderText={t('creatorSale.startLabel')}
+                    aria-label={t('creatorSale.startLabel')}
+                  />
+                </S.DateField>
               }
             />
           </S.Chips>

@@ -9,7 +9,9 @@ import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
 import { Button } from '~/components/Button'
-import { SaleCountdown } from '~/components/SaleCountdown'
+import { CollectionThumb } from '~/components/CollectionThumb'
+import { SaleTag } from '~/components/SaleTag'
+import { SaleTimer } from '~/components/SaleTimer'
 import * as S from './CreatorSales.styles'
 
 function statusCopy(status: CreatorSaleStatus): string {
@@ -30,7 +32,16 @@ function statusCopy(status: CreatorSaleStatus): string {
 }
 
 /** A creator's sales, newest first, with the one action a running sale has: ending it early. */
-export function CreatorSales({ sales, session }: { sales: CreatorSale[]; session: Session }) {
+export function CreatorSales({
+  sales,
+  session,
+  names
+}: {
+  sales: CreatorSale[]
+  session: Session
+  /** Collection names by lowercased address, so a row can say WHICH collection rather than "1 collection". */
+  names?: Record<string, string>
+}) {
   const queryClient = useQueryClient()
   // Which row is asking "end it now?", and which ones this session already ended (the server learns of a
   // cancellation on its next state read, so the row would otherwise keep saying "live" for up to a minute).
@@ -64,19 +75,34 @@ export function CreatorSales({ sales, session }: { sales: CreatorSale[]; session
         const status = endedHere.includes(sale.id) ? 'cancelled' : liveSaleStatus(sale)
         const running = status === 'active' || status === 'scheduled'
         const pct = sale.discount / 10_000
+        // Named only when the sale covers exactly one collection — a mosaic of the first of several would
+        // claim the discount belongs to it alone.
+        const only = sale.collections.length === 1 ? sale.collections[0] : null
+        const name = only ? names?.[only.toLowerCase()] : undefined
         return (
           <S.Row key={sale.id} data-status={status} data-testid="creator-sale">
-            <S.Badge aria-label={t('creatorSale.offPct', { pct })}>-{pct}%</S.Badge>
+            {/* The collection's own mosaic: a list of "1 collection at 50% off" rows cannot be told apart
+                once a creator runs more than one discount, which is exactly when this panel matters. */}
+            {only ? (
+              <S.Thumb>
+                <CollectionThumb contractAddress={only} />
+              </S.Thumb>
+            ) : null}
             <S.Info>
               <S.Line>
-                <S.Collections>{t('creatorSale.successBody', { count: sale.collections.length, pct })}</S.Collections>
+                <S.Collections>
+                  {name ?? t('creatorSale.successBody', { count: sale.collections.length, pct })}
+                </S.Collections>
                 <S.Pill data-status={status}>{statusCopy(status)}</S.Pill>
               </S.Line>
               <S.Meta>
+                {/* Beside the timer rather than in a column of its own: the two are the same kind of chip,
+                    and stranded in its own cell the tag centred itself across both lines of the row while
+                    the name sat on the first. */}
+                <SaleTag pct={pct} />
                 {status === 'active' ? (
-                  <>
-                    {t('creatorSale.endsIn')} <SaleCountdown until={sale.checks.expiration} />
-                  </>
+                  // Carries its own "Ends in", so the row no longer says it twice.
+                  <SaleTimer until={sale.checks.expiration} />
                 ) : status === 'scheduled' ? (
                   t('creatorSale.startsOn', { date: formatDateTime(sale.checks.effective) })
                 ) : null}

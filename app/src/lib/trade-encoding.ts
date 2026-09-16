@@ -35,6 +35,13 @@ export type ListingCoupon = {
   collections: string[]
   signature: string
   proof: string[]
+  /**
+   * How many of the coupon's uses are already spent, across the whole collection it covers.
+   *
+   * Optional because it is presentation, not settlement: a coupon read from an older cached row, or built
+   * by a test that only cares about the signature, has nothing to say here and must still be a valid one.
+   */
+  used?: number
 }
 
 // A single trade paired with the credit(s) that pay for it and the MANA cap the server sized.
