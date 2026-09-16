@@ -10,7 +10,7 @@ const { useCampaign, useCampaignContracts } = vi.hoisted(() => ({
 vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
 vi.mock('~/hooks/useCampaignContracts', () => ({ useCampaignContracts }))
 
-import { useEventTab } from './useEventTab'
+import { useRunningCampaign } from './useRunningCampaign'
 import { useLocale } from '~/store/locale'
 
 const A = '0xabc0000000000000000000000000000000000001'
@@ -27,7 +27,8 @@ function aCampaign(over: Partial<Campaign> = {}): Campaign {
   }
 }
 
-const label = () => renderHook(() => useEventTab()).result.current
+const label = () => renderHook(() => useRunningCampaign()).result.current?.label ?? null
+const campaignOf = () => renderHook(() => useRunningCampaign()).result.current
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -36,8 +37,12 @@ beforeEach(() => {
   useCampaignContracts.mockReturnValue({ contracts: [A], isPending: false, isError: false })
 })
 
-describe('useEventTab', () => {
-  it('should label the tab with the campaign name from the cms', () => {
+describe('useRunningCampaign', () => {
+  it('should carry the collections the event selected', () => {
+    expect(campaignOf()?.contracts).toEqual([A])
+  })
+
+  it('should label the event with the campaign name from the cms', () => {
     expect(label()).toBe('Halloween')
   })
 
@@ -47,20 +52,20 @@ describe('useEventTab', () => {
     expect(label()).toBe('Noche de brujas')
   })
 
-  it('should show no tab while no campaign is running', () => {
+  it('should report nothing while no campaign is running', () => {
     useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
 
     expect(label()).toBeNull()
   })
 
-  it('should show no tab for a campaign with banners but no event', () => {
+  it('should report nothing for a campaign with banners but no event', () => {
     // The normal state for months at a time: banners configured, no campaign entry behind them.
     useCampaign.mockReturnValue({ campaign: aCampaign({ mainTag: null, tags: [] }), isPending: false, isError: false })
 
     expect(label()).toBeNull()
   })
 
-  it('should show no tab until the event actually has collections in it', () => {
+  it('should report nothing until the event actually has collections in it', () => {
     // An entry is often published days before anyone tags the collections, and a tab that opens an empty
     // grid is worse than no tab.
     useCampaignContracts.mockReturnValue({ contracts: [], isPending: false, isError: false })
@@ -68,7 +73,7 @@ describe('useEventTab', () => {
     expect(label()).toBeNull()
   })
 
-  it('should show no tab when the campaign has no name to put on it', () => {
+  it('should report nothing when the campaign has no name to put on it', () => {
     useCampaign.mockReturnValue({ campaign: aCampaign({ tabName: null }), isPending: false, isError: false })
 
     expect(label()).toBeNull()

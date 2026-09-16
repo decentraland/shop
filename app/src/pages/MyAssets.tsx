@@ -13,12 +13,12 @@ import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
-import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { FilterBar, RARITIES, type FilterChip } from '~/components/FilterBar'
 import { CATEGORIES, CategoryFilter } from '~/components/CategoryFilter'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { FilterSection, type FilterStatus } from '~/components/Filters'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
@@ -29,15 +29,17 @@ import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { EmptyState } from '~/components/EmptyState'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import { NewPricingModal } from '~/components/NewPricingModal'
 import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
 import * as S from './MyAssets.styles'
+import manaLight from '~/assets/mana-matic-light.svg'
 
 const PAGE_SIZE = 48
 
@@ -63,6 +65,14 @@ const PRICE_LABEL_KEY: Record<PriceType, string> = {
   all: 'filter.priceAll',
   credits: 'filter.priceCredits',
   mana: 'filter.priceMana'
+}
+
+/** The currency each option is about, in front of its name. 'All' spans both, so it carries no mark. */
+function priceMark(type: PriceType) {
+  if (type === 'credits') return <CurrencyIcon size={14} />
+  // The light mark: this sidebar is the dark purple field, where the dark one disappears.
+  if (type === 'mana') return <F.StatusMark src={manaLight} alt="" aria-hidden />
+  return null
 }
 
 // Sort menu shown in the toolbar. Server values are a subset of the NFT endpoint's NFTSortBy; the same
@@ -361,9 +371,11 @@ export function MyAssets() {
     // covers never depends on how the grid happens to be filtered.
     for (const item of publishable ?? []) {
       const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
-      // A MANA listing is on sale, but a coupon cannot discount it: the sale re-prices the Shop's own
-      // credit listings. Counting one would offer a discount that covers none of the collection's items.
-      const listedInCredits = !!sale?.isOnSale && !sale.manaWei
+      // Three states, because "on sale" is not one thing here. A discount re-prices the Shop's own credit
+      // listings, so an item still quoted in MANA cannot take one — but it IS listed, and the review has to
+      // say that rather than call it not for sale.
+      const state = !sale?.isOnSale ? 'unlisted' : sale.manaWei ? 'classic' : 'discounted'
+      const listedInCredits = state === 'discounted'
       const key = item.contractAddress.toLowerCase()
       const entry = byAddress.get(key) ?? {
         contractAddress: key,
@@ -376,10 +388,11 @@ export function MyAssets() {
         key: `${key}-${item.blockchainItemId}`,
         name: item.name,
         thumbnail: item.thumbnail,
-        priceCredits: listedInCredits ? sale.priceCredits : null,
+        priceCredits: listedInCredits && sale ? sale.priceCredits : null,
+        state,
         remainingSupply: item.remainingSupply
       })
-      if (listedInCredits) {
+      if (listedInCredits && sale) {
         entry.listedCount += 1
         entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
       }
@@ -393,8 +406,6 @@ export function MyAssets() {
   // with the Activity chip, so the two can never quote different numbers.
   const { count: importableCount } = useImportable()
   const importCount = importableCount ?? 0
-
-
 
   // Creations filtered (status + price + search) + sorted client-side (the builder feed isn't
   // paginated/queryable).
@@ -464,14 +475,18 @@ export function MyAssets() {
   // ---------------- Sign-in gate ----------------
   if (!session) {
     return (
-      <S.Gate>
-        <S.GateTitle>{t('nav.myAssets')}</S.GateTitle>
-        <S.GateText>{t('myAssets.signInPrompt')}</S.GateText>
-        <Button variant="white" onClick={() => signIn()}>
-          {t('storeSettings.signIn')}
-        </Button>
+      <EmptyStateCentered>
+        <EmptyState
+          testId="my-items-signin"
+          icon={signInIllustration}
+          title={t('myAssets.signInTitle')}
+          body={t('myAssets.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
         <ErrorNotice message={error} />
-      </S.Gate>
+      </EmptyStateCentered>
     )
   }
 
@@ -607,7 +622,10 @@ export function MyAssets() {
                   onChange={() => setPriceType(value)}
                   data-testid={`price-filter-${value}`}
                 />
-                <F.StatusLabel>{t(PRICE_LABEL_KEY[value])}</F.StatusLabel>
+                <F.StatusLabel>
+                  {priceMark(value)}
+                  {t(PRICE_LABEL_KEY[value])}
+                </F.StatusLabel>
               </F.StatusRow>
             ))}
           </FilterSection>

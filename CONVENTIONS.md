@@ -13,13 +13,13 @@ The Shop targets mass **web2** users. All blockchain happens behind the scenes. 
 | Connect wallet / MetaMask | Sign in |
 | Disconnect | Sign out |
 | Sign the listing / confirm in your wallet | Listing your item… / Confirm to list |
-| Settled in MANA / on-chain | (nothing) or "Buyers pay in credits" |
+| Settled in MANA / on-chain | (nothing) or "Buyers pay in Credits" |
 | Switch your wallet to Amoy | (never shown — handle silently) |
 | Raw web3 error | "Couldn't list your item — please try again" / "You cancelled the request" |
-| MANA / token | credits |
+| MANA / token | Credits |
 | wallet address | account |
 
-The only currency users ever see is **credits**. MANA, chains, signatures, approvals, and RPCs are internal implementation details.
+The only currency users ever see is **Credits** — capitalized, it is the currency's name. MANA, chains, signatures, approvals, and RPCs are internal implementation details.
 
 ### Self-custody exception (narrow)
 
