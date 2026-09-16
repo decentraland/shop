@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
@@ -994,8 +995,29 @@ export type SuggestedItemsResult = {
  * Fails loudly on a bad status like fetchTrendingItems, for the same reason: the row hides itself on
  * error, so the thrown message is the only place the cause survives.
  */
+/**
+ * `urn:decentraland:matic:collections-v2:<contract>:<id>` -> `<contract>-<id>`.
+ *
+ * The equipped list is the only thing here the Catalyst hands over as URNs, and thirty of them is 2.5 KB
+ * of query string against 1.4 KB as ids. The server accepts both, so this is a size saving rather than a
+ * contract both sides have to agree on at the same moment.
+ */
+const EQUIPPED_URN = /^urn:decentraland:(?:matic|amoy):collections-v2:(0x[0-9a-f]{40}):(\d+)$/i
+
+export function compactEquipped(urns: string[]): string[] {
+  const ids: string[] = []
+  for (const urn of urns) {
+    const match = EQUIPPED_URN.exec(urn.trim())
+    // Anything else — a base avatar, a name — is dropped: the recommender has nothing to say about it
+    // and it would only spend room in the request.
+    if (match) ids.push(`${match[1].toLowerCase()}-${match[2]}`)
+  }
+  return ids
+}
+
 export async function fetchSuggestedItems({
   address,
+  identity,
   seeds,
   bodyShape,
   equipped,
@@ -1004,6 +1026,8 @@ export async function fetchSuggestedItems({
   first = 12
 }: {
   address?: string
+  /** Present only for a signed-in shopper. It is what lets the server read their favourites. */
+  identity?: AuthIdentity
   seeds?: string[]
   bodyShape?: string
   equipped?: string[]
@@ -1015,11 +1039,14 @@ export async function fetchSuggestedItems({
   if (address) qs.set('address', address)
   if (seeds?.length) qs.set('seeds', seeds.join(','))
   if (bodyShape) qs.set('bodyShape', bodyShape)
-  if (equipped?.length) qs.set('equipped', equipped.join(','))
+  if (equipped?.length) qs.set('equipped', compactEquipped(equipped).join(','))
   if (exclude?.length) qs.set('exclude', exclude.join(','))
   if (category) qs.set('category', category)
 
-  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/suggested?${qs.toString()}`)
+  // Signed when we can, plain when we cannot: the signature unlocks favourites and nothing else, so a
+  // signed-out visitor still gets a rail from their seeds.
+  const url = `${config.marketplaceServerUrl}/v3/catalog/suggested?${qs.toString()}`
+  const res = identity ? await signedFetch(url, { method: 'GET', identity, metadata: {} }) : await fetch(url)
   if (!res.ok) {
     const detail = await res.text().catch(() => '')
     throw new Error(`fetchSuggestedItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)

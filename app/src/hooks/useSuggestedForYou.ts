@@ -8,7 +8,6 @@ import { avatarShape } from '~/lib/bodyShape'
 import { getRecentlyViewed } from '~/lib/recently-viewed'
 import { buildSuggestionSeeds, seedsKey } from '~/lib/suggestionSeeds'
 import { useCart } from '~/store/cart'
-import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 
 /** Equipped wearables and emote slots the Catalyst profile reports, capped the way the server caps them. */
@@ -45,16 +44,13 @@ export function useSuggestedForYou(first = 12): SuggestedForYou {
   const { data: profile } = useProfile(address)
 
   const cartItems = useCart(s => s.items)
-  const favoriteItems = useFavorites(s => s.items)
+  // Favourites are not seeded from here: the server reads them from the marketplace store for a caller
+  // who signed, which is both the stronger weight and one less thing in the query string.
+  const identity = useWallet(s => s.session?.identity)
 
   const seeds = useMemo(
-    () =>
-      buildSuggestionSeeds({
-        cart: cartItems,
-        favorites: Object.values(favoriteItems),
-        recentlyViewed: getRecentlyViewed()
-      }),
-    [cartItems, favoriteItems]
+    () => buildSuggestionSeeds({ cart: cartItems, recentlyViewed: getRecentlyViewed() }),
+    [cartItems]
   )
 
   const bodyShape = useMemo(() => {
@@ -88,13 +84,15 @@ export function useSuggestedForYou(first = 12): SuggestedForYou {
     // discarding a still-fresh set of recommendations, and the profile's arrival already moves the key
     // through `bodyShape`, so the first fetch never misses it; a later change is picked up by the next
     // fetch after staleTime.
-    queryKey: ['suggested-for-you', address ?? 'anon', key, bodyShape ?? '', first],
+    // `identity` only as a boolean: the answer differs between signed and unsigned (favourites), but
+    // re-signing the same account must not look like a different caller.
+    queryKey: ['suggested-for-you', address ?? 'anon', identity ? 'signed' : 'anon', key, bodyShape ?? '', first],
     enabled: enabled && hasSignal,
     staleTime: 5 * 60_000,
     retry: 1,
     queryFn: async () => {
       const started = performance.now()
-      const answer = await fetchSuggestedItems({ address, seeds, bodyShape, equipped, first })
+      const answer = await fetchSuggestedItems({ address, identity, seeds, bodyShape, equipped, first })
       fetchMs.current = Math.round(performance.now() - started)
       return answer
     }

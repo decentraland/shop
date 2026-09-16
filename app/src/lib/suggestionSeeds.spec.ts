@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildSuggestionSeeds, MAX_SEEDS, seedIdOf, seedsKey } from './suggestionSeeds'
+import { compactEquipped } from '~/lib/api'
 
 const item = (contractAddress: string, itemId: string | null) => ({ contractAddress, itemId })
 
@@ -15,19 +16,17 @@ describe('seedIdOf', () => {
 })
 
 describe('buildSuggestionSeeds', () => {
-  it('orders cart before favorites before views, strongest intent first', () => {
+  it('orders cart before views, strongest intent first', () => {
     const seeds = buildSuggestionSeeds({
       cart: [item('0xc', '1')],
-      favorites: [item('0xf', '2')],
       recentlyViewed: [item('0xv', '3')]
     })
-    expect(seeds).toEqual(['0xc-1', '0xf-2', '0xv-3'])
+    expect(seeds).toEqual(['0xc-1', '0xv-3'])
   })
 
   it('keeps one entry for an item that appears in several sources', () => {
     const seeds = buildSuggestionSeeds({
       cart: [item('0xa', '1')],
-      favorites: [item('0xa', '1')],
       recentlyViewed: [item('0xa', '1')]
     })
     expect(seeds).toEqual(['0xa-1'])
@@ -60,5 +59,33 @@ describe('seedsKey', () => {
 
   it('differs when the set really changes', () => {
     expect(seedsKey(['a'])).not.toBe(seedsKey(['a', 'b']))
+  })
+})
+
+describe('compactEquipped', () => {
+  it('turns a collections-v2 urn into the id the server keys on', () => {
+    expect(
+      compactEquipped(['urn:decentraland:matic:collections-v2:0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:7'])
+    ).toEqual(['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-7'])
+  })
+
+  it('accepts the testnet chain too, so a dev profile behaves like a production one', () => {
+    expect(
+      compactEquipped(['urn:decentraland:amoy:collections-v2:0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1'])
+    ).toHaveLength(1)
+  })
+
+  it('drops base avatars, which every account has and no one can buy', () => {
+    expect(compactEquipped(['urn:decentraland:off-chain:base-avatars:eyebrows_00'])).toEqual([])
+  })
+
+  it('cuts the request roughly in half, which is the whole point', () => {
+    const urns = Array.from(
+      { length: 30 },
+      (_, i) => `urn:decentraland:matic:collections-v2:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:${i}`
+    )
+    const before = urns.join(',').length
+    const after = compactEquipped(urns).join(',').length
+    expect(after).toBeLessThan(before * 0.6)
   })
 })
