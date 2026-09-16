@@ -271,6 +271,8 @@ const CMS_BANNER = 'e2e-banner'
 const CMS_CAMPAIGN = 'e2e-campaign'
 const CMS_WIDE = 'e2e-wide'
 const CMS_SQUARE = 'e2e-square'
+// Not tagged in the builder — it reaches the event only through the campaign's `collectionIds`.
+const CMS_NAMED_COLLECTION = '0xdef0000000000000000000000000000000000002'
 
 const cmsLink = (id: string, linkType: 'Entry' | 'Asset') => ({ sys: { type: 'Link', linkType, id } })
 
@@ -306,7 +308,13 @@ function cmsEntry(id: string, locale: string) {
   return {
     sys: { id, type: 'Entry', contentType: { sys: { id: 'marketingCampaign' } } },
     metadata: { tags: [], concepts: [] },
-    fields: { name: 'Halloween 2026', mainTag: 'halloween', marketplaceTabName: 'Halloween' }
+    fields: {
+      name: 'Halloween 2026',
+      mainTag: 'halloween',
+      marketplaceTabName: 'Halloween',
+      // A collection the CMS names outright, on top of whatever the tag resolves to.
+      collectionIds: CMS_NAMED_COLLECTION
+    }
   }
 }
 

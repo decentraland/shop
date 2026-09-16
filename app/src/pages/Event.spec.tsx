@@ -33,6 +33,7 @@ function aCampaign(over: Partial<Campaign> = {}): Campaign {
     tabName: { [ContentfulLocale.enUS]: 'Halloween' },
     mainTag: 'halloween',
     tags: ['halloween'],
+    collections: [],
     banners: {},
     assets: {},
     ...over

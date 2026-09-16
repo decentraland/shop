@@ -147,6 +147,20 @@ export default defineConfig({
         secure: false,
         followRedirects: true,
         ws: true
+      },
+      // The marketing CMS. It answers a browser with `access-control-allow-origin` echoing the caller's
+      // origin, but ONLY for decentraland.org and .zone — a localhost origin gets `false` back, so every
+      // read fails and the campaign surfaces silently fall back to their defaults. Same-origin through
+      // here instead, so a developer can see real CMS content locally.
+      //
+      // Reached by pointing the app at it for the dev server only, which needs no committed config:
+      //   VITE_CONTENTFUL_URL=/cms npm run dev
+      // Deliberately NOT put in `.env.local`: a VITE_* var there is also read by vitest and by the e2e
+      // dev server, where it would send mocked CMS reads to a path nothing serves.
+      '^/cms(/|$)': {
+        target: 'https://cms-api.decentraland.org',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/cms/, '')
       }
     }
   }

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { fetchCampaignContracts } from '~/lib/campaign'
@@ -22,7 +23,7 @@ export type CampaignContractsQuery = {
  * caller that cannot tell it apart from "still loading" either flashes an empty state on every load or —
  * far worse — issues an unfiltered catalogue request and presents the entire Shop as the event.
  */
-export function useCampaignContracts(tags: string[]): CampaignContractsQuery {
+export function useCampaignContracts(tags: string[], named: string[] = []): CampaignContractsQuery {
   const { data, isPending, isError } = useQuery({
     // Sorted so two orderings of the same tags share one cache entry.
     queryKey: ['campaign-contracts', [...tags].sort().join(',')],
@@ -32,5 +33,16 @@ export function useCampaignContracts(tags: string[]): CampaignContractsQuery {
     retry: 1
   })
 
-  return { contracts: data ?? [], isPending: tags.length > 0 && isPending, isError: tags.length > 0 && isError }
+  // The tagged collections plus the ones the CMS names one by one. The union is what the event actually
+  // selects: tagging lives in the builder, a different tool, so an editor with no access there can still
+  // add a collection from Contentful.
+  const contracts = useMemo(() => [...new Set([...(data ?? []), ...named])], [data, named])
+
+  return {
+    contracts,
+    // Only the tag lookup is asynchronous; a campaign that names its collections outright is settled the
+    // moment the CMS answers.
+    isPending: tags.length > 0 && isPending,
+    isError: tags.length > 0 && isError
+  }
 }

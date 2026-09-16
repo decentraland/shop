@@ -5,6 +5,7 @@ import { config } from '~/config'
 import {
   assetUrl,
   fetchCampaign,
+  parseCollectionIds,
   isContentfulConfigured,
   localized,
   optimizeAssetUrl,
@@ -186,6 +187,35 @@ describe('contentful', () => {
       } as unknown as Parameters<typeof assetUrl>[0]
 
       expect(assetUrl(relative, link)).toBe('https://cms-images.decentraland.org/a1.png')
+    })
+  })
+
+  describe('when reading the collections a campaign names outright', () => {
+    const A = '0x005d4450035a8deca37b969bd858da6f15ea21dd'
+    const B = '0x0d2f515ba568042a6756561ae552090b0ae5c586'
+
+    it('should split the list an editor typed', () => {
+      expect(parseCollectionIds(`${A},${B}`)).toEqual([A, B])
+    })
+
+    it('should tolerate spaces and a trailing comma', () => {
+      expect(parseCollectionIds(` ${A} , ${B} , `)).toEqual([A, B])
+    })
+
+    it('should lowercase them, since every catalogue feed stores them that way', () => {
+      expect(parseCollectionIds(A.toUpperCase().replace('0X', '0x'))).toEqual([A])
+    })
+
+    it('should drop anything that is not an address', () => {
+      // A typo would otherwise travel into a catalogue query as a filter nothing matches, and the event
+      // would come back mysteriously short.
+      expect(parseCollectionIds(`${A},oops,0x123`)).toEqual([A])
+    })
+
+    it('should return nothing for an empty or absent field', () => {
+      expect(parseCollectionIds(undefined)).toEqual([])
+      expect(parseCollectionIds('')).toEqual([])
+      expect(parseCollectionIds('   ')).toEqual([])
     })
   })
 

@@ -30,7 +30,7 @@ export function Event() {
   const navigate = useNavigate()
   const locale = useLocale(s => s.locale)
   const { campaign, isPending: campaignPending } = useCampaign()
-  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [])
+  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
 
   const gone = !campaignPending && !campaign?.mainTag
 
