@@ -1,3 +1,4 @@
+import { keyframes } from '@emotion/react'
 import styled from '@emotion/styled'
 import { NavLink } from 'react-router-dom'
 import { theme } from '~/styles/theme'
@@ -64,6 +65,17 @@ export const Subnav = styled.div`
 // together against the right edge, and it keeps doing that whether or not the search is rendered (it is
 // hidden on My Items). Put on a member of that group instead, the alignment either breaks on the route
 // without a search, or two auto margins split the slack and park the field mid-row.
+// The Marketplace's own campaign tab animation, matched exactly: a 6s drift across a 400%-wide gradient.
+const rainbow = keyframes`
+  0%,
+  100% {
+    background-position: 0 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+`
+
 export const Tabs = styled.nav`
   /**
    * WIDE VIEWPORTS: the strip does not shrink, so no tab label is cut.
@@ -128,6 +140,30 @@ export const Tabs = styled.nav`
   & a.active {
     color: ${colors.white};
     border-bottom-color: #ff7439;
+  }
+
+  /* The seasonal event tab, given the same treatment the Marketplace gives its own: the label painted
+     with a drifting gradient, so the one timely thing in the strip reads as timely. Same colours, timing
+     and easing, since the two navs sit one above the other on the same page.
+
+     Repeated for hover and active because both set a flat colour, and the label here has none — it is a
+     gradient showing through transparent text. Without these the effect would vanish exactly when the
+     reader is on it. The active underline is untouched and still marks the tab. */
+  & a[data-event],
+  & a[data-event]:hover,
+  & a[data-event].active {
+    background: linear-gradient(to right, #6666ff, #0099ff, #00ff00, #ff3399, #6666ff);
+    background-size: 400% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: ${rainbow} 6s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & a[data-event] {
+      animation: none;
+    }
   }
 
   ${stacked} {
