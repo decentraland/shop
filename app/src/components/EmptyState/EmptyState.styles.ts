@@ -31,6 +31,7 @@ export const Root = styled.div`
      stack centred at y=139). Every other empty state still hugs its copy. */
   &[data-fill='true'] {
     width: 100%;
+    flex: 1;
   }
 `
 
@@ -151,17 +152,26 @@ export const CtaButton = styled.button`
 `
 
 /**
- * Stacks a signed-out screen's empty state and whatever the page puts under it.
+ * Reserves the height a signed-out screen's empty state is drawn at, and stacks whatever the page puts
+ * under it.
  *
- * Deliberately imposes no height: the panel is its own 372px — the size of the master component in Figma
- * (3351:317836), which hugs its content. The page shell's 100vh floor is lifted for these screens (see
- * .page:has([data-fill]) in styles/index.css) so the footer follows the panel instead of a screenful of
- * empty purple. Centred rather than stretched so an ErrorNotice under the panel stays sized to its
- * content instead of becoming a full-bleed, left-aligned bar.
+ * 618px is where the design places the panel (the instance in Figma 3351:319886). The master component
+ * behind it hugs its content at 372px, but that is a property of the component, not the placement — at
+ * 372 the panel reads as a small box adrift on a page this wide. The page shell's 100vh floor is lifted
+ * for these screens (.page:has([data-fill]) in styles/index.css) so the footer follows the panel instead
+ * of a screenful of empty purple. Centred rather than stretched so an ErrorNotice under the panel stays
+ * sized to its content instead of becoming a full-bleed, left-aligned bar.
  */
 export const Centered = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
+  min-height: 618px;
+
+  ${theme.media.maxWidth('mobile')} {
+    /* A phone is narrower than the panel is tall, so the air the desktop placement buys turns into a
+       scroll. The component's own height is the better read there. */
+    min-height: 0;
+  }
 `
