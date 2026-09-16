@@ -31,7 +31,6 @@ export const Root = styled.div`
      stack centred at y=139). Every other empty state still hugs its copy. */
   &[data-fill='true'] {
     width: 100%;
-    flex: 1;
   }
 `
 
@@ -152,32 +151,17 @@ export const CtaButton = styled.button`
 `
 
 /**
- * Gives a signed-out screen's empty state the content column to fill.
+ * Stacks a signed-out screen's empty state and whatever the page puts under it.
  *
- * The design draws the panel across the whole column and centres its stack inside it, rather than
- * letting a short panel cling to the top of a screen of empty purple — which is what the three
- * hand-rolled sign-in gates all did, each slightly differently. 618px is the panel's height in
- * Figma 3351:319886; the vh cap keeps a short viewport from scrolling to reach the button.
+ * Deliberately imposes no height: the panel is its own 372px — the size of the master component in Figma
+ * (3351:317836), which hugs its content. The page shell's 100vh floor is lifted for these screens (see
+ * .page:has([data-fill]) in styles/index.css) so the footer follows the panel instead of a screenful of
+ * empty purple. Centred rather than stretched so an ErrorNotice under the panel stays sized to its
+ * content instead of becoming a full-bleed, left-aligned bar.
  */
 export const Centered = styled.div`
   display: flex;
   flex-direction: column;
-  /* Centred rather than stretched: the panel spans the column on its own (it sets width: 100%), while
-     anything a page stacks under it — an ErrorNotice after a failed sign-in — stays sized to its content
-     instead of becoming a full-bleed, left-aligned bar. */
   align-items: center;
-  /* Fills the page shell's content box, so the panel reaches the bottom of the screen and its stack lands
-     on the vertical middle — a fixed height ended the panel partway down and left a screenful of empty
-     purple under it. The .page shell is a block box carrying its own min-height of 100vh minus the nav, and
-     28/80 of vertical padding, so there is no resolved height to inherit and the same span is recomputed
-     here. 618px, the panel's height in Figma 3351:319886, is the floor. */
-  min-height: max(618px, calc(100vh - var(--nav-h) - 108px));
-
-  ${theme.media.maxWidth('mobile')} {
-    /* A phone has no room for the 618px floor, and the sub-nav band between the navbar and the page wraps
-       to two rows here (66px -> 123px), so more has to come off: 72px of shell padding plus the 68px the
-       taller band adds. Measured rather than derived — the sub-nav renders its own height and exposes no
-       variable to subtract. Lands the panel on the fold instead of 67px past it. */
-    min-height: calc(100vh - var(--nav-h) - 140px);
-  }
+  gap: 16px;
 `
