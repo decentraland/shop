@@ -171,6 +171,15 @@ export const Card = styled.div`
      was white and invisible once it stopped being. Set here rather than per element so a descendant
      added later is light by default instead of silently black. */
   color: ${theme.colors.softWhite};
+
+  /* The credits mark is pinned near-black globally (Icon.css) so that a green income total never tints
+     it - only the amount is coloured, never the glyph. That intent holds here and is why this sets a
+     fixed colour rather than letting the mark inherit: what could not survive the move is the value,
+     which was chosen for a white card and vanishes into this one. */
+  .ccy-mark,
+  .ccy {
+    color: ${theme.colors.softWhite};
+  }
 `
 
 export const CardHead = styled.div`
