@@ -954,6 +954,96 @@ export async function fetchTrendingItems({
   return (json.data ?? []).map(shopItemToItem)
 }
 
+/** Why a suggested item is being shown. The Shop turns the kind into a line of copy per card. */
+export type SuggestionReasonKind =
+  'co_owned' | 'creator_affinity' | 'favorite_similar' | 'equipped_similar' | 'seed_similar' | 'trending'
+
+export type SuggestionReason = {
+  kind: SuggestionReasonKind
+  /** The profile item that pulled this row in, as `contract-itemId`. Absent for `creator_affinity`
+   * and `trending`, which are not about one item. */
+  itemId?: string
+  creator?: string
+}
+
+export type SuggestedItem = UnifiedListing & {
+  reason: SuggestionReason
+  score: number
+}
+
+export type SuggestedItemsResult = {
+  data: SuggestedItem[]
+  /** False when the rail is the generic trending fallback. The row hides itself rather than show it. */
+  personalized: boolean
+  /** Which scorer produced this, so analytics can compare versions. */
+  algorithm: string
+}
+
+/**
+ * The items suggested for one visitor — what backs the home page's "Suggested for you" row.
+ *
+ * Ranked and explained server-side, and returned IN that order, so the caller must not re-sort it.
+ * Rows are the same item-unified shape as fetchTrendingItems, which is what lets the identical
+ * AssetCard render them at a real credit price.
+ *
+ * Everything that identifies the visitor is optional and additive: an address personalises from what
+ * the account holds and bought, and `seeds` (what this browser has looked at or put in its cart)
+ * personalises a visitor who is not signed in at all. Sending neither is pointless — the caller is
+ * expected not to ask, and the server would answer with the trending fallback.
+ *
+ * Fails loudly on a bad status like fetchTrendingItems, for the same reason: the row hides itself on
+ * error, so the thrown message is the only place the cause survives.
+ */
+export async function fetchSuggestedItems({
+  address,
+  seeds,
+  bodyShape,
+  equipped,
+  exclude,
+  category,
+  first = 12
+}: {
+  address?: string
+  seeds?: string[]
+  bodyShape?: string
+  equipped?: string[]
+  exclude?: string[]
+  category?: string
+  first?: number
+} = {}): Promise<SuggestedItemsResult> {
+  const qs = new URLSearchParams({ first: String(first) })
+  if (address) qs.set('address', address)
+  if (seeds?.length) qs.set('seeds', seeds.join(','))
+  if (bodyShape) qs.set('bodyShape', bodyShape)
+  if (equipped?.length) qs.set('equipped', equipped.join(','))
+  if (exclude?.length) qs.set('exclude', exclude.join(','))
+  if (category) qs.set('category', category)
+
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/suggested?${qs.toString()}`)
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchSuggestedItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
+
+  const json = (await res.json()) as {
+    data?: Array<ShopItemRaw & { reason?: SuggestionReason; score?: number }>
+    personalized?: boolean
+    algorithm?: string
+  }
+
+  return {
+    data: (json.data ?? []).map(row => ({
+      ...shopItemToItem(row),
+      // An older server, or a row the scorer could not explain, still renders — as trending, which is
+      // the one kind that claims nothing about this visitor.
+      reason: row.reason ?? { kind: 'trending' },
+      score: row.score ?? 0
+    })),
+    personalized: json.personalized === true,
+    algorithm: json.algorithm ?? 'unknown'
+  }
+}
+
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
 // from the unified feed is projected into this shape before opening checkout (see pages/Assets). These
 // listings are priced in MANA (not USD-pegged) so their credit price FLUCTUATES with the market rate.

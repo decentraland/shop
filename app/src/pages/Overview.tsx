@@ -8,6 +8,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
@@ -339,6 +340,13 @@ export function Overview() {
           source="trending"
         />
       ) : null}
+
+      {/* "Suggested for you" sits directly under Trending: the two answer opposite questions — what
+          everyone is buying, and what THIS visitor is likely to want — so they read as a pair, and a
+          visitor the Shop knows nothing about simply sees Trending alone. The row owns its own query,
+          its own flag and its own visibility; it renders nothing unless the server both personalised
+          the answer and returned enough of it. */}
+      <SuggestedForYouRow />
 
       {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
           Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings

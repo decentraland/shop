@@ -257,6 +257,8 @@ let secondarySalesFlag = true
 let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
+let suggestedForYouFlag = false
+let suggestedConfig: { personalized?: boolean; count?: number } = {}
 // The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
 let couponStore: any[] = []
 let campaignFlag = false
@@ -382,7 +384,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
           'dapps-shop-outfit-creators': outfitCreatorFlag,
           'dapps-shop-follows': followsFlag,
           'dapps-shop-creator-sales': creatorSalesFlag,
-          'dapps-shop-campaign': campaignFlag
+          'dapps-shop-campaign': campaignFlag,
+          'dapps-shop-suggested-for-you': suggestedForYouFlag
         },
         variants: outfitCreatorFlag
           ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
@@ -614,6 +617,40 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (Number.isFinite(trendingFirst) && trendingFirst > 0) items = items.slice(0, trendingFirst)
       // Unpaginated: `{ data }` only, no total — same as the real handler.
       return json(req, { data: items })
+    }
+    /**
+     * The home page's PERSONALISED rail. Served from the same fixture as every other feed, because what
+     * an e2e can observe is which endpoint fills the row, what the client sent to it, and whether the row
+     * shows or hides itself — not the ranking, which is the server's own business and has its own tests
+     * against a database. `personalized` is the switch the row's visibility hangs on, so it is what a
+     * spec overrides.
+     */
+    if (path === '/v3/catalog/suggested') {
+      const rows = [...((F.unifiedListings as { data: any[] }).data ?? [])]
+      const wanted = Number(u.searchParams.get('first') ?? 12)
+      const count = suggestedConfig.count ?? (Number.isFinite(wanted) && wanted > 0 ? wanted : 12)
+      // The shared fixture holds three listings, fewer than a rail shows and fewer than the row's own
+      // minimum, so it is cycled up to the asked-for size with distinct ids. The alternative — a rail
+      // that can never be longer than three — would make the row's "too few to be worth showing" rule
+      // untestable, which is precisely one of the behaviours this endpoint exists to drive.
+      const padded = Array.from({ length: count }, (_, i) => {
+        const row = rows[i % Math.max(1, rows.length)]
+        return i < rows.length ? row : { ...row, tradeId: `${row.tradeId}-s${i}`, itemId: `${100 + i}` }
+      })
+      const kinds = ['co_owned', 'creator_affinity', 'favorite_similar', 'equipped_similar', 'seed_similar']
+      const data = padded.map((row, i) => ({
+        ...row,
+        reason:
+          kinds[i % kinds.length] === 'creator_affinity'
+            ? { kind: 'creator_affinity', creator: row.creator }
+            : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
+        score: 1 - i / 100
+      }))
+      return json(req, {
+        data,
+        personalized: suggestedConfig.personalized !== false,
+        algorithm: 'v1'
+      })
     }
     if (path === '/v3/catalog/unified') {
       // The ONE browse grid: native + legacy in one feed. `groupBy=item` (the browse grid, fetchShopItems)
@@ -1015,6 +1052,16 @@ export async function launchApp(
      * the creator-sale spec passes true to exercise the flow.
      */
     creatorSales?: boolean
+    /**
+     * Whether the mocked flag file reports the personalised rail as available. Defaults to FALSE, the
+     * shipped state; the suggested-for-you spec passes true to exercise the row.
+     */
+    suggestedForYou?: boolean
+    /**
+     * What `/v3/catalog/suggested` answers. Omit for the default: the unified fixture rows, personalised.
+     * A spec passes `{ personalized: false }` to exercise the row hiding itself.
+     */
+    suggested?: { personalized?: boolean; count?: number }
     /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
     delays?: Delays
     /**
@@ -1042,6 +1089,8 @@ export async function launchApp(
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
   creatorSalesFlag = opts.creatorSales ?? false
+  suggestedForYouFlag = opts.suggestedForYou ?? false
+  suggestedConfig = opts.suggested ?? {}
   couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
   campaignFlag = opts.campaign ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests

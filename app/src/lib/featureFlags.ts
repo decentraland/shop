@@ -53,6 +53,14 @@ export enum FeatureFlag {
    */
   SHOP_CREATOR_SALES = 'shop-creator-sales',
   /**
+   * Whether the home page shows the personalised "Suggested for you" rail.
+   *
+   * OFF by default. The rail is judged against Trending on click-through, so it ships dark and is
+   * turned on for a share of visitors; the row also hides itself whenever the server says it had no
+   * personal signal to work with, so the flag controls whether to ASK, not whether to show.
+   */
+  SHOP_SUGGESTED_FOR_YOU = 'shop-suggested-for-you',
+  /**
    * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
    * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
    *
