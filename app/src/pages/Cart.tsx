@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
@@ -68,6 +68,9 @@ import { isRejection, isInsufficient } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
+import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
+import { suggestedHiddenReason } from '~/lib/suggestionEvents'
 import { Icon } from '~/components/Icon'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import type { CatalogItem } from '~/lib/api'
@@ -139,6 +142,9 @@ type ModalState =
   // settled keeps its reservation, so that much of the balance is out until the reconciler resolves it.
   | { phase: 'error'; message?: string; heldCredits?: boolean }
 
+// Shorter than the home page's: the cart is a decision surface, not a browsing one.
+const CART_RAIL_SIZE = 8
+
 export function Cart() {
   useSeo({ title: t('nav.cart'), noindex: true })
   const items = useCart(s => s.items)
@@ -169,7 +175,9 @@ export function Cart() {
   // Try-on is only meaningful for wearables (emotes aren't "worn").
   const hasWearable = items.some(i => i.category !== 'emote')
 
-  // Last-minute upsell: more credit-buyable listings not already in the cart.
+  // Last-minute upsell, generic: more credit-buyable listings not already in the cart. Kept as the
+  // FALLBACK behind the personalised rail below — it is the first forty listings the feed returns, in no
+  // particular order, which is worth showing only when there is nothing better to say.
   const { data: suggested } = useQuery({
     queryKey: ['upsell-listings'],
     queryFn: () => fetchListings({ first: 40 }),
@@ -219,6 +227,28 @@ export function Cart() {
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
   const upsell = (suggested?.items ?? []).filter(i => !inCart.has(i.id)).slice(0, 12)
+
+  // The cart is where this rail has its best input: `buildSuggestionSeeds` puts cart lines FIRST, so the
+  // recommender is reading what the shopper has just decided they want rather than guessing from history.
+  // What is already in the basket is excluded — offering it back is the one answer that is always wrong.
+  const cartExclude = useMemo(
+    () =>
+      items
+        .map(line =>
+          line.contractAddress && line.itemId ? `${line.contractAddress.toLowerCase()}-${line.itemId}` : null
+        )
+        .filter((id): id is string => id !== null),
+    [items]
+  )
+  const personal = useSuggestedForYou(CART_RAIL_SIZE, { exclude: cartExclude })
+  const personalHidden = suggestedHiddenReason({
+    enabled: personal.enabled,
+    hasSignal: personal.hasSignal,
+    isLoading: personal.isLoading,
+    isError: personal.isError,
+    personalized: personal.result?.personalized,
+    rowCount: personal.result?.data.length ?? 0
+  })
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
   const balanceCredits = balance?.credits ?? 0
@@ -1556,7 +1586,23 @@ export function Cart() {
         </S.Body>
       </S.Top>
 
-      {upsell.length > 0 ? (
+      {/* Two rails, never both. The personal one knows what is in the basket; the generic one is what a
+          shopper we know nothing about still gets. */}
+      {/* The wrapper carries 119px of its own spacing, so it has to go when the rail does — the row
+          returning null inside it would otherwise leave a gap the size of a rail. `personalHidden` is
+          null while the answer is still coming too, which is what reserves the space for the
+          placeholders instead of letting them push the page down on arrival. */}
+      {personalHidden === null && (
+        <S.Upsell data-testid="cart-personal-upsell">
+          <SuggestedForYouRow
+            exclude={cartExclude}
+            title={t('cart.suggestedTitle')}
+            surface="cart"
+            first={CART_RAIL_SIZE}
+          />
+        </S.Upsell>
+      )}
+      {personalHidden !== null && upsell.length > 0 ? (
         <S.Upsell>
           <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
         </S.Upsell>

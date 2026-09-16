@@ -11,6 +11,13 @@ export type ClickTarget = 'card' | 'reason'
 
 export type PagedAction = 'next' | 'prev' | 'dot'
 
+/**
+ * Which page the rail was on. Carried on every event because the same row means different things in
+ * different places — on the home page it is discovery, in the cart it is an upsell against a decision
+ * already made — and a click-through rate that averages them is a number about nothing.
+ */
+export type SuggestionSurface = 'home' | 'pdp' | 'cart' | 'favorites'
+
 /** How many rows each reason accounts for — the mix the rail actually showed, not the mix the
  * scorer produced, since the diversity re-rank can drop rows. */
 export function reasonCounts(items: SuggestedItem[]): Record<string, number> {

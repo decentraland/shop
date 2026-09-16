@@ -215,7 +215,8 @@
       "own": "{count} que no puedes comprar (tu propia publicación)",
       "and": "y",
       "removed": "Eliminamos {items} de tu carrito."
-    }
+    },
+    "suggestedTitle": "Combina con tu carrito"
   },
   "getCredits": {
     "title": "Carga tus Créditos",
@@ -668,7 +669,8 @@
     "emptyCta": "Empieza a explorar",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "loadError": "No pudimos cargar tus favoritos.",
-    "tryAgain": "Prueba de nuevo"
+    "tryAgain": "Prueba de nuevo",
+    "suggestedTitle": "Más como lo que guardaste"
   },
   "favorites": {
     "updateError": "No pudimos actualizar tus favoritos. Prueba de nuevo."
