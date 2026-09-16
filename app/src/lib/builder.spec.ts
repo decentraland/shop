@@ -9,6 +9,10 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: (...args: unknown[]) => s
 // Stable builder base so URL assertions are deterministic.
 vi.mock('~/config', () => ({ config: { builderServerUrl: 'https://builder.test' } }))
 
+// The fallback path reports the fast path's failure; the report itself is not under test here.
+const captureError = vi.fn()
+vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureError(...args) }))
+
 import {
   fetchCreatorCollections,
   fetchCollectionItems,
@@ -44,6 +48,7 @@ function cleanCollection(overrides: Partial<CreatorCollection> = {}): CreatorCol
 
 beforeEach(() => {
   signedFetchMock.mockReset()
+  captureError.mockReset()
   vi.stubGlobal('fetch', vi.fn())
 })
 
@@ -430,102 +435,94 @@ describe('when checking whether an item is publishable', () => {
   })
 })
 
-describe("when fetching every publishable item across a creator's collections", () => {
-  it('should flatten items from all published collections', async () => {
-    // 1) collections call
-    signedFetchMock.mockResolvedValueOnce(
-      okRes({
-        data: [
-          { id: 'col-1', name: 'A', contract_address: '0xaaa', is_published: true, is_approved: true },
-          { id: 'col-2', name: 'B', contract_address: '0xbbb', is_published: true, is_approved: true }
-        ]
-      })
-    )
-    // 2) items for col-1
-    signedFetchMock.mockResolvedValueOnce(
-      okRes({
-        data: [
-          {
-            id: 'i1',
-            collection_id: 'col-1',
-            blockchain_item_id: '0',
-            name: 'One',
-            rarity: 'rare',
-            total_supply: '0',
-            is_published: true,
-            is_approved: true,
-            thumbnail: 'https://cdn/1.png'
-          }
-        ]
-      })
-    )
-    // 3) items for col-2
-    signedFetchMock.mockResolvedValueOnce(
-      okRes({
-        data: [
-          {
-            id: 'i2',
-            collection_id: 'col-2',
-            blockchain_item_id: '1',
-            name: 'Two',
-            rarity: 'epic',
-            total_supply: '0',
-            is_published: true,
-            is_approved: true,
-            thumbnail: 'https://cdn/2.png'
-          }
-        ]
-      })
-    )
+const rawItem = (id: string, collectionId: string, bid: string, name: string) => ({
+  id,
+  collection_id: collectionId,
+  blockchain_item_id: bid,
+  name,
+  rarity: 'rare',
+  total_supply: '0',
+  is_published: true,
+  is_approved: true,
+  thumbnail: `https://cdn/${id}.png`
+})
 
-    const items = await fetchPublishableItems('0xcreator', identity)
+const twoCollections = okRes({
+  data: [
+    { id: 'col-1', name: 'A', contract_address: '0xaaa', is_published: true, is_approved: true },
+    { id: 'col-2', name: 'B', contract_address: '0xbbb', is_published: true, is_approved: true }
+  ]
+})
+
+/** Route the signed reads by URL: the two requests start together, so their order on the mock is not a contract. */
+function routeSigned(routes: Record<string, unknown>) {
+  signedFetchMock.mockImplementation(async (url: string) => {
+    const match = Object.keys(routes).find(suffix => url.endsWith(suffix))
+    if (!match) throw new Error(`unexpected signed fetch ${url}`)
+    return routes[match]
+  })
+}
+
+describe("when fetching every publishable item across a creator's collections", () => {
+  it('should read the collections and the address-wide items together, in two requests', async () => {
+    routeSigned({
+      '/0xcreator/collections?is_published=true': twoCollections,
+      '/0xcreator/items': okRes({
+        data: [rawItem('i1', 'col-1', '0', 'One'), rawItem('i2', 'col-2', '1', 'Two')]
+      })
+    })
+
+    const items = await fetchPublishableItems('0xCreator', identity)
 
     expect(items.map(i => i.id).sort()).toEqual(['i1', 'i2'])
+    expect(signedFetchMock).toHaveBeenCalledTimes(2)
+    // Contract and name come from the item's own collection, not from the first one in the list.
+    expect(items.find(i => i.id === 'i2')).toMatchObject({ contractAddress: '0xbbb', collectionName: 'B' })
   })
 
-  it('should fail-soft per collection so one bad response does not hide the rest', async () => {
-    signedFetchMock.mockResolvedValueOnce(
-      okRes({
+  it('should drop items whose collection is not published — drafts and third-party items', async () => {
+    routeSigned({
+      '/0xcreator/collections?is_published=true': twoCollections,
+      '/0xcreator/items': okRes({
         data: [
-          { id: 'col-ok', name: 'OK', contract_address: '0xok', is_published: true, is_approved: true },
-          { id: 'col-bad', name: 'Bad', contract_address: '0xbad', is_published: true, is_approved: true }
+          rawItem('i1', 'col-1', '0', 'One'),
+          rawItem('draft', 'col-draft', '0', 'Draft'),
+          { ...rawItem('orphan', 'col-1', '0', 'Orphan'), collection_id: null }
         ]
       })
-    )
-    // col-ok items
-    signedFetchMock.mockResolvedValueOnce(
-      okRes({
-        data: [
-          {
-            id: 'good',
-            collection_id: 'col-ok',
-            blockchain_item_id: '0',
-            name: 'Good',
-            rarity: 'rare',
-            total_supply: '0',
-            is_published: true,
-            is_approved: true,
-            thumbnail: 'https://cdn/g.png'
-          }
-        ]
-      })
-    )
-    // col-bad items → server error, swallowed
-    signedFetchMock.mockResolvedValueOnce(errRes(500, 'kaboom'))
+    })
 
     const items = await fetchPublishableItems('0xcreator', identity)
 
-    expect(items.map(i => i.id)).toEqual(['good'])
+    expect(items.map(i => i.id)).toEqual(['i1'])
+  })
+
+  it('and the address-wide read fails it should fall back to one read per collection and report it', async () => {
+    routeSigned({
+      '/0xcreator/collections?is_published=true': twoCollections,
+      '/0xcreator/items': errRes(500, 'kaboom'),
+      '/collections/col-1/items': okRes({ data: [rawItem('i1', 'col-1', '0', 'One')] }),
+      '/collections/col-2/items': errRes(500, 'also down')
+    })
+
+    const items = await fetchPublishableItems('0xcreator', identity)
+
+    // The healthy collection still shows; the broken one is skipped, as before.
+    expect(items.map(i => i.id)).toEqual(['i1'])
+    expect(captureError).toHaveBeenCalledTimes(1)
+    expect(captureError.mock.calls[0][1]).toMatchObject({ flow: 'my_creations' })
   })
 
   it('and the creator has no published collections it should return an empty list', async () => {
-    signedFetchMock.mockResolvedValueOnce(okRes({ data: [] }))
+    routeSigned({
+      '/0xcreator/collections?is_published=true': okRes({ data: [] }),
+      '/0xcreator/items': okRes({ data: [rawItem('stray', 'col-x', '0', 'Stray')] })
+    })
 
     const items = await fetchPublishableItems('0xcreator', identity)
 
     expect(items).toEqual([])
-    // Only the collections call fired; no per-collection item fetches.
-    expect(signedFetchMock).toHaveBeenCalledTimes(1)
+    expect(captureError).not.toHaveBeenCalled()
   })
 })
 
