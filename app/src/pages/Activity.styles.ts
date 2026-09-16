@@ -166,6 +166,11 @@ export const Card = styled.div`
   border: 1px solid ${theme.colors.cardLine};
   border-radius: 16px;
   overflow: hidden;
+  /* The card owns its text colour now. Anything inside that states none of its own - an item's name,
+     most of all - used to inherit the page's near-black body colour, which was right while the card
+     was white and invisible once it stopped being. Set here rather than per element so a descendant
+     added later is light by default instead of silently black. */
+  color: ${theme.colors.softWhite};
 `
 
 export const CardHead = styled.div`
