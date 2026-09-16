@@ -80,6 +80,8 @@ const colors = {
   // (Activity). Both alphas are the designer's own.
   overlayStrong: 'rgba(0, 0, 0, 0.6)',
   overlayLight: 'rgba(0, 0, 0, 0.2)',
+  // Interactive hover. Close enough to overlayStrong to be picked by mistake: that one is the static
+  // header band, this one only ever answers the pointer.
   overlayHover: 'rgba(0, 0, 0, 0.55)',
   chipDark: 'rgba(0, 0, 0, 0.3)',
   // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).

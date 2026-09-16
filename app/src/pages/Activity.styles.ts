@@ -313,18 +313,15 @@ export const Total = styled.div`
   align-items: center;
   gap: 5px;
   font-weight: 800;
+  /* Income used to read in the success green and is deliberately white like every other total now:
+     the plus sign already says money came in, and the green was the one colour shouting on the page.
+     There is no [data-kind='income'] rule any more because it would only repeat this line. */
   color: ${theme.colors.softWhite};
   white-space: nowrap;
 
   .ccy-mark {
     width: 16px;
     height: 16px;
-  }
-
-  /* Income used to read in the success green. It is white like every other total now: the plus sign
-     already says money came in, and the green was the one colour shouting on the page. */
-  &[data-kind='income'] {
-    color: ${theme.colors.softWhite};
   }
 `
 
