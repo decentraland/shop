@@ -336,11 +336,22 @@ describe('buildStoreStats with the server summary', () => {
     expect(stats.collections[0].items[0].sold).toBe(2)
   })
 
-  it('counts unattributed sales against the rows it read, never against the server total', () => {
+  it('measures what the list cannot account for against the headline, not against the capped rows', () => {
+    // 9,000 sales in the window; 8,400 of them in the one collection this catalogue carries. The other 600
+    // have no row to appear in, which is the whole reason the note exists. Comparing the capped rows
+    // against the server's exact totals instead would report -6,398 and hide the note behind its own guard.
+    const stats = withSummary({ truncated: true })
+
+    expect(stats.unattributed).toBe(600)
+  })
+
+  it('falls back to comparing rows against rows when the server did not answer', () => {
     // A row on an item the catalogue does not carry: one of the two is attributable, the other is not.
-    const stats = withSummary({
+    const stats = build({
       rows: [row({ itemId: '0', daysAgo: 1 }), row({ itemId: '404', daysAgo: 1 })],
-      truncated: true
+      total: 2,
+      mints: 2,
+      catalogue: [item({ blockchainItemId: '0' })]
     })
 
     expect(stats.unattributed).toBe(1)

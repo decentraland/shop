@@ -694,7 +694,6 @@ export const Issued = styled.span`
 export const Stock = styled.span`
   font-family: ${theme.font.sans};
   font-size: 11px;
-  letter-spacing: 0.03em;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;

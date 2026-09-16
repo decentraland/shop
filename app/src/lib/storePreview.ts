@@ -77,7 +77,10 @@ async function fetchCreatorRows(creator: string): Promise<RawRow[]> {
   for (let skip = 0; ; skip += PAGE) {
     const qs = new URLSearchParams({ creator, first: String(PAGE), skip: String(skip), includeSocialEmotes: 'false' })
     const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
-    if (!res.ok) throw new Error(`fetchPublicCatalogue ${res.status}`)
+    if (!res.ok) {
+      await res.body?.cancel()
+      throw new Error(`fetchPublicCatalogue ${res.status}`)
+    }
     const { data } = (await res.json()) as { data?: RawRow[] }
     const page = data ?? []
     all.push(...page)

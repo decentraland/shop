@@ -188,10 +188,9 @@ export function buildStoreStats({
   )
 
   const byAddress = new Map<string, StoreCollection>()
-  // Counted here rather than from the collections afterwards: their totals are overwritten with the
-  // server's exact ones below, which would make this subtraction compare a whole window against a capped
-  // page of it and go negative.
-  let attributed = 0
+  // Rows that found an item to belong to. Counted here rather than from the collections afterwards, whose
+  // totals are overwritten with the server's exact ones below.
+  let attributedRows = 0
   let listed = 0
   let classic = 0
   let soldOut = 0
@@ -246,7 +245,7 @@ export function buildStoreStats({
       state
     })
     entry.sold += sold
-    attributed += sold
+    attributedRows += sold
     if (item.createdAt && (entry.createdAt == null || item.createdAt > entry.createdAt)) {
       entry.createdAt = item.createdAt
     }
@@ -269,6 +268,19 @@ export function buildStoreStats({
     entry.items.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
   }
 
+  /**
+   * What the list under the figures cannot account for, measured against whichever figure is on screen.
+   *
+   * With the server's aggregate the headline covers the whole window, so the gap is a real one: sales in
+   * collections this catalogue does not carry, which is exactly what the note is for. A creator's own
+   * resales are mostly of other people's items, so this is rarely zero.
+   *
+   * Without it there is no such figure to compare against, only the rows that were read, where a sale goes
+   * unaccounted when it names an item the catalogue does not have. Measuring the capped rows against the
+   * server's exact totals instead would subtract a whole window from a page of it and go negative.
+   */
+  const attributedSold = [...byAddress.values()].reduce((n, entry) => n + entry.sold, 0)
+
   return {
     collections: [...byAddress.values()].sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name)),
     sold: summary?.total ?? total,
@@ -279,7 +291,7 @@ export function buildStoreStats({
     partial: summary ? false : truncated,
     breakdownPartial: truncated,
     fetched: rows.length,
-    unattributed: rows.length - attributed,
+    unattributed: summary ? summary.total - attributedSold : rows.length - attributedRows,
     trendDays,
     unknownCollections: [...byAddress.keys()].filter(ca => unreadable?.has(ca)).length,
     royalties: summary ? { resales: summary.royalties.resales, volumeWei: weiOf(summary.royalties.volumeWei) } : null,
