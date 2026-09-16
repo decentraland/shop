@@ -285,7 +285,8 @@ function cmsEntry(id: string, locale: string) {
       fields: {
         name: 'Test admin entry',
         campaign: cmsLink(CMS_CAMPAIGN, 'Entry'),
-        marketplaceHomepageBanner: cmsLink(CMS_BANNER, 'Entry')
+        marketplaceHomepageBanner: cmsLink(CMS_BANNER, 'Entry'),
+        marketplaceCampaignCollectiblesBanner: cmsLink(CMS_BANNER, 'Entry')
       }
     }
   }
