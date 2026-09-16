@@ -197,22 +197,58 @@ describe('when changing a line quantity', () => {
     expect(useCart.getState().items[0].quantity).toBe(2)
   })
 
-  it('decrement never drops below 1 (removal is a separate action)', () => {
+  it('decrement at quantity 1 removes the line and tracks it as a removal', () => {
     useCart.setState({ items: [{ ...item({ available: 3 }), quantity: 1 }] })
+    trackMock.mockClear()
+
     useCart.getState().decrement('t1')
-    expect(useCart.getState().items[0].quantity).toBe(1)
+
+    expect(useCart.getState().items).toHaveLength(0)
+    expect(trackMock).toHaveBeenCalledTimes(1)
+    expect(trackMock.mock.calls[0][0]).toBe('Shop Removed From Cart')
   })
 
-  it('setQuantity clamps to [1, stock] and is a no-op for a SECONDARY line', () => {
+  it('decrement removes a SECONDARY line too (it lives at quantity 1)', () => {
+    useCart.setState({ items: [{ ...item({ itemId: null, tokenId: '9' }), quantity: 1 }] })
+    useCart.getState().decrement('t1')
+    expect(useCart.getState().items).toHaveLength(0)
+  })
+
+  it('decrement on an id not in the cart is a no-op', () => {
+    useCart.setState({ items: [{ ...item(), quantity: 2 }] })
+    trackMock.mockClear()
+
+    useCart.getState().decrement('nope')
+
+    expect(useCart.getState().items[0].quantity).toBe(2)
+    expect(trackMock).not.toHaveBeenCalled()
+  })
+
+  it('setQuantity clamps values >= 1 to [1, stock] and locks a SECONDARY line at 1', () => {
     useCart.setState({ items: [{ ...item({ available: 5 }), quantity: 1 }] })
     useCart.getState().setQuantity('t1', 99)
     expect(useCart.getState().items[0].quantity).toBe(5)
-    useCart.getState().setQuantity('t1', 0)
+    useCart.getState().setQuantity('t1', 1)
     expect(useCart.getState().items[0].quantity).toBe(1)
 
     useCart.setState({ items: [{ ...item({ itemId: null, tokenId: '9' }), quantity: 1 }] })
+    useCart.getState().setQuantity('t1', 3)
     useCart.getState().increment('t1')
     expect(useCart.getState().items[0].quantity).toBe(1) // secondary locked at 1
+  })
+
+  it('setQuantity to zero (or below) removes the line', () => {
+    useCart.setState({ items: [{ ...item({ available: 5 }), quantity: 3 }] })
+    trackMock.mockClear()
+
+    useCart.getState().setQuantity('t1', 0)
+
+    expect(useCart.getState().items).toHaveLength(0)
+    expect(trackMock.mock.calls[0][0]).toBe('Shop Removed From Cart')
+
+    useCart.setState({ items: [{ ...item({ available: 5 }), quantity: 3 }] })
+    useCart.getState().setQuantity('t1', -2)
+    expect(useCart.getState().items).toHaveLength(0)
   })
 })
 
