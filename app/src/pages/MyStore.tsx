@@ -229,6 +229,79 @@ function CollectionRow({
   )
 }
 
+/**
+ * The page while it loads, drawn in its own containers.
+ *
+ * Built from the real tiles, panels and rows rather than a stack of generic cards, so every box is exactly
+ * where its figure will be and nothing moves when the data lands.
+ */
+function StoreSkeleton() {
+  return (
+    <div data-testid="store-skeleton" aria-hidden>
+      <S.Tiles>
+        {[0, 1, 2, 3].map(i => (
+          <S.Tile key={i}>
+            <S.Bar style={{ width: '46%' }} />
+            <S.Bar style={{ width: '32%', height: 26 }} />
+            <S.Bar style={{ width: '64%' }} />
+          </S.Tile>
+        ))}
+      </S.Tiles>
+
+      <S.Columns style={{ marginTop: 22 }}>
+        <S.Panel>
+          <S.PanelHead>
+            <S.Bar style={{ width: 96, height: 14 }} />
+            <S.Bar style={{ width: 120 }} />
+          </S.PanelHead>
+          {[0, 1, 2].map(i => (
+            <S.CollRow key={i}>
+              <span />
+              <S.Dot />
+              <S.Bar style={{ width: '58%', height: 14 }} />
+              <S.Bar />
+              <S.Bar style={{ height: 20 }} />
+              <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
+            </S.CollRow>
+          ))}
+        </S.Panel>
+
+        <S.Panel>
+          <S.PanelHead>
+            <S.Bar style={{ width: 110, height: 14 }} />
+          </S.PanelHead>
+          {[0, 1, 2].map(i => (
+            <S.AttnRow key={i}>
+              <S.Stripe />
+              <S.AttnText>
+                <S.Bar style={{ width: '44%', height: 13 }} />
+                <S.Bar style={{ width: '70%', marginTop: 6 }} />
+              </S.AttnText>
+              <S.Bar style={{ width: 22, height: 18 }} />
+            </S.AttnRow>
+          ))}
+        </S.Panel>
+      </S.Columns>
+
+      <S.Panel style={{ marginTop: 22 }}>
+        <S.PanelHead>
+          <S.Bar style={{ width: 104, height: 14 }} />
+          <S.Bar style={{ width: 90 }} />
+        </S.PanelHead>
+        {[0, 1, 2, 3, 4].map(i => (
+          <S.FeedBone key={i}>
+            <S.Bar style={{ width: '30%' }} />
+            <S.Bar style={{ width: '18%' }} />
+            <S.Bar style={{ width: 72, height: 18 }} />
+            <S.Bar style={{ width: '14%' }} />
+            <S.Bar style={{ width: 54 }} />
+          </S.FeedBone>
+        ))}
+      </S.Panel>
+    </div>
+  )
+}
+
 export function MyStore() {
   useSeo({ title: t('myStore.title'), noindex: true })
   const { session, error, signIn } = useWallet()
@@ -344,18 +417,7 @@ export function MyStore() {
           <ErrorNotice message={statsError ? t('myStore.error') : null} testId="my-store-error" />
 
           {isLoading || !stats ? (
-            <div data-testid="store-skeleton">
-              <S.Tiles aria-hidden>
-                {[0, 1, 2, 3].map(i => (
-                  <S.Bone key={i} className="skeleton" data-shape="tile" />
-                ))}
-              </S.Tiles>
-              <S.Columns style={{ marginTop: 22 }} aria-hidden>
-                <S.Bone className="skeleton" data-shape="panel" />
-                <S.Bone className="skeleton" data-shape="panel" />
-              </S.Columns>
-              <S.Bone className="skeleton" data-shape="feed" style={{ marginTop: 22 }} aria-hidden />
-            </div>
+            <StoreSkeleton />
           ) : (
             <>
               <S.Tiles aria-label={t('myStore.summaryAria')}>

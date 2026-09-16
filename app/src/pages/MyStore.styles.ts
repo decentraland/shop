@@ -677,24 +677,50 @@ export const Note = styled.p`
 `
 
 /**
- * The page's own shape while it loads, rather than a stack of generic cards.
+ * One bar of the loading state.
  *
- * Every block is the box its real content will occupy — four tiles, the two panels, the feed — so the
- * layout does not jump when the figures arrive. `.skeleton` is the shared shimmer from index.css.
+ * The skeleton is built from the REAL containers — the same tiles, panels and rows the figures land in —
+ * with these standing in for the text, so the layout cannot shift when the data arrives. `.skeleton` is
+ * the shared shimmer from index.css.
  */
-export const Bone = styled.div`
-  border-radius: ${theme.radius.card};
-  background: ${theme.colors.softWhite};
-  opacity: 0.55;
+const shimmerFill = `
+  background: linear-gradient(100deg, #ededed 30%, #f7f7f7 50%, #ededed 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
 
-  &[data-shape='tile'] {
-    height: 108px;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
-  &[data-shape='panel'] {
-    height: 268px;
-  }
-  &[data-shape='feed'] {
-    height: 300px;
+`
+
+// Light greys, not the shared `--skeleton-lo/hi`: those are translucent white for the purple field, and
+// these bars sit inside white panels where they would be invisible.
+export const Bar = styled.span`
+  display: block;
+  height: 12px;
+  border-radius: 100px;
+  ${shimmerFill}
+`
+
+export const Dot = styled.span`
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
+  ${shimmerFill}
+`
+
+/** A row of the loading feed, on the table's own column rhythm. */
+export const FeedBone = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) 100px minmax(0, 0.5fr) 70px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid ${theme.colors.line};
+
+  > *:last-child {
+    justify-self: end;
   }
 `
 
