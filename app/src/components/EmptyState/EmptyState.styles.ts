@@ -166,5 +166,18 @@ export const Centered = styled.div`
      anything a page stacks under it — an ErrorNotice after a failed sign-in — stays sized to its content
      instead of becoming a full-bleed, left-aligned bar. */
   align-items: center;
-  min-height: min(618px, 70vh);
+  /* Fills the page shell's content box, so the panel reaches the bottom of the screen and its stack lands
+     on the vertical middle — a fixed height ended the panel partway down and left a screenful of empty
+     purple under it. The .page shell is a block box carrying its own min-height of 100vh minus the nav, and
+     28/80 of vertical padding, so there is no resolved height to inherit and the same span is recomputed
+     here. 618px, the panel's height in Figma 3351:319886, is the floor. */
+  min-height: max(618px, calc(100vh - var(--nav-h) - 108px));
+
+  ${theme.media.maxWidth('mobile')} {
+    /* A phone has no room for the 618px floor, and the sub-nav band between the navbar and the page wraps
+       to two rows here (66px -> 123px), so more has to come off: 72px of shell padding plus the 68px the
+       taller band adds. Measured rather than derived — the sub-nav renders its own height and exposes no
+       variable to subtract. Lands the panel on the fold instead of 67px past it. */
+    min-height: calc(100vh - var(--nav-h) - 140px);
+  }
 `
