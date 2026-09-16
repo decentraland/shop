@@ -288,7 +288,7 @@ export function NavBar() {
                 goes through t(). Shown only once the event is known to have collections in it; an event tab
                 that opens an empty grid is worse than no tab. */}
             {eventTab ? (
-              <NavLink to="/event" data-testid="nav-event">
+              <NavLink to="/event" data-testid="nav-event" data-event>
                 {eventTab}
               </NavLink>
             ) : null}

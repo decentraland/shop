@@ -112,6 +112,16 @@ describe('the event tab', () => {
     await app.page.waitForSelector('[data-testid="browse"]')
   })
 
+  it('carries the campaign banner above its grid', async () => {
+    // The same slot the Marketplace puts above its own campaign grid.
+    app = await launchApp({ path: '/event', campaign: true })
+
+    const title = await app.page.waitForSelector('[data-testid="campaign-banner-title"]')
+    expect(await title!.evaluate(el => el.textContent)).toBe('Halloween is here')
+    const art = await app.page.$eval('[data-testid="campaign-banner"] picture img', el => el.getAttribute('src') ?? '')
+    expect(art).toContain('cms-images.decentraland.org')
+  })
+
   it('asks the catalogue for the campaign’s collections only', async () => {
     const asked: string[] = []
     app = await launchApp({ path: '/event', campaign: true })
@@ -121,8 +131,11 @@ describe('the event tab', () => {
     await app.page.reload({ waitUntil: 'networkidle2' })
 
     expect(asked.length).toBeGreaterThan(0)
-    // The set travels comma-separated, which is the encoding this endpoint parses.
-    expect(asked.some(url => url.includes('contractAddress='))).toBe(true)
+    // The set travels comma-separated, which is the encoding this endpoint parses, and carries BOTH
+    // sources: the collection the builder returned for the tag, and the one the CMS named outright.
+    const filters = asked.map(url => decodeURIComponent(new URL(url).searchParams.get('contractAddress') ?? ''))
+    expect(filters.some(f => f.includes(fx.COLLECTION))).toBe(true)
+    expect(filters.some(f => f.includes('0xdef0000000000000000000000000000000000002'))).toBe(true)
   })
 })
 

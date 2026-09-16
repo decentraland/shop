@@ -21,6 +21,7 @@ function aCampaign(over: Partial<Campaign> = {}): Campaign {
     tabName: { [ContentfulLocale.enUS]: 'Halloween', [ContentfulLocale.es]: 'Noche de brujas' },
     mainTag: 'halloween',
     tags: ['halloween'],
+    collections: [],
     banners: {},
     assets: {},
     ...over
@@ -65,12 +66,14 @@ describe('useRunningCampaign', () => {
     expect(label()).toBeNull()
   })
 
-  it('should report nothing until the event actually has collections in it', () => {
-    // An entry is often published days before anyone tags the collections, and a tab that opens an empty
-    // grid is worse than no tab.
+  it('should report the event even before any collection carries its tag', () => {
+    // Deliberate, and it used to be the opposite. An entry is often published days before anyone tags the
+    // collections, and withholding the event until then made the Shop disagree with the Marketplace — and
+    // made the tab impossible to preview outside production, since no collection on the `.zone` builder
+    // carries any tag at all. The grid handles the empty set on its own.
     useCampaignContracts.mockReturnValue({ contracts: [], isPending: false, isError: false })
 
-    expect(label()).toBeNull()
+    expect(label()).toBe('Halloween')
   })
 
   it('should report nothing when the campaign has no name to put on it', () => {
@@ -88,6 +91,17 @@ describe('useRunningCampaign', () => {
 
     label()
 
-    expect(useCampaignContracts).toHaveBeenCalledWith(['halloween', 'spooky'])
+    expect(useCampaignContracts).toHaveBeenCalledWith(['halloween', 'spooky'], [])
+  })
+
+  it('should pass the collections the cms names outright, alongside the tags', () => {
+    // Tagging happens in the builder, a different tool with a different owner, so an editor with no access
+    // there can still add a collection to the event from Contentful.
+    const named = ['0xabc0000000000000000000000000000000000001']
+    useCampaign.mockReturnValue({ campaign: aCampaign({ collections: named }), isPending: false, isError: false })
+
+    label()
+
+    expect(useCampaignContracts).toHaveBeenCalledWith(['halloween'], named)
   })
 })

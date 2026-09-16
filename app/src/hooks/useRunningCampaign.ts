@@ -6,32 +6,33 @@ import { useLocale } from '~/store/locale'
 export type RunningCampaign = {
   /** What the event is called, in the reader's language. CMS content, so it never goes through `t()`. */
   label: string
-  /** The collections it selected, lowercased. Never empty — a campaign with none is not running. */
+  /** The collections it selected, lowercased. MAY BE EMPTY while nobody has tagged any yet. */
   contracts: string[]
 }
 
 /**
  * The seasonal event that is actually running, or `null`.
  *
- * "Running" is stricter than "published", and the difference is the third condition below — the one that
- * keeps every surface consistent with what a visitor would find if they followed it:
+ * Two conditions: a campaign entry that names a tag, and a name to put on screen.
  *
- * 1. a campaign entry exists and names a tag,
- * 2. it has a name to put on screen,
- * 3. its tag resolves to AT LEAST ONE collection.
+ * It deliberately does NOT wait for the tag to resolve to a collection. That condition was here, on the
+ * reasoning that a tab onto an empty grid is worse than no tab, and it was wrong twice over: it made the
+ * Shop disagree with the Marketplace, which shows its tab on the campaign alone, and it made the tab
+ * impossible to preview outside production, since no collection on the `.zone` builder carries any tag at
+ * all. An event whose collections have not been tagged yet now shows its tab over an empty grid — the same
+ * thing the Marketplace does, and visible to whoever is staging the event.
  *
- * The third matters because an entry is often published days before anyone tags the collections. Without
- * it the nav would offer a tab onto an empty grid, and an item page would advertise an event that leads
- * nowhere.
+ * The grid is still safe when the set is empty: `contracts: []` reaches it AS an empty set, which it
+ * renders as an empty state without querying, never as the unfiltered catalogue.
  *
  * Nothing is fetched while the feature is off, so this costs no requests on an ordinary day.
  */
 export function useRunningCampaign(): RunningCampaign | null {
   const locale = useLocale(s => s.locale)
   const { campaign } = useCampaign()
-  const { contracts } = useCampaignContracts(campaign?.tags ?? [])
+  const { contracts } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
 
-  if (!campaign?.mainTag || contracts.length === 0) return null
+  if (!campaign?.mainTag) return null
 
   const label = localized(campaign.tabName, toContentfulLocale(locale))?.trim()
   return label ? { label, contracts } : null

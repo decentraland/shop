@@ -34,6 +34,7 @@ function aCampaign(bannerOverrides: Record<string, unknown> = {}, assets?: Recor
     tabName: { [ContentfulLocale.enUS]: 'Halloween' },
     mainTag: 'halloween',
     tags: ['halloween'],
+    collections: [],
     banners: {
       [SLOT]: {
         id: 'banner-1',

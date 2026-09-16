@@ -62,6 +62,14 @@ export type Campaign = {
   mainTag: string | null
   /** `mainTag` plus `additionalTags`, de-duplicated. What the builder is actually queried with. */
   tags: string[]
+  /**
+   * Collections named ONE BY ONE in the CMS, on top of whatever the tags resolve to.
+   *
+   * Tagging happens in the builder, which is a different tool with a different owner — so an editor who
+   * needs one more collection in the event has no way to add it from Contentful. This field is that
+   * escape hatch: a comma-separated list of addresses, unioned with the tagged ones.
+   */
+  collections: string[]
   /** Banners keyed by the ADMIN entry's field name (e.g. `marketplaceHomepageBanner`). */
   banners: Record<string, CampaignBanner>
   /** Every asset referenced above, keyed by id — what ui2's `<Banner>` resolves its artwork against. */
@@ -279,6 +287,23 @@ function normalizeBanner(fields: Record<string, unknown>, id: string): CampaignB
   return { ...out, id } as unknown as CampaignBanner
 }
 
+/**
+ * The `collectionIds` field: addresses separated by commas, as an editor types them.
+ *
+ * Anything that is not an address is DROPPED rather than passed on — a typo would otherwise travel into a
+ * catalogue query as a filter nothing matches, and the event would come back mysteriously short. Lowercased
+ * because that is how every catalogue feed stores them.
+ */
+export function parseCollectionIds(value: string | undefined): string[] {
+  if (!value) return []
+  const seen = new Set<string>()
+  for (const part of value.split(',')) {
+    const address = part.trim().toLowerCase()
+    if (/^0x[0-9a-f]{40}$/.test(address)) seen.add(address)
+  }
+  return [...seen]
+}
+
 function dedupeTags(tags: (string | undefined)[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -338,12 +363,17 @@ export async function fetchCampaign(): Promise<Campaign | null> {
 
   const mainTag = campaignFields?.mainTag?.[ContentfulLocale.enUS]?.trim() || null
   const additionalTags = campaignFields?.additionalTags?.[ContentfulLocale.enUS] ?? []
+  // Not in `CampaignFields`: the field was added to the content type after `@dcl/schemas` shipped its
+  // types, so it is read off the untyped entry and validated here.
+  const collectionIds = (campaignFields as unknown as { collectionIds?: LocalizedField<string> } | undefined)
+    ?.collectionIds?.[ContentfulLocale.enUS]
 
   return {
     name: campaignFields?.name?.[ContentfulLocale.enUS] ?? null,
     tabName: campaignFields?.marketplaceTabName ?? null,
     mainTag,
     tags: dedupeTags([mainTag ?? undefined, ...additionalTags]),
+    collections: parseCollectionIds(collectionIds),
     banners,
     assets
   }

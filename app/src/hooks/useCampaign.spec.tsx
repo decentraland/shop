@@ -38,6 +38,7 @@ const aCampaign = (): Campaign => ({
   tabName: { [ContentfulLocale.enUS]: 'Halloween' },
   mainTag: 'halloween',
   tags: ['halloween'],
+  collections: [],
   banners: {},
   assets: {}
 })

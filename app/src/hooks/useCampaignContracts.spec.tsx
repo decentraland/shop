@@ -59,6 +59,35 @@ describe('useCampaignContracts', () => {
     })
   })
 
+  describe('and the campaign also names collections outright', () => {
+    const NAMED = '0xdef0000000000000000000000000000000000002'
+
+    it('should select the tagged ones and the named ones together', async () => {
+      fetchCampaignContracts.mockResolvedValue([A])
+
+      const { result } = renderHook(() => useCampaignContracts(['halloween'], [NAMED]), { wrapper })
+
+      await waitFor(() => expect(result.current.contracts).toEqual([A, NAMED]))
+    })
+
+    it('should not repeat a collection that is both tagged and named', async () => {
+      fetchCampaignContracts.mockResolvedValue([A])
+
+      const { result } = renderHook(() => useCampaignContracts(['halloween'], [A]), { wrapper })
+
+      await waitFor(() => expect(result.current.contracts).toEqual([A]))
+    })
+
+    it('should settle on the named ones alone when there is no tag to resolve', () => {
+      // Nothing to wait for: the builder is only asked about tags.
+      const { result } = renderHook(() => useCampaignContracts([], [NAMED]), { wrapper })
+
+      expect(result.current.contracts).toEqual([NAMED])
+      expect(result.current.isPending).toBe(false)
+      expect(fetchCampaignContracts).not.toHaveBeenCalled()
+    })
+  })
+
   describe('when the campaign has no tags', () => {
     it('should settle empty without asking the builder', () => {
       const { result } = renderHook(() => useCampaignContracts([]), { wrapper })

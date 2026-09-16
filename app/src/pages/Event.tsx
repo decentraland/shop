@@ -6,6 +6,7 @@ import { useCampaignContracts } from '~/hooks/useCampaignContracts'
 import { localized, toContentfulLocale } from '~/lib/contentful'
 import { useLocale } from '~/store/locale'
 import { Assets } from '~/pages/Assets'
+import { CampaignBanner } from '~/components/CampaignBanner'
 import { t } from '~/intl/i18n'
 
 /**
@@ -26,11 +27,14 @@ import { t } from '~/intl/i18n'
  * When the campaign ends the entry is unpublished, this page's reason to exist goes with it, and anyone
  * standing here (or arriving from a shared link) is sent to the ordinary grid.
  */
+// The slot the Marketplace uses above its own campaign grid.
+const CAMPAIGN_BANNER_SLOT = 'marketplaceCampaignCollectiblesBanner'
+
 export function Event() {
   const navigate = useNavigate()
   const locale = useLocale(s => s.locale)
   const { campaign, isPending: campaignPending } = useCampaign()
-  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [])
+  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
 
   const gone = !campaignPending && !campaign?.mainTag
 
@@ -51,17 +55,21 @@ export function Event() {
   const name = localized(campaign?.tabName, toContentfulLocale(locale)) ?? campaign?.name ?? ''
 
   return (
-    <Assets
-      contracts={contracts}
-      hideNames
-      lockStatus="on_sale"
-      seo={{
-        title: name || t('seo.collectibles.title'),
-        description: t('seo.collectibles.description'),
-        // Live for a few weeks a year and gone the rest of it, so it is kept out of the index rather than
-        // left to go stale there — and out of public/sitemap.xml, whose header forbids listing noindex URLs.
-        noindex: true
-      }}
-    />
+    <>
+      {/* The same slot the Marketplace puts above its own campaign grid, so the two stay in step. */}
+      <CampaignBanner slot={CAMPAIGN_BANNER_SLOT} />
+      <Assets
+        contracts={contracts}
+        hideNames
+        lockStatus="on_sale"
+        seo={{
+          title: name || t('seo.collectibles.title'),
+          description: t('seo.collectibles.description'),
+          // Live for a few weeks a year and gone the rest of it, so it is kept out of the index rather
+          // than left to go stale there — and out of public/sitemap.xml, whose header forbids noindex URLs.
+          noindex: true
+        }}
+      />
+    </>
   )
 }
