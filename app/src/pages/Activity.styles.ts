@@ -162,7 +162,9 @@ export const List = styled.div`
    established dark-surface pairing: softWhite for primary text, gray4 for secondary, glassFaint for
    bands and hovers. */
 export const Card = styled.div`
-  background: ${theme.colors.overlay};
+  /* No fill of its own, deliberately. Its children each paint one of the designer's two alphas, and a
+     fill here would sit UNDER both: the head's 60% composited over a 40% card lands far darker than
+     60% over the page, which is what it is measured against. The card contributes only the shape. */
   border: 1px solid ${theme.colors.cardLine};
   border-radius: 16px;
   overflow: hidden;
@@ -188,7 +190,7 @@ export const CardHead = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  /* Black at 60% against the body's 40% - the designer's exact pair. The head is the darker of the
+  /* Black at 60% against the rows' 40% - the designer's exact pair. The head is the darker of the
      two, so the purchase reads as the main line and the items as detail under it. */
   background: ${theme.colors.overlayStrong};
   border-bottom: 1px solid ${theme.colors.cardLine};
@@ -370,11 +372,14 @@ export const FailedNote = styled.p`
   font-size: 13px;
   line-height: 1.45;
   color: ${theme.colors.gray4};
+  /* Sits between the two bands, so it carries the rows' fill rather than leaving the page showing. */
+  background: ${theme.colors.overlay};
 `
 
 export const Lines = styled.div`
   display: flex;
   flex-direction: column;
+  background: ${theme.colors.overlay};
 `
 
 // A line item. Rendered as a router <Link> when the item detail resolves, else a plain <div>.
