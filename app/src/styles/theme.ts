@@ -76,6 +76,9 @@ const colors = {
   fieldBorder: '#c6bcd7',
   // Translucent overlays for dark surfaces (dark-theme panels, card footers, empty-state shells).
   overlay: 'rgba(0, 0, 0, 0.4)',
+  // The heavier of the two black washes a panel is built from: the header band over the lighter body
+  // (Activity). Both alphas are the designer's own.
+  overlayStrong: 'rgba(0, 0, 0, 0.6)',
   overlayLight: 'rgba(0, 0, 0, 0.2)',
   overlayHover: 'rgba(0, 0, 0, 0.55)',
   chipDark: 'rgba(0, 0, 0, 0.3)',

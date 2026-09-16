@@ -188,8 +188,9 @@ export const CardHead = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  /* No fill of its own: the head is the card's main surface, and what sits inside it is lifted off
-     that rather than the other way round (design review, 2026-09-16). */
+  /* Black at 60% against the body's 40% - the designer's exact pair. The head is the darker of the
+     two, so the purchase reads as the main line and the items as detail under it. */
+  background: ${theme.colors.overlayStrong};
   border-bottom: 1px solid ${theme.colors.cardLine};
 
   ${theme.media.maxWidth('mobile')} {
@@ -377,8 +378,6 @@ export const FailedNote = styled.p`
 export const Lines = styled.div`
   display: flex;
   flex-direction: column;
-  /* Lifted above the head so what you bought reads as nested inside the purchase, not level with it. */
-  background: ${theme.colors.glassFaint};
 `
 
 // A line item. Rendered as a router <Link> when the item detail resolves, else a plain <div>.
@@ -399,8 +398,7 @@ export const Line = styled.div`
     transition: background 0.15s;
   }
   &[data-link='true']:hover {
-    /* One step above the lift the rows now sit on, so the hover still registers. */
-    background: ${theme.colors.glass};
+    background: ${theme.colors.glassFaint};
   }
   &[data-link='true']:focus-visible {
     /* White, like the filter chips above: the accent purple was drawn for the white card and all but
