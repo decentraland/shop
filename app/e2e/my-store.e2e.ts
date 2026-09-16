@@ -229,6 +229,26 @@ describe('when a creator opens their store', () => {
   })
 })
 
+describe('when a visitor opens the store dashboard signed out', () => {
+  it('should ask them in through the same panel every other signed-out page uses', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, signedOut: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 900 })
+    await page.waitForSelector('[data-testid="my-store-signin"]')
+
+    // The shared panel, not a title and a button assembled here: an illustration, the ask, what the page
+    // is for, and one solid call to action.
+    const panel = await page.$eval('[data-testid="my-store-signin"]', el => ({
+      illustration: !!el.querySelector('img'),
+      text: (el as HTMLElement).innerText
+    }))
+    expect(panel.illustration).toBe(true)
+    expect(panel.text).toContain('Sign in to view your store')
+    expect(panel.text).toContain('discounts you have running')
+    await page.screenshot({ path: '/tmp/my-store-signedout.png' })
+  })
+})
+
 describe('when the store dashboard is switched off', () => {
   it('should not offer the nav entry', async () => {
     app = await launchApp({ path: '/', fixtures: storeFixtures })

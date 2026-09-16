@@ -606,7 +606,8 @@
   "myStore": {
     "title": "Mi tienda",
     "eyebrow": "Creador",
-    "signInPrompt": "Inicia sesión para ver cómo va tu tienda.",
+    "signInTitle": "Inicia sesión para ver tu tienda",
+    "signInBody": "Mira cómo se venden tus colecciones, qué necesita atención y los descuentos que tienes activos.",
     "viewingAs": "Viendo {address} — una vista de solo lectura de la tienda de otra persona.",
     "summary": "{collections, plural, one {# colección} other {# colecciones}} · {items, plural, one {# ítem} other {# ítems}}",
     "period": "Período",

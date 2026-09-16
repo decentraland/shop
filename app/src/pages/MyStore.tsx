@@ -26,6 +26,8 @@ import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
 import type { SaleRow } from '~/lib/sales'
 import { t, tNode } from '~/intl/i18n'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import * as A from '~/styles/browseLayout.styles'
 import * as S from './MyStore.styles'
 
@@ -507,16 +509,18 @@ export function MyStore() {
 
   if (!session && !viewAs) {
     return (
-      <A.Root>
-        <A.Main>
-          <S.Title>{t('myStore.title')}</S.Title>
-          <S.Sub>{t('myStore.signInPrompt')}</S.Sub>
-          <Button variant="white" onClick={() => signIn()}>
-            {t('storeSettings.signIn')}
-          </Button>
-          <ErrorNotice message={error} />
-        </A.Main>
-      </A.Root>
+      <EmptyStateCentered>
+        <EmptyState
+          testId="my-store-signin"
+          icon={signInIllustration}
+          title={t('myStore.signInTitle')}
+          body={t('myStore.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
+        <ErrorNotice message={error} />
+      </EmptyStateCentered>
     )
   }
 

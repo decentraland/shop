@@ -606,7 +606,8 @@
   "myStore": {
     "title": "My Store",
     "eyebrow": "Creator",
-    "signInPrompt": "Sign in to see how your store is doing.",
+    "signInTitle": "Sign in to view your store",
+    "signInBody": "See how your collections are selling, what needs attention, and the discounts you have running.",
     "viewingAs": "Viewing {address} — a read-only preview of someone else’s store.",
     "summary": "{collections, plural, one {# collection} other {# collections}} · {items, plural, one {# item} other {# items}}",
     "period": "Period",
