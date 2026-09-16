@@ -38,7 +38,8 @@ export type SuggestedForYou = {
  * The request is never made with nothing to say: no account and no seeds means the server could only
  * answer with the trending fallback, which the home page already has a row for.
  */
-export function useSuggestedForYou(first = 12): SuggestedForYou {
+export function useSuggestedForYou(first = 12, options: { exclude?: string[] } = {}): SuggestedForYou {
+  const exclude = options.exclude
   const enabled = useSuggestedForYouEnabled()
   const address = useWallet(s => s.session?.address)
   const { data: profile } = useProfile(address)
@@ -86,13 +87,23 @@ export function useSuggestedForYou(first = 12): SuggestedForYou {
     // fetch after staleTime.
     // `identity` only as a boolean: the answer differs between signed and unsigned (favourites), but
     // re-signing the same account must not look like a different caller.
-    queryKey: ['suggested-for-you', address ?? 'anon', identity ? 'signed' : 'anon', key, bodyShape ?? '', first],
+    queryKey: [
+      'suggested-for-you',
+      address ?? 'anon',
+      identity ? 'signed' : 'anon',
+      key,
+      bodyShape ?? '',
+      // The PDP asks the same question minus its own anchor item. Keying on it is what lets the page and
+      // the rail component call this hook independently and share ONE request rather than fire two.
+      (exclude ?? []).join(','),
+      first
+    ],
     enabled: enabled && hasSignal,
     staleTime: 5 * 60_000,
     retry: 1,
     queryFn: async () => {
       const started = performance.now()
-      const answer = await fetchSuggestedItems({ address, identity, seeds, bodyShape, equipped, first })
+      const answer = await fetchSuggestedItems({ address, identity, seeds, bodyShape, equipped, exclude, first })
       fetchMs.current = Math.round(performance.now() - started)
       return answer
     }

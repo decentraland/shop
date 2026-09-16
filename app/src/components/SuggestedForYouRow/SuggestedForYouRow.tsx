@@ -4,7 +4,7 @@ import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { fetchCatalogByIds, type SuggestedItem } from '~/lib/api'
 import { track } from '~/lib/analytics'
-import { reasonCounts, type ClickTarget, type HiddenReason, type PagedAction } from '~/lib/suggestionEvents'
+import { reasonCounts, suggestedHiddenReason, type ClickTarget, type PagedAction } from '~/lib/suggestionEvents'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
 import { reasonInterpolatesItemName, reasonKey, reasonLinksToItem, triggerItemPath } from '~/lib/suggestionReasons'
 import { t } from '~/intl/i18n'
@@ -23,7 +23,6 @@ const SKELETON_COUNT = 6
  * bug rather than a recommendation, and the server already tells us when it had nothing personal to
  * work with.
  */
-const MIN_ROWS = 4
 
 /**
  * "Suggested for you" — the personalised rail on the home page.
@@ -37,9 +36,27 @@ const MIN_ROWS = 4
  * already has, the name is resolved for the whole rail in a single catalog request, never one per
  * card, and the line degrades to the generic copy if that request fails.
  */
-export function SuggestedForYouRow() {
-  const { result, isLoading, isError, enabled, hasSignal, hasAddress, seedCount, fetchMs } =
-    useSuggestedForYou(RAIL_SIZE)
+/**
+ * @param exclude items the rail must not offer — the PDP's own anchor, which it would otherwise
+ *   recommend back to the reader of that very page.
+ * @param title overrides the home page's wording. On a PDP the rail answers a narrower question, and
+ *   "Suggested for you" over a row that deliberately excludes the item you are looking at reads as a
+ *   non sequitur.
+ * @param surface which page this is, so the analytics can tell the two rails apart.
+ * @param first how many rows to ask for. A prop and not a constant because a caller that ALSO calls the
+ *   hook -- the PDP does, to decide whether its own cascade is still wanted -- has to ask the identical
+ *   question, or react-query sees two keys and the Shop pays twice for its most expensive request. The
+ *   e2e asserts one request per page for exactly this reason.
+ */
+export function SuggestedForYouRow({
+  exclude,
+  title,
+  surface = 'home',
+  first = RAIL_SIZE
+}: { exclude?: string[]; title?: string; surface?: 'home' | 'pdp'; first?: number } = {}) {
+  const { result, isLoading, isError, enabled, hasSignal, hasAddress, seedCount, fetchMs } = useSuggestedForYou(first, {
+    exclude
+  })
   const items = useMemo(() => result?.data ?? [], [result])
 
   // Names are needed only by the one kind whose copy has a name in it; the rest link to their
@@ -116,19 +133,14 @@ export function SuggestedForYouRow() {
   // Why the rail is not here, or null when it is. Ordered the way the decision is actually made, so
   // the reported reason is the FIRST thing that stopped it rather than a later symptom: a rail that
   // never asked cannot also be "not personalized".
-  const hiddenReason: HiddenReason | null = !enabled
-    ? 'flag_off'
-    : !hasSignal
-      ? 'no_signal'
-      : isLoading
-        ? null
-        : isError
-          ? 'error'
-          : result?.personalized !== true
-            ? 'not_personalized'
-            : items.length < MIN_ROWS
-              ? 'too_few'
-              : null
+  const hiddenReason = suggestedHiddenReason({
+    enabled,
+    hasSignal,
+    isLoading,
+    isError,
+    personalized: result?.personalized,
+    rowCount: items.length
+  })
 
   const visible = !isLoading && hiddenReason === null
 
@@ -217,12 +229,13 @@ export function SuggestedForYouRow() {
       reason: item.reason.kind,
       algorithm: result?.algorithm,
       has_address: hasAddress,
+      surface,
       target
     })
   }
 
   const onPaged = (action: PagedAction, target: number) => {
-    track('paged_suggestions', { action, page: target, algorithm: result?.algorithm })
+    track('paged_suggestions', { action, page: target, algorithm: result?.algorithm, surface })
     scrollToPage(target)
   }
 
@@ -236,7 +249,7 @@ export function SuggestedForYouRow() {
   return (
     <Row.Root ref={railRef} data-testid={isLoading ? 'suggested-row-skeleton' : 'suggested-row'}>
       <Row.Head>
-        <Row.Title>{t('overview.suggested.title')}</Row.Title>
+        <Row.Title>{title ?? t('overview.suggested.title')}</Row.Title>
       </Row.Head>
       <S.Viewport>
         {/* The placeholders' exit, crossfaded over the cards that replaced them (see SkeletonSettle). */}

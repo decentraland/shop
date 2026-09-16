@@ -465,7 +465,8 @@
     "emoteProps": "Props",
     "cancelRelayReverted": "That didn't go through — your listing is still up. You can remove it now by paying the network fee yourself, or leave it and try again later.",
     "cancelRelayRetry": "We couldn't remove it just now. Please try again in a moment.",
-    "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open."
+    "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open.",
+    "becauseYouOwn": "Because of what you own"
   },
   "transfer": {
     "title": "Transfer item",
