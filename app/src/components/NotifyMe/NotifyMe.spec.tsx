@@ -11,13 +11,18 @@ const { getNotifyRequest, createNotifyRequest, isNotifyAvailable, getConnectionE
   getConnectionEmail: vi.fn()
 }))
 vi.mock('~/lib/notify', () => ({ getNotifyRequest, createNotifyRequest, isNotifyAvailable }))
+// Mocked so the tracking side-effect can be asserted, and so the test can prove the email never rides it.
+vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
 vi.mock('~/lib/auth', async importOriginal => {
   const actual = await importOriginal<typeof import('~/lib/auth')>()
   return { ...actual, getConnectionEmail }
 })
 
 import { NotifyMe } from './NotifyMe'
+import { track } from '~/lib/analytics'
 import { useWallet } from '~/store/wallet'
+
+const trackMock = vi.mocked(track)
 import type { CatalogItem } from '~/lib/api'
 
 function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
@@ -101,5 +106,39 @@ describe('NotifyMe', () => {
 
     await screen.findByTestId('notify-subscribed')
     expect(screen.queryByTestId('notify-email')).toBeNull()
+  })
+})
+
+describe('tracking notify requests', () => {
+  beforeEach(() => {
+    trackMock.mockClear()
+    isNotifyAvailable.mockReturnValue(true)
+    getNotifyRequest.mockResolvedValue({ subscribed: false })
+    createNotifyRequest.mockResolvedValue(undefined)
+  })
+
+  it('records the request against the item, and never carries the email', async () => {
+    useWallet.setState({ session: { address: '0xme', identity: {} } as never })
+    renderNotify(<NotifyMe item={makeItem({ contractAddress: '0xc', itemId: '5', chainId: 80002 })} />)
+
+    fireEvent.change(await screen.findByTestId('notify-email'), { target: { value: 'jane.doe@example.com' } })
+    fireEvent.click(screen.getByTestId('notify-submit'))
+
+    await waitFor(() =>
+      expect(trackMock).toHaveBeenCalledWith('Shop Requested Notify', { item_id: '5', contract_address: '0xc' })
+    )
+    expect(JSON.stringify(trackMock.mock.calls)).not.toContain('@')
+  })
+
+  it('records nothing when the request fails', async () => {
+    createNotifyRequest.mockRejectedValueOnce(new Error('nope'))
+    useWallet.setState({ session: { address: '0xme', identity: {} } as never })
+    renderNotify(<NotifyMe item={makeItem({ contractAddress: '0xc', itemId: '5', chainId: 80002 })} />)
+
+    fireEvent.change(await screen.findByTestId('notify-email'), { target: { value: 'jane.doe@example.com' } })
+    fireEvent.click(screen.getByTestId('notify-submit'))
+
+    await waitFor(() => expect(createNotifyRequest).toHaveBeenCalled())
+    expect(trackMock).not.toHaveBeenCalled()
   })
 })

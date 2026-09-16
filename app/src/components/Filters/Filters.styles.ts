@@ -399,6 +399,9 @@ export const StatusRadio = styled.input`
 `
 
 export const StatusLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: ${theme.font.sans};
   font-weight: 400;
   font-size: 14px;
@@ -406,9 +409,22 @@ export const StatusLabel = styled.span`
   color: ${theme.colors.gray4};
 `
 
-// ---------------- Smart (toggle row) ----------------
+/**
+ * The currency a filter option is about, before its name.
+ *
+ * `1em` rather than a pixel size, and nudged onto the x-height: it reads as part of the label, not as an
+ * icon set beside it — the same treatment the pricing banner gives the mark inside its sentence.
+ */
+export const StatusMark = styled.img`
+  width: 1em;
+  height: 1em;
+  flex: none;
+  vertical-align: -0.12em;
+`
 
-export const SmartRow = styled.div`
+// ---------------- Toggle rows (Deals, Smart) ----------------
+
+export const ToggleRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -417,14 +433,14 @@ export const SmartRow = styled.div`
   height: 40px;
   padding: 4px;
 
-  /* On mobile SMART is a peer of the collapsible section headers (Figma 1304-307965): same 52px row
-     height so it doesn't read as a smaller afterthought. */
+  /* On mobile a toggle row is a peer of the collapsible section headers (Figma 1304-307965): same 52px
+     row height so it doesn't read as a smaller afterthought. */
   ${theme.media.maxWidth('lg')} {
     height: 52px;
   }
 `
 
-export const SmartLeft = styled.div`
+export const ToggleLeft = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -441,7 +457,7 @@ export const SmartFlash = styled(Icon)`
   }
 `
 
-export const SmartTitle = styled.span`
+export const ToggleTitle = styled.span`
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 14px;
@@ -450,7 +466,7 @@ export const SmartTitle = styled.span`
   /* Figma labels SMART in uppercase (the flash-feature label), unlike the title-case section names. */
   text-transform: uppercase;
 
-  /* Match the section-header title size on mobile so SMART has the same hierarchy as Price/Rarity/etc. */
+  /* Match the section-header title size on mobile so a toggle row has the same hierarchy as Price/Rarity. */
   ${theme.media.maxWidth('lg')} {
     font-size: 16px;
   }

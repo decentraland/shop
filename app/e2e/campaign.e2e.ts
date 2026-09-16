@@ -4,6 +4,7 @@ import { join } from 'path'
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
+import * as fx from './fixtures'
 
 /**
  * The seasonal campaign taking over the home hero.
@@ -122,5 +123,33 @@ describe('the event tab', () => {
     expect(asked.length).toBeGreaterThan(0)
     // The set travels comma-separated, which is the encoding this endpoint parses.
     expect(asked.some(url => url.includes('contractAddress='))).toBe(true)
+  })
+})
+
+/**
+ * The chip that marks an item as part of the running event.
+ *
+ * In a browser because the round trip is the point: the item's collection has to match the set the builder
+ * answered with, and the chip has to link back into the tab that set came from.
+ */
+describe('the event chip on an item', () => {
+  const itemPath = `/item/${fx.COLLECTION}/0`
+
+  it('is absent while no campaign is running', async () => {
+    app = await launchApp({ path: itemPath })
+    await waitForText(app.page, 'Galaxy Hat')
+
+    expect(await app.page.$('[data-testid="detail-event"]')).toBeNull()
+  })
+
+  it('names the event and opens its grid', async () => {
+    app = await launchApp({ path: itemPath, campaign: true })
+    await waitForText(app.page, 'Galaxy Hat')
+
+    const chip = await app.page.waitForSelector('[data-testid="detail-event"]')
+    expect(await chip!.evaluate(el => el.textContent)).toContain('Halloween')
+
+    await Promise.all([chip!.click(), app.page.waitForNavigation({ waitUntil: 'networkidle2' })])
+    expect(new URL(app.page.url()).pathname).toMatch(/\/event$/)
   })
 })

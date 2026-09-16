@@ -730,6 +730,18 @@ export const MarketNote = styled.div`
   color: ${colors.gray4};
 `
 
+/**
+ * "Only 3 left at this price" — scarcity, next to the price rather than in the stock line, because it is
+ * about the SALE running out, not the item. Full width so it sits on its own line under the price row
+ * instead of squeezing in beside the countdown.
+ */
+export const UnitsLeft = styled.div`
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${colors.dclRed};
+`
+
 export const PriceWas = styled.span`
   display: inline-flex;
   align-items: center;
@@ -1475,29 +1487,4 @@ export const SkName = styled.span`
   width: 96px;
   height: 16px;
   border-radius: 6px;
-`
-
-// The "the gasless send did not confirm" notice and its two ways out. Neutral, not an error colour: the
-// transaction may still land, and painting it red is what had a creator re-signing six times.
-export const GaslessNotice = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid ${colors.line};
-  border-radius: 12px;
-  background: ${colors.media};
-
-  p {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.5;
-    color: ${colors.text2};
-  }
-`
-
-export const GaslessActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
 `
