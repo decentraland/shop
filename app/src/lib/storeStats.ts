@@ -1,6 +1,8 @@
-import type { SaleRow } from '~/lib/sales'
+import { weiOf, type SaleRow } from '~/lib/sales'
 import type { PublishableItem } from '~/lib/builder'
+
 import type { CollectionSaleState } from '~/lib/collections'
+export type StoreCatalogueItem = PublishableItem
 
 /** One item of a collection, as the store dashboard reads it. */
 export type StoreItem = {
@@ -15,6 +17,10 @@ export type StoreItem = {
   minted: number
   sold: number
   priceCredits: number | null
+  /** Set when the listing is priced in MANA, so the row can show what it actually asks. */
+  manaWei: string | null
+  /** When the item was created, where the source carries it — the newest-first ordering reads this. */
+  createdAt: number | null
   state: 'discounted' | 'classic' | 'unlisted' | 'soldout' | 'unknown'
 }
 
@@ -26,13 +32,17 @@ export type StoreCollection = {
   classic: number
   soldOut: number
   sold: number
+  /** What first sales of this collection brought in over the window, in MANA wei. */
+  earningsWei: bigint
+  /** The newest item in it, when the source dates them. */
+  createdAt: number | null
   /** Sales across the window, oldest first — the sparkline's series. */
   trend: number[]
 }
 
 export type StoreStats = {
   collections: StoreCollection[]
-  /** Sales in the window, by kind. */
+  /** Sales in the window, by kind — both exact, counted by the feed rather than from the rows fetched. */
   sold: number
   mints: number
   resales: number
@@ -55,7 +65,6 @@ export type StoreStats = {
   neverListed: number
   classic: number
   soldOut: number
-  recent: SaleRow[]
 }
 
 const DAY_MS = 86_400_000
@@ -97,6 +106,7 @@ export function buildStoreStats({
   rows,
   total,
   truncated,
+  mints,
   catalogue,
   saleState,
   unreadable,
@@ -106,7 +116,9 @@ export function buildStoreStats({
   rows: SaleRow[]
   total: number
   truncated: boolean
-  catalogue: PublishableItem[]
+  /** Exact count of first sales in the window, counted by the feed rather than derived from the rows. */
+  mints: number
+  catalogue: StoreCatalogueItem[]
   saleState: Record<string, CollectionSaleState>
   /** Collections whose sale state could not be read. Their items get no status rather than a wrong one. */
   unreadable?: Set<string>
@@ -117,9 +129,14 @@ export function buildStoreStats({
   const soldByItem = new Map<string, number>()
   const rowsByCollection = new Map<string, SaleRow[]>()
   for (const row of rows) {
-    // A row with no item cannot be attributed to one, so it is left out of both maps: counting it in a
-    // collection's chart while no item row accounts for it is how a sparkline and its own figure disagree.
-    if (row.itemId == null) continue
+    // Only first sales are counted against an item, because that is what these figures measure: how much
+    // of a run has gone. A resale moves a copy that was already sold — and `seller` on one only means this
+    // account sold that token, which for a creator is as often somebody else's item as their own. Verified
+    // on a production store: all 34 of its resales were tokens from collections it did not create.
+    //
+    // A row with no item cannot be attributed to one either, and a resale frequently has none: the order
+    // was on a token, not on an item.
+    if (row.type !== 'mint' || row.itemId == null) continue
     const ca = row.contractAddress.toLowerCase()
     const key = `${ca}-${row.itemId}`
     soldByItem.set(key, (soldByItem.get(key) ?? 0) + 1)
@@ -173,6 +190,8 @@ export function buildStoreStats({
       classic: 0,
       soldOut: 0,
       sold: 0,
+      earningsWei: 0n,
+      createdAt: null,
       trend: []
     }
     const sold = soldByItem.get(`${ca}-${item.blockchainItemId}`) ?? 0
@@ -186,9 +205,14 @@ export function buildStoreStats({
       minted: item.totalSupply,
       sold,
       priceCredits: sale?.priceCredits ?? null,
+      manaWei: sale?.manaWei ?? null,
+      createdAt: item.createdAt ?? null,
       state
     })
     entry.sold += sold
+    if (item.createdAt && (entry.createdAt == null || item.createdAt > entry.createdAt)) {
+      entry.createdAt = item.createdAt
+    }
     if (state === 'soldout') entry.soldOut += 1
     else if (state === 'classic') entry.classic += 1
     else if (state === 'discounted') entry.listed += 1
@@ -196,20 +220,21 @@ export function buildStoreStats({
   }
 
   for (const [ca, entry] of byAddress) {
-    entry.trend = bucketSales(rowsByCollection.get(ca) ?? [], trendDays, now)
+    const own = rowsByCollection.get(ca) ?? []
+    entry.earningsWei = own.reduce((sum, row) => sum + weiOf(row.price), 0n)
+    entry.trend = bucketSales(own, trendDays, now)
     // Best-selling first: a store's own page should open on what is working.
     entry.items.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
   }
 
-  const mints = rows.filter(row => row.type === 'mint').length
   const attributed = [...byAddress.values()].reduce((n, entry) => n + entry.sold, 0)
 
   return {
     collections: [...byAddress.values()].sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name)),
     sold: total,
     mints,
-    resales: rows.length - mints,
-    earningsWei: rows.reduce((sum, row) => sum + BigInt(row.price || '0'), 0n),
+    resales: total - mints,
+    earningsWei: rows.reduce((sum, row) => sum + weiOf(row.price), 0n),
     partial: truncated,
     fetched: rows.length,
     unattributed: rows.length - attributed,
@@ -218,7 +243,6 @@ export function buildStoreStats({
     listed,
     neverListed,
     classic,
-    soldOut,
-    recent: rows.slice(0, 6)
+    soldOut
   }
 }

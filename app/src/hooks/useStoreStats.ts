@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchSellerSales } from '~/lib/sales'
+import { countSales, fetchSellerSales } from '~/lib/sales'
 import { fetchPublishableItems } from '~/lib/builder'
 import { fetchPublicCatalogue } from '~/lib/storePreview'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
@@ -30,11 +30,19 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
   const sales = useQuery({
     queryKey: ['store-sales', address, period],
     enabled: !!address,
-    queryFn: () => fetchSellerSales({ seller: address as string, from })
+    queryFn: () => fetchSellerSales({ seller: address, from })
   })
 
   // Someone else's store can only be read from the public feeds: the builder answers for the signed-in
   // creator alone.
+  // Exact, and one request: the feed counts by kind server-side, so the split never depends on how many
+  // rows the cap above let through.
+  const mints = useQuery({
+    queryKey: ['store-mints', address, period],
+    enabled: !!address,
+    queryFn: () => countSales({ seller: address, from, type: 'mint' })
+  })
+
   const catalogue = useQuery({
     queryKey: ['store-catalogue', address, !!viewAs],
     enabled: !!address && (!!viewAs || !!session),
@@ -81,13 +89,14 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
       rows: sales.data?.rows ?? [],
       total: sales.data?.total ?? 0,
       truncated: !!sales.data?.truncated,
+      mints: mints.data ?? 0,
       catalogue: catalogue.data,
       saleState: saleState.data?.states ?? {},
       unreadable: saleState.data?.unreadable,
       days,
       now
     })
-  }, [catalogue.data, sales.data, saleState.data, days, now])
+  }, [catalogue.data, sales.data, mints.data, saleState.data, days, now])
 
   return {
     stats,

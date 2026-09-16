@@ -42,6 +42,7 @@ type RawItem = {
   is_published?: boolean
   is_approved?: boolean
   total_supply?: string | number // already minted
+  created_at?: number | string
   rarity?: string
   type?: 'wearable' | 'emote'
   data?: {
@@ -90,6 +91,8 @@ export type PublishableItem = {
   totalSupply: number
   maxSupply: number
   remainingSupply: number
+  /** Epoch ms, when the source dates the item. The builder sends seconds. */
+  createdAt?: number
   // The list of addresses allowed to mint this item's collection (from the parent collection).
   // Used by the UI to decide whether primary sales are already enabled (minter prereq).
   minters: string[]
@@ -221,6 +224,8 @@ async function toPublishableItem(raw: RawItem, collection: CreatorCollection): P
     totalSupply: total,
     maxSupply: max,
     remainingSupply: toRemaining(total, max),
+    // Seconds from the builder, like every other timestamp it sends.
+    createdAt: raw.created_at ? Number(raw.created_at) * 1000 : undefined,
     minters: collection.minters
   }
 }

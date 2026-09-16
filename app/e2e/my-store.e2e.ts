@@ -90,7 +90,8 @@ const runningSale = {
   status: 'active'
 }
 
-// Four items, three of which have sold: 4 mints of the hat, 3 of the boots, one RESALE of the cape.
+// Four items, three of which have sold: 4 first sales of the hat, 10 of the boots, one RESALE of the cape.
+// Fifteen in all, which is more than one page of the table — the pager only exists past that.
 const sales = [
   sale(1, '0', 0, '5000000000000000000'),
   sale(2, '0', 1, '5000000000000000000'),
@@ -99,7 +100,8 @@ const sales = [
   sale(5, '1', 5, '370908000000000000'),
   sale(6, '1', 9, '370908000000000000'),
   sale(7, '2', 12, '8160000000000000000', 'order'),
-  sale(8, '0', 15, '5000000000000000000')
+  sale(8, '0', 15, '5000000000000000000'),
+  ...Array.from({ length: 7 }, (_, i) => sale(9 + i, '1', 4 + i, '370908000000000000'))
 ]
 
 const listed = [listing('0', 'Galaxy Hat', 30), listing('1', 'Galaxy Boots', 10)]
@@ -133,10 +135,11 @@ describe('when a creator opens their store', () => {
     await page.waitForSelector('[data-testid="store-collection"]')
 
     // The window's figures, from the one sales fetch the page makes.
-    expect(await text(app, 'store-sold')).toBe('8')
+    expect(await text(app, 'store-sold')).toBe('15')
     expect(await text(app, 'store-discounts')).toBe('1')
     const body = await bodyText(page)
-    expect(body).toContain('7 first sales · 1 resale')
+    // Counted by the feed per kind, not derived from the rows the cap let through.
+    expect(body).toContain('14 first sales · 1 resale')
 
     // Only what the creator can act on: nothing is priced in MANA here, so that row is absent rather than
     // sitting at zero.
@@ -160,22 +163,57 @@ describe('when a creator opens their store', () => {
       rows.map(row => (row as HTMLElement).innerText.replace(/\s+/g, ' ').trim())
     )
     expect(items).toHaveLength(4)
-    // Best-selling first, each with its own count, its listing state and what is left of its run.
-    expect(items[0]).toMatch(/^Galaxy Hat/)
-    expect(items[0]).toMatch(/4 sold/)
-    expect(items[0]).toMatch(/STOCK 988\/1,?000/i)
-    expect(items[1]).toMatch(/^Galaxy Boots/)
-    expect(items[1]).toMatch(/3 sold/)
+    // Best-selling first, each with its rarity, its own count, its listing state and what is left of its run.
+    expect(items[0]).toMatch(/^Galaxy Boots/)
+    expect(items[0]).toMatch(/10 sold/)
+    expect(items[0]).toMatch(/EPIC/i)
+    // The row shows what the item asks, not merely that it is asking.
+    expect(items[0]).toMatch(/ON SALE FOR/i)
+    expect(items[0]).toMatch(/STOCK 960\/1,?000/i)
+    expect(items[1]).toMatch(/^Galaxy Hat/)
+    expect(items[1]).toMatch(/4 sold/)
     expect(items[2]).toMatch(/^Galaxy Cape/)
     expect(items[2]).toMatch(/NOT LISTED/i)
     // Stock stands whatever the listing state: an unlisted item still has a run.
     expect(items[2]).toMatch(/STOCK 997\/1,?000/i)
     expect(items[3]).toMatch(/^Galaxy Crown/)
-    expect(items[3]).toMatch(/SOLD OUT/i)
+    // The run is stated at zero too: "sold out" alone does not distinguish a 1-of-1 from a drop of a thousand.
+    expect(items[3]).toMatch(/SOLD OUT 0\/1/i)
 
     // And it closes again.
     await page.click('[data-testid="store-collection-toggle"]')
     await page.waitForFunction(() => !document.querySelector('[data-testid="store-items"]'))
+  })
+
+  it('should page through every sale, and send each buyer to their own page', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+    await page.waitForSelector('[data-testid="store-sale"]')
+
+    // A page of the feed, not a handful kept from the aggregate: the rest is a click away.
+    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(12)
+    const buyer = await page.$eval('[data-testid="store-sale-buyer"]', el => ({
+      href: el.getAttribute('href'),
+      target: el.getAttribute('target'),
+      rel: el.getAttribute('rel')
+    }))
+    expect(buyer.href).toMatch(/\/0xaca5bc79b0cd51b726d2eadfc747f7ad4dfe7efb$/)
+    expect(buyer.target).toBe('_blank')
+    expect(buyer.rel).toContain('noopener')
+
+    // The item opens its own page in its own tab, so a creator reading the feed does not lose their place.
+    const saleItem = await page.$eval('[data-testid="store-sale-item"]', el => ({
+      href: el.getAttribute('href'),
+      target: el.getAttribute('target')
+    }))
+    expect(saleItem.href).toMatch(/^\/item\/0x[0-9a-f]+\/\d+$/i)
+    expect(saleItem.target).toBe('_blank')
+
+    // Numbered pages: the second one holds the remaining three sales, and the page you are on is marked.
+    await page.click('[data-testid="store-sales-page-2"]')
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="store-sale"]').length === 3)
+    expect(await page.$eval('[data-testid="store-sales-page-2"]', el => el.getAttribute('aria-current'))).toBe('page')
   })
 
   it('should fit a phone without scrolling sideways', async () => {

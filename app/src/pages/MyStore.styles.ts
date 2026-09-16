@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
+import { Dropdown } from '~/components/Dropdown'
 import { Icon } from '~/components/Icon'
 import { theme } from '~/styles/theme'
 
@@ -201,6 +202,10 @@ export const Panel = styled.section`
   overflow: hidden;
 `
 
+export const PanelBody = styled.div`
+  padding: 0 18px 18px;
+`
+
 export const PanelHead = styled.div`
   display: flex;
   align-items: baseline;
@@ -215,6 +220,39 @@ export const PanelTitle = styled.h2`
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
+`
+
+export const HeadRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+/**
+ * The shop's own dropdown, re-inked for a white panel.
+ *
+ * Its trigger is drawn for the purple field — a translucent black fill with near-white text — which on
+ * this surface reads as a disabled control. Same shape, panel colours.
+ */
+export const Sort = styled(Dropdown)`
+  button {
+    gap: 10px;
+    padding: 5px 6px 5px 11px;
+    background: ${theme.colors.softWhite};
+    border-color: ${theme.colors.line};
+    color: ${theme.colors.text};
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  button:hover {
+    border-color: ${theme.colors.muted2};
+    background: ${theme.colors.panel};
+  }
+  /* The chevron's colour is an inline style on the shared component (near-white, for the purple field),
+     so a class cannot reach it — this is the one place that has to shout. */
+  button .ico {
+    color: ${theme.colors.accent} !important;
+  }
 `
 
 export const PanelHint = styled.span`
@@ -365,6 +403,35 @@ export const Items = styled.div`
   }
 `
 
+/** What the collection itself did, at the head of its own breakdown. */
+export const CollStats = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 26px;
+  padding: 12px 0 13px;
+  border-bottom: 1px solid ${theme.colors.line};
+
+  span {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: ${theme.font.sans};
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: ${theme.colors.muted};
+  }
+  b {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+    color: ${theme.colors.text};
+    font-variant-numeric: tabular-nums;
+  }
+`
+
 export const ItemRow = styled.div`
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) 64px 84px 92px;
@@ -406,6 +473,29 @@ export const ItemCell = styled.span`
   display: flex;
   flex-direction: column;
   gap: 2px;
+`
+
+export const ItemMeta = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`
+
+/** The item's rarity, stated the way its card states it — same palette, same wording. */
+export const RarityChip = styled.span`
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-family: ${theme.font.sans};
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: ${theme.colors.softWhite};
 `
 
 export const ItemName = styled(Link)`
@@ -451,6 +541,7 @@ export const ItemNum = styled.span`
 export const Run = styled.span`
   display: block;
   width: 84px;
+  margin-right: 10px;
   height: 6px;
   border-radius: 100px;
   background: rgba(22, 21, 24, 0.1);
@@ -480,9 +571,45 @@ export const ItemState = styled.span`
   &[data-state='soldout'] {
     color: ${theme.colors.accent};
   }
-  &[data-state='classic'] {
-    color: ${theme.colors.saleTagInk};
+  /* A listed item shows its price rather than a label, so it takes the ink prices take. */
+  &[data-state='classic'],
+  &[data-state='discounted'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: ${theme.colors.text};
   }
+`
+
+export const StockCell = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+`
+
+/** The label before a listed item's price, so the number is not a bare figure in a column of counts. */
+export const OnSaleFor = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: ${theme.colors.muted};
+  margin-right: 4px;
+`
+
+/** Copies that exist without a sale behind them — sent, not bought. */
+export const Issued = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: ${theme.colors.muted1};
 `
 
 /** Copies left against the whole run — always shown, because "9 left" of what is not an answer. */
@@ -528,9 +655,33 @@ export const Stripe = styled.span`
   }
 `
 
+/** The mark that carries a row's explanation, beside its title rather than under it. */
+export const Info = styled.button`
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: help;
+  color: ${theme.colors.muted2};
+
+  &:hover,
+  &:focus-visible {
+    color: ${theme.colors.muted};
+  }
+  .ico {
+    width: 14px;
+    height: 14px;
+  }
+`
+
 export const AttnText = styled.span`
   b {
-    display: block;
+    display: flex;
+    align-items: center;
     font-family: ${theme.font.sans};
     font-size: 13px;
     font-weight: 600;
@@ -606,6 +757,130 @@ export const Feed = styled.table`
     color: ${theme.colors.muted};
     font-variant-numeric: tabular-nums;
   }
+`
+
+export const SaleItem = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &:hover span,
+  &:focus-visible span {
+    text-decoration: underline;
+  }
+`
+
+export const SaleThumb = styled.span`
+  flex: none;
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: ${theme.radius.chip};
+  overflow: hidden;
+  background: ${theme.colors.media};
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`
+
+/** Who bought, as their profile: face and display name, opening their page in its own tab. */
+export const Buyer = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+`
+
+export const Face = styled.span`
+  flex: none;
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: ${theme.colors.media};
+  background-size: cover;
+  background-position: center top;
+`
+
+export const Pager = styled.nav`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid ${theme.colors.line};
+  font-variant-numeric: tabular-nums;
+`
+
+const pageControl = `
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid ${theme.colors.line};
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.softWhite};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  color: ${theme.colors.text};
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: ${theme.colors.accent};
+    color: ${theme.colors.accent};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+`
+
+export const PageBtn = styled.button`
+  ${pageControl}
+`
+
+/** The page you are on wears the shop's purple; the rest are plain. */
+export const PageNum = styled.button`
+  ${pageControl}
+
+  &[aria-current='page'] {
+    background: ${theme.colors.accent};
+    border-color: ${theme.colors.accent};
+    color: ${theme.colors.softWhite};
+    cursor: default;
+  }
+  &[aria-current='page']:hover {
+    color: ${theme.colors.softWhite};
+  }
+`
+
+export const PageGap = styled.span`
+  padding: 0 2px;
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${theme.colors.muted};
 `
 
 export const Kind = styled.span`
@@ -710,13 +985,27 @@ export const Dot = styled.span`
   ${shimmerFill}
 `
 
+/** The table's header row while it loads, on the same grid as the rows below it. */
+export const FeedHeadBone = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) 100px minmax(0, 0.5fr) 70px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px 10px;
+
+  > *:last-child {
+    justify-self: end;
+  }
+`
+
 /** A row of the loading feed, on the table's own column rhythm. */
 export const FeedBone = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) 100px minmax(0, 0.5fr) 70px;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
+  height: 57px;
+  padding: 0 18px;
   border-top: 1px solid ${theme.colors.line};
 
   > *:last-child {

@@ -1,7 +1,7 @@
 import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { fetchCreatorCollections } from '~/lib/collections'
-import type { PublishableItem } from '~/lib/builder'
+import type { StoreCatalogueItem } from '~/lib/storeStats'
 
 const PAGE = 100
 
@@ -14,6 +14,8 @@ type RawRow = {
   rarity?: string
   thumbnail?: string
   available?: string | number | null
+  isOnSale?: boolean
+  createdAt?: number
 }
 
 /**
@@ -24,11 +26,12 @@ type RawRow = {
  * account has no sales, no sold-out items and no discount, and that is the one shape a dashboard must not
  * be tuned for. Everything else the page reads — sales, listings, coupons — is already public.
  *
- * Two approximations, both harmless to what this is for: copies minted are the rarity's cap minus what is
- * available, because a catalogue row carries no supply of its own, and only PUBLISHED items exist here,
- * since a draft is precisely what the public feed does not serve.
+ * Supply comes from the catalogue's `available` against the rarity's cap, which is what the item page shows
+ * a buyer and is the real remaining supply rather than a listing's stock — checked against the minted NFTs
+ * of a collection whose two items report 0 of 50 and 935 of 1000: the chain holds exactly 50 and 65 of
+ * them. Only PUBLISHED items exist here; a draft is precisely what the public feed does not serve.
  */
-export async function fetchPublicCatalogue(creator: string): Promise<PublishableItem[]> {
+export async function fetchPublicCatalogue(creator: string): Promise<StoreCatalogueItem[]> {
   const [{ collections }, rows] = await Promise.all([
     fetchCreatorCollections(creator, { first: 100 }),
     fetchCreatorRows(creator)
@@ -55,6 +58,7 @@ export async function fetchPublicCatalogue(creator: string): Promise<Publishable
       totalSupply: Math.max(0, max - remaining),
       maxSupply: max,
       remainingSupply: remaining,
+      createdAt: row.createdAt ? row.createdAt * 1000 : undefined,
       minters: []
     }
   })

@@ -56,6 +56,7 @@ function build(over: Partial<Parameters<typeof buildStoreStats>[0]> = {}) {
     rows: [],
     total: 0,
     truncated: false,
+    mints: 0,
     catalogue: [],
     saleState: {},
     days: 30,
@@ -152,6 +153,7 @@ describe('buildStoreStats', () => {
         row({ itemId: '0', daysAgo: 2, price: '3000000000000000000', type: 'order' })
       ],
       total: 2,
+      mints: 1,
       catalogue: [item({ blockchainItemId: '0' })]
     })
     expect(stats.mints).toBe(1)
@@ -181,9 +183,14 @@ describe('buildStoreStats', () => {
     expect(stats.collections[0].items.map(i => i.name)).toEqual(['Zzz', 'Aaa'])
   })
 
-  it('keeps the six most recent sales for the feed', () => {
-    const rows = Array.from({ length: 9 }, (_, i) => row({ itemId: '0', daysAgo: i }))
-    expect(build({ rows, total: 9 }).recent).toHaveLength(6)
+  it('takes the kind split from the feed"s own counts, not from the rows it fetched', () => {
+    // The cap keeps the most recent rows, and a burst of first sales at the top would otherwise report a
+    // store with hundreds of resales as having three.
+    const rows = Array.from({ length: 3 }, (_, i) => row({ itemId: '0', daysAgo: i }))
+    const stats = build({ rows, total: 2194, truncated: true, mints: 2160 })
+
+    expect(stats.mints).toBe(2160)
+    expect(stats.resales).toBe(34)
   })
 
   it('spans an all-time trend over the store"s own history, not a hardcoded year', () => {
@@ -196,6 +203,19 @@ describe('buildStoreStats', () => {
     const trend = stats.collections[0].trend
     expect(trend[0]).toBe(1)
     expect(trend[TREND_POINTS - 1]).toBe(1)
+  })
+
+  it('counts a resale in the totals but not against an item, because it is not part of the run', () => {
+    const stats = build({
+      rows: [row({ itemId: '0', daysAgo: 1, type: 'order' }), row({ itemId: '0', daysAgo: 1 })],
+      total: 2,
+      mints: 1,
+      catalogue: [item({ blockchainItemId: '0' })]
+    })
+
+    expect(stats.sold).toBe(2)
+    expect(stats.collections[0].items[0].sold).toBe(1)
+    expect(stats.unattributed).toBe(1)
   })
 
   it('leaves a sale with no item out of the chart as well as out of the counts, so the two agree', () => {

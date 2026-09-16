@@ -37,10 +37,27 @@ export type SaleRow = {
   tokenId: string | null
 }
 
+/**
+ * A wei figure as a bigint, or zero.
+ *
+ * `BigInt('')` is 0 but `BigInt('1.5')` throws, and this runs inside a render path: one malformed row
+ * from the feed would take the tree down rather than mis-state one number.
+ */
+export function weiOf(value: string | null | undefined): bigint {
+  try {
+    return BigInt(value || '0')
+  } catch {
+    return 0n
+  }
+}
+
 export type SalesFilters = {
-  seller: string
+  /** Omitted when the question is about an item rather than about one account's sales. */
+  seller?: string
   contractAddress?: string
   itemId?: string
+  /** The feed filters by kind server-side, so a count per kind is one request and never an approximation. */
+  type?: SaleRow['type']
   /** Milliseconds, inclusive. */
   from?: number
   to?: number
@@ -49,9 +66,11 @@ export type SalesFilters = {
 }
 
 function toQuery(filters: SalesFilters): URLSearchParams {
-  const qs = new URLSearchParams({ seller: filters.seller })
+  const qs = new URLSearchParams()
+  if (filters.seller) qs.set('seller', filters.seller)
   if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
+  if (filters.type) qs.set('type', filters.type)
   if (filters.from != null) qs.set('from', String(filters.from))
   if (filters.to != null) qs.set('to', String(filters.to))
   qs.set('first', String(filters.first ?? 100))
@@ -77,6 +96,15 @@ export async function countSales(filters: Omit<SalesFilters, 'first' | 'skip'>):
   return total
 }
 
+/** One page of the feed, for a table that pages through it rather than summing it. */
+export async function fetchSalesPage(
+  filters: Omit<SalesFilters, 'first' | 'skip'>,
+  { first, skip }: { first: number; skip: number }
+): Promise<{ rows: SaleRow[]; total: number }> {
+  const { data, total } = await get({ ...filters, first, skip })
+  return { rows: data, total }
+}
+
 /**
  * Every sale in the window, to a cap.
  *
@@ -84,12 +112,16 @@ export async function countSales(filters: Omit<SalesFilters, 'first' | 'skip'>):
  * thousands of sales would otherwise spend a minute of requests to draw the same shaped chart. The cap is
  * returned alongside so the page can say its figures cover part of the period rather than quietly
  * under-reporting — see `truncated`.
+ *
+ * The page size is the largest the feed serves: it clamps anything above 1000 to 1000, so asking for more
+ * only costs a round trip. What the cap actually limits is earnings and the per-item split; the totals and
+ * the per-kind counts come from `countSales`, which is exact at any size.
  */
 export async function fetchSellerSales(
   filters: Omit<SalesFilters, 'first' | 'skip'>,
-  { cap = 1000 }: { cap?: number } = {}
+  { cap = 5000 }: { cap?: number } = {}
 ): Promise<{ rows: SaleRow[]; total: number; truncated: boolean }> {
-  const PAGE = 250
+  const PAGE = 1000
   const rows: SaleRow[] = []
   let total = 0
   for (let skip = 0; skip < cap; skip += PAGE) {

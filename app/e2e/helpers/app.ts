@@ -806,9 +806,18 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v1/coupons') return json(req, { ok: true, data: couponStore })
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
-    // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
-    // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
-    if (path === '/v1/sales') return json(req, F.sales)
+    // Sales feed (Activity page → fetchUserSales, and the store dashboard). The address filter is applied
+    // server-side in prod and the fixture is already scoped per run, but `type`, `first` and `skip` are
+    // honoured here: the dashboard counts a kind with `type=…&first=1` and pages the table with skip, so a
+    // mock that ignored them would answer every one of those questions with the whole fixture.
+    if (path === '/v1/sales') {
+      const all = ((F.sales as { data?: any[] })?.data ?? []) as any[]
+      const kind = u.searchParams.get('type')
+      const rows = kind ? all.filter(sale => sale.type === kind) : all
+      const first = Number(u.searchParams.get('first') ?? rows.length)
+      const skip = Number(u.searchParams.get('skip') ?? 0)
+      return json(req, { data: rows.slice(skip, skip + first), total: rows.length })
+    }
     // The shop's creator ranking (lib/rankings.ts → fetchShopTopCreators). Served from a fixture so a
     // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
     // i.e. the section rendered its skeletons and then removed itself.

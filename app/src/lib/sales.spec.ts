@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test' } }))
 
-import { countSales, fetchSellerSales, type SaleRow } from '~/lib/sales'
+import { countSales, fetchSalesPage, fetchSellerSales, type SaleRow } from '~/lib/sales'
 
 const SELLER = '0xseller'
 
@@ -82,25 +82,52 @@ describe('when fetching a seller"s sales', () => {
   })
 
   it('should page until it has the whole window', async () => {
-    const fetchMock = mockFeed(600)
+    const fetchMock = mockFeed(2500)
 
     const { rows, truncated } = await fetchSellerSales({ seller: SELLER })
 
+    // 1000 is the largest page the feed serves, so a window this size is three round trips, not ten.
     expect(fetchMock).toHaveBeenCalledTimes(3)
-    expect(rows).toHaveLength(600)
-    expect(new Set(rows.map(r => r.id)).size).toBe(600)
+    expect(fetchMock.mock.calls.every(([url]) => new URL(url as string).searchParams.get('first') === '1000')).toBe(
+      true
+    )
+    expect(rows).toHaveLength(2500)
+    expect(new Set(rows.map(r => r.id)).size).toBe(2500)
     expect(truncated).toBe(false)
   })
 
   it('should stop at the cap and say the figures cover part of the window', async () => {
-    const fetchMock = mockFeed(5000)
+    const fetchMock = mockFeed(50_000)
 
-    const { rows, total, truncated } = await fetchSellerSales({ seller: SELLER }, { cap: 500 })
+    const { rows, total, truncated } = await fetchSellerSales({ seller: SELLER }, { cap: 2000 })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(rows).toHaveLength(500)
-    expect(total).toBe(5000)
+    expect(rows).toHaveLength(2000)
+    expect(total).toBe(50_000)
     expect(truncated).toBe(true)
+  })
+
+  it('should ask the feed to count one kind rather than counting rows itself', async () => {
+    const fetchMock = mockFeed(2160)
+
+    await expect(countSales({ seller: SELLER, type: 'mint' })).resolves.toBe(2160)
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('type')).toBe('mint')
+    expect(url.searchParams.get('first')).toBe('1')
+  })
+
+  it('should fetch one page of the feed for a table that walks it', async () => {
+    const fetchMock = mockFeed(2194)
+
+    const { rows, total } = await fetchSalesPage({ seller: SELLER }, { first: 12, skip: 24 })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('first')).toBe('12')
+    expect(url.searchParams.get('skip')).toBe('24')
+    expect(rows).toHaveLength(12)
+    expect(total).toBe(2194)
   })
 
   it('should reject when the feed fails', async () => {
