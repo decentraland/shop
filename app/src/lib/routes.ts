@@ -56,6 +56,12 @@ export function canManageToken(opts: { isTokenRoute: boolean; ownsThisToken: boo
  */
 export const MY_CREATIONS = '/my-items?section=creations'
 
+/**
+ * The NAMEs purchase page. It is not a route of its own — it is the `names` category of the browse page,
+ * which renders it full-width instead of a grid (see Assets.tsx).
+ */
+export const NAMES_ROUTE = '/items?category=names'
+
 // The My Items section that holds each catalog category. NAMEs are `ens` on the NFT feed.
 // Keep in sync with `SECTIONS` in MyAssets.tsx — a new category added here without a matching section
 // there (or vice-versa) silently falls back to bare `/my-items`, which is safe but misleading.

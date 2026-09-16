@@ -8,15 +8,17 @@ import { Price } from '~/components/Price'
 import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
-import { detailRouteFor } from '~/lib/routes'
+import { detailRouteFor, NAMES_ROUTE } from '~/lib/routes'
 import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { cancelCreditOrder } from '~/lib/credits'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
+import { RESUME_NAME_KEY } from '~/lib/resume-name'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import type { CartNavState } from '~/pages/Cart'
+import type { NamesNavState } from '~/pages/NamesPage'
 import type { CatalogItem } from '~/lib/api'
 import packCoins from '~/assets/credits/pack-coins.webp'
 import packStacks from '~/assets/credits/pack-stacks.webp'
@@ -108,7 +110,32 @@ export function GetCredits() {
   const [canceledNote, setCanceledNote] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
-  useEffect(() => () => abortRef.current?.abort(), [])
+  /**
+   * Stop polling when the buyer really leaves — and ONLY then.
+   *
+   * StrictMode unmounts and re-mounts every component once, synchronously, in development. A cleanup that
+   * aborts immediately therefore kills the grant poll of a buyer who has just been CHARGED: the poll rejects
+   * with AbortError, `returnHandled` has already latched so nothing retries it, and the return screen reads
+   * "You cancelled the request." over a completed payment.
+   *
+   * It stayed invisible because the only paths that reach it are the real ones: `mockPollCreditGrant` never
+   * receives the signal, so local dev could not surface it until dev.json started carrying a live Stripe test
+   * key. Production builds don't double-invoke at all — this is a development-only failure, but development is
+   * where the return path is exercised by hand.
+   *
+   * The microtask is what tells the two apart: React runs the cleanup and the re-mount synchronously in one
+   * commit, so a genuine unmount is still unmounted by the time this runs.
+   */
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      queueMicrotask(() => {
+        if (!mountedRef.current) abortRef.current?.abort()
+      })
+    }
+  }, [])
 
   // Drop Stripe's return params so a refresh doesn't re-trigger the return handling below.
   const clearReturnParams = useCallback(() => {
@@ -122,6 +149,30 @@ export function GetCredits() {
       { replace: true }
     )
   }, [setSearchParams])
+
+  /**
+   * Forget every pending "resume this purchase after topping up" hand-off.
+   *
+   * The three keys are ONE intent — a buyer is finishing a cart, an item or a NAME, never two at once — but
+   * they are three independent entries that only their own success path removes. A hand-off left behind by
+   * an abandoned top-up therefore sits in the tab until it is claimed by an unrelated one, and the claim
+   * order below is fixed (cart, then item, then NAME), so the stale one always wins.
+   *
+   * That is not a cosmetic mix-up: the cart and item resumes CHARGE without asking again. Credits bought to
+   * finish a NAME would be spent on a basket the buyer had already walked away from.
+   *
+   * So anything that ends a top-up without resuming — a cancel, an order nobody paid, a failure, a grant
+   * still in flight — drops all three.
+   */
+  const clearResumeHandoffs = useCallback(() => {
+    try {
+      sessionStorage.removeItem(RESUME_CART_KEY)
+      sessionStorage.removeItem(RESUME_BUY_KEY)
+      sessionStorage.removeItem(RESUME_NAME_KEY)
+    } catch {
+      /* private mode: nothing was stored to begin with */
+    }
+  }, [])
 
   // Wait for the backend to grant the credits for an order (poll until it flips off 'processing').
   // Used by both the mock "went to Stripe → came back credited" path and the Stripe hosted-Checkout
@@ -186,6 +237,21 @@ export function GetCredits() {
           } catch {
             /* ignore a malformed resume payload — the credits still landed */
           }
+          // Same hand-off for a NAME (no-funds → Stripe from the buy-NAME modal): back to the NAMEs page
+          // with the NAME pre-filled and the modal re-opened on its confirm step. The re-entry field is
+          // deliberately NOT carried across — the buyer has not confirmed the NAME yet, and that gate is
+          // the whole point of the step they are being returned to.
+          try {
+            const pendingName = sessionStorage.getItem(RESUME_NAME_KEY)
+            if (pendingName) {
+              sessionStorage.removeItem(RESUME_NAME_KEY)
+              const nameState: NamesNavState = { resumeName: pendingName }
+              navigate(NAMES_ROUTE, { state: nameState })
+              return
+            }
+          } catch {
+            /* ignore — the credits still landed */
+          }
         } else if (result.status === 'abandoned' || result.status === 'initiated') {
           // NOBODY PAID. 'abandoned' is a checkout retired without a payment (the buyer cancelled, or the
           // Stripe session expired); 'initiated' is one the poll watched to its deadline and no payment was
@@ -201,6 +267,7 @@ export function GetCredits() {
           // header show the truth.
           track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER, step: 'grant' })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          clearResumeHandoffs()
           setCanceledNote(true)
           setPhase('select')
         } else if (result.status === 'failed') {
@@ -209,6 +276,7 @@ export function GetCredits() {
             error_code: 'grant_failed',
             pack_usd: selected?.usd ?? null
           })
+          clearResumeHandoffs()
           setError(result.error ?? t('getCredits.errorGrant', { currency: CURRENCY.name }))
           setPhase('error')
         } else {
@@ -221,16 +289,21 @@ export function GetCredits() {
           // their credits, for the two statuses this union had never been told about.
           track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          // The money is in but the grant has not landed, and the resume above only fires from the
+          // 'credited' branch — which will not run again. Keeping the hand-off would leave it to be claimed
+          // by an unrelated top-up later instead.
+          clearResumeHandoffs()
           setPhase('pending')
         }
       } catch (e) {
         captureError(e, { flow: 'get_credits', step: 'grant', order_id: orderId })
         track('Shop Buy Credits Failed', { step: 'grant', error_code: errorCode(e), pack_usd: selected?.usd ?? null })
+        clearResumeHandoffs()
         setError(friendlyError(e))
         setPhase('error')
       }
     },
-    [selected, session, qc, navigate]
+    [selected, session, qc, navigate, clearResumeHandoffs]
   )
 
   const startCheckout = useCallback(
@@ -309,6 +382,10 @@ export function GetCredits() {
       // expires the session at Stripe first) and reaches the same end without us via
       // `checkout.session.expired`, so there is nothing here worth making the buyer wait on or see fail.
       if (orderId && session) void cancelCreditOrder(orderId, session.identity)
+      // The purchase this top-up was for is over too. This is where hand-offs went stale: the buyer walks
+      // away at Stripe, nothing clears their intent, and the next top-up — for something else entirely —
+      // gets claimed by it.
+      clearResumeHandoffs()
       clearReturnParams()
       setCanceledNote(true)
       setPhase('select')

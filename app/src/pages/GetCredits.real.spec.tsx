@@ -1,5 +1,6 @@
+import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -86,11 +87,19 @@ const { captureError } = vi.hoisted(() => ({ captureError: vi.fn() }))
 vi.mock('~/lib/monitoring', () => ({ captureError }))
 
 import { GetCredits } from '~/pages/GetCredits'
+import { RESUME_NAME_KEY } from '~/lib/resume-name'
+import { RESUME_BUY_KEY } from '~/lib/resume-buy'
+import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 
 // Surfaces the current router search string so idempotency tests can assert `?order=` was stripped.
 function LocationProbe() {
-  const { search } = useLocation()
-  return <div data-testid="search">{search}</div>
+  const { pathname, search } = useLocation()
+  return (
+    <>
+      <div data-testid="search">{search}</div>
+      <div data-testid="path">{pathname}</div>
+    </>
+  )
 }
 
 function renderPage(initialEntry = '/') {
@@ -371,6 +380,88 @@ describe('when starting a real hosted checkout from a pack click', () => {
     const failed = track.mock.calls.find(c => c[0] === 'Shop Buy Credits Failed')
     expect(failed?.[1]).toMatchObject({ step: 'checkout', pack_usd: 11.99 })
     expect(captureError).toHaveBeenCalled()
+  })
+
+  /**
+   * A top-up started from inside the buy-NAME modal. The buyer is mid-purchase, so the credits landing is
+   * not the end of anything — they go back to the NAME they could not afford, not to a success screen that
+   * leaves them to find it again.
+   */
+  it('should route back to the NAMEs page when the top-up was started for a NAME', async () => {
+    sessionStorage.setItem(RESUME_NAME_KEY, 'hodor')
+    pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 100, newBalance: 100 })
+
+    renderPage('/?order=ord_x')
+
+    await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/items'))
+    expect(screen.getByTestId('search').textContent).toBe('?category=names')
+    // Consumed on the way through, so a later unrelated top-up doesn't get bounced to this NAME.
+    expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
+  })
+
+  /**
+   * A CHARGED buyer must never be told they cancelled.
+   *
+   * StrictMode unmounts and re-mounts once, synchronously, in development. The page's cleanup used to abort
+   * the grant poll on that simulated unmount; `returnHandled` had already latched, so nothing retried it and
+   * the AbortError surfaced as "You cancelled the request." over a payment that had gone through.
+   *
+   * Both halves of the setup are load-bearing: StrictMode, and a poll that HONOURS the signal the way
+   * pollCreditGrantReal does. The default mock here resolves without looking at it, which is exactly why the
+   * other cases in this file never caught it.
+   */
+  it('should still credit a StrictMode remount, rather than report a cancellation', async () => {
+    pollCreditGrant.mockImplementation(async (_id: string, opts: { signal?: AbortSignal }) => {
+      await new Promise(resolve => setTimeout(resolve, 20))
+      if (opts?.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      return { status: 'credited', creditsGranted: 250, newBalance: 750 }
+    })
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    qc.setQueryData(['credit-packs'], CREDIT_PACKS)
+    render(
+      <StrictMode>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/?order=ord_strict']}>
+            <GetCredits />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </StrictMode>
+    )
+
+    expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 3000 })).toBeInTheDocument()
+    expect(screen.queryByText(/cancelled the request/i)).not.toBeInTheDocument()
+  })
+
+  /**
+   * An abandoned top-up must not leave its intent behind for the next one to claim.
+   *
+   * The three hand-offs are claimed cart-first, and the cart and item resumes CHARGE without asking again.
+   * A cart hand-off left over from a cancelled checkout would therefore spend the credits a later top-up
+   * bought for something else entirely — a NAME, say — on a basket the buyer had walked away from.
+   */
+  it('should drop every pending resume hand-off when the buyer cancels at Stripe', async () => {
+    sessionStorage.setItem(RESUME_CART_KEY, JSON.stringify([{ id: 'abandoned' }]))
+    sessionStorage.setItem(RESUME_BUY_KEY, JSON.stringify({ id: 'abandoned' }))
+    sessionStorage.setItem(RESUME_NAME_KEY, 'hodor')
+
+    renderPage('/?canceled=1')
+
+    expect(await screen.findByText(/payment canceled/i)).toBeInTheDocument()
+    expect(sessionStorage.getItem(RESUME_CART_KEY)).toBeNull()
+    expect(sessionStorage.getItem(RESUME_BUY_KEY)).toBeNull()
+    expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
+  })
+
+  // Money in, credits not landed: the resume only ever fires from the 'credited' branch, which will not run
+  // again — so carrying the hand-off forward only leaves it to hijack an unrelated top-up later.
+  it('should drop the hand-offs when the grant is still on its way', async () => {
+    sessionStorage.setItem(RESUME_NAME_KEY, 'hodor')
+    pollCreditGrant.mockResolvedValue({ status: 'processing' })
+
+    renderPage('/?order=ord_x')
+
+    expect(await screen.findByText(/on (its|the) way|being added/i)).toBeInTheDocument()
+    expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
   })
 
   it('should show the "payment canceled" note (not an error) when returning with ?canceled=1', async () => {

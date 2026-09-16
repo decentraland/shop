@@ -19,7 +19,8 @@ const SELECTORS = {
   manaUsdAggregator: sel('manaUsdAggregator()'),
   decimals: sel('decimals()'),
   latestRoundData: sel('latestRoundData()'),
-  getNonce: sel('getNonce(address)') // CreditsManager meta-tx nonce (gasless checkout)
+  getNonce: sel('getNonce(address)'), // CreditsManager meta-tx nonce (gasless checkout)
+  available: sel('available(string)') // DCLRegistrar — is this NAME free?
 }
 
 // The MANA balance the mocked ERC20 reports for balanceOf — set per test via launchApp({ manaBalanceWei }).
@@ -52,6 +53,11 @@ let manaAllowanceWei: string | null = null
 export function setManaAllowanceWei(wei: string | null) {
   manaAllowanceWei = wei
 }
+
+// What the DCLRegistrar reports for `available(name)` — the NAMEs page's availability probe. Always free,
+// so any searched NAME reaches the purchase path; a spec about a NAME somebody else took would turn this
+// into a per-run knob, the way the MANA balances above are.
+const NAME_AVAILABLE = true
 
 // The buyer's CreditsManager meta-tx nonce. Bumped by the relayer mock on every accepted meta-tx.
 let metaTxNonce = 0
@@ -90,6 +96,8 @@ function ethCall(params: any[], rpcPath = ''): string {
     case SELECTORS.globalMinters:
     case SELECTORS.isApprovedForAll:
       return abi.encode(['bool'], [true]) // already enabled → no tx needed
+    case SELECTORS.available:
+      return abi.encode(['bool'], [NAME_AVAILABLE])
     case SELECTORS.manaUsdAggregator:
       return abi.encode(['address'], [MOCK_ORACLE])
     case SELECTORS.decimals:

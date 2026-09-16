@@ -1,7 +1,10 @@
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { RESUME_NAME_KEY } from '~/lib/resume-name'
+import { RESUME_BUY_KEY } from '~/lib/resume-buy'
+import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 
 import { NameBuyModal } from './NameBuyModal'
 // Resolves to the MOCKED module below, which is what makes the modal's `instanceof` check meaningful here:
@@ -73,6 +76,20 @@ vi.mock('~/hooks/useBalance', () => ({
   balanceLabel: (b?: { credits: number }) => (b == null ? '—' : String(b.credits))
 }))
 
+// The top-up path the no-funds screen offers: a pack catalogue, the Stripe checkout it starts, and the
+// iOS web view where credits may not be sold at all.
+const creditPacks: { packs: { id: string; credits: number; usd: number }[] } = { packs: [] }
+vi.mock('~/hooks/useCreditPacks', () => ({ useCreditPacks: () => creditPacks }))
+const createPackCheckout = vi.fn()
+vi.mock('~/lib/payments', () => ({
+  createPackCheckout: (...a: unknown[]) => createPackCheckout(...a),
+  MAX_OFFER_PACKS: 4
+}))
+const captureError = vi.fn()
+vi.mock('~/lib/monitoring', () => ({ captureError: (...a: unknown[]) => captureError(...a) }))
+const iap = { on: false }
+vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
+
 const session = {
   address: '0x1111111111111111111111111111111111111111',
   identity: {} as never,
@@ -86,12 +103,19 @@ vi.mock('~/store/wallet', () => ({
   }
 }))
 
-function renderModal(priceCredits: number | null = 67) {
+// Where the modal routed to, for the mock-payments branch that has no hosted Stripe URL to redirect to.
+function Location() {
+  const { pathname } = useLocation()
+  return <span data-testid="location">{pathname}</span>
+}
+
+function renderModal(priceCredits: number | null = 67, onClose = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <NameBuyModal name="hodor" priceCredits={priceCredits} onClose={vi.fn()} />
+        <NameBuyModal name="hodor" priceCredits={priceCredits} onClose={onClose} />
+        <Location />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -108,6 +132,11 @@ describe('NameBuyModal', () => {
   beforeEach(() => {
     registerNameWithUsdCredits.mockReset()
     track.mockReset()
+    createPackCheckout.mockReset()
+    captureError.mockReset()
+    creditPacks.packs = []
+    iap.on = false
+    sessionStorage.clear()
     balance = { balanceCents: 5000, credits: 500 }
     // Restored per test: the progress cases below switch it to cover both wallet kinds, and leaking that
     // would silently change which copy every later case is asserting.
@@ -331,15 +360,20 @@ describe('NameBuyModal', () => {
       expect(registerNameWithUsdCredits).not.toHaveBeenCalled()
     })
 
-    it('should refuse to submit when the balance is short, and say how short', async () => {
+    /**
+     * Being short is no longer a refusal — it opens the top-up screen, which is the whole point of the
+     * redesign. The confirm step (and its re-entry gate) is gone until the credits are there, so nothing
+     * can be submitted from here either way.
+     */
+    it('should sell the missing credits instead of blocking, and say how short', () => {
       balance = { balanceCents: 200, credits: 20 }
+      creditPacks.packs = [{ id: 'pack_100', credits: 100, usd: 11.99 }]
       renderModal(67)
-      reenter()
 
-      expect((buyButton() as HTMLButtonElement).disabled).toBe(true)
       // 67 - 20 = 47 credits missing. Naming the gap is the difference between a dead end and a next step.
-      expect(screen.getByTestId('name-blocked-reason').textContent).toMatch(/47/)
-      fireEvent.click(buyButton())
+      expect(screen.getByText(/47 Credits/i)).toBeTruthy()
+      expect(screen.getByTestId('credit-packs')).toBeTruthy()
+      expect(screen.queryByLabelText(/re-?enter|confirm/i)).toBeNull()
       expect(registerNameWithUsdCredits).not.toHaveBeenCalled()
     })
 
@@ -470,6 +504,193 @@ describe('NameBuyModal', () => {
       fireEvent.click(buyButton())
 
       await waitFor(() => expect(screen.getByText('Boom from the lib')).toBeTruthy())
+    })
+  })
+
+  /**
+   * The no-funds screen (Figma 2996-434120).
+   *
+   * What it replaces is the point: a named shortfall above a disabled BUY NAME, which told the buyer what
+   * was wrong and left them to find the credits page themselves. Here the modal sells them the credits,
+   * sends them to Stripe, and the credits page routes them back to this same NAME.
+   */
+  describe('and the buyer cannot afford the NAME yet', () => {
+    beforeEach(() => {
+      // 67 - 20 = 47 short. 40 cannot close that; 100, 260 and 540 can.
+      balance = { balanceCents: 200, credits: 20 }
+      creditPacks.packs = [
+        { id: 'pack_40', credits: 40, usd: 5.99 },
+        { id: 'pack_100', credits: 100, usd: 11.99 },
+        { id: 'pack_260', credits: 260, usd: 29.99 },
+        { id: 'pack_540', credits: 540, usd: 59.99 }
+      ]
+    })
+
+    afterEach(() => {
+      creditPacks.packs = []
+    })
+
+    /**
+     * Every pack here is a promise that buying it finishes the NAME. A pack smaller than the gap breaks
+     * that promise — the buyer pays and lands back on this same screen, still short.
+     */
+    it('should offer only the packs that close the gap', () => {
+      renderModal(67)
+
+      const packs = screen.getByTestId('credit-packs')
+      expect(within(packs).queryByText('40')).toBeNull()
+      expect(within(packs).getByText('100')).toBeTruthy()
+      expect(within(packs).getByText('260')).toBeTruthy()
+      expect(within(packs).getByText('540')).toBeTruthy()
+    })
+
+    // The cheapest way to the NAME they came for, not the one we would rather sell.
+    it('should recommend the smallest pack that closes the gap, and total it', () => {
+      renderModal(67)
+
+      const recommended = screen.getByTestId('pack-recommended').closest('button')
+      expect(recommended).not.toBeNull()
+      expect(within(recommended as HTMLElement).getByText('100')).toBeTruthy()
+      expect(screen.getByTestId('topup-total-credits').textContent).toBe('100')
+    })
+
+    it('should keep every pack on offer when none of them is enough', () => {
+      // A NAME dearer than the largest pack: an empty picker would be worse than an honest one, and the
+      // largest is then the most progress on offer.
+      creditPacks.packs = [{ id: 'pack_40', credits: 40, usd: 5.99 }]
+      renderModal(67)
+
+      expect(within(screen.getByTestId('credit-packs')).getByText('40')).toBeTruthy()
+      expect(screen.getByTestId('topup-total-credits').textContent).toBe('40')
+    })
+
+    it('should follow the buyer when they pick a different pack', () => {
+      renderModal(67)
+
+      fireEvent.click(within(screen.getByTestId('credit-packs')).getByText('260').closest('button') as HTMLElement)
+
+      expect(screen.getByTestId('topup-total-credits').textContent).toBe('260')
+    })
+
+    it('should stash the NAME and start the checkout for the chosen pack', async () => {
+      createPackCheckout.mockResolvedValue({ orderId: 'order-1', mock: true })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+
+      await waitFor(() => expect(createPackCheckout).toHaveBeenCalledTimes(1))
+      expect(createPackCheckout.mock.calls[0][0]).toBe('pack_100')
+      // The NAME, never its price: a NAME is priced from the MANA/USD oracle, so the figure that was on
+      // screen is stale by the time the buyer returns. The credits page reads this to route them back.
+      expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBe('hodor')
+      // No hosted URL (mock payments, Stripe off): the credits page grants, then resumes.
+      await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/credits'))
+    })
+
+    it('should drop the stash and explain when the checkout cannot be started', async () => {
+      createPackCheckout.mockRejectedValue(new Error('RAW_STRIPE_INTERNAL'))
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+
+      await waitFor(() => expect(screen.getByText(/couldn.t start the credits checkout/i)).toBeTruthy())
+      // Nothing was charged and nothing reserved, so a stash left behind would bounce an unrelated top-up
+      // to this NAME later.
+      expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
+      expect(captureError).toHaveBeenCalled()
+      expect(screen.queryByText(/RAW_STRIPE_INTERNAL/)).toBeNull()
+    })
+
+    /**
+     * The return trip. The screen follows the BALANCE rather than a decision taken when the modal opened,
+     * so a buyer back from Stripe with the money landed gets the confirm step — with the re-entry field
+     * empty, because they still have not confirmed the NAME. That gate is the point of the step.
+     */
+    it('should land on the confirm step with an empty re-entry once the credits arrive', () => {
+      balance = { balanceCents: 6700, credits: 67 }
+      renderModal(67)
+
+      expect(screen.queryByTestId('credit-packs')).toBeNull()
+      expect(screen.getByLabelText<HTMLInputElement>(/re-?enter|confirm/i).value).toBe('')
+      expect((buyButton() as HTMLButtonElement).disabled).toBe(true)
+      reenter()
+      expect((buyButton() as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    /**
+     * The three resume hand-offs are ONE intent, and the credits page claims them cart-first.
+     *
+     * A cart or item hand-off left behind by an earlier abandoned top-up would therefore outrank this one —
+     * and both of those resume by CHARGING without asking again. The credits bought for this NAME would be
+     * spent on a basket the buyer had already walked away from, and the NAME never bought at all.
+     */
+    it('should take over a stale cart or item hand-off rather than queue behind it', async () => {
+      sessionStorage.setItem(RESUME_CART_KEY, JSON.stringify([{ id: 'abandoned' }]))
+      sessionStorage.setItem(RESUME_BUY_KEY, JSON.stringify({ id: 'abandoned' }))
+      createPackCheckout.mockResolvedValue({ orderId: 'order-1', mock: true })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+
+      await waitFor(() => expect(createPackCheckout).toHaveBeenCalledTimes(1))
+      expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBe('hodor')
+      expect(sessionStorage.getItem(RESUME_CART_KEY)).toBeNull()
+      expect(sessionStorage.getItem(RESUME_BUY_KEY)).toBeNull()
+    })
+
+    // Closing does not cancel the checkout already in flight, so it must not be offered: the request
+    // resolves a moment later and throws the buyer out to Stripe regardless.
+    it('should refuse to be dismissed while the checkout is in flight', async () => {
+      const onClose = vi.fn()
+      createPackCheckout.mockReturnValue(new Promise(() => {})) // never settles
+      renderModal(67, onClose)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+
+      await waitFor(() => expect(createPackCheckout).toHaveBeenCalledTimes(1))
+      fireEvent.click(screen.getByRole('button', { name: /close/i }))
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(onClose).not.toHaveBeenCalled()
+      // …and BUY stays held down, so a second click cannot open a second Checkout Session.
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+      expect(createPackCheckout).toHaveBeenCalledTimes(1)
+    })
+
+    /**
+     * The badge claims "this pack finishes your NAME". In the fallback branch nothing does, so it must not
+     * be made — otherwise the buyer pays and lands back on this exact screen, which is the failure the
+     * covering filter exists to prevent.
+     */
+    it('should not badge a recommendation when no pack can close the gap', () => {
+      creditPacks.packs = [{ id: 'pack_40', credits: 40, usd: 5.99 }]
+      renderModal(670)
+
+      expect(within(screen.getByTestId('credit-packs')).getByText('40')).toBeTruthy()
+      expect(screen.queryByTestId('pack-recommended')).toBeNull()
+      // Still preselected and buyable — it is the most progress on offer, just not the answer.
+      expect(screen.getByTestId('topup-total-credits').textContent).toBe('40')
+      expect(screen.getByTestId<HTMLButtonElement>('name-buy-credits').disabled).toBe(false)
+    })
+
+    // The iOS web view cannot sell credits, so this screen has nothing but the shortfall — it has to keep
+    // naming the NAME and its price, or it is a worse dead end than the one it replaced.
+    it('should still name the NAME and its price inside the iOS web view', () => {
+      iap.on = true
+      renderModal(67)
+
+      expect(screen.getByTestId('name-row-iap')).toBeTruthy()
+      expect(screen.getByText(/hodor/)).toBeTruthy()
+    })
+
+    // Credits are sold through In-App Purchase inside the iOS web view, so the sale itself cannot render.
+    // The shortfall still has to be stated, or the buyer is left with a NAME and no explanation.
+    it('should not sell credits inside the iOS web view', () => {
+      iap.on = true
+      renderModal(67)
+
+      expect(screen.getByText(/47 Credits/i)).toBeTruthy()
+      expect(screen.queryByTestId('credit-packs')).toBeNull()
+      expect(screen.queryByTestId('name-buy-credits')).toBeNull()
     })
   })
 })
