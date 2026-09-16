@@ -3,6 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 
 import { fetchCampaignContracts } from '~/lib/campaign'
 
+// A stable empty default: `= []` in the signature would hand `useMemo` a new reference on every render of
+// every caller that omits the argument, so the union below would recompute — and hand its consumers a new
+// array identity — for nothing.
+const NONE: string[] = []
+
 export type CampaignContractsQuery = {
   /** The event's collection addresses, lowercased. EMPTY means "this event selects nothing" — never "no filter". */
   contracts: string[]
@@ -23,7 +28,7 @@ export type CampaignContractsQuery = {
  * caller that cannot tell it apart from "still loading" either flashes an empty state on every load or —
  * far worse — issues an unfiltered catalogue request and presents the entire Shop as the event.
  */
-export function useCampaignContracts(tags: string[], named: string[] = []): CampaignContractsQuery {
+export function useCampaignContracts(tags: string[], named: string[] = NONE): CampaignContractsQuery {
   const { data, isPending, isError } = useQuery({
     // Sorted so two orderings of the same tags share one cache entry.
     queryKey: ['campaign-contracts', [...tags].sort().join(',')],
