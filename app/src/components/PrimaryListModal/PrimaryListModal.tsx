@@ -5,6 +5,7 @@ import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
 import { postTrade } from '~/lib/api'
+import { postListingWithRetry } from '~/lib/import'
 import { itemRoute } from '~/lib/routes'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
@@ -22,6 +23,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { ListingSteps, RelayNotice, useListingEdit, type ListingEdit } from '~/components/ListingSteps'
 import * as S from './PrimaryListModal.styles'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
@@ -29,19 +31,24 @@ const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 export function PrimaryListModal({
   item,
   session,
+  edit,
   onListed,
   onClose
 }: {
   item: PublishableItem
   session: Session
+  // Re-pricing an existing listing: submitting first takes the current one down (edit.cancelCurrent),
+  // then publishes the new price — the shop's listings are independent signed trades.
+  edit?: ListingEdit
   // Fired the instant the primary listing goes live (mirrors SellModal.onListed). The PDP uses it to show
-  // the just-listed price immediately instead of flashing "not for sale" while the feed's MV catches up.
-  onListed?: (credits: number) => void
+  // the just-listed price immediately instead of flashing "not for sale" while the feed's MV catches up,
+  // and the new tradeId so an immediate Remove / Edit acts on the live listing, not the retired one.
+  onListed?: (credits: number, tradeId: string) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [price, setPrice] = useState('10') // whole credits
+  const [price, setPrice] = useState(edit?.currentCredits ? String(edit.currentCredits) : '10') // whole credits
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -49,6 +56,7 @@ export function PrimaryListModal({
   const [enabled, setEnabled] = useState<boolean | null>(null)
   // Set once the listing is live — swaps the form for a success view.
   const [listedCredits, setListedCredits] = useState<number | null>(null)
+  const { cancelDone, slow, cancelFailed, setCancelFailed, cancelCurrent, signal } = useListingEdit(edit, setError)
 
   const chainId = config.chainId
   // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
@@ -63,6 +71,8 @@ export function PrimaryListModal({
 
   const priceValue = Number(price)
   const priceValid = Number.isInteger(priceValue) && priceValue > 0
+  // Once the old listing is gone, re-listing at the same number is the way back on sale.
+  const unchanged = !!edit && !cancelDone && priceValue === edit.currentCredits
   // USD equivalent hint (1 credit = $0.10).
   const usdHint = priceValid ? `$${creditsToUsd(priceValue).toFixed(2)}` : '$0'
 
@@ -81,7 +91,7 @@ export function PrimaryListModal({
     }
   }, [item.contractAddress, chainId])
 
-  async function publish() {
+  async function publish(opts: { payGas?: boolean } = {}) {
     setError(null)
     const value = Number(price)
     if (!Number.isInteger(value) || value <= 0) {
@@ -90,6 +100,7 @@ export function PrimaryListModal({
     }
     setBusy(true)
     try {
+      if (!(await cancelCurrent(opts.payGas))) return
       // Minter prereq: the Shop can only fulfil sales of this collection once it's enabled. This is a
       // one-time step per collection; skipped automatically if already enabled.
       if (!enabled) {
@@ -113,7 +124,12 @@ export function PrimaryListModal({
       })
 
       setStatus(t('primaryList.statusFinishing'))
-      await postTrade(trade, session.identity)
+      // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
+      const created = await (edit
+        ? postListingWithRetry(trade, session.identity, { signal: signal() })
+        : postTrade(trade, session.identity))
+      // Unmounted while the request was in flight: no toast, caches or callbacks for a page that is gone.
+      signal()?.throwIfAborted()
 
       setStatus(null)
       setListedCredits(value) // already whole credits
@@ -125,8 +141,8 @@ export function PrimaryListModal({
         listing_type: 'primary',
         is_primary: true
       })
-      toast.success(t('primaryList.toastOnSale', { name: item.name }))
-      onListed?.(value)
+      toast.success(t(edit ? 'listingEdit.toastUpdated' : 'primaryList.toastOnSale', { name: item.name }))
+      onListed?.(value, created.id)
       void queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       void queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
       // A freshly-published item must appear (and be buyable) in the browse/catalog grids, the homepage
@@ -137,9 +153,11 @@ export function PrimaryListModal({
       void queryClient.invalidateQueries({ queryKey: ['overview-listings'] })
       void queryClient.invalidateQueries({ queryKey: ['upsell-listings'] })
     } catch (e) {
+      if (signal()?.aborted) return
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
-      setError(friendlyError(e, t('primaryList.errorGeneric')))
+      // Past step 1 the old listing is gone: say so, since "try again" now means putting it back on sale.
+      setError(friendlyError(e, t(edit ? 'listingEdit.listFailedAfterCancel' : 'primaryList.errorGeneric')))
       setStatus(null)
     } finally {
       setBusy(false)
@@ -158,13 +176,15 @@ export function PrimaryListModal({
   const cta =
     enabled === null
       ? t('primaryList.checking')
-      : busy
-        ? isManaged
-          ? t('primaryList.publishing')
-          : t('primaryList.confirmListing')
-        : enabled === false
-          ? t('primaryList.enableAndPutOnSale')
-          : t('primaryList.putOnSale')
+      : edit
+        ? t(cancelDone ? 'primaryList.putOnSale' : 'listingEdit.submit')
+        : busy
+          ? isManaged
+            ? t('primaryList.publishing')
+            : t('primaryList.confirmListing')
+          : enabled === false
+            ? t('primaryList.enableAndPutOnSale')
+            : t('primaryList.putOnSale')
 
   // ---- Success view ----------------------------------------------------------------------------
   if (listedCredits !== null) {
@@ -174,10 +194,10 @@ export function PrimaryListModal({
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
-          aria-label={t('primaryList.successTitle')}
+          aria-label={t(edit ? 'listingEdit.successHeader' : 'primaryList.successTitle')}
         >
           <S.Head>
-            <S.Title>{t('primaryList.successTitle')}</S.Title>
+            <S.Title>{t(edit ? 'listingEdit.successHeader' : 'primaryList.successTitle')}</S.Title>
             <S.Close onClick={onClose} aria-label={t('getCredits.done')}>
               <Icon name="close" className="ico" />
             </S.Close>
@@ -206,6 +226,28 @@ export function PrimaryListModal({
     )
   }
 
+  if (edit && busy) {
+    return (
+      <S.Scrim role="presentation">
+        <S.Card
+          onClick={e => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('listingEdit.title')}
+          data-testid="modal"
+        >
+          <S.Head>
+            <S.Title>{t('listingEdit.title')}</S.Title>
+            <S.Close disabled aria-label={t('primaryList.cancel')}>
+              <Icon name="close" className="ico" />
+            </S.Close>
+          </S.Head>
+          <ListingSteps phase={cancelDone ? 'list' : 'cancel'} managed={isManaged} slow={slow} />
+        </S.Card>
+      </S.Scrim>
+    )
+  }
+
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
       <S.Card
@@ -213,10 +255,10 @@ export function PrimaryListModal({
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={t('primaryList.publishTitle', { name: item.name })}
+        aria-label={edit ? t('listingEdit.title') : t('primaryList.publishTitle', { name: item.name })}
       >
         <S.Head>
-          <S.Title>{t('primaryList.publishTitle', { name: item.name })}</S.Title>
+          <S.Title>{edit ? t('listingEdit.title') : t('primaryList.publishTitle', { name: item.name })}</S.Title>
           <S.Close onClick={onClose} disabled={busy} aria-label={t('primaryList.cancel')}>
             <Icon name="close" className="ico" />
           </S.Close>
@@ -242,6 +284,7 @@ export function PrimaryListModal({
           <S.InputBox aria-invalid={price.length > 0 && !priceValid}>
             <CurrencyIcon className="ccy" />
             <S.PriceInput
+              data-testid="price-input"
               type="number"
               min="1"
               step="1"
@@ -259,7 +302,11 @@ export function PrimaryListModal({
           {t('primaryList.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </S.Note>
 
-        {enabled === false && !busy ? (
+        {edit ? (
+          !busy && !cancelDone ? (
+            <S.Note>{t('listingEdit.subtitle')}</S.Note>
+          ) : null
+        ) : enabled === false && !busy ? (
           <S.Note>
             {isManaged
               ? t('primaryList.firstTimeManaged', { collectionName: item.collectionName })
@@ -269,10 +316,24 @@ export function PrimaryListModal({
           <S.Note>{isManaged ? t('primaryList.readyManaged') : t('primaryList.readyConfirm')}</S.Note>
         ) : null}
 
-        {status ? <S.Status>{status}</S.Status> : null}
+        {cancelFailed ? (
+          <RelayNotice
+            state={cancelFailed}
+            canPayGas={!!edit?.canPayGas}
+            busy={busy}
+            onPayGas={() => void publish({ payGas: true })}
+            onLater={() => setCancelFailed(null)}
+          />
+        ) : null}
+
+        {status && !edit ? <S.Status>{status}</S.Status> : null}
         <ErrorNotice message={error} />
 
-        <S.PrimaryBtn onClick={() => void publish()} disabled={busy || enabled === null || !priceValid}>
+        <S.PrimaryBtn
+          onClick={() => void publish()}
+          disabled={busy || unchanged || cancelFailed === 'pending' || enabled === null || !priceValid}
+          data-testid="list-submit"
+        >
           {cta}
         </S.PrimaryBtn>
       </S.Card>

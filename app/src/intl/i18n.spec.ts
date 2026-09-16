@@ -74,12 +74,21 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * ONE deliberate exception has been granted since: `filter.priceMana`, the My Creations price filter, added
-   * on Juanma's call. The reasoning is that it names the same thing the pricing banner above it already names
-   * to the same person — a creator who is paid in MANA and has to find the listings still priced in it — and
-   * that "Classic pricing" made them guess which of the two labels meant the same thing. Note the section is
-   * NOT creator-only: any signed-in account can open My Creations and find it empty. Grant exceptions the same
-   * way if it happens again — named, reasoned, and attributed — rather than quietly widening the list.
+   * TWO deliberate exceptions have been granted since, both on Juanma's call, both in the creator's own
+   * surfaces:
+   *
+   * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
+   * already names to the same person — a creator who is paid in MANA and has to find the listings still
+   * priced in it — and "Classic pricing" alone made them guess which of the two labels meant the same thing.
+   *
+   * `creatorSale.reviewClassicWhy`, the tooltip on a discount review row the discount cannot reach. It has to
+   * answer "why is this one excluded", and the answer IS the pricing rail: the item is quoted in MANA, so
+   * there is no fixed credit price for a percentage to come off. Saying it any other way would leave the
+   * creator without the one fact that explains the exclusion.
+   *
+   * Note neither section is creator-only: any signed-in account can open My Creations and find it empty.
+   * Grant exceptions the same way if it happens again — named, reasoned, and attributed — rather than
+   * quietly widening the list.
    */
   const BASELINE = new Set([
     'activity.paidWithMana',
@@ -102,6 +111,7 @@ describe('web2-first copy rule', () => {
     'buyModal.methodCombined',
     'buyModal.methodMana',
     'buyModal.notEnoughMana',
+    'creatorSale.reviewClassicWhy',
     'errors.walletUnauthorized',
     'errors.wrongNetwork',
     'faq.sellers.mustSwitchA',

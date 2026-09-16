@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { getConnectionEmail } from '~/lib/auth'
 import { getNotifyRequest, createNotifyRequest, isNotifyAvailable } from '~/lib/notify'
+import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -70,6 +71,8 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
         session.identity
       )
       setSubmitted(true)
+      // The address itself never leaves this function — it is PII, and the count is the signal.
+      track('Shop Requested Notify', { item_id: item.itemId, contract_address: item.contractAddress })
     } catch (err) {
       captureError(err, { flow: 'notify-me', contractAddress: item.contractAddress, itemId: item.itemId })
       setError(t('notifyMe.error'))
