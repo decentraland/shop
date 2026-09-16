@@ -19,6 +19,9 @@ describe('buy an item a creator put on sale', () => {
   it('shows the sale price, strikes the list price, and settles through acceptWithCoupon', async () => {
     app = await launchApp({
       path: `/item/${COLLECTION}/0`,
+      // The flag has to be on for a coupon to reach the buyer at all: with it off the catalogue strips
+      // `coupon` along with the rest of the sale, which is the whole point of the kill switch.
+      creatorSales: true,
       fixtures: { shopListings: shopListingsOnSale, unifiedListings: unifiedListingsOnSale, trade: saleTrade }
     })
     const { page } = app
@@ -46,7 +49,9 @@ describe('buy an item a creator put on sale', () => {
 
 describe('buy an item that is not on sale', () => {
   it('still settles through plain accept, so the discounted path is opt-in', async () => {
-    app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { trade: saleTrade } })
+    // Flag ON deliberately: this case is about an item that is NOT on sale taking the plain path, and with
+    // the flag off it would pass without ever exercising that distinction.
+    app = await launchApp({ path: `/item/${COLLECTION}/0`, creatorSales: true, fixtures: { trade: saleTrade } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')

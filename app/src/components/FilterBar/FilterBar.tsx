@@ -28,6 +28,18 @@ export const SORTS: { key: string; label: string; server: ShopSort }[] = [
   { key: 'name', label: 'filterBar.sortName', server: 'name' }
 ]
 
+/**
+ * The sort menu while the Deals filter is on, biggest discount first.
+ *
+ * A separate list rather than a fifth entry in SORTS: ranking by discount is meaningless on a grid that
+ * is not filtered to discounted listings — everything ties at zero — so the option only appears where it
+ * means something.
+ */
+export const DEALS_SORTS: { key: string; label: string; server: ShopSort }[] = [
+  { key: 'discount', label: 'filterBar.sortBiggestDiscount', server: 'discount' },
+  ...SORTS
+]
+
 /** An applied-filter chip: a label + the handler that removes just that filter. */
 export type FilterChip = { key: string; label: string; onRemove: () => void }
 
@@ -231,7 +243,7 @@ export function FilterBar({
             onOpenChange={next => (next ? panel.toggle('sort') : panel.close())}
           />
           {onOpenFilters ? (
-            <S.FiltersPill type="button" onClick={onOpenFilters}>
+            <S.FiltersPill type="button" data-testid="open-filters" onClick={onOpenFilters}>
               {t('filterBar.filters')}
               <S.FiltersPillIcon name="filter" aria-hidden />
             </S.FiltersPill>

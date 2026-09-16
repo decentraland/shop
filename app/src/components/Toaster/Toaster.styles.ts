@@ -5,24 +5,32 @@ import { theme } from '~/styles/theme'
 const toastIn = keyframes`
   from {
     opacity: 0;
-    transform: translateX(24px) scale(0.96);
+    transform: translateY(-12px) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateY(0) scale(1);
   }
 `
 
-// The fixed, top-right stack that holds the live toasts.
+// The fixed stack that holds the live toasts: top centre, just below the navbar. Top tier, so a toast
+// fired from inside a modal shows over its scrim. The list itself lets clicks through to the page.
 export const List = styled.div`
   position: fixed;
-  top: 18px;
-  right: 18px;
-  z-index: 1000;
+  top: calc(var(--nav-h) + 12px);
+  left: 0;
+  right: 0;
+  z-index: ${theme.z.tooltip};
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
-  max-width: min(92vw, 380px);
+  pointer-events: none;
+
+  & > * {
+    pointer-events: auto;
+    max-width: min(92vw, 380px);
+  }
 `
 
 export const Icon = styled.span`

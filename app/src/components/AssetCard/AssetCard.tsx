@@ -321,6 +321,7 @@ export function AssetCard(props: AssetCardProps) {
   return (
     <S.Card
       data-testid="card"
+      data-sale={onSale || undefined}
       style={canOpen && !isNameItem ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -609,7 +610,7 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : (
-        <S.Body>
+        <S.Body data-sale={onSale || undefined}>
           {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
               (min-width:0 so a long name ellipses instead of shoving the price out); the price never
               shrinks. */}

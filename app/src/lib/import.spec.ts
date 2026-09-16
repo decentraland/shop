@@ -68,7 +68,8 @@ import {
   importListing,
   RelistFailedError,
   type ImportItem,
-  type ImportListing
+  type ImportListing,
+  postListingWithRetry
 } from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
@@ -343,6 +344,37 @@ describe('when the marketplace has not yet cleared the old order', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('should stop waiting and never post again once its owner has gone away', async () => {
+    vi.useFakeTimers()
+    try {
+      postTrade.mockRejectedValue(new Error('There is already an open order for this NFT'))
+      const owner = new AbortController()
+
+      const p = postListingWithRetry({} as never, session.identity, { signal: owner.signal })
+      p.catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(1000)
+      owner.abort()
+      await vi.runAllTimersAsync()
+
+      await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+      expect(postTrade).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('should not hand back a listing whose owner went away while the post was in flight', async () => {
+    let finish!: (v: unknown) => void
+    postTrade.mockReturnValueOnce(new Promise(resolve => (finish = resolve)))
+    const owner = new AbortController()
+
+    const p = postListingWithRetry({} as never, session.identity, { signal: owner.signal })
+    owner.abort()
+    finish({ id: 'published-anyway' })
+
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('should rethrow other errors immediately without retrying', async () => {

@@ -75,8 +75,8 @@ export const Img = styled.img`
 `
 
 // The shared mosaic (CollectionThumb) at cover scale: the item thumbnails CONTAINed with padding, so whole
-// wearables show instead of being cropped. The card passes tinted={false}, so each cell is the plain media
-// fill and the transparent thumbnails read as sitting on the card's own background.
+// wearables show instead of being cropped. Each cell carries its item's rarity wash, the same one the item
+// card uses, so the cover is built from the colours of the items inside it.
 export const Cover = styled(CollectionMosaic)`
   & [data-testid='coll-thumb-cell'] img {
     object-fit: contain;
