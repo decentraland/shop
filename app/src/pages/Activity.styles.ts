@@ -156,9 +156,14 @@ export const List = styled.div`
 `
 
 // One checkout.
+/* Translucent over the purple rather than a white slab, matching the marketplace's activity and
+   ranking tables. The card used to be the only opaque white block on the page, which read as a hole
+   punched in the gradient instead of a panel resting on it. Everything inside follows the shop's
+   established dark-surface pairing: softWhite for primary text, gray4 for secondary, glassFaint for
+   bands and hovers. */
 export const Card = styled.div`
-  background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.line};
+  background: ${theme.colors.overlay};
+  border: 1px solid ${theme.colors.cardLine};
   border-radius: 16px;
   overflow: hidden;
 `
@@ -169,8 +174,10 @@ export const CardHead = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  background: ${theme.colors.softWhite};
-  border-bottom: 1px solid ${theme.colors.line};
+  /* A faint lift instead of the softWhite band: on the dark fill the separation has to come from
+     light, not from a darker grey. */
+  background: ${theme.colors.glassFaint};
+  border-bottom: 1px solid ${theme.colors.cardLine};
 
   ${theme.media.maxWidth('mobile')} {
     flex-wrap: wrap;
@@ -186,12 +193,12 @@ export const HeadLeft = styled.div`
 
 export const DateText = styled.span`
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const SubCount = styled.span`
   font-size: 13px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const HeadRight = styled.div`
@@ -232,27 +239,33 @@ export const Pill = styled.span`
   border-radius: ${theme.radius.pill};
   white-space: nowrap;
 
+  /* The washes carry over unchanged, being translucent. The inks do not: each was darkened until it
+     cleared 4.5:1 on WHITE, which is exactly what sinks it here. Each moves to the palest existing
+     token of its own hue, measured against the card over the brightest part of the page gradient
+     (5.5:1 green, 6.8:1 amber, 7.6:1 violet, 7.9:1 pink). The token names come from where each colour
+     was first used, not from a status meaning — if this pairing spreads, they are worth promoting to
+     named status inks. */
   &[data-status='SETTLED'] {
     background: rgba(30, 166, 114, 0.14);
-    color: ${theme.colors.okStrong};
+    color: ${theme.colors.successBorder};
   }
   &[data-status='PENDING'] {
     background: rgba(245, 166, 35, 0.16);
-    color: #b5790a;
+    color: ${theme.colors.flareAmber};
   }
   &[data-status='SOLD'] {
     background: rgba(103, 58, 183, 0.14);
-    color: ${theme.colors.accent};
+    color: ${theme.colors.navViolet};
   }
   &[data-status='FAILED'] {
     background: rgba(214, 61, 61, 0.14);
-    color: #b02a2a;
+    color: ${theme.colors.saleTag};
   }
   /* Nobody paid and nobody is owed anything — deliberately the quietest of the four. Reusing PENDING's
      amber here is what made an abandoned checkout look like money on its way. */
   &[data-status='UNFINISHED'] {
-    background: ${theme.colors.line};
-    color: ${theme.colors.muted};
+    background: ${theme.colors.glassFaint};
+    color: ${theme.colors.gray4};
   }
 `
 
@@ -266,14 +279,14 @@ export const ResumeButton = styled.button`
   padding: 4px 10px;
   border-radius: ${theme.radius.pill};
   white-space: nowrap;
-  border: 1px solid ${theme.colors.accent};
+  border: 1px solid ${theme.colors.navViolet};
   background: transparent;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.navViolet};
   cursor: pointer;
   transition: background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(103, 58, 183, 0.08);
+    background: rgba(227, 201, 251, 0.14);
   }
   &:disabled {
     opacity: 0.6;
@@ -286,7 +299,7 @@ export const Total = styled.div`
   align-items: center;
   gap: 5px;
   font-weight: 800;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   white-space: nowrap;
 
   .ccy-mark {
@@ -296,7 +309,7 @@ export const Total = styled.div`
 
   // Money received (a sale) reads as income in the shop's success green.
   &[data-kind='income'] {
-    color: ${theme.colors.okStrong};
+    color: ${theme.colors.successBorder};
   }
 `
 
@@ -344,7 +357,7 @@ export const FailedNote = styled.p`
   padding: 12px 18px 0;
   font-size: 13px;
   line-height: 1.45;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const Lines = styled.div`
@@ -363,17 +376,19 @@ export const Line = styled.div`
   color: inherit;
 
   & + & {
-    border-top: 1px solid ${theme.colors.line};
+    border-top: 1px solid ${theme.colors.cardLine};
   }
 
   &[data-link='true'] {
     transition: background 0.15s;
   }
   &[data-link='true']:hover {
-    background: ${theme.colors.media};
+    background: ${theme.colors.glassFaint};
   }
   &[data-link='true']:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    /* White, like the filter chips above: the accent purple was drawn for the white card and all but
+       vanishes against the translucent black. */
+    outline: 2px solid ${theme.colors.white};
     outline-offset: -2px;
   }
 `
@@ -440,7 +455,7 @@ export const LineNamePlaceholder = styled.span`
 
 export const LineMeta = styled.span`
   font-size: 13px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const LinePrice = styled.div`
@@ -448,7 +463,7 @@ export const LinePrice = styled.div`
   align-items: center;
   gap: 4px;
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   white-space: nowrap;
 
   .ccy-mark {
