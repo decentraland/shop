@@ -316,5 +316,11 @@ export async function fetchPublishableItems(
       return collection ? [toPublishableItem(raw, collection)] : []
     })
   )
-  return items.filter(opts?.includeSoldOut ? isPublished : isPublishable)
+  // The address feed carries no order of its own. Keep the collections' order — newest first, as the
+  // builder lists them — because that is what the page groups by: left to the feed, the oldest collection
+  // surfaced at the top. A stable sort, so items keep their order inside each collection.
+  const position = new Map(collections.map((c, i) => [c.id, i]))
+  return items
+    .filter(opts?.includeSoldOut ? isPublished : isPublishable)
+    .sort((a, b) => (position.get(a.collectionId) ?? 0) - (position.get(b.collectionId) ?? 0))
 }
