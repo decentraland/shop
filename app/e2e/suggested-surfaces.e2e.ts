@@ -129,3 +129,21 @@ describe('the space the cart rail occupies', () => {
     expect(await page.$('[data-testid="suggested-row-skeleton"]')).not.toBeNull()
   })
 })
+
+describe('the favourites rail and the list above it', () => {
+  it('keeps its distance from whatever it follows, in both states of the page', async () => {
+    app = await launchApp({ suggestedForYou: true, path: '/my-favorites' })
+    const { page } = app
+    await page.waitForSelector('[data-testid="suggested-row"]', { timeout: 15000 })
+
+    // `Row.Root` carries a bottom margin and no top one — on the home page the row above supplies that
+    // space, and here there is none, so the heading lands against the last line of cards without it.
+    const gap = await page.evaluate(() => {
+      const rail = document.querySelector('[data-testid="suggested-row"]')
+      const above = rail?.parentElement?.previousElementSibling
+      if (!rail || !above) return -1
+      return Math.round(rail.getBoundingClientRect().top - above.getBoundingClientRect().bottom)
+    })
+    expect(gap).toBeGreaterThanOrEqual(24)
+  })
+})
