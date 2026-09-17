@@ -15,7 +15,14 @@ export function deltaOf(current: number, previous: number): Delta {
   return { current, previous, pct: previous === 0 ? null : ((current - previous) / previous) * 100 }
 }
 
-/** The same, for MANA wei. Kept in bigint to the last moment so a large store's earnings stay exact. */
+/**
+ * The same, for MANA wei.
+ *
+ * The percentage is worked out in bigint and only then narrowed, so a large store's earnings do not lose
+ * their last digits to a float on the way. The two raw figures are narrowed too and are past what a number
+ * holds exactly, which is why nothing downstream divides them: {@link Delta.pct} already carries the
+ * comparison, and a multiple can be read back off it.
+ */
 export function deltaOfWei(current: bigint, previous: bigint): Delta {
   const pct = previous === 0n ? null : Number(((current - previous) * 10_000n) / previous) / 100
   return { current: Number(current), previous: Number(previous), pct }

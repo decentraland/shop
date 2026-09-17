@@ -33,7 +33,6 @@ function statusCopy(status: CreatorSaleStatus): string {
   }
 }
 
-/** A creator's sales, newest first, with the one action a running sale has: ending it early. */
 /** Which way a discount moved the store, for the chip's colour. */
 function liftDirection(lift: SaleLift): 'up' | 'down' | 'flat' {
   if (lift.liftPct === null || Math.round(lift.liftPct) === 0) return 'flat'
@@ -57,6 +56,7 @@ function liftCopy(lift: SaleLift): string {
   return t(rounded > 0 ? 'creatorSale.liftUp' : 'creatorSale.liftDown', { amount })
 }
 
+/** A creator's sales, newest first, with the one action a running sale has: ending it early. */
 export function CreatorSales({
   sales,
   session,

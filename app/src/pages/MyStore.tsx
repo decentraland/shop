@@ -477,8 +477,10 @@ function DeltaTag({ delta, period }: { delta: Delta | null; period: StorePeriod 
    * jump. Only ever upward, since a fall cannot pass -100%.
    */
   const asMultiple = rounded >= 1000
+  // Read off the percentage rather than off the two raw figures: for earnings those are wei narrowed to a
+  // number and past what one holds exactly, while the percentage was worked out in bigint first.
   const amount = asMultiple
-    ? t('myStore.deltaTimes', { times: Math.round(delta.current / delta.previous).toLocaleString() })
+    ? t('myStore.deltaTimes', { times: Math.round(rounded / 100 + 1).toLocaleString() })
     : `${Math.abs(rounded)}%`
   return (
     <S.Delta
@@ -613,6 +615,18 @@ export function MyStore() {
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
   // every visitor home before the flag file arrives, or before the wallet an allowlist is checked against
   // has been read back.
+  /**
+   * The order actually in force, which is not always the one that was remembered.
+   *
+   * "Still selling first" is only offered while some collection is finished, and the choice outlives the
+   * store it was made in: a creator who picks it, then opens a store where everything still sells, would
+   * otherwise leave the dropdown pointing at an option no longer in its own list.
+   */
+  const hasExhausted = (stats?.collections ?? []).some(c => c.exhausted)
+  const sortInForce: Sort = sort === 'selling' && !hasExhausted ? 'sold' : sort
+  /** Sorted once per change rather than on every render; a store can carry a few dozen collections. */
+  const sortedCollections = useMemo(() => sortCollections(stats?.collections ?? [], sortInForce), [stats, sortInForce])
+
   if (access === 'off') return <Navigate to="/" replace />
 
   if (!session && !viewAs) {
@@ -916,15 +930,13 @@ export function MyStore() {
                       <S.Sort
                         options={[
                           { value: 'sold', label: t('myStore.sortSold') },
-                          ...(stats.collections.some(c => c.exhausted)
-                            ? [{ value: 'selling', label: t('myStore.sortSelling') }]
-                            : []),
+                          ...(hasExhausted ? [{ value: 'selling', label: t('myStore.sortSelling') }] : []),
                           ...(stats.collections.some(c => c.createdAt)
                             ? [{ value: 'newest', label: t('myStore.sortNewest') }]
                             : []),
                           { value: 'name', label: t('myStore.sortName') }
                         ]}
-                        value={sort}
+                        value={sortInForce}
                         onChange={value => {
                           setSort(value as Sort)
                           rememberSort(value as Sort)
@@ -939,24 +951,22 @@ export function MyStore() {
                 {stats.collections.length === 0 ? (
                   <S.Empty>{t('myStore.noCollections')}</S.Empty>
                 ) : (
-                  sortCollections(stats.collections, sort)
-                    .slice(0, showAll ? undefined : COLLECTIONS_SHOWN)
-                    .map(collection => (
-                      <CollectionRow
-                        key={collection.contractAddress}
-                        collection={collection}
-                        discountPct={pctByCollection.get(collection.contractAddress) ?? null}
-                        env={env}
-                        open={open.has(collection.contractAddress)}
-                        onToggle={() =>
-                          setOpen(current => {
-                            const next = new Set(current)
-                            if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
-                            return next
-                          })
-                        }
-                      />
-                    ))
+                  sortedCollections.slice(0, showAll ? undefined : COLLECTIONS_SHOWN).map(collection => (
+                    <CollectionRow
+                      key={collection.contractAddress}
+                      collection={collection}
+                      discountPct={pctByCollection.get(collection.contractAddress) ?? null}
+                      env={env}
+                      open={open.has(collection.contractAddress)}
+                      onToggle={() =>
+                        setOpen(current => {
+                          const next = new Set(current)
+                          if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
+                          return next
+                        })
+                      }
+                    />
+                  ))
                 )}
                 {stats.collections.length > COLLECTIONS_SHOWN && !showAll ? (
                   <S.More type="button" onClick={() => setShowAll(true)} data-testid="store-show-all">
