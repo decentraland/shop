@@ -107,13 +107,6 @@ describe('web2-first copy rule', () => {
   const BASELINE = new Set([
     'activity.paidWithMana',
     'activity.polygonMana',
-    'authorizations.creditsDesc',
-    'authorizations.creditsName',
-    'authorizations.manaDesc',
-    'authorizations.manaName',
-    'authorizations.mintingDesc',
-    'authorizations.mintingEmpty',
-    'authorizations.mintingTitle',
     'authorizeStep.manaName',
     'authorizeStep.manaReason',
     'authorizeStep.note',

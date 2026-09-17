@@ -2,9 +2,9 @@ import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 
-// The pre-action authorization STEP shown before a buy/sell for self-custody wallets. Its visual
-// language mirrors the Approvals page (Authorizations.styles): a bordered row card for the thing being
-// authorized, muted supporting copy, and the shop's modal shell (Scrim/Card ≈ SellModal.styles).
+// The pre-action authorization STEP shown before a buy/sell for self-custody wallets: a bordered row
+// card for the thing being authorized, muted supporting copy, and the shop's modal shell
+// (Scrim/Card ≈ SellModal.styles).
 
 const spin = keyframes`
   to { transform: rotate(360deg); }
