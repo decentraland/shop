@@ -23,6 +23,7 @@ import {
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { couponUsed } from '~/lib/couponUses'
 import { itemIdFromTokenId } from '~/lib/token-id'
 import { routeSegment } from '~/lib/routes'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
@@ -673,7 +674,9 @@ export function ItemDetail() {
    */
   const offerStock = (() => {
     if (!saleActive) return null
-    const claimed = current.coupon?.used ?? 0
+    // Not `coupon.used` straight from the catalogue: the server learns of a purchase on its own schedule,
+    // so a buyer who just took one would watch the bar sit still until it caught up.
+    const claimed = couponUsed(current.coupon)
     const total = Number(current.coupon?.checks?.uses ?? 0)
     return total > 0 && claimed <= total ? { claimed, total } : null
   })()
