@@ -108,3 +108,25 @@ export const Confirm = styled.div`
   align-items: center;
   gap: 8px;
 `
+
+/**
+ * How the discount is doing against the days before it started.
+ *
+ * Sits with the other chips in the row's meta line rather than in a column of its own: it is the same kind
+ * of aside as the timer and the uses, and a column would give it a weight the figure has not earned on a
+ * sale that has been live for a day.
+ */
+export const Lift = styled.span`
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  cursor: help;
+  color: ${theme.colors.muted};
+
+  &[data-dir='up'] {
+    color: #1f9d55;
+  }
+  &[data-dir='down'] {
+    color: #d64545;
+  }
+`

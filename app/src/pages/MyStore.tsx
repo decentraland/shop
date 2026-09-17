@@ -21,10 +21,10 @@ import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
 import { useProfile } from '~/hooks/useProfile'
 import { fetchSalesPage, weiOf } from '~/lib/sales'
+import type { Delta } from '~/lib/storeMetrics'
 import { config } from '~/config'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
-import type { SaleRow } from '~/lib/sales'
 import { t, tNode } from '~/intl/i18n'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import signInIllustration from '~/assets/empty/signin-empty.svg'
@@ -34,15 +34,55 @@ import * as S from './MyStore.styles'
 const PERIODS: StorePeriod[] = ['7d', '30d', 'all']
 
 /** A prolific creator has dozens of collections; the list opens on the ones that sold. */
+/**
+ * Six, not the whole list, and fewer than it used to be.
+ *
+ * The list has the full width of the page now rather than a column beside a shorter panel, so nothing is
+ * balanced against it and the only question left is how much of a long list belongs above the fold. The
+ * rest is one click away underneath.
+ */
 const COLLECTIONS_SHOWN = 8
 
-type Sort = 'sold' | 'newest' | 'name'
+type Sort = 'sold' | 'selling' | 'newest' | 'name'
+
+const SORT_KEY = 'shop.my-store.sort'
+const SORTS: Sort[] = ['sold', 'selling', 'newest', 'name']
+
+/**
+ * The order the creator last chose, remembered per browser.
+ *
+ * A convenience, not state anything depends on: a blocked or cleared store simply opens on the default,
+ * which is why every access is wrapped rather than guarded once. Private windows throw on the read itself.
+ */
+function storedSort(): Sort {
+  try {
+    const saved = localStorage.getItem(SORT_KEY)
+    return SORTS.includes(saved as Sort) ? (saved as Sort) : 'sold'
+  } catch {
+    return 'sold'
+  }
+}
+
+function rememberSort(sort: Sort): void {
+  try {
+    localStorage.setItem(SORT_KEY, sort)
+  } catch {
+    // A browser that will not store it is not a reason to refuse the sort.
+  }
+}
 
 /** How the collections list is ordered. `newest` only appears when the source dates the items. */
 function sortCollections(collections: StoreCollection[], by: Sort): StoreCollection[] {
   const sorted = [...collections]
   if (by === 'name') return sorted.sort((a, b) => a.name.localeCompare(b.name))
   if (by === 'newest') return sorted.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+  // Collections with nothing left to sell go last whatever they once sold: they are the rows a creator
+  // has no move left on, and at the top they push down the ones they do.
+  if (by === 'selling') {
+    return sorted.sort(
+      (a, b) => Number(a.exhausted) - Number(b.exhausted) || b.sold - a.sold || a.name.localeCompare(b.name)
+    )
+  }
   return sorted.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
 }
 
@@ -106,8 +146,7 @@ function useSalesPage(address: string | undefined, period: StorePeriod, page: nu
 }
 
 /** Who bought, for the handful of rows on screen — one batched profile read, not one per row. */
-function useBuyerNames(rows: SaleRow[]) {
-  const addresses = [...new Set(rows.map(row => row.buyer.toLowerCase()))].sort()
+function useBuyerNames(addresses: string[]) {
   return useQuery({
     queryKey: ['store-buyers', addresses],
     enabled: addresses.length > 0,
@@ -227,7 +266,7 @@ function CollectionRow({
   const panelId = `store-items-${collection.contractAddress}`
   return (
     <>
-      <S.CollRow data-testid="store-collection">
+      <S.CollRow data-testid="store-collection" data-exhausted={collection.exhausted || undefined}>
         <S.Chevron
           type="button"
           aria-expanded={open}
@@ -247,11 +286,18 @@ function CollectionRow({
               {collection.name}
             </Link>
             {discountPct != null ? <SaleTag pct={discountPct} /> : null}
+            {collection.exhausted ? (
+              <S.SoldOutChip data-testid="store-collection-soldout">{t('myStore.collExhausted')}</S.SoldOutChip>
+            ) : null}
           </S.NameLine>
           <span>
             {t('myStore.itemsCount', { count: collection.items.length })}
             {collection.listed > 0 ? ` · ${t('myStore.listedCount', { count: collection.listed })}` : ''}
-            {collection.soldOut > 0 ? ` · ${t('myStore.soldOutCount', { count: collection.soldOut })}` : ''}
+            {/* A whole collection gone wears the chip beside its name instead, so the grey line stays a
+                line of counts and the one fact that changes how to read them is not hidden in it. */}
+            {!collection.exhausted && collection.soldOut > 0
+              ? ` · ${t('myStore.soldOutCount', { count: collection.soldOut })}`
+              : ''}
           </span>
         </S.CollName>
         <S.Num>
@@ -398,6 +444,55 @@ function CollectionRow({
  * Built from the real tiles, panels and rows rather than a stack of generic cards, so every box is exactly
  * where its figure will be and nothing moves when the data lands.
  */
+/**
+ * Which way a figure moved, beside the figure itself.
+ *
+ * Renders nothing at all when there is nothing to say: a store that sold nothing in either window is not
+ * "flat", it is quiet, and a row of grey zeroes reading "no change" is noise on a page whose whole job is
+ * to point at what changed.
+ */
+function DeltaTag({ delta, period }: { delta: Delta | null; period: StorePeriod }) {
+  if (!delta || (delta.current === 0 && delta.previous === 0)) return null
+  const against = period === 'all' ? '' : t(`myStore.vs${period}`)
+  if (delta.pct === null) {
+    return (
+      <S.Delta data-dir="new" data-testid="store-delta" title={against}>
+        {t('myStore.deltaNew')}
+      </S.Delta>
+    )
+  }
+  const rounded = Math.round(delta.pct)
+  if (rounded === 0) {
+    return (
+      <S.Delta data-dir="flat" data-testid="store-delta" title={against}>
+        {t('myStore.deltaFlat')}
+      </S.Delta>
+    )
+  }
+  const up = rounded > 0
+  /**
+   * Past a point a percentage stops being a reading. A store that earned almost nothing one month and
+   * something the next scores "24,411%", which tells a creator nothing they did not already know and does
+   * not fit in the tile either. A multiple does both jobs: shorter, and the right shape for the size of the
+   * jump. Only ever upward, since a fall cannot pass -100%.
+   */
+  const asMultiple = rounded >= 1000
+  const amount = asMultiple
+    ? t('myStore.deltaTimes', { times: Math.round(delta.current / delta.previous).toLocaleString() })
+    : `${Math.abs(rounded)}%`
+  return (
+    <S.Delta
+      data-dir={up ? 'up' : 'down'}
+      data-testid="store-delta"
+      title={against}
+      aria-label={t(up ? 'myStore.deltaUpAria' : 'myStore.deltaDownAria', { pct: amount, against })}
+    >
+      <span aria-hidden>{up ? '\u25b2' : '\u25bc'}</span>
+      {amount}
+    </S.Delta>
+  )
+}
+
 function StoreSkeleton() {
   return (
     <div data-testid="store-skeleton" aria-hidden>
@@ -411,29 +506,9 @@ function StoreSkeleton() {
         ))}
       </S.Tiles>
 
-      <S.Columns style={{ marginTop: 22 }}>
-        <S.Panel>
-          <S.PanelHead>
-            <S.Bar style={{ width: 96, height: 14 }} />
-            <S.Bar style={{ width: 120 }} />
-          </S.PanelHead>
-          {Array.from({ length: COLLECTIONS_SHOWN }, (_, i) => (
-            <S.CollRow key={i}>
-              <span />
-              <S.Dot />
-              <S.Bar style={{ width: '58%', height: 14 }} />
-              <S.Bar />
-              <S.Bar style={{ height: 20 }} />
-              <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
-            </S.CollRow>
-          ))}
-          {/* The list's own way out: a store past the first page keeps this row, and the panel keeps its
-              height when the rows arrive. */}
-          <S.More as="div">
-            <S.Bar style={{ width: 150, height: 13, margin: '0 auto' }} />
-          </S.More>
-        </S.Panel>
-
+      {/* The same shape the loaded page takes: the short panel first, the long list under it at full
+          width. A skeleton laid out differently is a jump dressed as a loading state. */}
+      <S.Alerts style={{ marginTop: 22 }}>
         <S.Panel>
           <S.PanelHead>
             <S.Bar style={{ width: 110, height: 14 }} />
@@ -449,7 +524,29 @@ function StoreSkeleton() {
             </S.AttnRow>
           ))}
         </S.Panel>
-      </S.Columns>
+      </S.Alerts>
+
+      <S.Panel style={{ marginTop: 14 }}>
+        <S.PanelHead>
+          <S.Bar style={{ width: 96, height: 14 }} />
+          <S.Bar style={{ width: 120 }} />
+        </S.PanelHead>
+        {Array.from({ length: COLLECTIONS_SHOWN }, (_, i) => (
+          <S.CollRow key={i}>
+            <span />
+            <S.Dot />
+            <S.Bar style={{ width: '58%', height: 14 }} />
+            <S.Bar />
+            <S.Bar style={{ height: 20 }} />
+            <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
+          </S.CollRow>
+        ))}
+        {/* The list's own way out: a store past the first page keeps this row, and the panel keeps its
+              height when the rows arrive. */}
+        <S.More as="div">
+          <S.Bar style={{ width: 150, height: 13, margin: '0 auto' }} />
+        </S.More>
+      </S.Panel>
 
       <S.Panel style={{ marginTop: 22 }}>
         <S.PanelHead>
@@ -485,7 +582,7 @@ export function MyStore() {
   const [showAll, setShowAll] = useState(false)
   const [page, setPage] = useState(0)
   const [saleOpen, setSaleOpen] = useState(false)
-  const [sort, setSort] = useState<Sort>('sold')
+  const [sort, setSort] = useState<Sort>(storedSort)
   const creatorSalesEnabled = useCreatorSalesEnabled()
   const access = useMyStoreAccess()
   const viewAs = devViewAs(params.get('viewAs'))
@@ -493,9 +590,20 @@ export function MyStore() {
   const { data: profile } = useProfile(viewAs ?? session?.address)
   const face = profile?.avatar?.snapshots?.face256
   const creatorName = profile?.name ? capitalizeFirst(profile.name) : null
-  const { stats, saleable, isLoading, error: statsError } = useStoreStats(session, period, viewAs)
+  const {
+    stats,
+    trend,
+    wanted,
+    liftFor,
+    saleable,
+    isLoading,
+    error: statsError
+  } = useStoreStats(session, period, viewAs)
   const sales = useSalesPage(viewAs ?? session?.address, period, page)
-  const { data: buyers, isLoading: buyersLoading } = useBuyerNames(sales.rows)
+  const saleAddresses = useMemo(() => [...new Set(sales.rows.map(row => row.buyer.toLowerCase()))].sort(), [sales.rows])
+  const { data: buyers, isLoading: buyersLoading } = useBuyerNames(saleAddresses)
+  const audienceAddresses = useMemo(() => trend.buyers.map(b => b.address).sort(), [trend.buyers])
+  const { data: audience } = useBuyerNames(audienceAddresses)
   const { data: discounts } = useCreatorSales(
     viewAs ?? session?.address,
     creatorSalesEnabled && (!!session || !!viewAs)
@@ -533,6 +641,9 @@ export function MyStore() {
 
   const running = (discounts ?? []).filter(s => s.status === 'active' || s.status === 'scheduled')
 
+  /** How long the chosen window is, where it has a length at all. All time does not. */
+  const windowDays = period === '7d' ? 7 : period === '30d' ? 30 : null
+
   /** What the creator could act on, listed only when there is something to act on. A row reading zero is
    * not reassurance, it is a line to scan past. */
   const attention = [
@@ -557,6 +668,34 @@ export function MyStore() {
       cta: undefined
     },
     {
+      id: 'wanted',
+      sev: 'act',
+      n: wanted.length,
+      title: t('myStore.attnWanted'),
+      why: t('myStore.attnWantedWhy'),
+      hint: t('myStore.attnWantedHint'),
+      to: undefined,
+      cta: undefined
+    },
+    {
+      /**
+       * Only once it has been quiet long enough to mean something: a store that sold yesterday does not
+       * need telling, and a row that is always there is a row nobody reads.
+       *
+       * A window with no sales at all cannot date the last one, and that is the store this row is most for.
+       * It counts the whole window instead and says so, rather than going silent on the one creator who
+       * needs it.
+       */
+      id: 'quiet',
+      sev: 'soon',
+      n: trend.quietDays ?? (stats && stats.sold === 0 && windowDays ? windowDays : 0),
+      title: t('myStore.attnQuiet'),
+      why: trend.quietDays === null ? t('myStore.attnQuietWhyFloor') : t('myStore.attnQuietWhy'),
+      hint: undefined,
+      to: undefined,
+      cta: undefined
+    },
+    {
       id: 'unlisted',
       sev: undefined,
       n: stats?.neverListed ?? 0,
@@ -566,7 +705,7 @@ export function MyStore() {
       to: withEnv('/my-items?section=creations', env),
       cta: t('myStore.attnUnlistedCta')
     }
-  ].filter(row => row.n > 0)
+  ].filter(row => row.n > 0 && (row.id !== 'quiet' || row.n >= 7))
   const names = Object.fromEntries((stats?.collections ?? []).map(c => [c.contractAddress, c.name]))
   const items = (stats?.collections ?? []).reduce((n, c) => n + c.items.length, 0)
 
@@ -634,14 +773,26 @@ export function MyStore() {
                 <S.Tile>
                   <S.TileKey>
                     {t('myStore.tileSold')}
+                    <DeltaTag delta={trend.sold} period={period} />
                     <S.TileMark aria-hidden>🛍️</S.TileMark>
                   </S.TileKey>
-                  <S.TileValue data-testid="store-sold">{stats.sold.toLocaleString()}</S.TileValue>
-                  <S.TileFoot>{t('myStore.tileSoldFoot', { mints: stats.mints, resales: stats.resales })}</S.TileFoot>
+                  <S.TileValue>
+                    <span data-testid="store-sold">{stats.sold.toLocaleString()}</span>
+                  </S.TileValue>
+                  <S.TileFoot>
+                    {stats.sold === 0
+                      ? t('myStore.tileSoldNone')
+                      : stats.resales === 0
+                        ? // "0 resold by you" is a fact about nothing. Most stores never resell, so for most
+                          // of them that clause was half the line and all of it noise.
+                          t('myStore.tileSoldFootMintsOnly', { mints: stats.mints })
+                        : t('myStore.tileSoldFoot', { mints: stats.mints, resales: stats.resales })}
+                  </S.TileFoot>
                 </S.Tile>
                 <S.Tile>
                   <S.TileKey>
                     {t('myStore.tileEarnings')}
+                    <DeltaTag delta={trend.earnings} period={period} />
                     <S.TileMark aria-hidden>💰</S.TileMark>
                   </S.TileKey>
                   <S.TileValue>
@@ -674,6 +825,201 @@ export function MyStore() {
                       : t('myStore.tileListedFoot', { count: stats.neverListed })}
                   </S.TileFoot>
                 </S.Tile>
+                <S.Tile>
+                  <S.TileKey>
+                    {t('myStore.tileDiscounts')}
+                    <S.TileMark aria-hidden>🔥</S.TileMark>
+                  </S.TileKey>
+                  <S.TileValue data-testid="store-discounts">{running.length}</S.TileValue>
+                  <S.TileFoot>
+                    {running.length > 0 ? t('myStore.tileDiscountsFoot') : t('myStore.tileDiscountsNone')}
+                  </S.TileFoot>
+                </S.Tile>
+              </S.Tiles>
+
+              <S.Alerts>
+                <S.Panel aria-labelledby="store-attn-h">
+                  <S.PanelHead>
+                    <S.PanelTitle id="store-attn-h">{t('myStore.attention')}</S.PanelTitle>
+                  </S.PanelHead>
+                  {attention.length === 0 ? (
+                    <S.Empty data-testid="store-attn-none">{t('myStore.attnNone')}</S.Empty>
+                  ) : (
+                    attention.map(row => (
+                      <S.AttnRow key={row.id}>
+                        <S.Stripe data-sev={row.sev} aria-hidden />
+                        <S.AttnText>
+                          <b>
+                            {row.title}
+                            {row.hint ? (
+                              <Tooltip content={row.hint}>
+                                <S.Info type="button" aria-label={row.title} data-testid={`store-attn-${row.id}-hint`}>
+                                  <Icon name="info" className="ico" aria-hidden />
+                                </S.Info>
+                              </Tooltip>
+                            ) : null}
+                          </b>
+                          <span>{row.why}</span>
+                          {row.to ? (
+                            <S.AttnLink to={row.to} data-testid={`store-attn-${row.id}-cta`}>
+                              {row.cta}
+                            </S.AttnLink>
+                          ) : null}
+                        </S.AttnText>
+                        <S.AttnNum data-testid={`store-attn-${row.id}`}>{row.n}</S.AttnNum>
+                      </S.AttnRow>
+                    ))
+                  )}
+                </S.Panel>
+
+                {creatorSalesEnabled && !viewAs && session && (running.length > 0 || saleable.length > 0) ? (
+                  <S.Panel aria-labelledby="store-disc-h">
+                    <S.PanelHead>
+                      <S.PanelTitle id="store-disc-h">{t('creatorSale.salesTitle')}</S.PanelTitle>
+                    </S.PanelHead>
+                    {running.length > 0 ? (
+                      <S.PanelBody>
+                        <CreatorSales
+                          sales={running}
+                          session={session}
+                          names={names}
+                          lift={Object.fromEntries(running.map(sale => [sale.id, liftFor(sale)]))}
+                        />
+                      </S.PanelBody>
+                    ) : (
+                      <S.Empty>{t('myStore.noDiscounts')}</S.Empty>
+                    )}
+                    {saleable.length > 0 ? (
+                      <S.PanelFoot>
+                        <Button variant="purple" onClick={() => setSaleOpen(true)} data-testid="store-new-discount">
+                          {/* Decorative, and hidden from the accessible name: a reader announcing "fire,
+                              create a discount" is worse than one that just says what the button does. */}
+                          <span aria-hidden>🔥</span>
+                          {t('myStore.newDiscount')}
+                        </Button>
+                      </S.PanelFoot>
+                    ) : null}
+                  </S.Panel>
+                ) : null}
+              </S.Alerts>
+
+              <S.Panel aria-labelledby="store-coll-h">
+                <S.PanelHead>
+                  <S.PanelTitle id="store-coll-h">{t('myStore.collections')}</S.PanelTitle>
+                  <S.HeadRight>
+                    <S.PanelHint>
+                      {stats.breakdownPartial
+                        ? t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })
+                        : t(`myStore.sold${period}`)}
+                    </S.PanelHint>
+                    {stats.collections.length > 1 ? (
+                      <S.Sort
+                        options={[
+                          { value: 'sold', label: t('myStore.sortSold') },
+                          ...(stats.collections.some(c => c.exhausted)
+                            ? [{ value: 'selling', label: t('myStore.sortSelling') }]
+                            : []),
+                          ...(stats.collections.some(c => c.createdAt)
+                            ? [{ value: 'newest', label: t('myStore.sortNewest') }]
+                            : []),
+                          { value: 'name', label: t('myStore.sortName') }
+                        ]}
+                        value={sort}
+                        onChange={value => {
+                          setSort(value as Sort)
+                          rememberSort(value as Sort)
+                        }}
+                        align="right"
+                        ariaLabel={t('myStore.sortBy')}
+                        className="store-sort"
+                      />
+                    ) : null}
+                  </S.HeadRight>
+                </S.PanelHead>
+                {stats.collections.length === 0 ? (
+                  <S.Empty>{t('myStore.noCollections')}</S.Empty>
+                ) : (
+                  sortCollections(stats.collections, sort)
+                    .slice(0, showAll ? undefined : COLLECTIONS_SHOWN)
+                    .map(collection => (
+                      <CollectionRow
+                        key={collection.contractAddress}
+                        collection={collection}
+                        discountPct={pctByCollection.get(collection.contractAddress) ?? null}
+                        env={env}
+                        open={open.has(collection.contractAddress)}
+                        onToggle={() =>
+                          setOpen(current => {
+                            const next = new Set(current)
+                            if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
+                            return next
+                          })
+                        }
+                      />
+                    ))
+                )}
+                {stats.collections.length > COLLECTIONS_SHOWN && !showAll ? (
+                  <S.More type="button" onClick={() => setShowAll(true)} data-testid="store-show-all">
+                    {t('myStore.showAll', { count: stats.collections.length })}
+                  </S.More>
+                ) : null}
+                {stats.unattributed > 0 ? (
+                  <S.Note data-testid="store-unattributed">
+                    {t('myStore.unattributed', { count: stats.unattributed })}
+                  </S.Note>
+                ) : null}
+                {stats.unknownCollections > 0 ? (
+                  <S.Note data-testid="store-unknown-state">{t('myStore.unknownState')}</S.Note>
+                ) : null}
+              </S.Panel>
+
+              <S.SectionHead>
+                <S.SectionTitle id="store-audience-h">{t('myStore.audience')}</S.SectionTitle>
+                <S.SectionSub>{t('myStore.audienceSub')}</S.SectionSub>
+              </S.SectionHead>
+
+              <S.AudienceTiles>
+                <S.Tile>
+                  <S.TileKey>
+                    <span>
+                      {t('myStore.tileCollectors')}
+                      <Tooltip content={t('myStore.collectorsHint')}>
+                        <S.Info
+                          type="button"
+                          aria-label={t('myStore.tileCollectors')}
+                          data-testid="store-collectors-hint"
+                        >
+                          <Icon name="info" className="ico" aria-hidden />
+                        </S.Info>
+                      </Tooltip>
+                    </span>
+                    <S.TileMark aria-hidden>👥</S.TileMark>
+                  </S.TileKey>
+                  <S.TileValue data-testid="store-collectors">{trend.collectors.total.toLocaleString()}</S.TileValue>
+                  <S.TileFoot>
+                    {trend.collectors.total === 0 ? (
+                      t('myStore.tileCollectorsNone')
+                    ) : (
+                      <>
+                        {stats.breakdownPartial ? (
+                          <>
+                            <S.Estimate>{t('myStore.estimate')}</S.Estimate>{' '}
+                          </>
+                        ) : null}
+                        {trend.collectors.topSharePct >= 50
+                          ? t('myStore.tileCollectorsConcentrated', {
+                              // Rounded DOWN: a store where one address took 2,202 of 2,206 sales is not
+                              // "100% of your sales" while four other people are standing right there.
+                              pct: Math.floor(trend.collectors.topSharePct)
+                            })
+                          : t('myStore.tileCollectorsFoot', {
+                              repeat: trend.collectors.repeat,
+                              pct: Math.round(trend.collectors.repeatPct)
+                            })}
+                      </>
+                    )}
+                  </S.TileFoot>
+                </S.Tile>
                 {stats.royalties ? (
                   <S.Tile>
                     <S.TileKey>
@@ -689,6 +1035,7 @@ export function MyStore() {
                           </S.Info>
                         </Tooltip>
                       </span>
+                      <DeltaTag delta={trend.royalties} period={period} />
                       <S.TileMark aria-hidden>🔁</S.TileMark>
                     </S.TileKey>
                     <S.TileValue data-testid="store-royalties">
@@ -710,143 +1057,65 @@ export function MyStore() {
                     </S.TileFoot>
                   </S.Tile>
                 ) : null}
-                <S.Tile>
-                  <S.TileKey>
-                    {t('myStore.tileDiscounts')}
-                    <S.TileMark aria-hidden>🔥</S.TileMark>
-                  </S.TileKey>
-                  <S.TileValue data-testid="store-discounts">{running.length}</S.TileValue>
-                  <S.TileFoot>
-                    {running.length > 0 ? t('myStore.tileDiscountsFoot') : t('myStore.tileDiscountsNone')}
-                  </S.TileFoot>
-                </S.Tile>
-              </S.Tiles>
+              </S.AudienceTiles>
 
-              <S.Columns>
-                <S.Panel aria-labelledby="store-coll-h">
-                  <S.PanelHead>
-                    <S.PanelTitle id="store-coll-h">{t('myStore.collections')}</S.PanelTitle>
-                    <S.HeadRight>
-                      <S.PanelHint>
-                        {stats.breakdownPartial
-                          ? t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })
-                          : t(`myStore.sold${period}`)}
-                      </S.PanelHint>
-                      {stats.collections.length > 1 ? (
-                        <S.Sort
-                          options={[
-                            { value: 'sold', label: t('myStore.sortSold') },
-                            ...(stats.collections.some(c => c.createdAt)
-                              ? [{ value: 'newest', label: t('myStore.sortNewest') }]
-                              : []),
-                            { value: 'name', label: t('myStore.sortName') }
-                          ]}
-                          value={sort}
-                          onChange={value => setSort(value as Sort)}
-                          align="right"
-                          ariaLabel={t('myStore.sortBy')}
-                          className="store-sort"
-                        />
-                      ) : null}
-                    </S.HeadRight>
-                  </S.PanelHead>
-                  {stats.collections.length === 0 ? (
-                    <S.Empty>{t('myStore.noCollections')}</S.Empty>
-                  ) : (
-                    sortCollections(stats.collections, sort)
-                      .slice(0, showAll ? undefined : COLLECTIONS_SHOWN)
-                      .map(collection => (
-                        <CollectionRow
-                          key={collection.contractAddress}
-                          collection={collection}
-                          discountPct={pctByCollection.get(collection.contractAddress) ?? null}
-                          env={env}
-                          open={open.has(collection.contractAddress)}
-                          onToggle={() =>
-                            setOpen(current => {
-                              const next = new Set(current)
-                              if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
-                              return next
-                            })
-                          }
-                        />
-                      ))
-                  )}
-                  {stats.collections.length > COLLECTIONS_SHOWN && !showAll ? (
-                    <S.More type="button" onClick={() => setShowAll(true)} data-testid="store-show-all">
-                      {t('myStore.showAll', { count: stats.collections.length })}
-                    </S.More>
-                  ) : null}
-                  {stats.unattributed > 0 ? (
-                    <S.Note data-testid="store-unattributed">
-                      {t('myStore.unattributed', { count: stats.unattributed })}
-                    </S.Note>
-                  ) : null}
-                  {stats.unknownCollections > 0 ? (
-                    <S.Note data-testid="store-unknown-state">{t('myStore.unknownState')}</S.Note>
-                  ) : null}
-                </S.Panel>
-
-                <S.Side>
-                  <S.Panel aria-labelledby="store-attn-h">
-                    <S.PanelHead>
-                      <S.PanelTitle id="store-attn-h">{t('myStore.attention')}</S.PanelTitle>
-                    </S.PanelHead>
-                    {attention.length === 0 ? (
-                      <S.Empty data-testid="store-attn-none">{t('myStore.attnNone')}</S.Empty>
-                    ) : (
-                      attention.map(row => (
-                        <S.AttnRow key={row.id}>
-                          <S.Stripe data-sev={row.sev} aria-hidden />
-                          <S.AttnText>
-                            <b>
-                              {row.title}
-                              {row.hint ? (
-                                <Tooltip content={row.hint}>
-                                  <S.Info
-                                    type="button"
-                                    aria-label={row.title}
-                                    data-testid={`store-attn-${row.id}-hint`}
-                                  >
-                                    <Icon name="info" className="ico" aria-hidden />
-                                  </S.Info>
-                                </Tooltip>
-                              ) : null}
-                            </b>
-                            <span>{row.why}</span>
-                            {row.to ? (
-                              <S.AttnLink to={row.to} data-testid={`store-attn-${row.id}-cta`}>
-                                {row.cta}
-                              </S.AttnLink>
-                            ) : null}
-                          </S.AttnText>
-                          <S.AttnNum data-testid={`store-attn-${row.id}`}>{row.n}</S.AttnNum>
-                        </S.AttnRow>
-                      ))
-                    )}
-                  </S.Panel>
-
-                  {creatorSalesEnabled && !viewAs && session && (running.length > 0 || saleable.length > 0) ? (
-                    <S.Panel aria-labelledby="store-disc-h">
-                      <S.PanelHead>
-                        <S.PanelTitle id="store-disc-h">{t('creatorSale.salesTitle')}</S.PanelTitle>
-                      </S.PanelHead>
-                      {running.length > 0 ? (
-                        <S.PanelBody>
-                          <CreatorSales sales={running} session={session} names={names} />
-                        </S.PanelBody>
-                      ) : (
-                        <S.Empty>{t('myStore.noDiscounts')}</S.Empty>
-                      )}
-                      {saleable.length > 0 ? (
-                        <S.More type="button" onClick={() => setSaleOpen(true)} data-testid="store-new-discount">
-                          {t('myStore.newDiscount')}
-                        </S.More>
-                      ) : null}
-                    </S.Panel>
-                  ) : null}
-                </S.Side>
-              </S.Columns>
+              <S.Panel aria-labelledby="store-buyers-h">
+                <S.PanelHead>
+                  <S.PanelTitle id="store-buyers-h">{t('myStore.buyers')}</S.PanelTitle>
+                  <S.PanelHint>{t('myStore.buyersHint')}</S.PanelHint>
+                </S.PanelHead>
+                {trend.buyers.length === 0 ? (
+                  <S.Empty data-testid="store-buyers-none">{t('myStore.noBuyers')}</S.Empty>
+                ) : (
+                  <S.FeedWrap>
+                    <S.BuyerFeed>
+                      <thead>
+                        <tr>
+                          <th scope="col">{t('myStore.colBuyer')}</th>
+                          <th scope="col">{t('myStore.colItems')}</th>
+                          <th scope="col">{t('myStore.colCollections')}</th>
+                          <th scope="col">{t('myStore.colLast')}</th>
+                          <th scope="col" style={{ textAlign: 'right' }}>
+                            {t('myStore.colSpent')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trend.buyers.map(buyer => {
+                          const face = audience?.get(buyer.address)?.avatar?.snapshots?.face256
+                          return (
+                            <tr key={buyer.address} data-testid="store-buyer">
+                              <td>
+                                <S.Buyer
+                                  href={`${config.profileUrl}/${buyer.address}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  data-testid="store-buyer-name"
+                                >
+                                  <S.Face style={face ? { backgroundImage: `url(${face})` } : undefined} aria-hidden />
+                                  {buyerName(buyer.address, audience)}
+                                </S.Buyer>
+                              </td>
+                              {/* Distinct items and collections, not sales: nine copies of one item and
+                                    one thing from each of nine collections are different customers, and the
+                                    count of sales reads them the same. */}
+                              <td data-dim>{t('myStore.buyerItems', { count: buyer.items })}</td>
+                              <td data-dim>{t('myStore.buyerCollections', { count: buyer.collections })}</td>
+                              <td data-dim>{ago(buyer.lastAt)}</td>
+                              <td data-money>
+                                <S.Money>
+                                  <CurrencyMark kind="mana" />
+                                  {mana(buyer.spentWei)}
+                                </S.Money>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </S.BuyerFeed>
+                  </S.FeedWrap>
+                )}
+              </S.Panel>
 
               <S.Panel aria-labelledby="store-feed-h">
                 <S.PanelHead>
@@ -939,8 +1208,10 @@ export function MyStore() {
                               </td>
                               <td data-dim>{ago(row.timestamp)}</td>
                               <td data-money>
-                                <CurrencyMark kind="mana" />
-                                {mana(weiOf(row.price))}
+                                <S.Money>
+                                  <CurrencyMark kind="mana" />
+                                  {mana(weiOf(row.price))}
+                                </S.Money>
                               </td>
                             </tr>
                           )
