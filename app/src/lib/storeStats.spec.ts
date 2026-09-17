@@ -287,6 +287,20 @@ describe('buildStoreStats', () => {
  * These pin which figure comes from which, because the failure they guard against is silent: a headline
  * that is right beside a breakdown that no longer admits it is only part of the story.
  */
+describe('a collection with nothing left to sell', () => {
+  const soldOut = (id: string) => item({ blockchainItemId: id, totalSupply: 10, remainingSupply: 0 })
+
+  it('is marked when every item in it is gone, so a zero beside it reads as finished rather than failed', () => {
+    const stats = build({ catalogue: [soldOut('0'), soldOut('1')] })
+    expect(stats.collections[0].exhausted).toBe(true)
+  })
+
+  it('is not marked while one copy is still buyable', () => {
+    const stats = build({ catalogue: [soldOut('0'), item({ blockchainItemId: '1' })] })
+    expect(stats.collections[0].exhausted).toBe(false)
+  })
+})
+
 describe('buildStoreStats with the server summary', () => {
   const summary = {
     total: 9_000,

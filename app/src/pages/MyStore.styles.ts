@@ -157,6 +157,9 @@ export const TileKey = styled.span`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* The tiles carrying a tooltip button stand 3px taller than the rest, and in a grid that is 3px of dead
+     space under every other card. Held to the taller of the two. */
+  min-height: 18px;
   font-family: ${theme.font.sans};
   font-size: 12px;
   font-weight: 600;
@@ -210,9 +213,17 @@ export const TileUnit = styled.span`
   color: ${theme.colors.muted};
 `
 
+/**
+ * The line under a tile's figure.
+ *
+ * The tiles are grid cells, so the tallest one sets the height of the row. Reserving a second line for
+ * every card fixed that and left dead space under most of them instead; the copy is kept short enough to
+ * fit one line at the tile's own width, which fixes it without spending the pixels.
+ */
 export const TileFoot = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
+  line-height: 1.35;
   color: ${theme.colors.muted};
 `
 
@@ -235,23 +246,6 @@ export const Estimate = styled.span`
   border: 1px dashed ${theme.colors.muted2};
   border-radius: ${theme.radius.chip};
   padding: 1px 5px;
-`
-
-export const Columns = styled.div`
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-
-  ${theme.media.maxWidth('lg')} {
-    grid-template-columns: minmax(0, 1fr);
-  }
-`
-
-export const Side = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 `
 
 export const Panel = styled.section`
@@ -334,6 +328,28 @@ export const CollRow = styled.div`
     justify-self: end;
   }
 
+  /**
+   * A collection with no copies left, set back from the ones that still have something to sell.
+   *
+   * Muted rather than faded: opacity would take the row's one action down with it, and a creator who wants
+   * to look at a finished run should not have to fight the styling to click into it. The thumbnail loses
+   * its colour, the figures lose their weight, and the row still reads.
+   */
+  &[data-exhausted] {
+    background: rgba(0, 0, 0, 0.018);
+    color: ${theme.colors.muted};
+
+    img {
+      filter: grayscale(0.75);
+      opacity: 0.72;
+    }
+    /* The collection's own name follows the row; the action at the end keeps its colour, because a
+       finished run is still one a creator opens, and a button that reads disabled invites nobody. */
+    [data-testid='store-collection-name'] {
+      color: inherit;
+    }
+  }
+
   ${theme.media.maxWidth('mobile')} {
     grid-template-columns: 24px 40px minmax(0, 1fr) auto;
     row-gap: 10px;
@@ -392,6 +408,27 @@ export const Mosaic = styled.span`
   border-radius: ${theme.radius.btn};
   overflow: hidden;
   background: ${theme.colors.media};
+`
+
+/**
+ * A finished run, beside the collection's name.
+ *
+ * A chip rather than another clause in the grey line under it: "sold out" is the one fact on the row that
+ * changes how its zero should be read, and buried in a run-on of counts it read as one more count.
+ */
+export const SoldOutChip = styled.span`
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  font-family: ${theme.font.sans};
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: ${theme.radius.pill};
+  color: ${theme.colors.muted1};
+  background: ${theme.colors.chip};
 `
 
 export const NameLine = styled.span`
@@ -1154,4 +1191,158 @@ export const Empty = styled.p`
 export const ChevronIcon = styled(Icon)`
   width: 16px;
   height: 16px;
+`
+
+/**
+ * How a figure moved against the window before it.
+ *
+ * Colour alone would carry the whole meaning, so the arrow carries it too: a reader who cannot separate
+ * the green from the red still sees which way it points.
+ */
+export const Delta = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  /* Rides at the right of the title row, beside the mark, rather than after the figure. Next to a number
+     set at 30px it had nowhere to go and wrapped, and one wrapped tile set the height of all six. */
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: ${theme.colors.muted};
+
+  &[data-dir='up'] {
+    color: #2ecc71;
+  }
+  &[data-dir='down'] {
+    color: #ff6b6b;
+  }
+`
+
+/**
+ * The heading over a band of panels, on the purple field rather than inside a card.
+ *
+ * The page was one stack of white panels, which made every part of it read as equally important. A band
+ * with its own title says where the sales figures end and the people behind them begin.
+ */
+export const SectionHead = styled.div`
+  margin: 10px 0 -4px;
+`
+
+export const SectionTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: ${theme.colors.softWhite};
+`
+
+export const SectionSub = styled.p`
+  margin: 4px 0 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: rgba(252, 252, 252, 0.62);
+`
+
+/**
+ * The band's two figures, under its title.
+ *
+ * Capped rather than stretched: a tile is a figure and a line about it, and given the full width of the
+ * page it becomes a mostly empty white bar with a number parked at the left. They keep a card's width and
+ * sit together at the start of the row.
+ */
+export const AudienceTiles = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 300px));
+  gap: 14px;
+  align-items: start;
+
+  ${theme.media.maxWidth('mobile')} {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+/**
+ * The buyers table. Same table, its own column widths.
+ *
+ * The sales feed's widths are tuned for an item name and a thumbnail in the first cell; here the first
+ * cell is a person and the three after it are small counts, so reusing those widths left the numbers
+ * stranded at the far right of columns twice the width they need.
+ */
+export const BuyerFeed = styled(Feed)`
+  thead th:nth-of-type(1) {
+    width: 40%;
+  }
+  thead th:nth-of-type(2) {
+    width: 16%;
+  }
+  thead th:nth-of-type(3) {
+    width: 20%;
+  }
+  thead th:nth-of-type(4) {
+    width: 12%;
+  }
+  thead th:nth-of-type(5) {
+    width: 12%;
+  }
+`
+
+/**
+ * The two short panels, side by side above the long one.
+ *
+ * They used to sit stacked in a narrow column beside the collections list, which meant the taller of the
+ * two sides left a stripe of empty page down the other. Both of these are short by nature — a handful of
+ * callouts, a discount or two — so pairing THEM leaves the list the full width it wanted anyway, and the
+ * tall element is alone on its row where nothing can be left hanging beside it.
+ *
+ * `auto-fit` rather than two fixed tracks: the discounts panel is absent for a creator who cannot run
+ * one, and a fixed second track would hold its empty space open.
+ */
+export const Alerts = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+  align-items: start;
+`
+
+/**
+ * The footer that carries a panel's own call to action.
+ *
+ * The button is the Shop's primary rather than a line of coloured text, because starting a discount is
+ * the one thing this panel is for and a text link reads as an aside next to the END DISCOUNT controls
+ * above it.
+ */
+export const PanelFoot = styled.div`
+  padding: 14px 18px;
+  border-top: 1px solid ${theme.colors.line};
+
+  button {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+`
+
+/**
+ * An amount in a table cell, with its currency mark centred against the digits.
+ *
+ * A table cell lays its content out on the baseline, and the mark is a box rather than a glyph with one,
+ * so it sat about a pixel and a half high next to every figure in both tables. The tiles never showed it
+ * because their value row is already a flex container doing exactly this.
+ */
+export const Money = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  [data-kind] img,
+  [data-kind] .ico {
+    vertical-align: baseline;
+  }
 `

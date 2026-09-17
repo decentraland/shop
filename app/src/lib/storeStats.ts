@@ -42,6 +42,14 @@ export type StoreCollection = {
   createdAt: number | null
   /** Sales across the window, oldest first — the sparkline's series. */
   trend: number[]
+  /**
+   * Every item in it has no copies left.
+   *
+   * Worth naming rather than leaving the reader to compare two counts, because it changes what a zero
+   * beside the collection MEANS: a run that is gone did not fail to sell this month, it has nothing left
+   * to sell, and the row should not read like the ones that do.
+   */
+  exhausted: boolean
 }
 
 export type StoreStats = {
@@ -226,7 +234,8 @@ export function buildStoreStats({
       sold: 0,
       earningsWei: 0n,
       createdAt: null,
-      trend: []
+      trend: [],
+      exhausted: false
     }
     const sold = soldByItem.get(`${ca}-${item.blockchainItemId}`) ?? 0
     entry.items.push({
@@ -264,6 +273,7 @@ export function buildStoreStats({
       : own.reduce((sum, row) => sum + weiOf(row.price), 0n)
     if (fromSummary) entry.sold = fromSummary.sold
     entry.trend = bucketSales(own, trendDays, now)
+    entry.exhausted = entry.items.length > 0 && entry.soldOut === entry.items.length
     // Best-selling first: a store's own page should open on what is working.
     entry.items.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
   }

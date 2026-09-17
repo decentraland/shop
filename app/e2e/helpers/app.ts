@@ -865,7 +865,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v1/sales') {
       const all = ((F.sales as { data?: any[] })?.data ?? []) as any[]
       const kind = u.searchParams.get('type')
-      const rows = kind ? all.filter(sale => sale.type === kind) : all
+      // `from`/`to` are honoured like the real endpoint's. Without that a fixture could not hold a sale
+      // OUTSIDE the window under test, which is exactly what a period-over-period figure needs to read.
+      const from = Number(u.searchParams.get('from') ?? 0)
+      const to = Number(u.searchParams.get('to') ?? Number.MAX_SAFE_INTEGER)
+      const windowed = all.filter(sale => sale.timestamp >= from && sale.timestamp <= to)
+      const rows = kind ? windowed.filter(sale => sale.type === kind) : windowed
       const first = Number(u.searchParams.get('first') ?? rows.length)
       const skip = Number(u.searchParams.get('skip') ?? 0)
       return json(req, { data: rows.slice(skip, skip + first), total: rows.length })

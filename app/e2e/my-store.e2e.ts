@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { bodyText, waitForText } from './helpers/dom'
 import { COLLECTION, TEST_ADDRESS } from './fixtures'
+import { storeShowcaseFixtures } from './storeShowcase.fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -48,11 +49,19 @@ const listing = (itemId: string, name: string, priceCredits: number) => ({
   chainId: 80002
 })
 
-const sale = (n: number, itemId: string, daysAgo: number, price: string, type = 'mint') => ({
+/** Four buyers, one of whom takes most of the store: enough for the collectors figures to mean something. */
+const BUYERS = [
+  '0xaca5bc79b0cd51b726d2eadfc747f7ad4dfe7efb',
+  '0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1',
+  '0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2',
+  '0xd3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3'
+]
+
+const sale = (n: number, itemId: string, daysAgo: number, price: string, type = 'mint', buyer = BUYERS[0]) => ({
   id: `sale-${n}`,
   itemId,
   contractAddress: COLLECTION,
-  buyer: '0xaca5bc79b0cd51b726d2eadfc747f7ad4dfe7efb',
+  buyer,
   seller: TEST_ADDRESS,
   price,
   timestamp: Date.now() - daysAgo * DAY,
@@ -70,7 +79,9 @@ const runningSale = {
   checks: {
     uses: 5,
     expiration: Date.now() + 40 * HOUR,
-    effective: Date.now() - HOUR,
+    // Live for two days, with sales on either side of that line: long enough for the panel to say whether
+    // it moved anything, which an hour-old discount cannot.
+    effective: Date.now() - 2 * DAY,
     salt: '0x' + '22'.repeat(32),
     contractSignatureIndex: 0,
     signerSignatureIndex: 0,
@@ -99,9 +110,14 @@ const sales = [
   sale(4, '1', 2, '370908000000000000'),
   sale(5, '1', 5, '370908000000000000'),
   sale(6, '1', 9, '370908000000000000'),
-  sale(7, '2', 12, '8160000000000000000', 'order'),
-  sale(8, '0', 15, '5000000000000000000'),
-  ...Array.from({ length: 7 }, (_, i) => sale(9 + i, '1', 4 + i, '370908000000000000'))
+  sale(7, '2', 12, '8160000000000000000', 'order', BUYERS[1]),
+  sale(8, '0', 15, '5000000000000000000', 'mint', BUYERS[1]),
+  ...Array.from({ length: 7 }, (_, i) =>
+    sale(9 + i, '1', 4 + i, '370908000000000000', 'mint', BUYERS[[0, 0, 0, 1, 1, 2, 3][i]])
+  ),
+  // Older than the 30-day window and inside the one before it, so the period-over-period figures have a
+  // month to compare against instead of reading every store as brand new.
+  ...Array.from({ length: 6 }, (_, i) => sale(20 + i, '0', 35 + i * 2, '5000000000000000000'))
 ]
 
 const listed = [listing('0', 'Galaxy Hat', 30), listing('1', 'Galaxy Boots', 10)]
@@ -136,11 +152,13 @@ describe('when a creator opens their store', () => {
 
     // The window's figures, from the one sales fetch the page makes.
     expect(await text(app, 'store-sold')).toBe('15')
+    // 15 against the 6 of the month before it, which the harness now windows properly.
+    expect(await text(app, 'store-delta')).toContain('150%')
     expect(await text(app, 'store-discounts')).toBe('1')
     const body = await bodyText(page)
     // Counted by the server's own aggregate, not derived from the page of rows the table happens to hold,
     // and named by who did the selling: a resale is the creator's, a royalty is somebody else's.
-    expect(body).toContain('14 first sales · 1 resold by you')
+    expect(body).toContain('14 first sales · 1 resold')
 
     // Only what the creator can act on: nothing is priced in MANA here, so that row is absent rather than
     // sitting at zero.
@@ -226,6 +244,96 @@ describe('when a creator opens their store', () => {
     await page.waitForSelector('[data-testid="store-item"]')
 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+  })
+})
+
+/**
+ * The figures that say what CHANGED rather than what happened. Each is pinned against the fixture rather
+ * than against itself, because the failure they guard is a plausible-looking number, not a missing one.
+ */
+describe('when a creator reads how their store is doing', () => {
+  it('should say which way each figure moved, who is buying, and what is going unsold', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1300 })
+    await page.waitForSelector('[data-testid="store-collection"]')
+    const body = await bodyText(page)
+
+    // 15 sold in the window against 6 in the one before it, which the harness derives from the same rows.
+    expect(await text(app, 'store-delta')).toContain('150%')
+    // Four buyers, one of whom took more than half, which is the fact that reframes the rest.
+    expect(await text(app, 'store-collectors')).toBe('4')
+    // Nine of the fifteen went to one of them, which is the reading the bare count cannot give.
+    expect(body).toContain('1 buyer is 60% of sales')
+    // The discount has been live two days, with sales before it to compare against.
+    await page.waitForSelector('[data-testid="creator-sale-lift"]')
+    expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)
+    await page.screenshot({ path: '/tmp/lift.png', clip: { x: 860, y: 150, width: 560, height: 760 } })
+  })
+
+  it("should count what nobody bought against the item's whole life, not against this month", async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    await app.page.waitForSelector('[data-testid="store-collection"]')
+    const body = await bodyText(app.page)
+
+    // The crown has sold its only copy, so it is sold out rather than unwanted however quiet the month was.
+    expect(body).toContain('Saved, never bought')
+  })
+})
+
+/**
+ * One store with something to say in every figure at once.
+ *
+ * Each case above exercises one of them against a fixture shaped for it. A creator's real store is not
+ * shaped for anything, and the risk this covers is the one no single-purpose fixture can reach: the
+ * figures reading fine alone and contradicting each other, or crowding each other out, when they all land
+ * on the same screen.
+ */
+describe('when every figure on the dashboard has something to report', () => {
+  it('should show them together without any of them displacing another', async () => {
+    app = await launchApp({
+      path: '/my-store',
+      myStore: true,
+      creatorSales: true,
+      fixtures: storeShowcaseFixtures
+    })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1250 })
+    await page.waitForSelector('[data-testid="store-collection"]')
+    await page.waitForSelector('[data-testid="creator-sale-lift"]')
+    const body = await bodyText(page)
+
+    // Twenty-four this month against six the month before, all four buyers counted, one of them most of it.
+    expect(await text(app, 'store-sold')).toBe('24')
+    // Copies changing hands between collectors, which is the half of the page a first sale cannot report.
+    expect(await page.$('[data-testid="store-royalties"]')).not.toBeNull()
+    expect(await text(app, 'store-delta')).toContain('%')
+    expect(await text(app, 'store-collectors')).toBe('4')
+    expect(body).toContain('% of sales')
+    // The discount has been live two days with sales on either side of that line.
+    expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)
+    // A collection with nothing left wears the chip, and the capsule nobody has bought is called out.
+    expect(await page.$('[data-testid="store-collection-soldout"]')).not.toBeNull()
+    expect(body).toContain('Saved, never bought')
+
+    // The tiles are grid cells, so one of them running to a second line grows every card beside it. They
+    // are measured rather than eyeballed: equal heights are the whole reason the copy is kept short.
+    const heights = await page.$$eval('[data-testid="store-sold"]', els => {
+      const row = els[0].closest('section')
+      return [...(row?.children ?? [])].map(card => Math.round(card.getBoundingClientRect().height))
+    })
+    expect(new Set(heights).size).toBe(1)
+
+    // The audience band: the people behind the figures, ranked by what they spent. Four buyers, and the
+    // one at the top bought the same item over and over rather than spreading across the store.
+    expect(await page.$$eval('[data-testid="store-buyer"]', rows => rows.length)).toBe(4)
+    expect(body).toContain('Your audience')
+
+    // A tall viewport rather than fullPage: the page's field is a fixed background, which a stitched
+    // full-page capture renders once and leaves white underneath.
+    await page.setViewport({ width: 1440, height: 2400 })
+    await new Promise(resolve => setTimeout(resolve, 400))
+    await page.screenshot({ path: '/tmp/showcase.png' })
   })
 })
 
