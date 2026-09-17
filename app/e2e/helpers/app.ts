@@ -74,6 +74,8 @@ export type Fixtures = {
   userStore: unknown
   purchases: unknown
   sales: unknown
+  /** Overrides on top of the summary derived from `sales`; omit to let the rows speak for themselves. */
+  salesSummary: unknown
   notifications: unknown
   /** Outfit records served (and mutated) by the mock shop-server (port 5004). */
   outfits: unknown
@@ -126,6 +128,7 @@ function defaults(): Fixtures {
     rankings: { data: [] },
     purchases: { purchases: [] },
     sales: { data: [], total: 0 },
+    salesSummary: undefined,
     // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
     // Timestamps are epoch MILLISECONDS here; notifications.e2e.ts overrides this to cover the seconds /
     // ISO / unparseable shapes the real service has been seen to return.
@@ -259,6 +262,9 @@ let followsFlag = false
 let creatorSalesFlag = false
 let suggestedForYouFlag = false
 let suggestedConfig: { personalized?: boolean; count?: number } = {}
+let myStoreFlag = false
+/** The My Store flag's address-list variant. Undefined means no list, which is 'everyone'. */
+let myStoreAllowed: string | undefined
 // The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
 let couponStore: any[] = []
 let campaignFlag = false
@@ -394,11 +400,17 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
           'dapps-shop-follows': followsFlag,
           'dapps-shop-creator-sales': creatorSalesFlag,
           'dapps-shop-campaign': campaignFlag,
-          'dapps-shop-suggested-for-you': suggestedForYouFlag
+          'dapps-shop-suggested-for-you': suggestedForYouFlag,
+          'dapps-shop-my-store': myStoreFlag
         },
-        variants: outfitCreatorFlag
-          ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
-          : {}
+        variants: {
+          ...(outfitCreatorFlag
+            ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
+            : {}),
+          ...(myStoreAllowed === undefined
+            ? {}
+            : { 'dapps-shop-my-store': { enabled: true, payload: { value: myStoreAllowed } } })
+        }
       })
     })
   }
@@ -813,9 +825,51 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v1/coupons') return json(req, { ok: true, data: couponStore })
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
-    // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
-    // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
-    if (path === '/v1/sales') return json(req, F.sales)
+    // Sales feed (Activity page → fetchUserSales, and the store dashboard). The address filter is applied
+    // server-side in prod and the fixture is already scoped per run, but `type`, `first` and `skip` are
+    // honoured here: the dashboard counts a kind with `type=…&first=1` and pages the table with skip, so a
+    // mock that ignored them would answer every one of those questions with the whole fixture.
+    // The one-request aggregate the dashboard leads with (lib/sales.ts -> fetchSalesSummary). Derived from
+    // the same rows the feed serves, so the tiles and the table below them cannot be made to disagree by a
+    // fixture that was only half updated. `from`/`to` are honoured because switching period is exactly the
+    // question the tiles ask, while `soldLifetime` deliberately ignores the window: that column says how
+    // much of a run has ever gone, not how much went this month.
+    if (path === '/v1/sales/summary') {
+      const all = ((F.sales as { data?: any[] })?.data ?? []) as any[]
+      const from = Number(u.searchParams.get('from') ?? 0)
+      const to = Number(u.searchParams.get('to') ?? Number.MAX_SAFE_INTEGER)
+      const rows = all.filter(row => row.timestamp >= from && row.timestamp <= to)
+      const weiOf = (xs: any[]) => xs.reduce((sum, row) => sum + BigInt(row.price), 0n).toString()
+      const resales = rows.filter(row => row.type !== 'mint')
+      const group = (xs: any[], key: (row: any) => string) =>
+        xs.reduce<Record<string, any[]>>((acc, row) => ({ ...acc, [key(row)]: [...(acc[key(row)] ?? []), row] }), {})
+      const derived = {
+        total: rows.length,
+        mints: rows.length - resales.length,
+        resales: resales.length,
+        earnedWei: weiOf(rows),
+        byCollection: Object.entries(group(rows, row => row.contractAddress)).map(([contractAddress, rs]) => ({
+          contractAddress,
+          sold: rs.length,
+          earnedWei: weiOf(rs)
+        })),
+        byItem: Object.entries(group(all, row => `${row.contractAddress}:${row.itemId}`)).map(([key, rs]) => ({
+          contractAddress: key.split(':')[0],
+          itemId: key.split(':')[1],
+          soldLifetime: rs.length
+        })),
+        royalties: { resales: resales.length, volumeWei: weiOf(resales) }
+      }
+      return json(req, { data: { ...derived, ...((F.salesSummary as object) ?? {}) } })
+    }
+    if (path === '/v1/sales') {
+      const all = ((F.sales as { data?: any[] })?.data ?? []) as any[]
+      const kind = u.searchParams.get('type')
+      const rows = kind ? all.filter(sale => sale.type === kind) : all
+      const first = Number(u.searchParams.get('first') ?? rows.length)
+      const skip = Number(u.searchParams.get('skip') ?? 0)
+      return json(req, { data: rows.slice(skip, skip + first), total: rows.length })
+    }
     // The shop's creator ranking (lib/rankings.ts → fetchShopTopCreators). Served from a fixture so a
     // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
     // i.e. the section rendered its skeletons and then removed itself.
@@ -1084,6 +1138,13 @@ export async function launchApp(
      * A spec passes `{ personalized: false }` to exercise the row hiding itself.
      */
     suggested?: { personalized?: boolean; count?: number }
+    /**
+     * Whether the mocked flag file reports the creator's store dashboard as available. Defaults to FALSE,
+     * the shipped state; the my-store spec passes true.
+     */
+    myStore?: boolean
+    /** Comma-separated addresses for the My Store flag's variant. Omit for no list, i.e. every visitor. */
+    myStoreAllowed?: string
     /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
     delays?: Delays
     /**
@@ -1113,6 +1174,8 @@ export async function launchApp(
   creatorSalesFlag = opts.creatorSales ?? false
   suggestedForYouFlag = opts.suggestedForYou ?? false
   suggestedConfig = opts.suggested ?? {}
+  myStoreFlag = opts.myStore ?? false
+  myStoreAllowed = opts.myStoreAllowed
   couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
   campaignFlag = opts.campaign ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests

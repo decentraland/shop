@@ -133,6 +133,50 @@ export const RowThumb = styled.span`
   background: ${theme.colors.media};
 `
 
+/** The choose-a-collection step: the same row, made clickable. */
+export const PickList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-top: 4px;
+`
+
+export const PickRow = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid ${theme.colors.line};
+  border-radius: ${theme.radius.card};
+  background: ${theme.colors.white};
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    border-color: ${theme.colors.accent};
+    background: ${theme.colors.promptLilac};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
+  .ico {
+    margin-left: auto;
+    transform: rotate(-90deg);
+    color: ${theme.colors.muted};
+  }
+`
+
+export const RowText = styled.span`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+`
+
 export const RowInfo = styled.span`
   display: flex;
   flex-direction: column;

@@ -19,6 +19,8 @@ import { toast } from '~/store/toast'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
+import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { Field } from '~/styles/field.styles'
 import * as S from './StoreSettings.styles'
 
@@ -130,13 +132,17 @@ export function StoreSettings() {
 
   if (!session) {
     return (
-      <S.Root data-signin aria-label={t('storeSettings.title')}>
-        <S.Title>{t('storeSettings.title')}</S.Title>
-        <S.Prompt>{t('storeSettings.signInPrompt')}</S.Prompt>
-        <S.SignInBtn variant="white" onClick={signIn}>
-          {t('storeSettings.signIn')}
-        </S.SignInBtn>
-      </S.Root>
+      <EmptyStateCentered aria-label={t('storeSettings.title')}>
+        <EmptyState
+          testId="store-settings-signin"
+          icon={signInIllustration}
+          title={t('storeSettings.signInTitle')}
+          body={t('storeSettings.signInBody')}
+          cta={{ label: t('storeSettings.signIn'), onClick: () => signIn() }}
+          ctaVariant="solid"
+          fill
+        />
+      </EmptyStateCentered>
     )
   }
 

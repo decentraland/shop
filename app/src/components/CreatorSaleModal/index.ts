@@ -1,1 +1,1 @@
-export { CreatorSaleModal, type SaleableCollection } from './CreatorSaleModal'
+export { CreatorSaleModal } from './CreatorSaleModal'

@@ -9,12 +9,14 @@ import { readCreationsHint, writeCreationsHint } from '~/lib/creations-hint'
 import { displayCredits } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
-import { CreatorSaleModal, type SaleableCollection } from '~/components/CreatorSaleModal'
+import { CreatorSaleModal } from '~/components/CreatorSaleModal'
+import { toSaleableCollections } from '~/lib/saleableCollections'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import type { CreatorSaleStatus } from '~/lib/coupons'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
+import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
@@ -182,7 +184,16 @@ export function MyAssets() {
   // 'wearables' for a missing/unknown value.
   const [searchParams, setSearchParams] = useSearchParams()
   const sectionParam = searchParams.get('section')
-  const section: SectionKey = SECTIONS.some(s => s.key === sectionParam) ? (sectionParam as SectionKey) : 'wearables'
+  /**
+   * My Creations moved to My Store, and only once that page is switched on.
+   *
+   * Gated rather than deleted on purpose: with the flag off there is nowhere else to manage a collection,
+   * so removing the section outright would strand every creator behind a dark feature. On, the section is
+   * unreachable — the nav entry is gone and `?section=creations` falls back — so the two never coexist.
+   */
+  const myStoreEnabled = useMyStoreEnabled()
+  const wantedSection = SECTIONS.some(s => s.key === sectionParam) ? (sectionParam as SectionKey) : 'wearables'
+  const section: SectionKey = myStoreEnabled && wantedSection === 'creations' ? 'wearables' : wantedSection
   const [status, setStatus] = useState<FilterStatus>('all')
   // How a creation is priced. Creations only: it separates the Shop's own credit listings from the classic
   // MANA ones the migration banner is about, which is a distinction no other section has.
@@ -395,53 +406,10 @@ export function MyAssets() {
   const { data: creatorSales } = useCreatorSales(address, creatorSalesEnabled && section === 'creations')
   const [saleModalOpen, setSaleModalOpen] = useState(false)
   const [saleModalFor, setSaleModalFor] = useState<string | undefined>(undefined)
-  const saleableCollections = useMemo<SaleableCollection[]>(() => {
-    const byAddress = new Map<string, SaleableCollection>()
-    // Every creation goes in, listed or not: the sale only re-prices the listed ones, and the review step
-    // has to be able to say which of the rest it will leave alone. The unfiltered list, so what the sale
-    // covers never depends on how the grid happens to be filtered.
-    for (const item of publishable ?? []) {
-      // Sold out is not one of the three states below: there is no copy left for a discount to re-price, so
-      // it belongs in neither the discounted group nor the two the review promises to leave alone.
-      if (item.remainingSupply <= 0) continue
-      const sale = saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
-      // Three states, because "on sale" is not one thing here. A discount re-prices the Shop's own credit
-      // listings, so an item still quoted in MANA cannot take one — but it IS listed, and the review has to
-      // say that rather than call it not for sale.
-      const state = !sale?.isOnSale ? 'unlisted' : sale.manaWei ? 'classic' : 'discounted'
-      const listedInCredits = state === 'discounted'
-      const key = item.contractAddress.toLowerCase()
-      const entry = byAddress.get(key) ?? {
-        contractAddress: key,
-        name: item.collectionName,
-        listedCount: 0,
-        examplePriceCredits: null,
-        items: []
-      }
-      entry.items.push({
-        key: `${key}-${item.blockchainItemId}`,
-        name: item.name,
-        thumbnail: item.thumbnail,
-        priceCredits: listedInCredits && sale ? sale.priceCredits : null,
-        state,
-        remainingSupply: item.remainingSupply
-      })
-      if (listedInCredits && sale) {
-        entry.listedCount += 1
-        entry.examplePriceCredits = Math.max(entry.examplePriceCredits ?? 0, sale.priceCredits)
-      }
-      byAddress.set(key, entry)
-    }
-    /*
-     * Offered wherever the creator has something LISTED, in either currency.
-     *
-     * Credit listings are what a discount can actually re-price, but a collection sold entirely in MANA
-     * used to get no button at all — and an absent control explains nothing. It is offered, and the modal
-     * says why it cannot run yet and where to fix it. A collection with nothing listed at all stays out:
-     * there the answer is to list something, which this flow is not about.
-     */
-    return [...byAddress.values()].filter(c => c.listedCount > 0 || c.items.some(i => i.state === 'classic'))
-  }, [publishable, saleState])
+  const saleableCollections = useMemo(
+    () => toSaleableCollections(publishable ?? [], saleState),
+    [publishable, saleState]
+  )
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
   // with the Activity chip, so the two can never quote different numbers.
@@ -612,8 +580,8 @@ export function MyAssets() {
         subCategory={subCategory}
         onCategory={pickCategory}
         onSub={setSubCategory}
-        onCollections={() => pickSection('creations')}
-        collections={section === 'creations'}
+        onCollections={myStoreEnabled ? undefined : () => pickSection('creations')}
+        collections={!myStoreEnabled && section === 'creations'}
         extraLabelKey="myAssets.sectionCreations"
         hideAll
       />

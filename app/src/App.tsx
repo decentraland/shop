@@ -29,6 +29,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/overview': 'overview',
   '/items': 'assets',
   '/my-items': 'my_assets',
+  '/my-store': 'my_store',
   '/my-favorites': 'favorites',
   '/activity': 'activity',
   '/event': 'event',
@@ -51,6 +52,7 @@ const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default:
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
+const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyStore })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
@@ -210,6 +212,7 @@ export function App() {
               <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
               <Route path="/my-items" element={<MyAssets />} />
+              <Route path="/my-store" element={<MyStore />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
               <Route path="/activity" element={<Activity />} />
               {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
