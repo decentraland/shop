@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { couponUsed, recordCouponUse, recordCouponUses, resetCouponUses } from './couponUses'
+import { couponUsedWith, recordCouponUse, recordCouponUses, useCouponUses } from './couponUses'
+
+/** Reads through the store the components subscribe to, so the spec exercises the same path they do. */
+const couponUsed = (coupon?: { id: string; used?: number } | null) =>
+  couponUsedWith(useCouponUses.getState().spent, coupon)
 
 const coupon = (used?: number, id = 'coupon-1') => ({ id, used })
 
@@ -10,7 +14,7 @@ const coupon = (used?: number, id = 'coupon-1') => ({ id, used })
  */
 describe('couponUses', () => {
   beforeEach(() => {
-    resetCouponUses()
+    useCouponUses.getState().reset()
   })
 
   it('reports what the catalogue says while nothing has been bought here', () => {

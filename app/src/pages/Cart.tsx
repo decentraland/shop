@@ -24,7 +24,7 @@ import {
 } from '~/lib/payment-options'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
-import { recordCouponUses } from '~/lib/couponUses'
+import { recordCouponUses } from '~/store/couponUses'
 import {
   AuthorizationKind,
   ensureAuthorization,
