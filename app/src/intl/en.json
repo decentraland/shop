@@ -1303,6 +1303,7 @@
     "reenterAria": "Re-enter the NAME to confirm",
     "buyCta": "Buy NAME",
     "completing": "Completing transaction…",
+    "registering": "Registering your NAME…",
     "processingRegistering": "Registering your NAME on Ethereum — this can take a few minutes.",
     "confirming": "Confirm to continue…",
     "successHeaderTitle": "Purchase complete!",

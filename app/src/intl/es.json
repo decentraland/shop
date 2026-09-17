@@ -1303,6 +1303,7 @@
     "reenterAria": "Vuelve a escribir el NAME para confirmar",
     "buyCta": "Comprar NAME",
     "completing": "Completando la transacción…",
+    "registering": "Registrando tu NAME…",
     "processingRegistering": "Registrando tu NAME en Ethereum: esto puede tardar unos minutos.",
     "confirming": "Confirma para continuar…",
     "successHeaderTitle": "¡Compra completada!",
