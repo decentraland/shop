@@ -144,7 +144,8 @@
   "storeSettings": {
     "title": "Configuración de la tienda",
     "back": "Volver a tu tienda",
-    "signInPrompt": "Inicia sesión para configurar tu tienda.",
+    "signInTitle": "Inicia sesión para configurar tu tienda",
+    "signInBody": "Agrega una portada, una descripción y tus enlaces, para que quien compre sepa de quién es la tienda.",
     "signIn": "Iniciar sesión",
     "seeAsGuest": "Ver tienda como visitante",
     "loading": "Cargando tu tienda…",

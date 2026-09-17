@@ -144,7 +144,8 @@
   "storeSettings": {
     "title": "Store settings",
     "back": "Back to your store",
-    "signInPrompt": "Sign in to set up your store.",
+    "signInTitle": "Sign in to set up your store",
+    "signInBody": "Add a cover, a description and your links, so shoppers know whose store they are in.",
     "signIn": "Sign in",
     "seeAsGuest": "See store as guest",
     "loading": "Loading your store…",
