@@ -13,6 +13,7 @@ import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
 import { initAnalytics, trackPage } from '~/lib/analytics'
+import { config } from '~/config'
 import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -56,7 +57,6 @@ const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyS
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
-const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
@@ -69,6 +69,25 @@ function PageFallback() {
       <span className="spinner" aria-hidden />
     </div>
   )
+}
+
+/**
+ * Approvals left the Shop for the marketplace, which is where on-chain authorizations live and where the
+ * same grants are already listed — batched, and only the ones actually granted.
+ *
+ * An external navigation rather than a <Navigate>, so it leaves the SPA; `replace` rather than `assign` so
+ * Back returns where the visitor came from instead of re-firing this route. The URL is absolute and comes
+ * from config, so one build still serves .zone/.today/.org, and the /shop basename is irrelevant to it.
+ *
+ * The page keeps its PAGE_NAMES entry, but read that as best-effort: trackPage queues through the Segment
+ * SDK and the unload can beat the flush. It records the attempt, not the arrival — measuring arrival needs
+ * attribution on the marketplace side. Never delay the navigation for it.
+ */
+function MarketplaceSettingsRedirect() {
+  useEffect(() => {
+    window.location.replace(`${config.marketplaceUrl}/settings`)
+  }, [])
+  return <PageFallback />
 }
 const ReloadCta = styled(Button)`
   margin-top: 10px;
@@ -232,7 +251,7 @@ export function App() {
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}
               <Route path="/import" element={<AliasRedirect to="/activity?section=listings" />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/authorizations" element={<Authorizations />} />
+              <Route path="/authorizations" element={<MarketplaceSettingsRedirect />} />
               {/* Selling credits is the one thing the Shop cannot do inside the iOS app's web view — the
                   app sells them through In-App Purchase. Hiding the entrances is not enough on its own:
                   the route stays addressable, and a stale link or a back-navigation would land straight on

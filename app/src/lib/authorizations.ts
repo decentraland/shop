@@ -9,7 +9,7 @@ import {
   type ContractData,
   type Provider
 } from 'decentraland-transactions'
-import { getDeployedOffChainMarketplaceContracts, getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -365,68 +365,13 @@ export type ShopAuthorizationDescriptor = ShopAuthorization & {
 
 /**
  * Letting a contract pull the buyer's MANA. The spender depends on the rail: the MARKETPLACE for a
- * MANA-only purchase (it moves the MANA itself), the CREDITSMANAGER for a mixed credits + MANA one (see
- * getCreditsAuthorization). Callers pass the spender their rail actually uses, so the approval the UI
- * announces is byte-for-byte the one the purchase needs.
+ * MANA-only purchase (it moves the MANA itself), the CREDITSMANAGER for a mixed credits + MANA one.
+ * Callers pass the spender their rail actually uses, so the approval the UI announces is byte-for-byte
+ * the one the purchase needs.
  */
 export function getManaSpendingAuthorization(chainId: ChainId, spenderAddress: string): ShopAuthorization {
   const mana = getContract(ContractName.MANAToken, chainId)
   return { kind: AuthorizationKind.Allowance, contractAddress: mana.address, spenderAddress, chainId }
-}
-
-// The one fixed, account-level authorization the shop uses: letting the CreditsManager spend your
-// balance to top up a purchase that credits don't fully cover. Always shown on the page.
-export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
-  const mana = getContract(ContractName.MANAToken, chainId)
-  const creditsManager = getContract(ContractName.CreditsManager, chainId)
-  return {
-    id: 'credits',
-    group: 'buying',
-    kind: AuthorizationKind.Allowance,
-    contractAddress: mana.address,
-    spenderAddress: creditsManager.address,
-    chainId
-  }
-}
-
-/**
- * Letting the MARKETPLACE pull MANA — the allowance a MANA-only purchase grants (the mixed rail uses the
- * CreditsManager instead, see getCreditsAuthorization). It belongs on the Approvals page for the same
- * reason as any other: a permission the shop asks for has to be visible and revocable, and paying in MANA
- * grants one that was previously listed nowhere.
- */
-export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
-  const mana = getContract(ContractName.MANAToken, chainId)
-  const market = getLatestOffChainMarketplaceContract(chainId)
-  return {
-    id: 'mana-marketplace',
-    group: 'buying',
-    kind: AuthorizationKind.Allowance,
-    contractAddress: mana.address,
-    spenderAddress: market.address,
-    chainId
-  }
-}
-
-/**
- * The same permission on every marketplace version EXCEPT the newest.
- *
- * Grants always target the newest version, so these rows exist only to surface and revoke something granted
- * before it shipped. Their ids carry the spender: the row's react-query cache entry and its test id are both
- * keyed on `id` alone, so an unqualified duplicate would make two versions read and overwrite each other's
- * state. The newest version keeps the bare id, which is what the page and its tests already address.
- */
-export function getLegacyMarketplaceAuthorizations(latest: ShopAuthorizationDescriptor): ShopAuthorizationDescriptor[] {
-  // The chain comes from the descriptor rather than a second argument: passing both let a caller hand in a
-  // chain the descriptor was not built for, and the rows would then be for a different network's contracts.
-  const latestSpender = latest.spenderAddress.toLowerCase()
-  return getDeployedOffChainMarketplaceContracts(latest.chainId)
-    .filter(contract => contract.address.toLowerCase() !== latestSpender)
-    .map(contract => ({
-      ...latest,
-      id: `${latest.id}@${contract.address.toLowerCase()}`,
-      spenderAddress: contract.address
-    }))
 }
 
 // The per-collection selling authorization: letting the marketplace transfer collectibles from this
@@ -440,25 +385,6 @@ export function getCollectionSellingAuthorization(
     id: `selling:${contractAddress.toLowerCase()}`,
     group: 'selling',
     kind: AuthorizationKind.Approval,
-    contractAddress,
-    spenderAddress: market.address,
-    chainId
-  }
-}
-
-// The per-collection minting authorization: letting the marketplace mint items from this collection
-// when a primary/mint listing sells. One row per collection the creator PUBLISHES from. Mirrors the
-// silent grant `ensureMinter` (lib/trades) does at publish time — the operator is the same offchain
-// marketplace that mints — so surfacing it here lets a creator SEE and REVOKE that mint right.
-export function getCollectionMintingAuthorization(
-  contractAddress: string,
-  chainId: ChainId
-): ShopAuthorizationDescriptor {
-  const market = getLatestOffChainMarketplaceContract(chainId)
-  return {
-    id: `minting:${contractAddress.toLowerCase()}`,
-    group: 'minting',
-    kind: AuthorizationKind.Minter,
     contractAddress,
     spenderAddress: market.address,
     chainId

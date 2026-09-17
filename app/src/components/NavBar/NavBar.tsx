@@ -312,11 +312,6 @@ export function NavBar() {
                 {t('myStore.title')}
               </NavLink>
             ) : null}
-            {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
-               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
-            {session && showsWalletConfirmations(session.providerType) ? (
-              <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
-            ) : null}
             {/* Studio entry for the outfit team only — cosmetic gate, the server allowlist is the real one. */}
             {isOutfitCreator ? (
               <NavLink to="/outfits/manage" data-testid="nav-outfits">

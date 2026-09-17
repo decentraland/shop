@@ -138,8 +138,8 @@ export default defineConfig({
     // in step, and note that neither applies to a real deploy, where /auth is genuinely same-origin.
     //
     // The key is a REGEXP, not a plain prefix, and that matters: a plain '/auth' also matches
-    // /authorizations, so the Approvals page got proxied to decentraland.zone and a hard load (or a
-    // refresh, or a shared link) rendered that site's shell instead of the app — a blank page.
+    // /authorizations, which got proxied to decentraland.zone, so a hard load (or a refresh, or a shared
+    // link) rendered that site's shell instead of the app — a blank page.
     proxy: {
       '^/auth(/|$)': {
         target: 'https://decentraland.zone',

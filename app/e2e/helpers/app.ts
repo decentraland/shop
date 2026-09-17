@@ -736,20 +736,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
       return json(req, { data: rows, total: rows.length })
     }
-    // Curated contract registry (lib/api.ts → fetchContractRegistry): the Approvals page titles each
-    // selling row after the COLLECTION, whose name lives only here. Derived from the same collections
-    // fixture so the mock and production agree on what a collection is called. Note the field is
-    // `address`, not `contractAddress`.
-    if (path === '/v1/contracts') {
-      const rows = ((F.collections as { data: any[] }).data ?? []).map(c => ({
-        name: c.name,
-        address: c.contractAddress,
-        category: 'wearable',
-        network: 'MATIC',
-        chainId: 80002
-      }))
-      return json(req, { data: rows, total: rows.length })
-    }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
     // contractAddress / creator query param.
@@ -1032,6 +1018,24 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   if (/\.(m?js|css)$/.test(path)) {
     const type = path.endsWith('.css') ? 'text/css' : 'application/javascript'
     return req.respond({ status: 200, headers: { 'content-type': type, ...CORS }, body: '' })
+  }
+
+  // A TOP-LEVEL navigation that LEAVES the app — which /authorizations does on its way to the marketplace
+  // — has to come back as HTML. Answering it with the JSON below makes the browser treat the response as a
+  // download instead of a navigation, so window.location never moves and the assertion sees the url the
+  // spec started on. The body is deliberately inert: the point is that the browser committed to the
+  // destination, not what the destination renders.
+  //
+  // Main frame only. An IFRAME is also a 'document', and the footer embeds one (the newsletter signup) on
+  // every page: serving it real HTML makes the browser actually load and commit that frame instead of
+  // failing on the JSON, which adds a load event to every page and shifts `networkidle2`. That timing
+  // change alone was enough to time out an unrelated spec on CI while passing locally.
+  if (req.resourceType() === 'document' && req.frame()?.parentFrame() == null) {
+    return req.respond({
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8', ...CORS },
+      body: '<!doctype html><title>external</title>'
+    })
   }
 
   // Anything else external → empty (and log, so we notice a missing mock).
