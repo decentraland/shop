@@ -601,6 +601,19 @@ describe('NameBuyModal', () => {
       expect(screen.queryByText(/RAW_STRIPE_INTERNAL/)).toBeNull()
     })
 
+    // A checkout with neither a redirect url nor an order id has nothing to hand over; navigating anyway
+    // would send the buyer to a page polling `order=undefined` and reporting a failure over a live payment.
+    it('should refuse a checkout that returns no redirect and no order id', async () => {
+      createPackCheckout.mockResolvedValue({ mock: true })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+
+      await waitFor(() => expect(screen.getByText(/couldn.t start the credits checkout/i)).toBeTruthy())
+      expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
+      expect(screen.getByTestId('location').textContent).not.toMatch(/credits/)
+    })
+
     /**
      * The return trip. The screen follows the BALANCE rather than a decision taken when the modal opened,
      * so a buyer back from Stripe with the money landed gets the confirm step — with the re-entry field

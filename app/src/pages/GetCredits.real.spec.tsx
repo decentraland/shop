@@ -464,6 +464,27 @@ describe('when starting a real hosted checkout from a pack click', () => {
     expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
   })
 
+  /**
+   * Only one hand-off can win a grant, and the losers must not outlive it.
+   *
+   * The writers clear their siblings on the way out, but a buyer who leaves Stripe with the browser's BACK
+   * button never reaches a path that writes anything — so a NAME intent could sit through a later cart
+   * top-up and then hijack an unrelated one, redirecting to a NAME they had abandoned.
+   */
+  it('should drop the losing hand-offs when another one claims the grant', async () => {
+    sessionStorage.setItem(RESUME_CART_KEY, JSON.stringify([{ id: 'in-cart' }]))
+    sessionStorage.setItem(RESUME_NAME_KEY, 'abandoned')
+    pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 260, newBalance: 900 })
+
+    renderPage('/?order=ord_x')
+
+    // The cart wins and consumes its own key later (Cart.tsx does that), so this one survives on purpose.
+    await waitFor(() => expect(screen.getByTestId('path').textContent).toBe('/cart'))
+    expect(sessionStorage.getItem(RESUME_CART_KEY)).not.toBeNull()
+    // The NAME lost, and must not be left to claim a later top-up.
+    expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBeNull()
+  })
+
   it('should show the "payment canceled" note (not an error) when returning with ?canceled=1', async () => {
     renderPage('/?canceled=1')
 

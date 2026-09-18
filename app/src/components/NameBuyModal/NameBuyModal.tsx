@@ -280,7 +280,13 @@ export function NameBuyModal({
        * The order id is what makes the dev rail complete. Landing on a bare `/credits` leaves the page with
        * nothing to poll — it just renders the pack grid — so the top-up finished and the resume silently
        * never fired, which is exactly the dead end this whole screen exists to remove.
+       *
+       * Guarded rather than trusted: a checkout with neither a redirect URL nor an order id has nothing to
+       * hand over, and `?order=undefined` would send the buyer to a page that polls a non-existent order and
+       * reports a failure. Raised here so the catch below releases the hand-off and says so plainly — the
+       * same shape GetCredits' own consumer uses.
        */
+      if (!cs.orderId) throw new Error('Checkout returned neither a redirect url nor an order id')
       navigate(`/credits?order=${encodeURIComponent(cs.orderId)}`)
     } catch (e) {
       captureError(e, { flow: 'name_buy_credits' })

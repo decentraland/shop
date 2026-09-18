@@ -203,11 +203,20 @@ export function GetCredits() {
             provider: CREDITS_PROVIDER
           })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-          // If this top-up was started to finish a CART checkout (no-funds → Stripe from the cart's
-          // buy modal), route back to the cart, which restores the stashed cart and resumes checkout.
-          // The cart consumes RESUME_CART_KEY itself (we only detect + route here).
+          /**
+           * If this top-up was started to finish a CART checkout (no-funds → Stripe from the cart's buy
+           * modal), route back to the cart, which restores the stashed cart and resumes checkout. The cart
+           * consumes RESUME_CART_KEY itself (we only detect + route here), so this branch must NOT clear it.
+           *
+           * The OTHER two are dropped, here and in the branches below: only one hand-off can win a grant,
+           * and a loser left behind outlives this top-up to be claimed by an unrelated one later. The
+           * writers clear their siblings on the way out, but a buyer who leaves Stripe with the browser's
+           * back button never reaches a path that writes anything.
+           */
           try {
             if (sessionStorage.getItem(RESUME_CART_KEY)) {
+              sessionStorage.removeItem(RESUME_BUY_KEY)
+              sessionStorage.removeItem(RESUME_NAME_KEY)
               // Carry the credits that just landed so the cart's resumed checkout can hand them to the
               // /success page for the combined "credits + items" view (Figma 1231-250927).
               const cartState: CartNavState = {
@@ -227,6 +236,7 @@ export function GetCredits() {
             const pending = sessionStorage.getItem(RESUME_BUY_KEY)
             if (pending) {
               sessionStorage.removeItem(RESUME_BUY_KEY)
+              sessionStorage.removeItem(RESUME_NAME_KEY)
               const pendingItem = JSON.parse(pending) as CatalogItem
               const detailPath = detailRouteFor(pendingItem)
               if (detailPath) {
