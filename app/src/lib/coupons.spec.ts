@@ -44,9 +44,12 @@ describe('collectionsRoot', () => {
 })
 
 describe('getCouponContracts', () => {
-  it('returns the Polygon mainnet pair through the registry fallback, with an ABI', () => {
+  // Two managers are live on Polygon mainnet, one per marketplace version, and a coupon only redeems on
+  // the marketplace wired to the one that signed it. The version the shop lists on is V3, so its manager
+  // is the only one whose coupons apply to those listings; the older manager is 0x3fd3056e…6081.
+  it('returns the manager of the marketplace the shop lists on, not the chain', () => {
     const contracts = getCouponContracts(ChainId.MATIC_MAINNET)
-    expect(contracts?.couponManager.address).toBe('0x3fd3056ee72a2a85e9392fab3a450e7736536081')
+    expect(contracts?.couponManager.address).toBe('0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813')
     expect(contracts?.collectionDiscountCoupon).toBe('0xc914507fe297b2dddd1232ac3a8903f1c125e794')
     expect(Array.isArray(contracts?.couponManager.abi)).toBe(true)
   })
@@ -117,7 +120,7 @@ describe('createCollectionSale', () => {
       expiration: now + 2 * DAY,
       signerSignatureIndex: 2
     })
-    expect(readIndexes).toHaveBeenCalledWith('0x3fd3056ee72a2a85e9392fab3a450e7736536081', wallet.address.toLowerCase())
+    expect(readIndexes).toHaveBeenCalledWith('0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813', wallet.address.toLowerCase())
 
     const contracts = getCouponContracts(chainId)!
     const data = encodeCouponData(payload.discount, collectionsRoot(payload.collections))
