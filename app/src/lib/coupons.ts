@@ -2,12 +2,13 @@ import { ethers } from 'ethers'
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { ChainId, Network, type TradeChecks } from '@dcl/schemas'
-import { ContractName, getContract } from 'decentraland-transactions'
+import { ContractName, getContract, getContractName, getCouponManager } from 'decentraland-transactions'
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree'
 import { config } from '~/config'
 import { readProvider } from '~/lib/authorizations'
 import { requireChain } from '~/lib/network'
 import { amoyGasOverrides } from '~/lib/trade-encoding'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { OFFCHAIN_MARKETPLACE_TYPES } from '~/lib/trades'
 
 // A creator sale is a signed discount coupon over the creator's collections: the marketplace applies it to
@@ -65,33 +66,29 @@ export type CouponContracts = {
   collectionDiscountCoupon: string
 }
 
-// Polygon mainnet is wired on-chain and listed in the public contracts registry, but the transactions library
-// version this app pins predates its entry. Remove this map, and the catch branch that reads it, once
-// `decentraland-transactions` is bumped to a release that includes `CouponManager` and `CollectionDiscountCoupon`
-// for `ChainId.MATIC_MAINNET` (added in decentraland/decentraland-transactions#136): from then on `getContract`
-// answers for mainnet and the fallback is dead code.
-const MAINNET_FALLBACK = {
-  couponManager: '0x3fd3056ee72a2a85e9392fab3a450e7736536081',
-  collectionDiscountCoupon: '0xc914507fe297b2dddd1232ac3a8903f1c125e794'
-}
-
-/** The coupon deployments for a chain, or null where collections (and so coupons) do not exist. */
+/**
+ * The coupon deployments for a chain, or null where collections (and so coupons) do not exist.
+ *
+ * The manager comes from the marketplace a listing is signed against, not from the chain. Each version
+ * trusts its own manager and a coupon is only redeemable on the marketplace wired to the one that
+ * signed it, so while two versions are live the question "the coupon manager here" has two answers.
+ * Taking the manager of the version the shop actually lists on is what keeps a creator's sale
+ * redeemable against the listings it is meant to discount.
+ *
+ * `ContractName.CouponManager` would answer for the chain, and on Polygon mainnet it still names the
+ * manager of the version before the current one, which is exactly the wrong one.
+ */
 export function getCouponContracts(chainId: ChainId): CouponContracts | null {
   try {
-    const manager = getContract(ContractName.CouponManager, chainId)
+    const marketplace = getLatestOffChainMarketplaceContract(chainId)
+    const manager = getCouponManager(getContractName(marketplace.address), chainId)
     const coupon = getContract(ContractName.CollectionDiscountCoupon, chainId)
     return {
       couponManager: { address: manager.address, name: manager.name, version: manager.version, abi: manager.abi },
       collectionDiscountCoupon: coupon.address
     }
   } catch {
-    if (chainId !== ChainId.MATIC_MAINNET) return null
-    // The ABI is the same bytecode on every chain; the Amoy entry is the one the library ships.
-    const { abi } = getContract(ContractName.CouponManager, ChainId.MATIC_AMOY)
-    return {
-      couponManager: { address: MAINNET_FALLBACK.couponManager, name: 'CouponManager', version: '1.0.0', abi },
-      collectionDiscountCoupon: MAINNET_FALLBACK.collectionDiscountCoupon
-    }
+    return null
   }
 }
 
