@@ -81,7 +81,10 @@ vi.mock('~/hooks/useBalance', () => ({
 const creditPacks: { packs: { id: string; credits: number; usd: number }[] } = { packs: [] }
 vi.mock('~/hooks/useCreditPacks', () => ({ useCreditPacks: () => creditPacks }))
 const createPackCheckout = vi.fn()
-vi.mock('~/lib/payments', () => ({
+// `offerablePacks` comes from the REAL module: it is the covering/recommended rule these cases are about,
+// and a hand-written copy here could disagree with what ships while every assertion still passed.
+vi.mock('~/lib/payments', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
   createPackCheckout: (...a: unknown[]) => createPackCheckout(...a),
   MAX_OFFER_PACKS: 4
 }))

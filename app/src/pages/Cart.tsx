@@ -59,7 +59,7 @@ import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
 import { Price } from '~/components/Price'
-import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
@@ -1235,8 +1235,13 @@ export function Cart() {
         window.location.href = cs.url // Stripe hosted checkout with the pack pre-selected
         return
       }
-      // No hosted URL (mock/dev, Stripe off): the credits page grants then resumes.
-      navigate('/credits')
+      /**
+       * No hosted URL (mock/dev, Stripe off): hand the order over the way Stripe's success_url would, so the
+       * credits page polls the grant and resumes. Landing on a bare `/credits` left it with nothing to poll
+       * — it just rendered the pack grid — so the top-up finished and the resume silently never fired.
+       */
+      if (!cs.orderId) throw new Error('Checkout returned neither a redirect url nor an order id')
+      navigate(`/credits?order=${encodeURIComponent(cs.orderId)}`)
     } catch (e) {
       try {
         sessionStorage.removeItem(RESUME_CART_KEY)
@@ -1326,6 +1331,10 @@ export function Cart() {
       </S.Checkout>
     )
   }
+
+  // Filtered, not the whole list: every pack in a no-funds picker is a promise that buying it FINISHES
+  // the checkout, and the cart was the one picker still offering ones that could not.
+  const topUpPacks = offerablePacks(OFFER_PACKS, modal?.phase === 'nofunds' ? modal.shortfall : 0).packs
 
   return (
     <S.Checkout>
@@ -1646,7 +1655,7 @@ export function Cart() {
           totalCredits={modal.phase === 'choose' ? sumLineCredits(modal.lines) : undefined}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
-          packs={OFFER_PACKS}
+          packs={topUpPacks}
           selectedPack={selectedPack}
           onSelectPack={setSelectedPack}
           onBuyPacks={() => void buyCreditsAndItems()}
