@@ -268,6 +268,9 @@ let myStoreAllowed: string | undefined
 // The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
 let couponStore: any[] = []
 let campaignFlag = false
+// Buying a NAME with credits. Off is the shipped default (the flag fails closed), so the suite runs in it
+// and the NAMEs specs opt in.
+let namesFlag = false
 
 // The marketing CMS, as the delivery proxy serves it: FLAT fields per `?locale=`, which is what makes the
 // client fetch each entry once per locale and merge. The admin id is the one dev.json points at, so the
@@ -401,7 +404,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
           'dapps-shop-creator-sales': creatorSalesFlag,
           'dapps-shop-campaign': campaignFlag,
           'dapps-shop-suggested-for-you': suggestedForYouFlag,
-          'dapps-shop-my-store': myStoreFlag
+          'dapps-shop-my-store': myStoreFlag,
+          'dapps-shop-names': namesFlag
         },
         variants: {
           ...(outfitCreatorFlag
@@ -1122,6 +1126,8 @@ export async function launchApp(
      * studio surfaces render (outfits.e2e.ts). Off by default — everyone else sees no studio.
      */
     outfitCreator?: boolean
+    /** Arm the shop-names flag so the NAMEs page can sell one. Off by default — the shipped state. */
+    names?: boolean
     /**
      * App origin override for specs that boot their own dev server (outfits.e2e.ts needs a build
      * with a shop-server host configured). Defaults to the shared BASE server.
@@ -1187,6 +1193,7 @@ export async function launchApp(
   myStoreAllowed = opts.myStoreAllowed
   couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
   campaignFlag = opts.campaign ?? false
+  namesFlag = opts.names ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
