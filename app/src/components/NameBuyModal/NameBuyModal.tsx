@@ -18,8 +18,9 @@ import { formatCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { hrefFor } from '~/lib/routes'
 import { captureError } from '~/lib/monitoring'
-import { createPackCheckout, MAX_OFFER_PACKS, type CreditPack } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
+import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { RESUME_NAME_KEY } from '~/lib/resume-name'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
@@ -27,7 +28,6 @@ import { track, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics
 import { config } from '~/config'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import packCoin from '~/assets/credits/pack-coin.webp'
 import nameGlyph from '~/assets/names/name-glyph.svg'
 import nameVerified from '~/assets/names/name-verified.svg'
 import * as M from '~/components/BuyModal/modal.styles'
@@ -114,38 +114,16 @@ export function NameBuyModal({
   const blockedReason = priceUnavailable ? t('names.priceUnavailable') : null
 
   /**
-   * Which packs are offered, and which one is recommended.
+   * Which packs are offered, which one is recommended, and whether the recommendation can deliver.
    *
-   * Only packs that actually COMPLETE this purchase are shown: this picker is an offer to finish buying the
-   * NAME, and a pack smaller than the gap breaks that promise — the buyer pays and lands back on this same
-   * screen, still short. The whole list is the fallback for a NAME dearer than the largest pack, where an
-   * empty picker would be worse than an honest one.
-   *
-   * The recommendation is the SMALLEST pack that closes the gap — the cheapest way to the NAME they came
-   * for, not the one we would rather sell. In the fallback case nothing closes it, so the largest is the
-   * most progress on offer.
+   * The maths is shared with the item modal and the cart (lib/payments) — they are one rule: never offer a
+   * pack that cannot finish the purchase, and never badge one as the answer when none can.
    */
   const offerPacks = useCreditPacks().packs.slice(0, MAX_OFFER_PACKS)
-  const coveringPacks = offerPacks.filter(p => p.credits >= shortBy)
-  const packs = coveringPacks.length > 0 ? coveringPacks : offerPacks
-  const recommendedPack: CreditPack | null =
-    packs.length === 0
-      ? null
-      : coveringPacks.length > 0
-        ? packs.reduce((best, p) => (p.credits < best.credits ? p : best))
-        : packs.reduce((best, p) => (p.credits > best.credits ? p : best))
+  const { packs, recommended: recommendedPack, closesGap } = offerablePacks(offerPacks, shortBy)
   // The recommendation is the default, not a pre-click: until the buyer picks a tile it tracks the live
   // shortfall, so a balance that refreshes mid-screen re-recommends rather than leaving a stale choice.
   const activePack = packs.find(p => p.id === selectedPack) ?? recommendedPack
-  /**
-   * The badge is a PROMISE that this pack finishes the NAME, so it only appears when one actually does.
-   *
-   * In the fallback branch nothing closes the gap, and badging the largest pack there would make exactly
-   * the claim the covering filter exists to prevent: the buyer pays, comes back, and is still short —
-   * staring at this same screen. The pack is still preselected (it is the most progress on offer) and the
-   * warning above still states the real shortfall; it just stops calling itself the answer.
-   */
-  const recommendationCloses = coveringPacks.length > 0
 
   /**
    * Close on Escape (unless mid-purchase). Freezing the page behind the modal is NOT done here.
@@ -419,36 +397,12 @@ export function NameBuyModal({
                 buyer is told what they are short by and can close; they top up in the app and come back. */}
             {isIapMode() ? null : (
               <>
-                <S.Packs data-testid="credit-packs">
-                  {packs.map(p => (
-                    <S.PackTile
-                      key={p.id}
-                      type="button"
-                      data-testid="credit-pack"
-                      data-on={p.id === activePack?.id || undefined}
-                      aria-pressed={p.id === activePack?.id}
-                      aria-label={t('getCredits.packAria', { amount: formatCredits(p.credits), usd: p.usd })}
-                      onClick={() => setSelectedPack(p.id)}
-                    >
-                      {recommendationCloses && p.id === recommendedPack?.id ? (
-                        <S.PackBadge data-testid="pack-recommended" aria-hidden>
-                          <Icon name="star-rounded" />
-                          {t('getCredits.packBadge')}
-                        </S.PackBadge>
-                      ) : null}
-                      <M.PackIco src={packCoin} alt="" />
-                      <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
-                      <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
-                    </S.PackTile>
-                  ))}
-                </S.Packs>
-                <M.Total>
-                  <M.TotalCredits>
-                    <M.TotalIco />
-                    <span data-testid="topup-total-credits">{formatCredits(activePack?.credits ?? 0)}</span>
-                  </M.TotalCredits>
-                  <M.TotalUsd>${(activePack?.usd ?? 0).toFixed(2)}</M.TotalUsd>
-                </M.Total>
+                <CreditPackPicker
+                  packs={packs}
+                  selectedId={activePack?.id}
+                  onSelect={setSelectedPack}
+                  recommendedId={closesGap ? recommendedPack?.id : undefined}
+                />
               </>
             )}
 

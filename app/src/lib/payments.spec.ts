@@ -27,6 +27,7 @@ import {
   MOCK_CLIENT_SECRET_PREFIX,
   USD_PER_CREDIT,
   createPackCheckout,
+  offerablePacks,
   creditsForUsd,
   fetchCreditPacks,
   getPack,
@@ -536,5 +537,51 @@ describe('when fetching the credit-pack catalogue from the credits-server', () =
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, text: async () => 'down' }))
     await expect(fetchCreditPacks()).rejects.toThrow(/credit packs 503/)
     vi.unstubAllGlobals()
+  })
+})
+
+describe('offerablePacks', () => {
+  const PACKS = [
+    { id: 'p40', usd: 5.99, credits: 40 },
+    { id: 'p100', usd: 11.99, credits: 100 },
+    { id: 'p260', usd: 29.99, credits: 260 }
+  ]
+
+  /**
+   * Every pack in a no-funds picker is a promise that buying it FINISHES the purchase. Reported from zone:
+   * a buyer 197 credits short was offered 40 and 100, either of which leaves them short, back on the same
+   * screen, having paid.
+   */
+  it('should drop the packs that cannot close the gap', () => {
+    const { packs, closesGap } = offerablePacks(PACKS, 197)
+    expect(packs.map(p => p.id)).toEqual(['p260'])
+    expect(closesGap).toBe(true)
+  })
+
+  it('should recommend the cheapest pack that closes the gap, not the biggest', () => {
+    expect(offerablePacks(PACKS, 50).recommended?.id).toBe('p100')
+  })
+
+  /**
+   * A purchase dearer than the largest pack. An empty picker is worse than an honest one and the largest is
+   * still progress — but `closesGap` is false so the caller can stop CALLING it the answer, which is the
+   * promise the filter above exists to keep.
+   */
+  it('should offer everything and flag that nothing closes a gap too big for the catalogue', () => {
+    const { packs, recommended, closesGap } = offerablePacks(PACKS, 900)
+    expect(packs).toHaveLength(3)
+    expect(recommended?.id).toBe('p260')
+    expect(closesGap).toBe(false)
+  })
+
+  it('should offer the whole list when nothing is missing', () => {
+    const { packs, closesGap } = offerablePacks(PACKS, 0)
+    expect(packs).toHaveLength(3)
+    expect(closesGap).toBe(true)
+  })
+
+  // An empty catalogue must not throw: `reduce` with no initial value on an empty array does.
+  it('should survive an empty catalogue', () => {
+    expect(offerablePacks([], 50)).toEqual({ packs: [], recommended: null, closesGap: false })
   })
 })

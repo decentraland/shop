@@ -77,7 +77,8 @@ vi.mock('~/lib/payments', async importOriginal => ({
   pollCreditGrant,
   fetchCreditPacks,
   CREDIT_PACKS,
-  packBonus: (await importOriginal<typeof import('~/lib/payments')>()).packBonus
+  packBonus: (await importOriginal<typeof import('~/lib/payments')>()).packBonus,
+  offerablePacks: (await importOriginal<typeof import('~/lib/payments')>()).offerablePacks
 }))
 
 const { track, errorCode } = vi.hoisted(() => ({ track: vi.fn(), errorCode: vi.fn(() => 'ERR_CODE') }))

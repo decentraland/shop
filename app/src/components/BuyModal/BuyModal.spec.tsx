@@ -166,7 +166,13 @@ vi.mock('~/lib/authorizations', () => ({
   needsApprovalStep: () => false
 }))
 vi.mock('~/lib/after-purchase', () => ({ invalidateAfterPurchase: vi.fn() }))
-vi.mock('~/lib/payments', () => ({ createPackCheckout: vi.fn(), MAX_OFFER_PACKS: 3 }))
+// `offerablePacks` comes from the REAL module — it is the covering-pack rule the no-funds cases assert, and
+// a hand-written copy here could disagree with what ships while the assertions still passed.
+vi.mock('~/lib/payments', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  createPackCheckout: vi.fn(),
+  MAX_OFFER_PACKS: 3
+}))
 
 const { track, captureError } = vi.hoisted(() => ({ track: vi.fn(), captureError: vi.fn() }))
 vi.mock('~/lib/analytics', async orig => ({ ...(await orig<Record<string, unknown>>()), track }))

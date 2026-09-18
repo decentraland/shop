@@ -7,6 +7,7 @@ import { useManaBalance } from '~/hooks/useManaBalance'
 import { fetchStoreMintState, resolveLiveCoupon, resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
+import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { discountedManaWei, readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
@@ -15,7 +16,6 @@ import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
-import packCoin from '~/assets/credits/pack-coin.webp'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
 import {
   getAuthorizationStatus,
@@ -43,7 +43,7 @@ import {
 import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
-import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
@@ -217,11 +217,7 @@ export function BuyModal({
    * an empty picker is worse than an honest one, and buying the largest is still progress.
    */
   const shortfallCredits = Math.max(0, itemCredits - (balance?.credits ?? 0))
-  const COVERING_PACKS = (() => {
-    if (shortfallCredits <= 0) return OFFER_PACKS
-    const covering = OFFER_PACKS.filter(p => p.credits >= shortfallCredits)
-    return covering.length > 0 ? covering : OFFER_PACKS
-  })()
+  const { packs: COVERING_PACKS } = offerablePacks(OFFER_PACKS, shortfallCredits)
   // The MANA (wei) this purchase costs — from the oracle for a trade, from the store's own on-chain price
   // for a mint. Null until read (or if the read fails, in which case MANA simply isn't offered and the
   // credits path is unaffected).
@@ -878,8 +874,13 @@ export function BuyModal({
         window.location.href = cs.url // Stripe hosted checkout with the pack pre-selected
         return
       }
-      // No hosted URL (mock/dev, Stripe off): the credits page grants then resumes.
-      navigate('/credits')
+      /**
+       * No hosted URL (mock/dev, Stripe off): hand the order over the way Stripe's success_url would, so the
+       * credits page polls the grant and resumes. Landing on a bare `/credits` left it with nothing to poll
+       * — it just rendered the pack grid — so the top-up finished and the resume silently never fired.
+       */
+      if (!cs.orderId) throw new Error('Checkout returned neither a redirect url nor an order id')
+      navigate(`/credits?order=${encodeURIComponent(cs.orderId)}`)
     } catch (e) {
       captureError(e, { flow: 'buy_credits_and_item' })
       try {
@@ -1274,26 +1275,11 @@ export function BuyModal({
                     and can close; they top up in the app and come back. */}
                 {isIapMode() ? null : (
                   <>
-                    <M.Packs data-testid="credit-packs">
-                      {COVERING_PACKS.map(p => {
-                        const packCredits = p.credits
-                        const on = p.id === selectedPack
-                        return (
-                          <M.Pack key={p.id} data-on={on || undefined} onClick={() => setSelectedPack(p.id)}>
-                            <M.PackIco src={packCoin} alt="" />
-                            <M.PackAmount>{formatCredits(packCredits)}</M.PackAmount>
-                            <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
-                          </M.Pack>
-                        )
-                      })}
-                    </M.Packs>
-                    <M.Total>
-                      <M.TotalCredits>
-                        <M.TotalIco />
-                        <span>{formatCredits(COVERING_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
-                      </M.TotalCredits>
-                      <M.TotalUsd>${(COVERING_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}</M.TotalUsd>
-                    </M.Total>
+                    <CreditPackPicker
+                      packs={COVERING_PACKS}
+                      selectedId={selectedPack || undefined}
+                      onSelect={setSelectedPack}
+                    />
                   </>
                 )}
                 <M.Ctas>
