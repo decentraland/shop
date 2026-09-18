@@ -69,5 +69,3 @@ export function CreditPackPicker({
     </>
   )
 }
-
-export default CreditPackPicker
