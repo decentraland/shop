@@ -661,8 +661,11 @@ describe('NameBuyModal', () => {
       fireEvent.click(screen.getByTestId('name-buy-credits'))
 
       await waitFor(() => expect(createPackCheckout).toHaveBeenCalledTimes(1))
+      // Every way out, not just the ✕: CANCEL is the one a buyer on this screen actually reaches for, and
+      // it was the one left ungated.
       fireEvent.click(screen.getByRole('button', { name: /close/i }))
       fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.click(screen.getByTestId('name-topup-cancel'))
       expect(onClose).not.toHaveBeenCalled()
       // …and BUY stays held down, so a second click cannot open a second Checkout Session.
       fireEvent.click(screen.getByTestId('name-buy-credits'))

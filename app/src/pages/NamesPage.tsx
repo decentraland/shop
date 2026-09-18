@@ -62,7 +62,12 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { pathname, search } = location
-  const navState = (location as { state?: NamesNavState }).state
+  /**
+   * Narrowed, not just cast: `location.state` is `any`, and it is written by whoever navigated here. A
+   * non-string `resumeName` would reach `setValue` and then `.toLowerCase()` in the resume effect below.
+   */
+  const rawNavState = (location as { state?: NamesNavState }).state
+  const navState = typeof rawNavState?.resumeName === 'string' ? rawNavState : undefined
   const namesEnabled = useNamesEnabled()
   const { data: rate } = useManaRate()
   const priceCredits = rate ? manaWeiToCredits(NAME_PRICE_IN_WEI, rate) : null

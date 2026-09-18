@@ -453,7 +453,9 @@ export function NameBuyModal({
             )}
 
             <S.PackCtas>
-              <M.Btn data-variant="outline" onClick={onClose}>
+              {/* Gated like every other way out (see `busy`): closing does not cancel a checkout already in
+                  flight, so it must not be offered while one is. */}
+              <M.Btn data-variant="outline" onClick={onClose} disabled={busy} data-testid="name-topup-cancel">
                 {t('buyModal.cancel')}
               </M.Btn>
               {isIapMode() ? null : (
