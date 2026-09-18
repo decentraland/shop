@@ -13,19 +13,8 @@ export const Loading = styled(Spinner)`
   min-height: 60vh;
 `
 
-export const SignInBtn = styled(Button)`
-  align-self: center;
-  min-width: 200px;
-  margin-top: 8px;
-`
-
-export const Prompt = styled.p`
-  margin: 0;
-  color: ${colors.gray4};
-`
-
-// The store editor page. `data-signin` = the compact fully-centered signed-out prompt. Uses the shared
-// Field primitive (~/styles/field.styles); the label/textarea tweaks below target its descendants.
+// The store editor page. Uses the shared Field primitive (~/styles/field.styles); the label/textarea
+// tweaks below target its descendants.
 export const Root = styled.section`
   max-width: 640px;
   margin: 0 auto;
@@ -34,14 +23,6 @@ export const Root = styled.section`
   flex-direction: column;
   gap: 20px;
   color: ${colors.softWhite};
-
-  &[data-signin] {
-    min-height: 60vh;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 12px;
-  }
 
   & .field__label {
     font-weight: 700;

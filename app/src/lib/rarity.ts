@@ -3,9 +3,6 @@ import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
 import { rarities } from '~/styles/theme'
 
-// Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
-// item's image background. Falls back to a neutral grey wash for unknown rarities.
-const FALLBACK_GRADIENT = 'radial-gradient(#c0bdc6, #a09ba8)'
 const FALLBACK_COLOR = '#E6E6E6'
 
 // Parse a #rrggbb color to [r, g, b]; null when it isn't a full 6-digit hex (defends against a
@@ -141,18 +138,6 @@ export function rarityDescription(rarity?: string | null): string {
     /* unknown rarity → name only */
   }
   return t('rarity.plain', { rarity: name })
-}
-
-export function rarityGradient(rarity?: string | null): string {
-  try {
-    const [light, dark] = Rarity.getGradient((rarity ?? 'common').toLowerCase() as Rarity)
-    // An unknown rarity yields [undefined, undefined] (no throw) — fall back rather than emit a
-    // broken `radial-gradient(undefined, undefined)`.
-    if (!light || !dark) return FALLBACK_GRADIENT
-    return `radial-gradient(${light}, ${dark})`
-  } catch {
-    return FALLBACK_GRADIENT
-  }
 }
 
 // Rarity background for an item's media area, replacing the flat neutral fill so a grid of cards reads

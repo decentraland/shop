@@ -39,6 +39,40 @@ export enum FeatureFlag {
    */
   SECONDARY_SALES = 'shop-secondary-sales',
   /**
+   * Whether creators can put their collections on sale from the Shop (a signed discount coupon the catalogue
+   * applies to their listings) and whether the Shop shows them their running sales.
+   *
+   * Also the kill switch for sales that ALREADY EXIST. Off, the catalogue's discounts are stripped from every
+   * row as it is mapped: the Shop shows and charges the list price, and the Deals filter is not offered.
+   * That has to be all-or-nothing — turning off only the settlement half would show a buyer a sale price and
+   * then ask them for the list price, which reverts after they confirm.
+   *
+   * It does NOT retract the coupons themselves. They stay signed and valid on chain, and any other client
+   * reading the same catalogue still sees the discount; making a sale stop existing is the creator's own
+   * `cancelSignature`, not a flag.
+   */
+  SHOP_CREATOR_SALES = 'shop-creator-sales',
+  /**
+   * Whether the home page shows the personalised "Suggested for you" rail.
+   *
+   * OFF by default. The rail is judged against Trending on click-through, so it ships dark and is
+   * turned on for a share of visitors; the row also hides itself whenever the server says it had no
+   * personal signal to work with, so the flag controls whether to ASK, not whether to show.
+   */
+  SHOP_SUGGESTED_FOR_YOU = 'shop-suggested-for-you',
+  /**
+   * The creator's own dashboard at /my-store: how each collection is selling, what needs attention, and the
+   * discounts running. Off means the page is unreachable and its nav entry is absent — nothing about
+   * selling changes, only whether the creator can see it in one place. On, My Items stops offering its own
+   * creations section, so the collections are reachable from one place rather than two.
+   *
+   * Reads an address-list VARIANT to roll out gradually: with one, only those addresses get the dashboard
+   * and everyone else keeps today's My Items; without one, the flag alone answers and it is on for all.
+   * An empty list therefore means "no restriction", not "nobody" — the opposite of the pre-launch gate,
+   * because this flag opens a surface rather than closing the Shop.
+   */
+  SHOP_MY_STORE = 'shop-my-store',
+  /**
    * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
    * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
    *
@@ -88,7 +122,21 @@ export enum FeatureFlag {
    * Registering leaves Polygon — the credit is spent there and the mint happens on Ethereum behind a bridge
    * — so it carries failure modes no other purchase has and needs a switch of its own.
    */
-  SHOP_NAMES = 'shop-names'
+  SHOP_NAMES = 'shop-names',
+
+  /**
+   * Whether the Shop shows the seasonal EVENT surfaces — the Contentful-driven banner and the event tab
+   * that pins the grid to the event's collections.
+   *
+   * The event's existence, name, artwork and collections all live in the CMS, so this flag is not how an
+   * event is started or ended — unpublishing the entry does that, with no deploy. It is the kill switch for
+   * the CODE: the one way to take the surfaces down from our side if the CMS read, the tag lookup or the
+   * filtered grid misbehaves, without waiting on whoever owns the Contentful space.
+   *
+   * Fails closed like every other accessor here, and there it matches the product default: no flag, no
+   * event.
+   */
+  SHOP_CAMPAIGN = 'shop-campaign'
 }
 
 /** The application whose flag file carries the flags above. */
@@ -329,4 +377,14 @@ export async function getIsProceedsToTreasuryEnabled(): Promise<boolean> {
  */
 export async function getIsSecondarySalesEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SECONDARY_SALES)
+}
+
+/** Whether creators can put their collections on sale from the Shop. Fails closed like every other accessor. */
+export async function getIsCreatorSalesEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/** Whether the creator's store dashboard is reachable. */
+export async function getIsMyStoreEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)
 }

@@ -73,17 +73,40 @@ describe('web2-first copy rule', () => {
    *
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
+   *
+   * SEVEN deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
+   * surfaces:
+   *
+   * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
+   * already names to the same person — a creator who is paid in MANA and has to find the listings still
+   * priced in it — and "Classic pricing" alone made them guess which of the two labels meant the same thing.
+   *
+   * `creatorSale.reviewClassicWhy`, the tooltip on a discount review row the discount cannot reach. It has to
+   * answer "why is this one excluded", and the answer IS the pricing rail: the item is quoted in MANA, so
+   * there is no fixed credit price for a percentage to come off. Saying it any other way would leave the
+   * creator without the one fact that explains the exclusion.
+   *
+   * `creatorSale.blockedBody`, shown when a collection's listings are ALL priced in MANA and a discount
+   * therefore has nothing to re-price. The whole message exists to name that currency: the creator opened
+   * this to run a discount and the answer is which rail their listings are on.
+   *
+   * `myStore.attnClassic`, its tooltip `myStore.attnClassicHint`, and `myStore.manaUnit`, in the creator's
+   * store dashboard. The first two are the row that points at the listings a discount cannot reach and the
+   * explanation behind it, which is the same fact `creatorSale.reviewClassicWhy` exists to state; the last
+   * labels the earnings figure, and creators ARE paid in MANA — calling that total anything else would
+   * misreport what they were paid.
+   *
+   * `currency.polygonMana`, the tooltip on the MANA mark. It never introduces the word anywhere new: the
+   * mark only appears beside an amount ALREADY denominated in MANA, and what it answers is which mana —
+   * a buyer holding Ethereum MANA cannot spend it here, and the glyph alone does not say so.
+   *
+   * Note none of these sections is creator-only: any signed-in account can open My Creations and find it empty.
+   * Grant exceptions the same way if it happens again — named, reasoned, and attributed — rather than
+   * quietly widening the list.
    */
   const BASELINE = new Set([
     'activity.paidWithMana',
     'activity.polygonMana',
-    'authorizations.creditsDesc',
-    'authorizations.creditsName',
-    'authorizations.manaDesc',
-    'authorizations.manaName',
-    'authorizations.mintingDesc',
-    'authorizations.mintingEmpty',
-    'authorizations.mintingTitle',
     'authorizeStep.manaName',
     'authorizeStep.manaReason',
     'authorizeStep.note',
@@ -95,6 +118,8 @@ describe('web2-first copy rule', () => {
     'buyModal.methodCombined',
     'buyModal.methodMana',
     'buyModal.notEnoughMana',
+    'creatorSale.blockedBody',
+    'creatorSale.reviewClassicWhy',
     'errors.walletUnauthorized',
     'errors.wrongNetwork',
     'faq.sellers.mustSwitchA',
@@ -102,6 +127,7 @@ describe('web2-first copy rule', () => {
     'faq.sellers.suggestedPriceA',
     'faq.sellers.whyCreditsA',
     'faq.sellers.whyCreditsQ',
+    'filter.priceMana',
     'getCredits.errorSignInAfterPay',
     'importListings.lede',
     'importListings.wasMana',
@@ -110,6 +136,10 @@ describe('web2-first copy rule', () => {
     'itemDetail.cancelSlow',
     'manaPricingBanner.lead',
     'migrate.phaseConfirmingCancel',
+    'currency.polygonMana',
+    'myStore.attnClassic',
+    'myStore.attnClassicHint',
+    'myStore.manaUnit',
     'network.confirmInWallet',
     'network.current',
     'network.title',

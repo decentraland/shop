@@ -156,11 +156,32 @@ export const List = styled.div`
 `
 
 // One checkout.
+/* Translucent over the purple rather than a white slab, matching the marketplace's activity and
+   ranking tables. The card used to be the only opaque white block on the page, which read as a hole
+   punched in the gradient instead of a panel resting on it. Everything inside follows the shop's
+   established dark-surface pairing: softWhite for primary text, gray4 for secondary, glassFaint for
+   bands and hovers. */
 export const Card = styled.div`
-  background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.line};
+  /* No fill of its own, deliberately. Its children each paint one of the designer's two alphas, and a
+     fill here would sit UNDER both: the head's 60% composited over a 40% card lands far darker than
+     60% over the page, which is what it is measured against. The card contributes only the shape. */
+  border: 1px solid ${theme.colors.cardLine};
   border-radius: 16px;
   overflow: hidden;
+  /* The card owns its text colour now. Anything inside that states none of its own - an item's name,
+     most of all - used to inherit the page's near-black body colour, which was right while the card
+     was white and invisible once it stopped being. Set here rather than per element so a descendant
+     added later is light by default instead of silently black. */
+  color: ${theme.colors.softWhite};
+
+  /* The credits mark is pinned near-black globally (Icon.css) so that a green income total never tints
+     it - only the amount is coloured, never the glyph. That intent holds here and is why this sets a
+     fixed colour rather than letting the mark inherit: what could not survive the move is the value,
+     which was chosen for a white card and vanishes into this one. */
+  .ccy-mark,
+  .ccy {
+    color: ${theme.colors.softWhite};
+  }
 `
 
 export const CardHead = styled.div`
@@ -169,8 +190,10 @@ export const CardHead = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  background: ${theme.colors.softWhite};
-  border-bottom: 1px solid ${theme.colors.line};
+  /* Black at 60% against the rows' 40% - the designer's exact pair. The head is the darker of the
+     two, so the purchase reads as the main line and the items as detail under it. */
+  background: ${theme.colors.overlayStrong};
+  border-bottom: 1px solid ${theme.colors.cardLine};
 
   ${theme.media.maxWidth('mobile')} {
     flex-wrap: wrap;
@@ -186,12 +209,12 @@ export const HeadLeft = styled.div`
 
 export const DateText = styled.span`
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const SubCount = styled.span`
   font-size: 13px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const HeadRight = styled.div`
@@ -232,27 +255,33 @@ export const Pill = styled.span`
   border-radius: ${theme.radius.pill};
   white-space: nowrap;
 
+  /* The washes carry over unchanged, being translucent. The inks do not: each was darkened until it
+     cleared 4.5:1 on WHITE, which is exactly what sinks it here. Each moves to the palest existing
+     token of its own hue, measured against the card over the brightest part of the page gradient
+     (5.5:1 green, 6.8:1 amber, 7.6:1 violet, 7.9:1 pink). The token names come from where each colour
+     was first used, not from a status meaning — if this pairing spreads, they are worth promoting to
+     named status inks. */
   &[data-status='SETTLED'] {
     background: rgba(30, 166, 114, 0.14);
-    color: ${theme.colors.okStrong};
+    color: ${theme.colors.successBorder};
   }
   &[data-status='PENDING'] {
     background: rgba(245, 166, 35, 0.16);
-    color: #b5790a;
+    color: ${theme.colors.flareAmber};
   }
   &[data-status='SOLD'] {
     background: rgba(103, 58, 183, 0.14);
-    color: ${theme.colors.accent};
+    color: ${theme.colors.navViolet};
   }
   &[data-status='FAILED'] {
     background: rgba(214, 61, 61, 0.14);
-    color: #b02a2a;
+    color: ${theme.colors.saleTag};
   }
   /* Nobody paid and nobody is owed anything — deliberately the quietest of the four. Reusing PENDING's
      amber here is what made an abandoned checkout look like money on its way. */
   &[data-status='UNFINISHED'] {
-    background: ${theme.colors.line};
-    color: ${theme.colors.muted};
+    background: ${theme.colors.glassFaint};
+    color: ${theme.colors.gray4};
   }
 `
 
@@ -266,14 +295,14 @@ export const ResumeButton = styled.button`
   padding: 4px 10px;
   border-radius: ${theme.radius.pill};
   white-space: nowrap;
-  border: 1px solid ${theme.colors.accent};
+  border: 1px solid ${theme.colors.navViolet};
   background: transparent;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.navViolet};
   cursor: pointer;
   transition: background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(103, 58, 183, 0.08);
+    background: rgba(227, 201, 251, 0.14);
   }
   &:disabled {
     opacity: 0.6;
@@ -286,17 +315,15 @@ export const Total = styled.div`
   align-items: center;
   gap: 5px;
   font-weight: 800;
-  color: ${theme.colors.text};
+  /* Income used to read in the success green and is deliberately white like every other total now:
+     the plus sign already says money came in, and the green was the one colour shouting on the page.
+     There is no [data-kind='income'] rule any more because it would only repeat this line. */
+  color: ${theme.colors.softWhite};
   white-space: nowrap;
 
   .ccy-mark {
     width: 16px;
     height: 16px;
-  }
-
-  // Money received (a sale) reads as income in the shop's success green.
-  &[data-kind='income'] {
-    color: ${theme.colors.okStrong};
   }
 `
 
@@ -344,12 +371,15 @@ export const FailedNote = styled.p`
   padding: 12px 18px 0;
   font-size: 13px;
   line-height: 1.45;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
+  /* Sits between the two bands, so it carries the rows' fill rather than leaving the page showing. */
+  background: ${theme.colors.overlay};
 `
 
 export const Lines = styled.div`
   display: flex;
   flex-direction: column;
+  background: ${theme.colors.overlay};
 `
 
 // A line item. Rendered as a router <Link> when the item detail resolves, else a plain <div>.
@@ -363,17 +393,19 @@ export const Line = styled.div`
   color: inherit;
 
   & + & {
-    border-top: 1px solid ${theme.colors.line};
+    border-top: 1px solid ${theme.colors.cardLine};
   }
 
   &[data-link='true'] {
     transition: background 0.15s;
   }
   &[data-link='true']:hover {
-    background: ${theme.colors.media};
+    background: ${theme.colors.glassFaint};
   }
   &[data-link='true']:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    /* White, like the filter chips above: the accent purple was drawn for the white card and all but
+       vanishes against the translucent black. */
+    outline: 2px solid ${theme.colors.white};
     outline-offset: -2px;
   }
 `
@@ -440,7 +472,7 @@ export const LineNamePlaceholder = styled.span`
 
 export const LineMeta = styled.span`
   font-size: 13px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const LinePrice = styled.div`
@@ -448,7 +480,7 @@ export const LinePrice = styled.div`
   align-items: center;
   gap: 4px;
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   white-space: nowrap;
 
   .ccy-mark {
@@ -475,31 +507,6 @@ export const Empty = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-`
-
-// Sign-in gate — a plain centred column, not the illustrated empty-state panel.
-export const Gate = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  padding: 90px 20px;
-  min-height: 50vh;
-  color: ${theme.colors.softWhite};
-`
-
-export const EmptyTitle = styled.p`
-  font-size: 22px;
-  font-weight: 700;
-  margin: 6px 0 0;
-`
-
-// The line under the title. Not the global `.muted` utility: that is the light theme's grey and it
-// vanishes on the purple field — this stays in the block's own white.
-export const EmptyBody = styled.p`
-  margin: 0;
-  color: ${theme.colors.softWhite};
 `
 
 /**

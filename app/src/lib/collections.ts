@@ -1,5 +1,11 @@
 import { config } from '~/config'
-import { fetchPeggedPrimaryPrices, type CatalogItem } from '~/lib/api'
+import { ZERO_ADDRESS } from '~/lib/address'
+import {
+  fetchCreatorPeggedPrimaryPrices,
+  fetchPeggedPrimaryPrices,
+  fetchShopListingsRaw,
+  type CatalogItem
+} from '~/lib/api'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
 // full storefront. Data source: GET /v3/catalog/items (same full-catalog semantics as the classic
@@ -93,31 +99,73 @@ export type CollectionSaleState = {
   manaWei?: string
   /** Absent for a collection-store mint, which is on sale with no trade behind it. */
   tradeId?: string
+  /**
+   * The sale a creator's coupon is running on this listing, when there is one: the price before the cut and
+   * when it ends. Carried so the creator's OWN grids can draw the same strike-through and tag a buyer sees
+   * — without them the price simply drops and nothing says why.
+   */
+  compareAtCredits?: number
+  saleEndsAt?: number
 }
 
-/** One page of a collection's catalogue rows. */
-async function fetchCollectionRowsPage(
-  contractAddress: string,
+/** One page of catalogue rows, scoped to a collection or to a creator. */
+async function fetchCatalogRowsPage(
+  scope: { contractAddress: string } | { creator: string },
   first: number,
-  skip: number
+  skip: number,
+  label: string
 ): Promise<{ data: RawCollectionItem[]; total: number }> {
-  const qs = new URLSearchParams({
-    contractAddress,
-    first: String(first),
-    skip: String(skip),
-    includeSocialEmotes: 'false'
-  })
+  const qs = new URLSearchParams({ first: String(first), skip: String(skip), includeSocialEmotes: 'false' })
+  // Set explicitly rather than spread: a spread of the union types as an intersection and would let a
+  // future non-string field reach the query string as "[object Object]" without a compile error.
+  if ('contractAddress' in scope) qs.set('contractAddress', scope.contractAddress)
+  else qs.set('creator', scope.creator)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) {
     // Release the stream: nothing reads the body on this path, and leaving it unconsumed leaks it.
     await res.body?.cancel()
-    throw new Error(`fetchCollectionSaleState ${res.status}`)
+    throw new Error(`${label} ${res.status}`)
   }
   const { data, total } = (await res.json()) as { data?: RawCollectionItem[]; total?: number }
   return { data: data ?? [], total: total ?? 0 }
 }
 
 const SALE_STATE_PAGE = 200
+
+// Page to the end: the catalogue returns every item, on sale or not, so a scope past one page would
+// silently drop listed items out of the map and My Creations would call them not for sale.
+async function fetchAllCatalogRows(
+  scope: { contractAddress: string } | { creator: string },
+  label: string
+): Promise<RawCollectionItem[]> {
+  const all: RawCollectionItem[] = []
+  for (let skip = 0; ; skip += SALE_STATE_PAGE) {
+    const { data, total } = await fetchCatalogRowsPage(scope, SALE_STATE_PAGE, skip, label)
+    all.push(...data)
+    // A short page is the end. Checked BEFORE `total`, which a response may omit — trusting it alone
+    // would stop after one page and drop exactly the listings this pagination exists to keep.
+    if (data.length < SALE_STATE_PAGE) break
+    if (total > 0 && all.length >= total) break
+  }
+  return all
+}
+
+// The two feeds folded into one answer per row: the shop feed prices a USD-pegged listing exactly; a row
+// on sale but absent from it is MANA-denominated, so its price is MANA wei for a live conversion.
+function toSaleState(
+  row: RawCollectionItem,
+  peg: { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number } | undefined
+): CollectionSaleState {
+  return peg
+    ? {
+        isOnSale: true,
+        priceCredits: peg.priceCredits,
+        ...(peg.tradeId ? { tradeId: peg.tradeId } : {}),
+        ...(peg.compareAtCredits != null ? { compareAtCredits: peg.compareAtCredits } : {}),
+        ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {})
+      }
+    : { isOnSale: true, priceCredits: row.priceCredits ?? 0, ...(row.price ? { manaWei: row.price } : {}) }
+}
 
 /**
  * Per-ITEM primary sale state for a collection, keyed by itemId.
@@ -141,30 +189,37 @@ const SALE_STATE_PAGE = 200
 export async function fetchCollectionSaleState(contractAddress: string): Promise<Record<string, CollectionSaleState>> {
   const [pegged, rows] = await Promise.all([
     fetchPeggedPrimaryPrices(contractAddress),
-    (async () => {
-      // Page to the end: the catalogue returns every item, on sale or not, so a collection past one page
-      // would silently drop listed items out of the map and My Creations would call them not for sale.
-      const all: RawCollectionItem[] = []
-      for (let skip = 0; ; skip += SALE_STATE_PAGE) {
-        const { data, total } = await fetchCollectionRowsPage(contractAddress, SALE_STATE_PAGE, skip)
-        all.push(...data)
-        // A short page is the end. Checked BEFORE `total`, which a response may omit — trusting it alone
-        // would stop after one page and drop exactly the listings this pagination exists to keep.
-        if (data.length < SALE_STATE_PAGE) break
-        if (total > 0 && all.length >= total) break
-      }
-      return all
-    })()
+    fetchAllCatalogRows({ contractAddress }, 'fetchCollectionSaleState')
   ])
 
   const map: Record<string, CollectionSaleState> = {}
   for (const r of rows) {
     if (r.itemId == null || !r.isOnSale) continue
     const itemId = String(r.itemId)
-    const peg = pegged[itemId]
-    map[itemId] = peg
-      ? { isOnSale: true, priceCredits: peg.priceCredits, ...(peg.tradeId ? { tradeId: peg.tradeId } : {}) }
-      : { isOnSale: true, priceCredits: r.priceCredits ?? 0, ...(r.price ? { manaWei: r.price } : {}) }
+    map[itemId] = toSaleState(r, pegged[itemId])
+  }
+  return map
+}
+
+/**
+ * The same sale state for EVERYTHING a creator has published, keyed by `contract-itemId`.
+ *
+ * Two paged reads for the whole catalogue instead of two per collection. My Creations used to build this
+ * map one collection at a time, and a creator with twenty collections paid forty catalogue queries after
+ * the items had already arrived; this is one pair, and it can start before the items are known.
+ */
+export async function fetchCreatorSaleState(creator: string): Promise<Record<string, CollectionSaleState>> {
+  const scopedCreator = creator.toLowerCase()
+  const [pegged, rows] = await Promise.all([
+    fetchCreatorPeggedPrimaryPrices(scopedCreator),
+    fetchAllCatalogRows({ creator: scopedCreator }, 'fetchCreatorSaleState')
+  ])
+
+  const map: Record<string, CollectionSaleState> = {}
+  for (const r of rows) {
+    if (r.itemId == null || !r.isOnSale) continue
+    const key = `${r.contractAddress.toLowerCase()}-${r.itemId}`
+    map[key] = toSaleState(r, pegged[key])
   }
   return map
 }
@@ -233,6 +288,14 @@ export type CatalogItemsFilters = {
   creator?: string
   // One collection's items (the collection storefront grid).
   contractAddress?: string
+  /**
+   * A SET of collections — what a seasonal event filters by. Sent as REPEATED keys, which is the only
+   * encoding this endpoint parses.
+   *
+   * An empty array must never be sent: the server reads an absent filter as "no filter", so it would come
+   * back as the whole catalogue presented as the event.
+   */
+  contractAddresses?: string[]
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -247,12 +310,55 @@ export type CatalogItemsFilters = {
   maxPriceCredits?: number
 }
 
+/**
+ * Lay the running sales over rows this feed cannot carry them on.
+ *
+ * `/v3/catalog/items` has no coupon join — only `/v3/catalog/shop` does — so a creator's storefront and a
+ * collection page showed the discounted PRICE with nothing marking it as a discount: no strike-through, no
+ * tag, no end. The shop feed is asked for the same scope and its sale fields are copied across by item.
+ *
+ * Silent on failure and skipped when the scope is the whole catalogue: an overlay that cannot resolve must
+ * leave the page exactly as it was, never take it down with it.
+ */
+async function withRunningSales(
+  items: CatalogItem[],
+  scope: { creator?: string; contractAddress?: string }
+): Promise<CatalogItem[]> {
+  if (!scope.creator && !scope.contractAddress) return items
+  if (!items.some(i => i.itemId != null)) return items
+  try {
+    const { listings, creatorSalesLive } = await fetchShopListingsRaw({ ...scope, first: 200, listingType: 'primary' })
+    // The kill switch lives in the mapping this overlay skips, so it has to be honoured here or a flag
+    // turned off would leave the discount standing on exactly these two pages.
+    if (!creatorSalesLive) return items
+    const sales = new Map<string, { compareAtCredits: number; saleEndsAt?: number; priceCredits: number }>()
+    for (const l of listings) {
+      if (l.itemId == null || l.compareAtCredits == null) continue
+      sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
+        compareAtCredits: l.compareAtCredits,
+        priceCredits: l.priceCredits,
+        // SECONDS on the wire, milliseconds everywhere a CatalogItem is read. The mapping this overlay
+        // bypasses is where that conversion normally happens.
+        ...(l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+      })
+    }
+    if (sales.size === 0) return items
+    return items.map(item => {
+      const sale = item.itemId == null ? undefined : sales.get(`${item.contractAddress.toLowerCase()}-${item.itemId}`)
+      return sale ? { ...item, ...sale } : item
+    })
+  } catch {
+    return items
+  }
+}
+
 export async function fetchCatalogItems({
   first = 48,
   skip = 0,
   category,
   creator,
   contractAddress,
+  contractAddresses,
   rarities,
   wearableCategories,
   search,
@@ -272,7 +378,19 @@ export async function fetchCatalogItems({
   // return the unfiltered feed, which reads as a broken filter.
   if (category === 'wearable' || category === 'emote') qs.set('category', category)
   if (creator) qs.set('creator', creator)
-  if (contractAddress) qs.set('contractAddress', contractAddress)
+  // Mutually exclusive, like the unified feed's — see the note there.
+  if (contractAddresses) {
+    // The REPEATED form here, unlike the unified feed's comma-separated one: this endpoint parses the set
+    // with `getAddressList`, which reads only repeated keys. Sending one encoding to both would silently
+    // drop the filter on one of them.
+    //
+    // And an empty set becomes the zero address, because `forEach` over nothing appends nothing — which
+    // this endpoint reads as "no collection filter" and answers with the whole catalogue.
+    const named = contractAddresses.length ? contractAddresses : [ZERO_ADDRESS]
+    named.forEach(address => qs.append('contractAddress', address))
+  } else if (contractAddress) {
+    qs.set('contractAddress', contractAddress)
+  }
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)
@@ -284,7 +402,7 @@ export async function fetchCatalogItems({
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCatalogItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
-  const items = (data ?? []).map(toCatalogItem)
+  const items = await withRunningSales((data ?? []).map(toCatalogItem), { creator, contractAddress })
   return { items, total: total ?? skip + items.length }
 }
 
@@ -298,7 +416,7 @@ export async function fetchCreatorItems(
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCreatorItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
-  const items = (data ?? []).map(toCatalogItem)
+  const items = await withRunningSales((data ?? []).map(toCatalogItem), { creator })
   return { items, total: total ?? skip + items.length }
 }
 

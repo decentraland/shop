@@ -8,6 +8,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
@@ -15,6 +16,7 @@ import { LivePromo } from '~/components/LivePromo'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
@@ -23,6 +25,8 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // illustration — reproducing that in CSS would be a lot of fragile geometry for a pixel-identical result.
 // WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
 // 90 KB here against 1.09 MB as a PNG.
+import { useCampaignHero } from '~/hooks/useCampaignHero'
+import { track } from '~/lib/analytics'
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
 import heroBannerMobile from '~/assets/overview/hero-credits-mobile.webp'
 import { Icon } from '~/components/Icon'
@@ -31,6 +35,8 @@ import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
+// Fewer live sales than this and the Best Deals rail stays hidden: two cards do not make a rail.
+const MIN_DEALS = 3
 
 // Horizontal card rail (Figma nodes 913:135571 "Featured Products" / 913:135593 "New Creations").
 // The track is a CSS grid showing a FIXED whole number of cards per view (5 desktop → 4 → 3 → 2 mobile,
@@ -42,7 +48,9 @@ function Carousel({
   title,
   items,
   loading,
-  source
+  source,
+  viewAllTo = '/items',
+  testId
 }: {
   title: string
   items: CatalogItem[]
@@ -50,6 +58,9 @@ function Carousel({
   // Which rail this is, so the cards' click and add-to-cart events name it. Without it every card in
   // every rail reported 'grid' and the rails could not be compared against the browse grid or each other.
   source: AddToCartSource
+  // Where "View all" lands. A rail fed by a filter sends it to the grid with that filter already applied.
+  viewAllTo?: string
+  testId?: string
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -99,10 +110,10 @@ function Carousel({
   const showControls = !loading && pageCount > 1
 
   return (
-    <S.Carousel>
+    <S.Carousel data-testid={testId}>
       <Row.Head>
         <Row.Title>{title}</Row.Title>
-        <Row.ViewAll to="/items">
+        <Row.ViewAll to={viewAllTo}>
           {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
         </Row.ViewAll>
       </Row.Head>
@@ -166,6 +177,10 @@ function Carousel({
   )
 }
 
+// The admin-entry field the home hero reads its campaign takeover from. Shared with the marketplace, which
+// renders the same banner on its own homepage.
+const CAMPAIGN_HERO_SLOT = 'marketplaceHomepageBanner'
+
 export function Overview() {
   // Home page: the hook's site-wide default title/description is the best fit here (its title tail is
   // "Wearables & Emotes for Your Avatar", which we don't want to override), so pass nothing. Indexable.
@@ -199,33 +214,118 @@ export function Overview() {
   })
   const trendingItems = useLivePricedItems(trending ?? [])
 
+  // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
+  // which is the normal state — the Shop's own art, headline and credits CTA below are what render.
+  const campaignHero = useCampaignHero(CAMPAIGN_HERO_SLOT)
+
+  function renderHeroCta() {
+    // Hidden inside the iOS web view, where the Shop may not sell credits at all. That covers a campaign's
+    // button too: its destination is free text an editor typed, and a seasonal drop most often points at
+    // buying something.
+    if (isIapMode()) return null
+
+    // A campaign takes the hero over COMPLETELY, this button included — an editor who switched it off
+    // wants no button, not the Shop's standing one sitting under their artwork. Credits keep their own
+    // entry point in the nav bar either way.
+    if (campaignHero) {
+      if (!campaignHero.cta) return null
+      return (
+        // An anchor rather than a router Link: the destination is a whole URL an editor typed, and a
+        // campaign usually points somewhere outside this app. It is also what the marketplace does with
+        // the same field.
+        <S.HeroCta
+          as="a"
+          href={campaignHero.cta.href}
+          variant="purple"
+          data-testid="hero-campaign-cta"
+          onClick={() =>
+            track('Shop Clicked Banner', {
+              slot: CAMPAIGN_HERO_SLOT,
+              banner_id: campaignHero.bannerId,
+              campaign: campaignHero.campaignName
+            })
+          }
+        >
+          {campaignHero.cta.label}
+        </S.HeroCta>
+      )
+    }
+
+    return (
+      <S.HeroCta as={Link} to="/credits" variant="purple" data-testid="hero-credits-cta">
+        <CurrencyIcon size={18} />
+        {t('overview.heroCta')}
+      </S.HeroCta>
+    )
+  }
+
+  // The Best Deals rail: creators' live sales, biggest discount first and soonest-ending among equals. Both
+  // the filter and the order are the server's (`discounted` + `sortBy=discount` on the same feed the grid
+  // reads), so the rail shows exactly what the grid's Deals filter shows. Primaries only: a sale is set by a
+  // creator on their own collection, so a resale never carries one.
+  // Unlike Trending it reserves NO placeholders: there is nearly always something to rank, but most days
+  // there is nothing on sale, and a rail of placeholders that vanishes on most home loads is the very jump
+  // the placeholders exist to prevent. It appears once the feed answers with enough deals to fill a rail.
+  // Behind the creator-sales flag, exactly as the grid's Deals filter is. With the flag off the feed still
+  // answers — `withoutSale` only strips the sale fields from each row — so an ungated rail would headline
+  // "Best Deals" over a list of items at their ordinary price, on the Shop's most visible surface.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const { data: deals } = useQuery({
+    // The flag is part of the key, as it is for Trending above. `enabled: false` stops the refetch but keeps
+    // whatever is already cached, and nothing downstream re-checks the flag — so without this, turning the
+    // flag off would leave the rail standing for everyone with the page already open, which is the one
+    // moment it most needs to come down.
+    queryKey: ['overview-deals', creatorSalesEnabled],
+    queryFn: () => fetchShopItems({ first: 12, discounted: true, sortBy: 'discount', listingType: 'primary' }),
+    enabled: creatorSalesEnabled
+  })
+  /**
+   * NOT through `useLivePricedItems`, unlike the rails above, and deliberately.
+   *
+   * A discounted row's `priceCredits` and `compareAtCredits` are one pair, both computed by the server from
+   * the same USD figure. Re-converting only the first at the live MANA rate leaves the second as it was, and
+   * a sale price that no longer undercuts its own compare-at stops reading as a sale at all — the card drops
+   * its badge, its strike-through and its countdown, and simply shows a price.
+   *
+   * There is also nothing to convert: the catalogue joins coupons on the NATIVE branch only (legacy and
+   * CollectionStore rows are built with `withCoupons: false`), so a row that carries a discount is
+   * USD-pegged by construction and has no `manaWei` to re-price.
+   */
+  const dealItems = deals?.items ?? []
+
   return (
     <S.Overview className="overview">
       <S.Hero>
         {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
             wide banner — the mobile frame is a different composition, not a resize. */}
         <picture>
-          <source media="(max-width: 768px)" srcSet={heroBannerMobile} />
-          <S.HeroBg src={heroBanner} alt="" aria-hidden />
+          <source media="(max-width: 768px)" srcSet={campaignHero?.mobileImage ?? heroBannerMobile} />
+          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden />
         </picture>
         {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
-          <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
+          <S.HeroTitle data-testid="hero-title">{campaignHero?.title || t('overview.heroTitle')}</S.HeroTitle>
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
               sending the click to browse would leave the buyer one step short of what it advertises.
               Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
               prominent offer in the app, so it is the one that most has to go. The banner's own title is
               generic ("A New Way to Shop"), so it still reads as a banner without it. */}
-          {isIapMode() ? null : (
-            <S.HeroCta as={Link} to="/credits" variant="purple">
-              <CurrencyIcon size={18} />
-              {t('overview.heroCta')}
-            </S.HeroCta>
-          )}
+          {renderHeroCta()}
         </S.HeroInner>
       </S.Hero>
+
+      {dealItems.length >= MIN_DEALS ? (
+        <Carousel
+          title={t('overview.bestDeals')}
+          items={dealItems}
+          loading={false}
+          source="deals"
+          viewAllTo="/items?deals=true"
+          testId="best-deals-rail"
+        />
+      ) : null}
 
       {/* Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
           it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales
@@ -240,6 +340,13 @@ export function Overview() {
           source="trending"
         />
       ) : null}
+
+      {/* "Suggested for you" sits directly under Trending: the two answer opposite questions — what
+          everyone is buying, and what THIS visitor is likely to want — so they read as a pair, and a
+          visitor the Shop knows nothing about simply sees Trending alone. The row owns its own query,
+          its own flag and its own visibility; it renders nothing unless the server both personalised
+          the answer and returned enough of it. */}
+      <SuggestedForYouRow />
 
       {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
           Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings

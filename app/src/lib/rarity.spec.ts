@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, rarityGlowCoreRgb, rarityGlowRgb, rarityGradient, rarityInk, rarityTint } from '~/lib/rarity'
+import { rarityColor, rarityGlowCoreRgb, rarityGlowRgb, rarityInk, rarityTint } from '~/lib/rarity'
 import { rarities } from '~/styles/theme'
 
 // Neutral fallback color rarity.ts returns for a missing/unknown rarity.
@@ -98,30 +98,6 @@ describe('when resolving the vivid glow core for a rarity', () => {
 
   it('and the color is achromatic it should stay grey rather than invent a hue', () => {
     expect(rarityGlowCoreRgb('not-a-real-rarity')).toBe('230 230 230')
-  })
-})
-
-describe('when building the radial gradient for a rarity', () => {
-  it('should wrap the schema light/dark stops in a radial-gradient', () => {
-    const [light, dark] = Rarity.getGradient(Rarity.EPIC)
-    expect(rarityGradient('epic')).toBe(`radial-gradient(${light}, ${dark})`)
-  })
-
-  it('and the rarity casing differs it should still resolve by lowercasing', () => {
-    const [light, dark] = Rarity.getGradient(Rarity.LEGENDARY)
-    expect(rarityGradient('Legendary')).toBe(`radial-gradient(${light}, ${dark})`)
-  })
-
-  it('should default to common when no rarity is given', () => {
-    const [light, dark] = Rarity.getGradient(Rarity.COMMON)
-    expect(rarityGradient()).toBe(`radial-gradient(${light}, ${dark})`)
-    expect(rarityGradient(null)).toBe(`radial-gradient(${light}, ${dark})`)
-  })
-
-  it('and the rarity is unknown it should fall back to a neutral grey wash', () => {
-    // Rarity.getGradient on an unknown key returns [undefined, undefined] (no throw); the guard
-    // turns that into the neutral fallback rather than a broken "radial-gradient(undefined, ...)".
-    expect(rarityGradient('not-a-real-rarity')).toBe('radial-gradient(#c0bdc6, #a09ba8)')
   })
 })
 

@@ -11,6 +11,13 @@ vi.mock('~/config', () => ({
 
 const captureErrorMock = vi.fn()
 vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
+// The catalogue primes the creator-sales flag before mapping a row. Stubbed so these specs exercise the
+// MAPPING rather than the flag service — and so the flag's fetch does not consume a queued response.
+const { getIsFeatureEnabled } = vi.hoisted(() => ({ getIsFeatureEnabled: vi.fn(async () => true) }))
+vi.mock('~/lib/featureFlags', () => ({
+  getIsFeatureEnabled,
+  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales' }
+}))
 
 // postTrade dynamically imports TradeService only when creating a listing. Stub it so importing the
 // module (and calling postTrade) never drags in decentraland-dapps' ui2/@mui barrel.
@@ -37,7 +44,6 @@ import {
   fetchUnified,
   fetchShopItems,
   fetchTrendingItems,
-  fetchContractRegistry,
   fetchMyAssets,
   fetchOwnedToken,
   fetchResaleTokenInfo,
@@ -564,6 +570,71 @@ describe('when fetching the shop browse listings', () => {
     expect(items[0].saleEndsAt).toBe(1_700_000_000 * 1000)
   })
 
+  /**
+   * The kill switch for sales that already exist. It has to erase the discount from the WHOLE row: the
+   * catalogue keeps serving sale prices while the coupons are live on chain, so hiding only the badge — or
+   * only the settlement — would quote the buyer one number and charge them another.
+   */
+  describe('and creator sales are switched off', () => {
+    const onSaleRow = {
+      tradeId: 's',
+      listingType: 'primary',
+      contractAddress: '0x1',
+      itemId: '1',
+      tokenId: null,
+      name: 'S',
+      thumbnail: '',
+      rarity: 'common',
+      category: 'wearable',
+      wearableCategory: null,
+      creator: '0xa',
+      priceCredits: 7,
+      available: 1,
+      network: 'MATIC',
+      chainId: 80002,
+      compareAtCredits: 10,
+      saleEndsAt: 1_700_000_000,
+      saleUnitsLeft: 3,
+      coupon: { id: 'c1', signature: '0xabc', proof: [], collections: ['0x1'] }
+    }
+
+    beforeEach(() => getIsFeatureEnabled.mockResolvedValue(false))
+    afterEach(() => getIsFeatureEnabled.mockResolvedValue(true))
+
+    it('should quote the list price, so what is shown is what is charged', async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [onSaleRow] }))
+
+      const { items } = await fetchListings()
+
+      expect(items[0].priceCredits).toBe(10)
+      expect(items[0].compareAtCredits).toBeUndefined()
+      expect(items[0].saleEndsAt).toBeUndefined()
+      expect(items[0].saleUnitsLeft).toBeUndefined()
+    })
+
+    it('should drop the coupon too, so the discount cannot settle behind the price on screen', async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [onSaleRow] }))
+
+      const { items } = await fetchListings()
+
+      // The other fields only decide what a price looks like. This one is what the checkout hands to
+      // `acceptWithCoupon` — kept, it would charge the sale price under a list-price label.
+      expect(items[0].coupon).toBeUndefined()
+    })
+
+    it('should leave a listing that was never on sale exactly as it was', async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonOk({ total: 1, data: [{ ...onSaleRow, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }] })
+      )
+
+      const { items } = await fetchListings()
+
+      expect(items[0].priceCredits).toBe(7)
+      expect(items[0].compareAtCredits).toBeUndefined()
+      expect(items[0].coupon).toBeUndefined()
+    })
+  })
+
   it('should drop a compare-at that does not beat the sale price (no phantom discount)', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
@@ -704,6 +775,52 @@ describe('when fetching the unified browse listings', () => {
   })
 })
 
+/**
+ * The collection-set filter — what the seasonal event browses by.
+ *
+ * The case worth a test is the EMPTY set. This endpoint reads a missing collection filter as "no filter",
+ * so a request that simply omits it answers with the entire catalogue — which a caller asking for an event
+ * would then render as the event. An empty set therefore has to travel as a filter that matches nothing.
+ */
+describe('when filtering the unified feed by a set of collections', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  it('should send the set comma-separated, which is what the endpoint parses', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddresses: [A, B] })
+
+    expect(decodeURIComponent(lastUrl())).toContain(`contractAddress=${A},${B}`)
+  })
+
+  it('should ask for nothing rather than everything when the set is empty', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddresses: [] })
+
+    expect(lastUrl()).toContain('contractAddress=0x0000000000000000000000000000000000000000')
+  })
+
+  it('should apply no collection filter when no set is given', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({})
+
+    expect(lastUrl()).not.toContain('contractAddress=')
+  })
+
+  it('should not send the single-collection filter alongside a set', async () => {
+    // Both write the same query key, so a request carrying both would silently apply one of them.
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddress: '0x1111111111111111111111111111111111111111', contractAddresses: [A] })
+
+    expect(decodeURIComponent(lastUrl())).toContain(`contractAddress=${A}`)
+    expect(lastUrl()).not.toContain('0x1111111111111111111111111111111111111111')
+  })
+})
+
 describe('when fetching the item-unified browse feed', () => {
   // A representative item row: same shape as a unified listing row plus the per-item listingCount.
   const itemRow = {
@@ -795,10 +912,12 @@ describe('when fetching the item-unified browse feed', () => {
       maxPriceCredits: 100,
       search: 'dragon',
       sortBy: 'cheapest',
-      isSmart: true
+      isSmart: true,
+      discounted: true
     })
     const url = lastUrl()
     expect(url).toContain('groupBy=item')
+    expect(url).toContain('discounted=true')
     expect(url).toContain('category=wearable')
     expect(url).toContain('first=12')
     expect(url).toContain('skip=24')
@@ -996,41 +1115,6 @@ describe('when fetching the trending items', () => {
     fetchMock.mockResolvedValueOnce(httpError(400, 'days must be between 1 and 7'))
 
     await expect(fetchTrendingItems()).rejects.toThrow('days must be between 1 and 7')
-  })
-})
-
-describe('when fetching the curated contract registry', () => {
-  it('should key the collection names by lowercased address', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({
-        total: 2,
-        data: [
-          { name: 'Summer Capsule', address: '0xAAAA000000000000000000000000000000000001', category: 'wearable' },
-          { name: 'Names', address: '0xBBBB000000000000000000000000000000000002', category: 'ens' }
-        ]
-      })
-    )
-
-    const registry = await fetchContractRegistry()
-
-    expect(lastUrl()).toBe('https://market.test/v1/contracts')
-    expect(registry.get('0xaaaa000000000000000000000000000000000001')).toBe('Summer Capsule')
-    expect(registry.get('0xbbbb000000000000000000000000000000000002')).toBe('Names')
-  })
-
-  it('should skip entries with no usable name or address rather than mapping a blank', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({ total: 3, data: [{ name: '', address: '0xa' }, { address: '0xb' }, { name: 'No address' }] })
-    )
-
-    const registry = await fetchContractRegistry()
-
-    expect(registry.size).toBe(0)
-  })
-
-  it('should throw when the registry request fails', async () => {
-    fetchMock.mockResolvedValueOnce(httpError(503))
-    await expect(fetchContractRegistry()).rejects.toThrow('fetchContractRegistry 503')
   })
 })
 
@@ -1255,6 +1339,11 @@ describe('when posting a signed trade', () => {
     const [signer, url] = tradeServiceCtor.mock.calls[0]
     expect(signer).toBe('dcl:marketplace')
     expect(url).toBe('https://market.test')
+  })
+
+  it('should reject a response that carries no trade id instead of reporting success', async () => {
+    addTradeMock.mockResolvedValueOnce({} as never)
+    await expect(postTrade({} as never, { authChain: [] } as never)).rejects.toThrow(/without an id/)
   })
 })
 

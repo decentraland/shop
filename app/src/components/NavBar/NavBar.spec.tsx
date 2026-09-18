@@ -35,6 +35,10 @@ vi.mock('~/store/wallet', () => ({
 
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined, isLoading: false }) }))
 vi.mock('~/hooks/useOutfits', () => ({ useIsOutfitCreator: () => false }))
+// The seasonal event tab. Stubbed like every other data hook here so this spec stays about the navbar's
+// own chrome; `null` is the ordinary state, with no campaign running.
+const { useEventTab } = vi.hoisted(() => ({ useEventTab: vi.fn<() => string | null>(() => null) }))
+vi.mock('~/hooks/useEventTab', () => ({ useEventTab }))
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => ({ data: 0, isError: false, isLoading: false }) }))
 vi.mock('~/hooks/useManaBalance', () => ({
   useManaBalance: () => ({ data: undefined }),
@@ -45,6 +49,11 @@ vi.mock('~/components/CartPopover', () => ({ CartPopover: () => null }))
 vi.mock('~/components/SearchDropdown', () => ({ SearchDropdown: () => null }))
 vi.mock('~/components/NotificationsBell', () => ({ NotificationsBell: () => null }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
+// The creator's store entry, gated on its flag AND on having published something. Both are network reads,
+// stubbed here like every other data hook; the gate itself has its own block below.
+const store = { flag: false, creator: false }
+vi.mock('~/hooks/useMyStoreEnabled', () => ({ useMyStoreEnabled: () => store.flag }))
+vi.mock('~/hooks/useIsCreator', () => ({ useIsCreator: () => store.creator }))
 
 // Mutable so both sides of the iOS web-view gate are reachable — the difference between them is the point.
 const iap = { on: false }
@@ -234,5 +243,76 @@ describe('the iOS web-view chrome', () => {
     const { container } = renderNav('/cart')
 
     expect(container.querySelector('[data-testid="subnav"]')).not.toBeNull()
+  })
+})
+
+/**
+ * The seasonal event tab.
+ *
+ * Its label is CONTENT, not UI copy — whatever the running campaign is called — so it never goes through
+ * `t()` and is asserted literally here. It is absent on an ordinary day, which is what every other spec in
+ * this file runs against.
+ */
+describe('the seasonal event tab', () => {
+  it('is absent while no campaign is running', () => {
+    useEventTab.mockReturnValue(null)
+
+    const { container } = renderNav()
+
+    expect(container.querySelector('[data-testid="nav-event"]')).toBeNull()
+  })
+
+  it('carries the campaign name and opens the event grid', () => {
+    useEventTab.mockReturnValue('Halloween')
+
+    const { container } = renderNav()
+
+    const tab = container.querySelector('[data-testid="nav-event"]')
+    expect(tab?.textContent).toBe('Halloween')
+    expect(tab?.getAttribute('href')).toBe('/event')
+  })
+
+  it('sits between Overview and Collectibles, as it does in the marketplace', () => {
+    useEventTab.mockReturnValue('Halloween')
+
+    const { container } = renderNav()
+
+    const labels = Array.from(container.querySelectorAll('[data-testid="subnav-tabs"] a')).map(a => a.textContent)
+    expect(labels.slice(0, 3)).toEqual(['Overview', 'Halloween', 'Collectibles'])
+  })
+})
+
+describe('the creator store entrance', () => {
+  beforeEach(() => {
+    store.flag = false
+    store.creator = false
+    session = { address: '0xabc', providerType: 'injected' }
+  })
+
+  it('leads a creator to their store once the flag is on', () => {
+    store.flag = true
+    store.creator = true
+
+    expect(renderNav().queryByTestId('nav-my-store')).not.toBeNull()
+  })
+
+  it('stays hidden for an account that has never published, to whom the page is an empty room', () => {
+    store.flag = true
+
+    expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
+  })
+
+  it('stays hidden while the flag is off, creator or not', () => {
+    store.creator = true
+
+    expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
+  })
+
+  it('stays hidden when nobody is signed in', () => {
+    store.flag = true
+    store.creator = true
+    session = null
+
+    expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
   })
 })

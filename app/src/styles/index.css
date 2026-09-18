@@ -34,6 +34,8 @@
   --black-btn: #242129; /* add-to-cart bg */
   --soft-white: #fcfcfc;
   --dcl-red: #ff2d55;
+  --sale-tag: #ffc9d5; /* Figma "Primary Base/Primary Light 2" — the card's sale tag */
+  --sale-tag-ink: #ec303a;
   --ok: #1ea672;
   --err: #d33;
   --amethyst: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
@@ -229,6 +231,12 @@ h2 {
 /* Opt-out: the credits page is one short card, so filling the viewport just parks a screenful of empty
    purple under it. Letting the footer sit right after the card is the better read there. */
 .page[data-route="/credits"] {
+  min-height: 0;
+}
+/* Same reasoning, but keyed on state rather than route: a signed-out page is one short empty-state panel,
+   and it is the signed-out variant of three different routes. Holding the viewport open under it parks the
+   same screenful of empty purple and pushes the footer off the fold. */
+.page:has([data-fill="true"]) {
   min-height: 0;
 }
 /* The overview's hero is full-bleed and must sit FLUSH against the sub-nav: the shell's top padding left a

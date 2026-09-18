@@ -97,7 +97,7 @@ export function generateTradeValues(trade: Omit<TradeCreation, 'signature'>) {
   }
 }
 
-const OFFCHAIN_MARKETPLACE_TYPES = {
+export const OFFCHAIN_MARKETPLACE_TYPES = {
   Trade: [
     { name: 'checks', type: 'Checks' },
     { name: 'sent', type: 'AssetWithoutBeneficiary[]' },

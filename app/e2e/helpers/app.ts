@@ -74,11 +74,20 @@ export type Fixtures = {
   userStore: unknown
   purchases: unknown
   sales: unknown
+  /** Overrides on top of the summary derived from `sales`; omit to let the rows speak for themselves. */
+  salesSummary: unknown
   notifications: unknown
   /** Outfit records served (and mutated) by the mock shop-server (port 5004). */
   outfits: unknown
   /** Creator ranking (/v3/catalog/creators) — what fills the "Top Creators" section. */
   rankings: unknown
+  /** The creator's sales served (and appended to) by the mock marketplace-server (`/v1/coupons`). */
+  coupons: unknown
+  /**
+   * What `/v3/catalog/shop?contractAddress=…` (fetchCollectionSaleState) answers for a creator's collection.
+   * Undefined keeps the default "nothing on sale", which the publish spec relies on.
+   */
+  collectionSaleState?: unknown
 }
 
 function defaults(): Fixtures {
@@ -96,6 +105,7 @@ function defaults(): Fixtures {
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     builderItemContents: { 'thumbnail.png': 'bafyfake' },
+    coupons: { data: [] },
     profile: fx.profile,
     userStore: null,
     authorize: {
@@ -118,6 +128,7 @@ function defaults(): Fixtures {
     rankings: { data: [] },
     purchases: { purchases: [] },
     sales: { data: [], total: 0 },
+    salesSummary: undefined,
     // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
     // Timestamps are epoch MILLISECONDS here; notifications.e2e.ts overrides this to cover the seconds /
     // ISO / unparseable shapes the real service has been seen to return.
@@ -233,6 +244,9 @@ function toCatalogRow(l: any) {
     minPrice: priceWei,
     available: l.available ?? 0,
     priceCredits,
+    // The real feed says so on every row, and lib/collections' sale-state map skips anything without it.
+    // Every fixture row is priced, hence on sale — the same assumption the filters above already state.
+    isOnSale: true,
     // The item page reads `isSmart` and `utility` from the v1 items shape, where isSmart lives NESTED under
     // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
     // showcase-clip lookup exercise the same field they read in production.
@@ -245,10 +259,121 @@ function toCatalogRow(l: any) {
 let secondarySalesFlag = true
 let outfitCreatorFlag = false
 let followsFlag = false
+let creatorSalesFlag = false
+let suggestedForYouFlag = false
+let suggestedConfig: { personalized?: boolean; count?: number } = {}
+let myStoreFlag = false
+/** The My Store flag's address-list variant. Undefined means no list, which is 'everyone'. */
+let myStoreAllowed: string | undefined
+// The creator sales the mock marketplace-server holds for the run; a POST prepends to it, the GET serves it.
+let couponStore: any[] = []
+let campaignFlag = false
+// Buying a NAME with credits. Off is the shipped default (the flag fails closed), so the suite runs in it
+// and the NAMEs specs opt in.
+let namesFlag = false
+
+// The marketing CMS, as the delivery proxy serves it: FLAT fields per `?locale=`, which is what makes the
+// client fetch each entry once per locale and merge. The admin id is the one dev.json points at, so the
+// app asks for exactly this entry.
+const CMS_ADMIN = '7FJAHnPOiCEHMJhrZ3sRmG'
+const CMS_BANNER = 'e2e-banner'
+const CMS_CAMPAIGN = 'e2e-campaign'
+const CMS_WIDE = 'e2e-wide'
+const CMS_SQUARE = 'e2e-square'
+// Not tagged in the builder — it reaches the event only through the campaign's `collectionIds`.
+const CMS_NAMED_COLLECTION = '0xdef0000000000000000000000000000000000002'
+
+const cmsLink = (id: string, linkType: 'Entry' | 'Asset') => ({ sys: { type: 'Link', linkType, id } })
+
+function cmsEntry(id: string, locale: string) {
+  const es = locale === 'es'
+  if (id === CMS_ADMIN) {
+    return {
+      sys: { id, type: 'Entry', contentType: { sys: { id: 'admin' } } },
+      metadata: { tags: [], concepts: [] },
+      fields: {
+        name: 'Test admin entry',
+        campaign: cmsLink(CMS_CAMPAIGN, 'Entry'),
+        marketplaceHomepageBanner: cmsLink(CMS_BANNER, 'Entry'),
+        marketplaceCampaignCollectiblesBanner: cmsLink(CMS_BANNER, 'Entry')
+      }
+    }
+  }
+  if (id === CMS_BANNER) {
+    return {
+      sys: { id, type: 'Entry', contentType: { sys: { id: 'banner' } } },
+      metadata: { tags: [], concepts: [] },
+      fields: {
+        name: 'Halloween',
+        desktopTitle: es ? 'Llegó Halloween' : 'Halloween is here',
+        mobileTitle: es ? 'Llegó Halloween' : 'Halloween is here',
+        showButton: true,
+        buttonsText: es ? 'Ver la colección' : 'Shop the drop',
+        buttonLink: 'https://decentraland.org/shop/event',
+        fullSizeBackground: cmsLink(CMS_WIDE, 'Asset'),
+        mobileBackground: cmsLink(CMS_SQUARE, 'Asset')
+      }
+    }
+  }
+  return {
+    sys: { id, type: 'Entry', contentType: { sys: { id: 'marketingCampaign' } } },
+    metadata: { tags: [], concepts: [] },
+    fields: {
+      name: 'Halloween 2026',
+      mainTag: 'halloween',
+      marketplaceTabName: 'Halloween',
+      // A collection the CMS names outright, on top of whatever the tag resolves to.
+      collectionIds: CMS_NAMED_COLLECTION
+    }
+  }
+}
+
+function cmsAsset(id: string) {
+  return {
+    sys: { id, type: 'Asset' },
+    metadata: { tags: [], concepts: [] },
+    fields: {
+      title: id,
+      description: '',
+      // Protocol-relative and on Contentful's own host, exactly as the CDN returns it — the client is what
+      // rewrites it onto the Decentraland image proxy, which is the only host the deployed CSP allows.
+      file: {
+        url: `//images.ctfassets.net/space/${id}.png`,
+        fileName: `${id}.png`,
+        contentType: 'image/png',
+        details: { size: 1, image: id === CMS_WIDE ? { width: 1280, height: 300 } : { width: 390, height: 389 } }
+      }
+    }
+  }
+}
 
 // Stateful outfits: the mock shop-server. Seeded from F.outfits per run so studio mutations (save,
 // publish, delete) survive navigation within a test without leaking across runs.
 let outfitStore: any[] = []
+
+// A live creator sale, the way the real feeds decide it: a compare-at price above the price and an end time
+// (unix SECONDS) still ahead. `discounted=true|false` filters on it and `sortBy=discount` orders by it.
+function isDiscountedRow(i: any): boolean {
+  return (
+    typeof i.compareAtCredits === 'number' &&
+    // Both numbers, not just the compare-at: `5 > undefined` is false, so an unpriced fixture row would be
+    // read as "not discounted" rather than as the malformed row it is.
+    typeof i.priceCredits === 'number' &&
+    i.compareAtCredits > i.priceCredits &&
+    typeof i.saleEndsAt === 'number' &&
+    i.saleEndsAt * 1000 > Date.now()
+  )
+}
+function applyDealsParams(items: any[], u: URL): any[] {
+  const discounted = u.searchParams.get('discounted')
+  if (discounted === 'true') items = items.filter(isDiscountedRow)
+  if (discounted === 'false') items = items.filter(i => !isDiscountedRow(i))
+  if (u.searchParams.get('sortBy') === 'discount') {
+    const pct = (i: any) => (isDiscountedRow(i) ? 1 - i.priceCredits / i.compareAtCredits : -1)
+    items.sort((a, b) => pct(b) - pct(a) || (a.saleEndsAt ?? Infinity) - (b.saleEndsAt ?? Infinity))
+  }
+  return items
+}
 
 function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: string = BASE) {
   const u = new URL(req.url())
@@ -275,13 +400,35 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         flags: {
           'dapps-shop-secondary-sales': secondarySalesFlag,
           'dapps-shop-outfit-creators': outfitCreatorFlag,
-          'dapps-shop-follows': followsFlag
+          'dapps-shop-follows': followsFlag,
+          'dapps-shop-creator-sales': creatorSalesFlag,
+          'dapps-shop-campaign': campaignFlag,
+          'dapps-shop-suggested-for-you': suggestedForYouFlag,
+          'dapps-shop-my-store': myStoreFlag,
+          'dapps-shop-names': namesFlag
         },
-        variants: outfitCreatorFlag
-          ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
-          : {}
+        variants: {
+          ...(outfitCreatorFlag
+            ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
+            : {}),
+          ...(myStoreAllowed === undefined
+            ? {}
+            : { 'dapps-shop-my-store': { enabled: true, payload: { value: myStoreAllowed } } })
+        }
       })
     })
+  }
+  // The marketing CMS and its image proxy. Only reached when a spec turns the campaign flag on — the
+  // client issues no request at all while the feature is off.
+  if (u.hostname.startsWith('cms-api.')) {
+    const entry = path.match(/\/entries\/([^/]+)\/?$/)
+    if (entry) return json(req, cmsEntry(entry[1], u.searchParams.get('locale') ?? 'en-US'))
+    const asset = path.match(/\/assets\/([^/]+)\/?$/)
+    if (asset) return json(req, cmsAsset(asset[1]))
+    return json(req, { message: 'not found' }, 404)
+  }
+  if (u.hostname.startsWith('cms-images.')) {
+    return req.respond({ status: 200, headers: { ...CORS, 'content-type': 'image/png' }, body: PNG })
   }
   // Forced error injection (opt-in): before the normal per-port handling, respond with the mapped
   // status+body (json() attaches CORS headers, so the error reaches the app instead of being blocked).
@@ -441,10 +588,26 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v3/catalog/shop') {
       const ca = u.searchParams.get('contractAddress')
       const itemId = u.searchParams.get('itemId')
-      // fetchCollectionSaleState (contractAddress, no itemId) → treat as "not on sale".
-      if (ca && !itemId) return json(req, { data: [], total: 0 })
+      // fetchCollectionSaleState (contractAddress, no itemId) → treat as "not on sale". The rows are
+      // filtered by the collection asked for, so a creator with several collections gets a different
+      // answer per collection instead of every one of them looking listed.
+      if (ca && !itemId) {
+        const rows = ((F.collectionSaleState as { data: any[] } | undefined)?.data ?? []).filter(
+          i => String(i.contractAddress).toLowerCase() === ca.toLowerCase()
+        )
+        return json(req, { data: rows, total: rows.length })
+      }
+      // fetchCreatorSaleState reads the creator's PRIMARY listings in one pass. When a spec provides the
+      // narrower `collectionSaleState` fixture, that is what this read must see: it models what the shop
+      // feed knows about the creator's primaries, and a row present in the catalogue but absent from it is
+      // how a spec says "MANA-priced". Only the row source changes; every filter below still applies.
+      const saleStateRows = (F.collectionSaleState as { data: any[] } | undefined)?.data
+      const creatorSaleStateRead =
+        !ca && !itemId && u.searchParams.get('creator') && u.searchParams.get('listingType') === 'primary'
+      const baseRows =
+        creatorSaleStateRead && saleStateRows ? saleStateRows : ((F.shopListings as { data: any[] }).data ?? [])
       // Honor the server-side filters so filter/search/sort + item-detail specs are meaningful.
-      let items = [...((F.shopListings as { data: any[] }).data ?? [])]
+      let items = [...baseRows]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
@@ -456,6 +619,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => a.priceCredits - b.priceCredits)
+      items = applyDealsParams(items, u)
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/legacy') {
@@ -487,6 +651,40 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (Number.isFinite(trendingFirst) && trendingFirst > 0) items = items.slice(0, trendingFirst)
       // Unpaginated: `{ data }` only, no total — same as the real handler.
       return json(req, { data: items })
+    }
+    /**
+     * The home page's PERSONALISED rail. Served from the same fixture as every other feed, because what
+     * an e2e can observe is which endpoint fills the row, what the client sent to it, and whether the row
+     * shows or hides itself — not the ranking, which is the server's own business and has its own tests
+     * against a database. `personalized` is the switch the row's visibility hangs on, so it is what a
+     * spec overrides.
+     */
+    if (path === '/v3/catalog/suggested') {
+      const rows = [...((F.unifiedListings as { data: any[] }).data ?? [])]
+      const wanted = Number(u.searchParams.get('first') ?? 12)
+      const count = suggestedConfig.count ?? (Number.isFinite(wanted) && wanted > 0 ? wanted : 12)
+      // The shared fixture holds three listings, fewer than a rail shows and fewer than the row's own
+      // minimum, so it is cycled up to the asked-for size with distinct ids. The alternative — a rail
+      // that can never be longer than three — would make the row's "too few to be worth showing" rule
+      // untestable, which is precisely one of the behaviours this endpoint exists to drive.
+      const padded = Array.from({ length: count }, (_, i) => {
+        const row = rows[i % Math.max(1, rows.length)]
+        return i < rows.length ? row : { ...row, tradeId: `${row.tradeId}-s${i}`, itemId: `${100 + i}` }
+      })
+      const kinds = ['co_owned', 'creator_affinity', 'favorite_similar', 'equipped_similar', 'seed_similar']
+      const data = padded.map((row, i) => ({
+        ...row,
+        reason:
+          kinds[i % kinds.length] === 'creator_affinity'
+            ? { kind: 'creator_affinity', creator: row.creator }
+            : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
+        score: 1 - i / 100
+      }))
+      return json(req, {
+        data,
+        personalized: suggestedConfig.personalized !== false,
+        algorithm: 'v1'
+      })
     }
     if (path === '/v3/catalog/unified') {
       // The ONE browse grid: native + legacy in one feed. `groupBy=item` (the browse grid, fetchShopItems)
@@ -525,6 +723,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }
+      items = applyDealsParams(items, u)
       // `total` is the unpaginated count (what the real server reports); `first` bounds the page.
       const total = items.length
       const first = Number(u.searchParams.get('first') ?? 0)
@@ -539,20 +738,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const ca = u.searchParams.get('contractAddress')?.toLowerCase()
       if (ca) rows = rows.filter(c => String(c.contractAddress).toLowerCase() === ca)
       if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
-      return json(req, { data: rows, total: rows.length })
-    }
-    // Curated contract registry (lib/api.ts → fetchContractRegistry): the Approvals page titles each
-    // selling row after the COLLECTION, whose name lives only here. Derived from the same collections
-    // fixture so the mock and production agree on what a collection is called. Note the field is
-    // `address`, not `contractAddress`.
-    if (path === '/v1/contracts') {
-      const rows = ((F.collections as { data: any[] }).data ?? []).map(c => ({
-        name: c.name,
-        address: c.contractAddress,
-        category: 'wearable',
-        network: 'MATIC',
-        chainId: 80002
-      }))
       return json(req, { data: rows, total: rows.length })
     }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
@@ -611,11 +796,75 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
       return json(req, { data: rows, total: rows.length })
     }
+    // Creator sales (lib/coupons). The POST answers the way marketplace-server does — the stored coupon with
+    // its id, status and initial on-chain state — and the GET returns everything this run has stored.
+    if (path === '/v1/coupons' && method === 'POST') {
+      const body = JSON.parse(req.postData() || '{}') as { checks?: { effective?: number } }
+      const sale = {
+        id: `coupon-${couponStore.length + 1}`,
+        ...body,
+        couponManager: '0x6c956587d9fe70032781edcdc626310648575382',
+        root: '0x' + '11'.repeat(32),
+        createdAt: Date.now(),
+        state: { uses: 0, cancelled: false, revoked: false, checkedAt: Date.now() },
+        status: (body.checks?.effective ?? 0) > Date.now() ? 'scheduled' : 'active'
+      }
+      couponStore.unshift(sale)
+      return json(req, { ok: true, data: sale }, 201)
+    }
+    if (path === '/v1/coupons') return json(req, { ok: true, data: couponStore })
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
-    // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
-    // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
-    if (path === '/v1/sales') return json(req, F.sales)
+    // Sales feed (Activity page → fetchUserSales, and the store dashboard). The address filter is applied
+    // server-side in prod and the fixture is already scoped per run, but `type`, `first` and `skip` are
+    // honoured here: the dashboard counts a kind with `type=…&first=1` and pages the table with skip, so a
+    // mock that ignored them would answer every one of those questions with the whole fixture.
+    // The one-request aggregate the dashboard leads with (lib/sales.ts -> fetchSalesSummary). Derived from
+    // the same rows the feed serves, so the tiles and the table below them cannot be made to disagree by a
+    // fixture that was only half updated. `from`/`to` are honoured because switching period is exactly the
+    // question the tiles ask, while `soldLifetime` deliberately ignores the window: that column says how
+    // much of a run has ever gone, not how much went this month.
+    if (path === '/v1/sales/summary') {
+      const all = ((F.sales as { data?: any[] })?.data ?? []) as any[]
+      const from = Number(u.searchParams.get('from') ?? 0)
+      const to = Number(u.searchParams.get('to') ?? Number.MAX_SAFE_INTEGER)
+      const rows = all.filter(row => row.timestamp >= from && row.timestamp <= to)
+      const weiOf = (xs: any[]) => xs.reduce((sum, row) => sum + BigInt(row.price), 0n).toString()
+      const resales = rows.filter(row => row.type !== 'mint')
+      const group = (xs: any[], key: (row: any) => string) =>
+        xs.reduce<Record<string, any[]>>((acc, row) => ({ ...acc, [key(row)]: [...(acc[key(row)] ?? []), row] }), {})
+      const derived = {
+        total: rows.length,
+        mints: rows.length - resales.length,
+        resales: resales.length,
+        earnedWei: weiOf(rows),
+        byCollection: Object.entries(group(rows, row => row.contractAddress)).map(([contractAddress, rs]) => ({
+          contractAddress,
+          sold: rs.length,
+          earnedWei: weiOf(rs)
+        })),
+        byItem: Object.entries(group(all, row => `${row.contractAddress}:${row.itemId}`)).map(([key, rs]) => ({
+          contractAddress: key.split(':')[0],
+          itemId: key.split(':')[1],
+          soldLifetime: rs.length
+        })),
+        royalties: { resales: resales.length, volumeWei: weiOf(resales) }
+      }
+      return json(req, { data: { ...derived, ...((F.salesSummary as object) ?? {}) } })
+    }
+    if (path === '/v1/sales') {
+      const all = ((F.sales as { data?: any[] })?.data ?? []) as any[]
+      const kind = u.searchParams.get('type')
+      // `from`/`to` are honoured like the real endpoint's. Without that a fixture could not hold a sale
+      // OUTSIDE the window under test, which is exactly what a period-over-period figure needs to read.
+      const from = Number(u.searchParams.get('from') ?? 0)
+      const to = Number(u.searchParams.get('to') ?? Number.MAX_SAFE_INTEGER)
+      const windowed = all.filter(sale => sale.timestamp >= from && sale.timestamp <= to)
+      const rows = kind ? windowed.filter(sale => sale.type === kind) : windowed
+      const first = Number(u.searchParams.get('first') ?? rows.length)
+      const skip = Number(u.searchParams.get('skip') ?? 0)
+      return json(req, { data: rows.slice(skip, skip + first), total: rows.length })
+    }
     // The shop's creator ranking (lib/rankings.ts → fetchShopTopCreators). Served from a fixture so a
     // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
     // i.e. the section rendered its skeletons and then removed itself.
@@ -673,7 +922,22 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
 
   // builder-server
   if (u.hostname.includes('builder-api')) {
-    if (/\/v1\/collections\/.+\/items/.test(path)) return json(req, F.builderItems)
+    // Which collections carry a campaign's tag. Answered only while a campaign is published — an event
+    // whose tag nobody has applied yet is the ordinary state, and the tab has to stay hidden for it.
+    if (path === '/v1/addresses') return json(req, { ok: true, data: campaignFlag ? [fx.COLLECTION] : [] })
+    // Everything the address has in the builder, across its collections — the read My Creations makes
+    // (lib/builder → fetchPublishableItems). Served from the same rows as the per-collection route below,
+    // so one fixture describes the creator whichever route the app takes.
+    if (/^\/v1\/0x[0-9a-fA-F]{40}\/items$/.test(path)) return json(req, F.builderItems)
+    // Per-collection endpoint, so honour the id in the path — answering every collection with the whole
+    // item list made a multi-collection creator look like one collection repeated.
+    if (/\/v1\/collections\/.+\/items/.test(path)) {
+      const id = path.match(/\/v1\/collections\/([^/]+)\/items/)?.[1]
+      const rows = ((F.builderItems as { data: any[] }).data ?? []).filter(
+        i => i.collection_id == null || i.collection_id === id
+      )
+      return json(req, { data: rows })
+    }
     if (/\/v1\/.+\/collections/.test(path)) return json(req, F.builderCollections)
     if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: F.builderItemContents })
     return json(req, { data: [] })
@@ -765,6 +1029,24 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     return req.respond({ status: 200, headers: { 'content-type': type, ...CORS }, body: '' })
   }
 
+  // A TOP-LEVEL navigation that LEAVES the app — which /authorizations does on its way to the marketplace
+  // — has to come back as HTML. Answering it with the JSON below makes the browser treat the response as a
+  // download instead of a navigation, so window.location never moves and the assertion sees the url the
+  // spec started on. The body is deliberately inert: the point is that the browser committed to the
+  // destination, not what the destination renders.
+  //
+  // Main frame only. An IFRAME is also a 'document', and the footer embeds one (the newsletter signup) on
+  // every page: serving it real HTML makes the browser actually load and commit that frame instead of
+  // failing on the JSON, which adds a load event to every page and shifts `networkidle2`. That timing
+  // change alone was enough to time out an unrelated spec on CI while passing locally.
+  if (req.resourceType() === 'document' && req.frame()?.parentFrame() == null) {
+    return req.respond({
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8', ...CORS },
+      body: '<!doctype html><title>external</title>'
+    })
+  }
+
   // Anything else external → empty (and log, so we notice a missing mock).
   // eslint-disable-next-line no-console
   console.warn('[e2e] unmocked request:', method, req.url())
@@ -783,6 +1065,14 @@ export type App = {
    * the difference between them is how many times they asked. Counting here is what makes that assertable.
    */
   posts: string[]
+  /**
+   * The raw bodies of every meta-transaction POSTed to the relayer, in order.
+   *
+   * The only place the CALLDATA of a gasless purchase is observable: the page reaches the same success
+   * screen whether it settled through `accept` or `acceptWithCoupon`, and which one it called is the whole
+   * difference between paying the sale price and paying the list price.
+   */
+  metaTxBodies: string[]
 }
 
 /**
@@ -836,6 +1126,8 @@ export async function launchApp(
      * studio surfaces render (outfits.e2e.ts). Off by default — everyone else sees no studio.
      */
     outfitCreator?: boolean
+    /** Arm the shop-names flag so the NAMEs page can sell one. Off by default — the shipped state. */
+    names?: boolean
     /**
      * App origin override for specs that boot their own dev server (outfits.e2e.ts needs a build
      * with a shop-server host configured). Defaults to the shared BASE server.
@@ -846,12 +1138,39 @@ export async function launchApp(
      * state, where the feature is hidden; the follows spec passes true to exercise the prototype.
      */
     follows?: boolean
+    /**
+     * Whether the mocked flag file reports creator sales as available. Defaults to FALSE, the shipped state;
+     * the creator-sale spec passes true to exercise the flow.
+     */
+    creatorSales?: boolean
+    /**
+     * Whether the mocked flag file reports the personalised rail as available. Defaults to FALSE, the
+     * shipped state; the suggested-for-you spec passes true to exercise the row.
+     */
+    suggestedForYou?: boolean
+    /**
+     * What `/v3/catalog/suggested` answers. Omit for the default: the unified fixture rows, personalised.
+     * A spec passes `{ personalized: false }` to exercise the row hiding itself.
+     */
+    suggested?: { personalized?: boolean; count?: number }
+    /**
+     * Whether the mocked flag file reports the creator's store dashboard as available. Defaults to FALSE,
+     * the shipped state; the my-store spec passes true.
+     */
+    myStore?: boolean
+    /** Comma-separated addresses for the My Store flag's variant. Omit for no list, i.e. every visitor. */
+    myStoreAllowed?: string
     /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
     delays?: Delays
     /**
      * Script evaluated on every new document BEFORE anything renders — the only place a spec can
      * install a first-paint recorder (a PerformanceObserver, an rAF sampler) early enough to see it.
      */
+    /**
+     * Run with a seasonal campaign published in the CMS. Off by default, which is the shipped state and
+     * what every other spec asserts against: with it off the hero is the Shop's own art and credits CTA.
+     */
+    campaign?: boolean
     initScript?: string
     /**
      * What `page.goto` waits for. Defaults to `networkidle2` (every spec asserting settled content);
@@ -867,6 +1186,14 @@ export async function launchApp(
   outfitCreatorFlag = opts.outfitCreator ?? false
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
+  creatorSalesFlag = opts.creatorSales ?? false
+  suggestedForYouFlag = opts.suggestedForYou ?? false
+  suggestedConfig = opts.suggested ?? {}
+  myStoreFlag = opts.myStore ?? false
+  myStoreAllowed = opts.myStoreAllowed
+  couponStore = structuredClone(((F.coupons as { data?: any[] })?.data ?? []) as any[])
+  campaignFlag = opts.campaign ?? false
+  namesFlag = opts.names ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
@@ -897,10 +1224,15 @@ export async function launchApp(
   await page.setRequestInterception(true)
   const delays = opts.delays ?? {}
   const posts: string[] = []
+  const metaTxBodies: string[] = []
   page.on('request', req => {
     if (req.method() === 'POST') {
       try {
-        posts.push(new URL(req.url()).pathname)
+        const url = new URL(req.url())
+        posts.push(url.pathname)
+        if (url.hostname.includes('transactions-api') && url.pathname.endsWith('/transactions')) {
+          metaTxBodies.push(req.postData() ?? '')
+        }
       } catch {
         // A malformed URL is not worth failing a checkout over — the log is a diagnostic, not the test.
       }
@@ -917,5 +1249,5 @@ export async function launchApp(
     else respond()
   })
   await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: opts.waitUntil ?? 'networkidle2', timeout: 45000 })
-  return { browser, page, close: () => browser.close(), posts }
+  return { browser, page, close: () => browser.close(), posts, metaTxBodies }
 }

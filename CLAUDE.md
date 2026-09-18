@@ -1,6 +1,6 @@
 # Shop — project guidance for Claude
 
-A web2-first storefront for Decentraland wearables and emotes. Prices show in **fixed-USD credits** (1 credit = $0.10); the blockchain plumbing (MANA, signatures, gas, chains) is hidden. Credits are backed by USD and settle in MANA at spend time, so the existing on-chain marketplace guarantees hold.
+A web2-first storefront for Decentraland wearables and emotes. Prices show in **fixed-USD Credits** (1 Credit = $0.10); the blockchain plumbing (MANA, signatures, gas, chains) is hidden. Credits are backed by USD and settle in MANA at spend time, so the existing on-chain marketplace guarantees hold.
 
 ## Repo layout
 
@@ -20,7 +20,7 @@ The `app/` directory is a working directory. **Run `npm`, tests, and `tsc` from 
 The Shop targets mass web2 users. **Never** surface crypto jargon in any user-facing copy — buttons, labels, statuses, errors, tooltips, empty states. This is a strict convention; see `CONVENTIONS.md` for the full banned-word list and the approved replacements. The short version:
 
 - Banned: wallet, MetaMask, sign / signature, chain / network, on-chain, gas, transaction / tx, approval, contract, MANA, blockchain, mint, token, "wallet address".
-- Say instead: "Sign in" / "Sign out" (not connect/disconnect wallet); "credits" (not MANA/token); "account" (not wallet address); generic friendly errors (not raw web3 errors).
+- Say instead: "Sign in" / "Sign out" (not connect/disconnect wallet); "Credits" — capitalized, it is the currency's name (not MANA/token); "account" (not wallet address); generic friendly errors (not raw web3 errors).
 
 Internally, listings are **chain-agnostic**: creating a listing is an off-chain EIP-712 signature, so **do not gate listing on the wallet's chain.** Read contract state via the dedicated Amoy RPC (`config.rpcUrl`), not the wallet provider. Only real transactions (e.g. `setApprovalForAll`) need the right chain — switch just-in-time, silently.
 
@@ -100,3 +100,9 @@ The primary mobile breakpoint is **768px** — `theme.media.maxWidth('mobile')`.
 ### Verifying responsive changes
 
 The e2e harness (`app/e2e/`, run via `node_modules/.bin/vitest run --config vitest.e2e.config.ts` from `app/`) drives a real headless browser — use `page.setViewport({ width, height })` to check a mobile viewport and screenshot to confirm layout.
+
+**Run e2e with your own `E2E_PORT` / `E2E_BASE_URL` whenever another dev server may be up.** The harness starts vite with `--strictPort` on 5273, but it does not fail when that port is already taken: `waitForServer` only checks that *something* answers there, so the run silently tests whatever is listening — another worktree, another branch — and reports green about code you did not write. Two agents on one machine is enough to hit this.
+
+```
+E2E_PORT=5291 E2E_BASE_URL=http://localhost:5291 node_modules/.bin/vitest run --config vitest.e2e.config.ts
+```

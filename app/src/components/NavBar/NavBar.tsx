@@ -9,6 +9,9 @@ import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useIsOutfitCreator } from '~/hooks/useOutfits'
+import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
+import { useIsCreator } from '~/hooks/useIsCreator'
+import { useEventTab } from '~/hooks/useEventTab'
 import { useBalance } from '~/hooks/useBalance'
 import { useWalletChain } from '~/hooks/useWalletChain'
 import { useManaBalances } from '~/hooks/useManaBalance'
@@ -43,6 +46,8 @@ const NotificationsBell = lazy(() => import('~/components/NotificationsBell/Noti
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const isOutfitCreator = useIsOutfitCreator()
+  const myStoreEnabled = useMyStoreEnabled()
+  const isCreator = useIsCreator(session?.address)
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
@@ -73,6 +78,8 @@ export function NavBar() {
   const hidesGlobalSearch = /^\/my-items(\/|$)/.test(pathname)
   // Read once so every branch below decides off the same value (the module memoises it anyway).
   const iap = isIapMode()
+  // The seasonal event tab, when one is running and actually has collections in it.
+  const eventTab = useEventTab()
   // Checkout is a flow, not a place to browse from: inside the iOS web view the cart and its success
   // screen drop the shop's sub-nav entirely (Figma 2703:399357 Cart), leaving the back arrow the page
   // already renders as the only way out. The global bar above stays — it carries the credits balance,
@@ -280,6 +287,15 @@ export function NavBar() {
         <S.Subnav data-testid="subnav" data-iap={iap || undefined} data-scrolled={scrolled || undefined}>
           <S.Tabs data-testid="subnav-tabs">
             <NavLink to="/overview">{t('nav.overview')}</NavLink>
+            {/* The seasonal event, between Overview and Collectibles — the same place the marketplace puts
+                it. Its LABEL is content, not UI copy: it is whatever the campaign is called, so it never
+                goes through t(). Shown only once the event is known to have collections in it; an event tab
+                that opens an empty grid is worse than no tab. */}
+            {eventTab ? (
+              <NavLink to="/event" data-testid="nav-event" data-event>
+                {eventTab}
+              </NavLink>
+            ) : null}
             {/* Collectibles stays active across the item detail / collection / creator pages too (they're
                all part of browsing collectibles), not just the /items grid. */}
             <NavLink to="/items" className={() => (collectiblesActive ? 'active' : '')}>
@@ -289,10 +305,12 @@ export function NavBar() {
                to somewhere they are already standing. */}
             {iap ? null : <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>}
             {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
-            {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
-               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
-            {session && showsWalletConfirmations(session.providerType) ? (
-              <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
+            {/* The creator's own dashboard. Behind its flag AND behind having published something: to a
+               buyer the page is an empty room, and a nav entry that leads to one is worse than none. */}
+            {session && myStoreEnabled && isCreator ? (
+              <NavLink to="/my-store" data-testid="nav-my-store">
+                {t('myStore.title')}
+              </NavLink>
             ) : null}
             {/* Studio entry for the outfit team only — cosmetic gate, the server allowlist is the real one. */}
             {isOutfitCreator ? (

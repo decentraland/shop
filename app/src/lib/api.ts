@@ -1,8 +1,12 @@
 import { ethers } from 'ethers'
+import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
+import { ZERO_ADDRESS } from '~/lib/address'
+import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
 import { captureError } from '~/lib/monitoring'
+import type { ListingCoupon } from '~/lib/trade-encoding'
 
 const NFT_V1 = `${config.marketplaceServerUrl}/v1`
 
@@ -88,6 +92,23 @@ export type CatalogItem = {
   // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
   compareAtCredits?: number
   saleEndsAt?: number
+  /**
+   * The creator discount that makes `priceCredits` the sale price, when one applies.
+   *
+   * Lives on CatalogItem because the CART persists these rows: a line has to still carry the coupon when
+   * checkout settles it, possibly in a later session, or it would be paid at the list price through plain
+   * `accept`. Absent on a listing with no live discount, and on every row saved before this existed.
+   */
+  coupon?: ListingCoupon
+  /**
+   * How many units are still buyable AT THE SALE PRICE: the sale's remaining uses capped by the listing's
+   * own stock, whichever runs out first. Absent when the listing is not on sale.
+   *
+   * Resolved by the server rather than derived here. It already holds all three inputs, and the "no unit
+   * cap" case needs no sentinel on its side — an uncapped sale's remaining uses dwarf the stock, so the
+   * minimum is the stock, which is the true answer anyway.
+   */
+  saleUnitsLeft?: number
 }
 
 type RawCatalogItem = {
@@ -300,13 +321,16 @@ export async function fetchItemDescription(contractAddress: string, itemId: stri
 // layers the collection catalogue on top to find the rows this feed omits.
 export async function fetchPeggedPrimaryPrices(
   contractAddress: string
-): Promise<Record<string, { priceCredits: number; tradeId?: string }>> {
-  const map: Record<string, { priceCredits: number; tradeId?: string }> = {}
+): Promise<Record<string, { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }>> {
+  const map: Record<
+    string,
+    { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }
+  > = {}
   // Paged to the end on purpose: a pegged row missing from this map is read as MANA-denominated by
   // fetchCollectionSaleState, which would then convert its USD-wei price as if it were MANA.
   const PAGE = 200
   for (let skip = 0; ; skip += PAGE) {
-    const { listings, total } = await fetchShopListingsRaw({
+    const { listings, total, creatorSalesLive } = await fetchShopListingsRaw({
       contractAddress,
       first: PAGE,
       skip,
@@ -314,7 +338,55 @@ export async function fetchPeggedPrimaryPrices(
     })
     for (const l of listings) {
       if (l.listingType !== 'primary' || l.itemId == null) continue
-      map[String(l.itemId)] = { priceCredits: l.priceCredits, ...(l.tradeId ? { tradeId: l.tradeId } : {}) }
+      map[String(l.itemId)] = {
+        priceCredits: l.priceCredits,
+        ...(l.tradeId ? { tradeId: l.tradeId } : {}),
+        /*
+         * The running sale, so the creator's own grid can draw what a buyer sees.
+         *
+         * Two things this row does NOT get for free, because these are the raw listings and the kill switch
+         * and the unit conversion both live in the mapping to a CatalogItem: the flag has to be honoured
+         * here, and `saleEndsAt` arrives in SECONDS while everything that reads it works in milliseconds.
+         * Left in seconds it lands in 1970 and every card decides the sale is already over — which looks
+         * exactly like the fields never arriving at all.
+         */
+        ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
+        ...(creatorSalesLive && l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+      }
+    }
+    if (listings.length < PAGE || (total > 0 && skip + listings.length >= total)) break
+  }
+  return map
+}
+
+// The same map for EVERY collection a creator sells, keyed by `contract-itemId`. One paged read for the
+// whole catalogue instead of one per collection: My Creations used to fan this out per collection, which
+// put one heavy catalogue query on the server for each collection the creator had.
+export async function fetchCreatorPeggedPrimaryPrices(
+  creator: string
+): Promise<Record<string, { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }>> {
+  const map: Record<
+    string,
+    { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }
+  > = {}
+  const PAGE = 200
+  for (let skip = 0; ; skip += PAGE) {
+    const { listings, total, creatorSalesLive } = await fetchShopListingsRaw({
+      creator: creator.toLowerCase(),
+      first: PAGE,
+      skip,
+      listingType: 'primary'
+    })
+    for (const l of listings) {
+      if (l.listingType !== 'primary' || l.itemId == null) continue
+      map[`${l.contractAddress.toLowerCase()}-${l.itemId}`] = {
+        priceCredits: l.priceCredits,
+        ...(l.tradeId ? { tradeId: l.tradeId } : {}),
+        // Same two corrections the per-collection read makes: the kill switch lives in the mapping these
+        // raw rows skip, and `saleEndsAt` arrives in seconds while every consumer works in milliseconds.
+        ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
+        ...(creatorSalesLive && l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+      }
     }
     if (listings.length < PAGE || (total > 0 && skip + listings.length >= total)) break
   }
@@ -338,26 +410,6 @@ export async function fetchSecondarySaleState(
     map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId }
   }
   return map
-}
-
-// Curated contract registry: every approved collection plus the marketplace's own contracts (LAND,
-// Estates, Names), keyed by LOWERCASED address → name. An NFT row carries the ITEM's name and never
-// its collection's, so this is the only place a collection address can be turned into a real name.
-// It is one request for the whole registry rather than a lookup per address, which is what makes it
-// usable for a list of collections; callers should cache it (it changes only when a collection is
-// approved).
-export type ContractRegistry = Map<string, string>
-
-export async function fetchContractRegistry(): Promise<ContractRegistry> {
-  const res = await fetch(`${NFT_V1}/contracts`)
-  if (!res.ok) throw new Error(`fetchContractRegistry ${res.status}`)
-  const { data } = (await res.json()) as { data?: Array<{ name?: string; address?: string }> }
-  const byAddress: ContractRegistry = new Map()
-  for (const contract of data ?? []) {
-    if (!contract.address || !contract.name) continue
-    byAddress.set(contract.address.toLowerCase(), contract.name)
-  }
-  return byAddress
 }
 
 type NftMeta = {
@@ -419,6 +471,14 @@ type ShopListingRaw = {
   // Checks.expiration). Absent for regular listings. See marketplace-server shop-catalog.
   compareAtCredits?: number | null
   saleEndsAt?: number | null
+  /**
+   * The creator coupon discounting this listing: everything the marketplace hashes plus the Merkle proof
+   * for THIS listing's collection, so the buy side applies it without rebuilding the tree. Its `checks`
+   * timestamps arrive in MILLISECONDS like a trade's; `trade-encoding` converts them at the boundary.
+   */
+  coupon?: ListingCoupon | null
+  /** Units still buyable at the sale price — see CatalogItem.saleUnitsLeft. Null when not on sale. */
+  saleUnitsLeft?: number | null
 }
 
 /**
@@ -439,7 +499,46 @@ function listingRowId(l: ShopListingRaw): string {
   return `${(l.contractAddress ?? '').toLowerCase()}-${suffix}`
 }
 
-function shopListingToItem(l: ShopListingRaw): CatalogItem {
+/**
+ * Whether the Shop honours creator sales at all, cached so the row mapper can read it synchronously.
+ *
+ * `false` until primed, and primed by every catalogue fetch before it maps a row, so a listing is never
+ * rendered at a discount the flag has not allowed — and never flickers from list price to sale price either.
+ */
+let creatorSalesLive = false
+
+async function primeCreatorSales(): Promise<void> {
+  creatorSalesLive = await getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/**
+ * The listing as the Shop should treat it while creator sales are switched off: not on sale, at its LIST
+ * price.
+ *
+ * The kill switch has to erase the discount from the WHOLE row, not just from checkout. The catalogue keeps
+ * serving sale prices while the coupons exist — turning off only the settlement half would show a buyer the
+ * discounted price and then charge them the list price, which reverts after they have confirmed. Stripping
+ * it here is what keeps every surface saying the same number: the card, the item page, the cart and the
+ * transaction all see a listing that simply is not on sale.
+ */
+function withoutSale(l: ShopListingRaw): ShopListingRaw {
+  // `coupon` goes with the rest, and it is the half that matters most. The other fields only decide what a
+  // price LOOKS like; the coupon is what the checkout hands to `acceptWithCoupon`. Leaving it behind would
+  // switch the discount off everywhere a buyer can see it and still apply it to the trade they sign —
+  // every surface quoting the list price while the sale price is what settles.
+  if (l.compareAtCredits == null) return { ...l, saleUnitsLeft: null, coupon: null }
+  return {
+    ...l,
+    priceCredits: l.compareAtCredits,
+    compareAtCredits: null,
+    saleEndsAt: null,
+    saleUnitsLeft: null,
+    coupon: null
+  }
+}
+
+function shopListingToItem(raw: ShopListingRaw): CatalogItem {
+  const l = creatorSalesLive ? raw : withoutSale(raw)
   return {
     id: listingRowId(l),
     tradeId: l.tradeId ?? undefined,
@@ -470,17 +569,30 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
-    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined
+    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
+    coupon: l.coupon ?? undefined,
+    saleUnitsLeft: l.saleUnitsLeft ?? undefined
   }
 }
 
-export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name'
+// `discount` orders by the sale's percentage off (largest first), then by soonest-ending; rows without a
+// live sale trail. Only meaningful together with `discounted: true`.
+export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name' | 'discount'
 
 export type ShopListingFilters = {
   category?: string
   first?: number
   skip?: number
   contractAddress?: string
+  /**
+   * Restrict to a SET of collections, where `contractAddress` restricts to one. What a seasonal event
+   * filters by — an event tags whole collections, and names dozens of them at once.
+   *
+   * AN EMPTY ARRAY MUST NEVER BE SENT. The server reads an absent collection filter as "no filter", so an
+   * empty one would come back as the entire catalogue presented as the event. A caller whose set resolved
+   * to nothing must not issue the request at all.
+   */
+  contractAddresses?: string[]
   itemId?: string
   creator?: string
   rarities?: string[]
@@ -493,6 +605,9 @@ export type ShopListingFilters = {
   isSmart?: boolean
   // Listing status (Figma "Status" filter): true = on sale, false = not for sale, undefined = all.
   onSale?: boolean
+  // Creator sale: true = only listings with a live discount (a struck compare-at price and an end time),
+  // false = only listings without one, undefined = both. Distinct from `onSale`, which means "listed".
+  discounted?: boolean
   /**
    * Restrict to mint listings or to resales. Omitted = both.
    *
@@ -503,9 +618,15 @@ export type ShopListingFilters = {
   listingType?: 'primary' | 'secondary'
 }
 
-async function fetchShopListingsRaw(
+/**
+ * The shop feed's rows as the server sends them, kill switch applied.
+ *
+ * Exported so `lib/collections` can lay a running sale over the catalogue feed, which has no coupon join of
+ * its own — see withRunningSales there. Callers outside this module get the raw rows, not CatalogItems.
+ */
+export async function fetchShopListingsRaw(
   params: ShopListingFilters
-): Promise<{ listings: ShopListingRaw[]; total: number }> {
+): Promise<{ listings: ShopListingRaw[]; total: number; creatorSalesLive: boolean }> {
   const qs = new URLSearchParams()
   if (params.category === 'wearable' || params.category === 'emote') qs.set('category', params.category)
   if (params.first != null) qs.set('first', String(params.first))
@@ -521,11 +642,15 @@ async function fetchShopListingsRaw(
   if (params.sortBy) qs.set('sortBy', params.sortBy)
   if (params.isSmart) qs.set('isSmart', 'true')
   if (params.onSale != null) qs.set('onSale', String(params.onSale))
+  if (params.discounted != null) qs.set('discounted', String(params.discounted))
   if (params.listingType) qs.set('listingType', params.listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
   const json = (await res.json()) as { data?: ShopListingRaw[]; total?: number }
-  return { listings: json.data ?? [], total: json.total ?? 0 }
+  // The flag travels with the rows: this returns them RAW (the kill switch is applied when they become
+  // CatalogItems), so a caller that maps them itself needs to know whether the discount may be shown.
+  await primeCreatorSales()
+  return { listings: json.data ?? [], total: json.total ?? 0, creatorSalesLive }
 }
 
 /**
@@ -555,6 +680,7 @@ export async function fetchStoreMintState(
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
 // page on deep-link/refresh, where the route segment is the itemId. Null if it's not on sale.
 export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
+  await primeCreatorSales()
   const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
@@ -579,8 +705,20 @@ export async function fetchUnifiedListingForItem(
   contractAddress: string,
   itemId: string
 ): Promise<UnifiedListing | null> {
+  await primeCreatorSales()
   const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
   return pickItemListing(items)
+}
+
+// The creator's live PRIMARY listing for an item — a shop trade or a legacy MANA order alike — or null when
+// there is none. Asked of the UNIFIED feed on purpose: the shop-only feed omits legacy orders, and the take-down
+// watcher that uses this must not read a still-live legacy listing as "gone".
+export async function fetchPrimaryListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5, listingType: 'primary' })
+  return items.find(l => !l.tokenId) ?? null
 }
 
 /**
@@ -617,6 +755,7 @@ export async function fetchListings({ first = 100, ...filters }: ShopListingFilt
   items: CatalogItem[]
   total: number
 }> {
+  await primeCreatorSales()
   const { listings, total } = await fetchShopListingsRaw({ ...filters, first })
   return { items: listings.map(shopListingToItem), total }
 }
@@ -731,17 +870,33 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
   qs.set('first', String(first))
   if (filters.skip != null) qs.set('skip', String(filters.skip))
-  if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
+  // The two are mutually exclusive, spelled out rather than left to whichever `qs.set` runs last — the
+  // same choice the server's own parser makes, and for the same reason: a request carrying both would
+  // silently apply one of them.
+  if (filters.contractAddresses) {
+    // Comma-separated, which is what this endpoint takes for a set. Not the repeated form: at ~100
+    // collections that is 16 more characters apiece on a query string already several kilobytes long.
+    //
+    // An EMPTY set becomes the zero address rather than nothing. Omitting the parameter reads as "no
+    // collection filter" server-side, so an empty set would come back as the entire catalogue — and be
+    // rendered as whatever the caller asked for. A caller that resolved to nothing must get nothing, and
+    // the marketplace's campaign browser substitutes the same address for the same reason.
+    qs.set('contractAddress', filters.contractAddresses.length ? filters.contractAddresses.join(',') : ZERO_ADDRESS)
+  } else if (filters.contractAddress) {
+    qs.set('contractAddress', filters.contractAddress)
+  }
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
   if (filters.creator) qs.set('creator', filters.creator)
   if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))
   if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
   if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
   if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
+  if (filters.listingType) qs.set('listingType', filters.listingType)
   if (filters.search) qs.set('search', filters.search)
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
   if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
+  if (filters.discounted != null) qs.set('discounted', String(filters.discounted))
   if (filters.listingType) qs.set('listingType', filters.listingType)
   if (groupBy) qs.set('groupBy', groupBy)
   return qs
@@ -755,6 +910,7 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   items: UnifiedListing[]
   total: number
 }> {
+  await primeCreatorSales()
   const qs = unifiedSearchParams(first, filters)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
@@ -779,6 +935,7 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
   items: UnifiedListing[]
   total: number
 }> {
+  await primeCreatorSales()
   const qs = unifiedSearchParams(first, filters, 'item')
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopItems ${res.status}`)
@@ -836,6 +993,122 @@ export async function fetchTrendingItems({
   }
   const json = (await res.json()) as { data?: ShopItemRaw[] }
   return (json.data ?? []).map(shopItemToItem)
+}
+
+/** Why a suggested item is being shown. The Shop turns the kind into a line of copy per card. */
+export type SuggestionReasonKind =
+  'co_owned' | 'creator_affinity' | 'favorite_similar' | 'equipped_similar' | 'seed_similar' | 'trending'
+
+export type SuggestionReason = {
+  kind: SuggestionReasonKind
+  /** The profile item that pulled this row in, as `contract-itemId`. Absent for `creator_affinity`
+   * and `trending`, which are not about one item. */
+  itemId?: string
+  creator?: string
+}
+
+export type SuggestedItem = UnifiedListing & {
+  reason: SuggestionReason
+  score: number
+}
+
+export type SuggestedItemsResult = {
+  data: SuggestedItem[]
+  /** False when the rail is the generic trending fallback. The row hides itself rather than show it. */
+  personalized: boolean
+  /** Which scorer produced this, so analytics can compare versions. */
+  algorithm: string
+}
+
+/**
+ * The items suggested for one visitor — what backs the home page's "Suggested for you" row.
+ *
+ * Ranked and explained server-side, and returned IN that order, so the caller must not re-sort it.
+ * Rows are the same item-unified shape as fetchTrendingItems, which is what lets the identical
+ * AssetCard render them at a real credit price.
+ *
+ * Everything that identifies the visitor is optional and additive: an address personalises from what
+ * the account holds and bought, and `seeds` (what this browser has looked at or put in its cart)
+ * personalises a visitor who is not signed in at all. Sending neither is pointless — the caller is
+ * expected not to ask, and the server would answer with the trending fallback.
+ *
+ * Fails loudly on a bad status like fetchTrendingItems, for the same reason: the row hides itself on
+ * error, so the thrown message is the only place the cause survives.
+ */
+/**
+ * `urn:decentraland:matic:collections-v2:<contract>:<id>` -> `<contract>-<id>`.
+ *
+ * The equipped list is the only thing here the Catalyst hands over as URNs, and thirty of them is 2.5 KB
+ * of query string against 1.4 KB as ids. The server accepts both, so this is a size saving rather than a
+ * contract both sides have to agree on at the same moment.
+ */
+const EQUIPPED_URN = /^urn:decentraland:(?:matic|amoy):collections-v2:(0x[0-9a-f]{40}):(\d+)$/i
+
+export function compactEquipped(urns: string[]): string[] {
+  const ids: string[] = []
+  for (const urn of urns) {
+    const match = EQUIPPED_URN.exec(urn.trim())
+    // Anything else — a base avatar, a name — is dropped: the recommender has nothing to say about it
+    // and it would only spend room in the request.
+    if (match) ids.push(`${match[1].toLowerCase()}-${match[2]}`)
+  }
+  return ids
+}
+
+export async function fetchSuggestedItems({
+  address,
+  identity,
+  seeds,
+  bodyShape,
+  equipped,
+  exclude,
+  category,
+  first = 12
+}: {
+  address?: string
+  /** Present only for a signed-in shopper. It is what lets the server read their favourites. */
+  identity?: AuthIdentity
+  seeds?: string[]
+  bodyShape?: string
+  equipped?: string[]
+  exclude?: string[]
+  category?: string
+  first?: number
+} = {}): Promise<SuggestedItemsResult> {
+  const qs = new URLSearchParams({ first: String(first) })
+  if (address) qs.set('address', address)
+  if (seeds?.length) qs.set('seeds', seeds.join(','))
+  if (bodyShape) qs.set('bodyShape', bodyShape)
+  if (equipped?.length) qs.set('equipped', compactEquipped(equipped).join(','))
+  if (exclude?.length) qs.set('exclude', exclude.join(','))
+  if (category) qs.set('category', category)
+
+  // Signed when we can, plain when we cannot: the signature unlocks favourites and nothing else, so a
+  // signed-out visitor still gets a rail from their seeds.
+  const url = `${config.marketplaceServerUrl}/v3/catalog/suggested?${qs.toString()}`
+  const res = identity ? await signedFetch(url, { method: 'GET', identity, metadata: {} }) : await fetch(url)
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchSuggestedItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
+
+  const json = (await res.json()) as {
+    data?: Array<ShopItemRaw & { reason?: SuggestionReason; score?: number }>
+    personalized?: boolean
+    algorithm?: string
+  }
+
+  return {
+    data: (json.data ?? []).map(row => ({
+      ...shopItemToItem(row),
+      // An older server, or a row the scorer could not explain, still renders — as trending, which is
+      // the one kind that claims nothing about this visitor.
+      reason: row.reason ?? { kind: 'trending' },
+      score: row.score ?? 0
+    })),
+    personalized: json.personalized === true,
+    algorithm: json.algorithm ?? 'unknown'
+  }
 }
 
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
@@ -1173,7 +1446,10 @@ export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
   // lib barrel, so keeping it dynamic keeps that weight out of the browse/initial bundle.
   const { TradeService } = await import('decentraland-dapps/dist/modules/trades/TradeService')
   const service = new TradeService(API_SIGNER, config.marketplaceServerUrl, () => identity)
-  return service.addTrade(trade)
+  const created = await service.addTrade(trade)
+  // Remove / Edit act on this id right after listing, so a response without one is a broken contract, not a success.
+  if (!created?.id) throw new Error('marketplace returned a listing without an id')
+  return created
 }
 
 // The signed trade behind a listing is not immutable: the server re-signs it as availability
@@ -1225,6 +1501,31 @@ export async function resolveLiveTrade(item: {
   }
   if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
   return null
+}
+
+/**
+ * The creator discount currently on an item's listing, or undefined when it is no longer on sale.
+ *
+ * Read from the same live feed the item page prices from, so a purchase can never settle against a coupon
+ * the catalogue has already stopped advertising — the cart persists its rows, and a stored coupon outlives
+ * the sale that produced it.
+ *
+ * A failed lookup returns undefined rather than throwing: the line then settles at its LIST price, which the
+ * checkout surfaces as a changed price and asks the buyer to confirm. Keeping the stored coupon instead
+ * would submit `acceptWithCoupon` against a sale that may be over, and revert after they confirmed.
+ */
+export async function resolveLiveCoupon(item: {
+  contractAddress: string
+  itemId?: string | null
+}): Promise<ListingCoupon | undefined> {
+  if (!item.itemId) return undefined
+  try {
+    const listing = await fetchUnifiedListingForItem(item.contractAddress, item.itemId)
+    return listing?.coupon
+  } catch (e) {
+    captureError(e, { flow: 'resolve_live_coupon', contractAddress: item.contractAddress, itemId: item.itemId })
+    return undefined
+  }
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).

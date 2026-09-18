@@ -74,7 +74,12 @@ vi.mock('~/lib/analytics', () => ({
   isUserRejection: () => false
 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
+import { track } from '~/lib/analytics'
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+// The seasonal-event chip. Stubbed like the other data hooks so this file stays about the page; whether an
+// item belongs to the running event is `useCampaignBadge`'s own spec.
+const { useCampaignBadge } = vi.hoisted(() => ({ useCampaignBadge: vi.fn<() => string | null>(() => null) }))
+vi.mock('~/hooks/useCampaignBadge', () => ({ useCampaignBadge }))
 
 // No connected wallet: ownership/management branches are a different concern with their own specs.
 const walletState = {
@@ -196,6 +201,17 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
     await userEvent.click(await screen.findByTestId('buy-resale'))
 
     expect(await screen.findByTestId('marketplace-redirect-modal')).toHaveTextContent(/not made with credits/i)
+  })
+
+  it('should record the intent on the click, before the hand-off is even shown', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    expect(vi.mocked(track)).toHaveBeenCalledWith(
+      'Shop Clicked Buy Resale',
+      expect.objectContaining({ item_id: '1', has_shop_resale: false })
+    )
   })
 })
 
@@ -772,5 +788,35 @@ describe('when hovering the rarity chip', () => {
     fireEvent.mouseEnter(chip.parentElement as HTMLElement)
 
     expect(screen.queryByText(/itemDetail\./)).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The seasonal-event chip.
+ *
+ * It carries the event's NAME, not its tag: `halloween2026` is an internal identifier, and the marketplace
+ * putting one on screen is a bug rather than a precedent. Absent on an ordinary day, which is the state
+ * every other spec in this file runs in.
+ */
+describe('ItemDetail — the seasonal event chip', () => {
+  it('is absent while no event is running', async () => {
+    useCampaignBadge.mockReturnValue(null)
+
+    const { queryByTestId } = renderPdp()
+
+    await waitFor(() =>
+      expect(queryByTestId('detail-rarity-link') ?? queryByTestId('detail-category-link')).toBeTruthy()
+    )
+    expect(queryByTestId('detail-event')).toBeNull()
+  })
+
+  it('names the event and opens its grid', async () => {
+    useCampaignBadge.mockReturnValue('Halloween')
+
+    const { findByTestId } = renderPdp()
+
+    const chip = await findByTestId('detail-event')
+    expect(chip.textContent).toContain('Halloween')
+    expect(chip.getAttribute('href')).toBe('/event')
   })
 })

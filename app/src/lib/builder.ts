@@ -2,6 +2,7 @@ import signedFetch from 'decentraland-crypto-fetch'
 import { Rarity } from '@dcl/schemas'
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 
 // builder-server client (READ-ONLY). Enumerates the creator's published collections and their
 // publishable items so the Shop can offer them for PRIMARY sale. Listing itself does NOT POST here
@@ -41,6 +42,7 @@ type RawItem = {
   is_published?: boolean
   is_approved?: boolean
   total_supply?: string | number // already minted
+  created_at?: number | string
   rarity?: string
   type?: 'wearable' | 'emote'
   data?: {
@@ -89,6 +91,8 @@ export type PublishableItem = {
   totalSupply: number
   maxSupply: number
   remainingSupply: number
+  /** Epoch ms, when the source dates the item. The builder sends seconds. */
+  createdAt?: number
   // The list of addresses allowed to mint this item's collection (from the parent collection).
   // Used by the UI to decide whether primary sales are already enabled (minter prereq).
   minters: string[]
@@ -192,75 +196,136 @@ export async function fetchCreatorCollections(address: string, identity: AuthIde
     }))
 }
 
+/** One raw builder item → the Shop's publishable shape, supplied and priced from its collection. */
+async function toPublishableItem(raw: RawItem, collection: CreatorCollection): Promise<PublishableItem> {
+  const rarity = raw.rarity ?? 'common'
+  const total = Number(raw.total_supply ?? 0) || 0
+  let max: number
+  try {
+    max = Rarity.getMaxSupply(rarity as Rarity)
+  } catch {
+    max = 0
+  }
+  const contractAddress = (raw.contract_address ?? collection.contractAddress).toLowerCase()
+  const blockchainItemId = raw.blockchain_item_id ?? ''
+  return {
+    id: raw.id,
+    collectionId: collection.id,
+    collectionName: collection.name,
+    contractAddress,
+    blockchainItemId,
+    name: raw.name,
+    category: categoryOf(raw),
+    rarity,
+    thumbnail: await resolveThumbnail(raw, contractAddress, blockchainItemId),
+    type: raw.type ?? 'wearable',
+    isPublished: raw.is_published ?? collection.isPublished,
+    isApproved: raw.is_approved ?? collection.isApproved,
+    totalSupply: total,
+    maxSupply: max,
+    remainingSupply: toRemaining(total, max),
+    // Seconds from the builder, like every other timestamp it sends.
+    createdAt: raw.created_at ? Number(raw.created_at) * 1000 : undefined,
+    minters: collection.minters
+  }
+}
+
 /** The publishable items inside one collection (only those ready for a primary listing). */
 export async function fetchCollectionItems(
   collection: CreatorCollection,
-  identity: AuthIdentity
+  identity: AuthIdentity,
+  /**
+   * Keep the items whose supply has run out. Off by default, because every caller that asks "what can I
+   * list / mint / discount" means the publishable ones — but the creator's own inventory is not one of
+   * those questions, and dropping a sold-out item there reads as the item having gone missing.
+   */
+  opts?: { includeSoldOut?: boolean }
 ): Promise<PublishableItem[]> {
   const url = `${BUILDER_V1()}/collections/${collection.id}/items`
   const payload = await getJson<Paginated<RawItem>>(url, identity)
-  const items = await Promise.all(
-    unwrap(payload).map(async raw => {
-      const rarity = raw.rarity ?? 'common'
-      const total = Number(raw.total_supply ?? 0) || 0
-      let max: number
-      try {
-        max = Rarity.getMaxSupply(rarity as Rarity)
-      } catch {
-        max = 0
-      }
-      const contractAddress = (raw.contract_address ?? collection.contractAddress).toLowerCase()
-      const blockchainItemId = raw.blockchain_item_id ?? ''
-      const item: PublishableItem = {
-        id: raw.id,
-        collectionId: collection.id,
-        collectionName: collection.name,
-        contractAddress,
-        blockchainItemId,
-        name: raw.name,
-        category: categoryOf(raw),
-        rarity,
-        thumbnail: await resolveThumbnail(raw, contractAddress, blockchainItemId),
-        type: raw.type ?? 'wearable',
-        isPublished: raw.is_published ?? collection.isPublished,
-        isApproved: raw.is_approved ?? collection.isApproved,
-        totalSupply: total,
-        maxSupply: max,
-        remainingSupply: toRemaining(total, max),
-        minters: collection.minters
-      }
-      return item
-    })
-  )
-  return items.filter(isPublishable)
+  const items = await Promise.all(unwrap(payload).map(raw => toPublishableItem(raw, collection)))
+  return items.filter(opts?.includeSoldOut ? isPublished : isPublishable)
 }
 
 // Publishability rule (BUILDER_LISTING_SPEC §1.4): published + approved + on-chain item id present
 // + supply remaining. Un-approved/unpublished items can't be minted from.
 export function isPublishable(item: PublishableItem): boolean {
-  return (
-    item.isPublished &&
-    item.isApproved &&
-    item.blockchainItemId !== '' &&
-    item.blockchainItemId != null &&
-    item.remainingSupply > 0
-  )
+  return isPublished(item) && item.remainingSupply > 0
 }
 
 /**
- * All publishable items across the creator's published collections. Fail-soft per collection so one
- * bad response doesn't hide the rest. Signed as the creator (identity).
+ * The same rule WITHOUT the supply condition: the item exists on chain and the creator owns it, whether or
+ * not there is anything left to mint. An item that has sold out is still theirs, and still theirs to look
+ * at — which is the difference between a collection that shows every item and one that silently shrinks.
  */
-export async function fetchPublishableItems(address: string, identity: AuthIdentity): Promise<PublishableItem[]> {
-  const collections = await fetchCreatorCollections(address, identity)
+export function isPublished(item: PublishableItem): boolean {
+  return item.isPublished && item.isApproved && item.blockchainItemId !== '' && item.blockchainItemId != null
+}
+
+/**
+ * Every item the address has in the builder, across ALL its collections, in one request. The server
+ * resolves the on-chain and Catalyst state for the whole set at once, where the per-collection route does
+ * that work once per collection — which is what made My Creations cost one round trip per collection.
+ */
+async function fetchCreatorRawItems(address: string, identity: AuthIdentity): Promise<RawItem[]> {
+  const url = `${BUILDER_V1()}/${address.toLowerCase()}/items`
+  return unwrap(await getJson<Paginated<RawItem>>(url, identity))
+}
+
+/** The previous shape of the read: one request per collection, fail-soft so one bad collection cannot hide the rest. */
+async function fetchPublishableItemsPerCollection(
+  collections: CreatorCollection[],
+  identity: AuthIdentity,
+  opts?: { includeSoldOut?: boolean }
+): Promise<PublishableItem[]> {
   const perCollection = await Promise.all(
     collections.map(async c => {
       try {
-        return await fetchCollectionItems(c, identity)
+        return await fetchCollectionItems(c, identity, opts)
       } catch {
         return [] as PublishableItem[]
       }
     })
   )
   return perCollection.flat()
+}
+
+/**
+ * All publishable items across the creator's published collections. Signed as the creator (identity).
+ *
+ * Two requests, started together: the collections (for names, contracts and minters) and the address-wide
+ * item list. Items whose collection is not published — drafts, third-party items — are dropped here, since
+ * the address feed carries everything the creator ever made. Should the address feed fail, the read falls
+ * back to the per-collection route so the page still loads, just the slow way; the failure is reported
+ * because it means the fast path is broken for everyone.
+ */
+export async function fetchPublishableItems(
+  address: string,
+  identity: AuthIdentity,
+  opts?: { includeSoldOut?: boolean }
+): Promise<PublishableItem[]> {
+  const [collections, rawItems] = await Promise.all([
+    fetchCreatorCollections(address, identity),
+    fetchCreatorRawItems(address, identity).catch((error: unknown) => {
+      captureError(error, { flow: 'my_creations', step: 'creator_items' })
+      return null
+    })
+  ])
+  if (collections.length === 0) return []
+  if (rawItems === null) return fetchPublishableItemsPerCollection(collections, identity, opts)
+
+  const byId = new Map(collections.map(c => [c.id, c]))
+  const items = await Promise.all(
+    rawItems.flatMap(raw => {
+      const collection = raw.collection_id ? byId.get(raw.collection_id) : undefined
+      return collection ? [toPublishableItem(raw, collection)] : []
+    })
+  )
+  // The address feed carries no order of its own. Keep the collections' order — newest first, as the
+  // builder lists them — because that is what the page groups by: left to the feed, the oldest collection
+  // surfaced at the top. A stable sort, so items keep their order inside each collection.
+  const position = new Map(collections.map((c, i) => [c.id, i]))
+  return items
+    .filter(opts?.includeSoldOut ? isPublished : isPublishable)
+    .sort((a, b) => (position.get(a.collectionId) ?? 0) - (position.get(b.collectionId) ?? 0))
 }

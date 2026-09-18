@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { manaWeiToCredits } from '~/lib/mana-rate'
@@ -44,6 +45,11 @@ function legacyNamesUrl(name: string): string {
 
 type Status = 'idle' | 'invalid' | 'checking' | 'available' | 'taken' | 'error'
 
+export type NamesNavState = {
+  /** A NAME to re-open the buy modal on, after a credits top-up that was started from inside it. */
+  resumeName?: string
+}
+
 /**
  * NAMEs purchase page (Figma 1368-353269 desktop / 1368-356251 mobile). A user searches a NAME, sees
  * live availability, and buys (registers) it with credits. PRIMARY registration only — secondary
@@ -53,20 +59,34 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   useSeo({ title: t('seo.names.title'), description: t('seo.names.description') })
 
   const { session, signIn } = useWallet()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { pathname, search } = location
+  /**
+   * Narrowed, not just cast: `location.state` is `any`, and it is written by whoever navigated here. A
+   * non-string `resumeName` would reach `setValue` and then `.toLowerCase()` in the resume effect below.
+   */
+  const rawNavState = (location as { state?: NamesNavState }).state
+  const navState = typeof rawNavState?.resumeName === 'string' ? rawNavState : undefined
   const namesEnabled = useNamesEnabled()
   const { data: rate } = useManaRate()
   const priceCredits = rate ? manaWeiToCredits(NAME_PRICE_IN_WEI, rate) : null
 
-  const [value, setValue] = useState('')
+  // Seeded from the resume state rather than filled by an effect: the effect that re-opens the modal runs
+  // in the same commit and would read an empty field as "they typed something else" and drop the resume.
+  const [value, setValue] = useState(navState?.resumeName ?? '')
   const [status, setStatus] = useState<Status>('idle')
   const [modalOpen, setModalOpen] = useState(false)
+  // The NAME a top-up was started for, latched on the first render so clearing the history entry below
+  // cannot take it away again. Cleared once the probe has answered for it, either way.
+  const [pendingResume, setPendingResume] = useState(navState?.resumeName ?? '')
 
   /**
    * The placeholder types example names out until the reader touches the field, so an empty input reads
    * as "put yours here" rather than as a label. `touched` is one-way: the animation must not resume
    * behind someone who has clicked in and then clicked away, and it never restarts on a cleared field.
    */
-  const [touched, setTouched] = useState(false)
+  const [touched, setTouched] = useState(!!navState?.resumeName)
   const [reducedMotion, setReducedMotion] = useState(
     () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   )
@@ -153,6 +173,47 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
     }
     setModalOpen(true)
   }
+
+  /**
+   * Resume after a Stripe top-up: /credits routes back here with the NAME the buyer ran out of credits on.
+   * The field is already seeded with it above (which starts the availability probe); this drops the history
+   * entry, so a refresh or a Back doesn't re-open the modal on a purchase that already happened.
+   */
+  useEffect(() => {
+    if (!navState?.resumeName) return
+    // The full path, not '.', which resolves to the pathname alone and would drop `?category=names` —
+    // the query string IS what renders this page (see Assets.tsx).
+    navigate(`${pathname}${search}`, { replace: true, state: null })
+  }, [navState?.resumeName, navigate, pathname, search])
+
+  /**
+   * Re-open the modal, once the probe has answered.
+   *
+   * Gated on `canClaim` rather than done on arrival: the buyer was away on Stripe's hosted page for
+   * minutes, and a NAME somebody else claimed in the meantime must not re-open a purchase modal for
+   * something that can no longer be bought. A failed probe still goes through — same call the page makes
+   * for a hand-typed search, since the register is the authority either way. A NAME that went is simply
+   * left on the page with the "taken" notice, the credits safely in the balance.
+   */
+  useEffect(() => {
+    if (!pendingResume) return
+    // They started typing something else — their input wins over a resume they have moved on from.
+    if (value.toLowerCase() !== pendingResume.toLowerCase()) {
+      setPendingResume('')
+      return
+    }
+    if (status === 'idle' || status === 'checking') return
+    // The NAME is gone, or unusable. Nothing left to resume, and the page's own notice says why.
+    if (!claimEligible) {
+      setPendingResume('')
+      return
+    }
+    // Still waiting on the feature flag or the wallet restore — both land asynchronously, and giving up on
+    // either would leave the buyer holding new credits on a page that has forgotten what they were for.
+    if (!namesEnabled || !session) return
+    setPendingResume('')
+    setModalOpen(true)
+  }, [pendingResume, value, status, claimEligible, namesEnabled, session])
 
   const claimBtnContent = (
     <>

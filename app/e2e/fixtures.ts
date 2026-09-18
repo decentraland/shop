@@ -577,3 +577,72 @@ export const profile = {
     }
   ]
 }
+
+/**
+ * A creator's sale: the primary Galaxy Hat listing at 30% off.
+ *
+ * `priceCredits` is the SALE price the server already discounted and `compareAtCredits` the list price, which
+ * is what the card strikes through. The coupon carries everything `acceptWithCoupon` hashes plus the Merkle
+ * proof for this collection — empty because a one-collection tree's root IS its only leaf.
+ */
+export const saleCoupon = {
+  id: 'coupon-1',
+  signer: CREATOR_ADDRESS,
+  couponManager: '0x6c956587d9fe70032781edcdc626310648575382',
+  couponAddress: '0x4ee8f6b87f4917a3bbc7c8bb3a06db8555f83db9',
+  checks: {
+    uses: 100,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '11'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  discountType: 1,
+  discount: 300_000,
+  root: '0x' + '22'.repeat(32),
+  collections: [COLLECTION],
+  signature: '0x' + 'cd'.repeat(65),
+  proof: []
+}
+
+const onSaleFields = {
+  priceCredits: 189,
+  compareAtCredits: 270,
+  saleEndsAt: Math.floor((Date.now() + 86_400_000) / 1000),
+  coupon: saleCoupon
+}
+
+/** The catalogue with the primary listing on sale: 270 credits struck through, 189 to pay. */
+export const shopListingsOnSale = {
+  data: [{ ...shopListings.data[0], ...onSaleFields }, shopListings.data[1]],
+  total: 2
+}
+
+/** The same sale on the unified feed, which is what the item page prices from. */
+export const unifiedListingsOnSale = {
+  ...unifiedListings,
+  data: [{ ...unifiedListings.data[0], ...onSaleFields }, ...unifiedListings.data.slice(1)]
+}
+
+/** The Galaxy Hat's primary trade — a COLLECTION_ITEM mint, which is the only kind a coupon may discount. */
+export const saleTrade = {
+  ...buyTrade,
+  id: 'trade-1',
+  type: 'public_item_order',
+  signer: CREATOR_ADDRESS,
+  sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '27000000000000000000',
+      amount: '27000000000000000000',
+      beneficiary: CREATOR_ADDRESS,
+      extra: '0x'
+    }
+  ]
+}

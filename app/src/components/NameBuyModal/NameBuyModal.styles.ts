@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import * as M from '~/components/BuyModal/modal.styles'
 
 // Buy-NAME modal (Figma: available 1368-354539, confirm 1368-354579, completing 1368-354623,
 // success 1368-354667). A single dialog that walks confirm → completing → success/error, mirroring
@@ -88,7 +89,7 @@ export const Balance = styled.div`
   .ico {
     width: 16px;
     height: 16px;
-    color: ${theme.colors.brandViolet};
+    color: ${theme.colors.text};
   }
 `
 
@@ -216,7 +217,7 @@ export const RowPrice = styled.div`
   .ico {
     width: 22px;
     height: 22px;
-    color: ${theme.colors.brandViolet};
+    color: ${theme.colors.text};
   }
 `
 
@@ -570,4 +571,69 @@ export const ErrorBox = styled.div`
       color: ${theme.colors.accent};
     }
   }
+`
+
+// No-funds state (Figma 2996-434120): the confirm step is replaced by a credit-pack picker, so the
+// buyer tops up and comes back to this same NAME instead of reading a dead end. The warning, tiles,
+// total and buttons are the shared checkout-modal shell's, so this screen and the item one can't drift.
+export const NoFunds = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 16px;
+`
+
+/**
+ * The design's 2x2 at every width (Figma 2996-434120), not just on a phone.
+ *
+ * The shared shell's row wraps to fit, which is right in the item modal — it is wide enough for four
+ * tiles on one line. This card is 560px, so the same row puts three across the top and strands the
+ * fourth alone on a full-width line. The row gap is what the Recommended badge hangs into.
+ */
+export const Packs = styled(M.Packs)`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 12px;
+
+  ${theme.media.maxWidth('mobile')} {
+    gap: 24px 12px;
+  }
+`
+
+export const PackTile = styled(M.Pack)`
+  position: relative;
+`
+
+// The pill that marks the pack which actually closes the gap. Same treatment as the Get Credits grid's
+// badge (gradients.flare on the card's top edge), at the size these smaller tiles take.
+export const PackBadge = styled.span`
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px 4px 8px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.gradients.flare};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: ${theme.colors.white};
+  white-space: nowrap;
+
+  .ico {
+    width: 16px;
+    height: 16px;
+  }
+`
+
+// Not the shared M.Ctas: that one is sticky to the bottom of BuyModal's own scrollable body, and this
+// card scrolls itself, so the buttons would pin over its bottom padding. The buttons are still M.Btn.
+export const PackCtas = styled.div`
+  display: flex;
+  gap: 12px;
 `

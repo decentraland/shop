@@ -9,9 +9,11 @@ import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
 import { initAnalytics, trackPage } from '~/lib/analytics'
+import { config } from '~/config'
 import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -28,8 +30,10 @@ const PAGE_NAMES: Record<string, string> = {
   '/overview': 'overview',
   '/items': 'assets',
   '/my-items': 'my_assets',
+  '/my-store': 'my_store',
   '/my-favorites': 'favorites',
   '/activity': 'activity',
+  '/event': 'event',
   '/import': 'import',
   '/store-settings': 'store_settings',
   '/cart': 'cart',
@@ -43,15 +47,16 @@ const PAGE_NAMES: Record<string, string> = {
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
+const Event = lazy(() => import('~/pages/Event').then(m => ({ default: m.Event })))
 const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetailRoute })))
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
+const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyStore })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
-const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
@@ -64,6 +69,25 @@ function PageFallback() {
       <span className="spinner" aria-hidden />
     </div>
   )
+}
+
+/**
+ * Approvals left the Shop for the marketplace, which is where on-chain authorizations live and where the
+ * same grants are already listed — batched, and only the ones actually granted.
+ *
+ * An external navigation rather than a <Navigate>, so it leaves the SPA; `replace` rather than `assign` so
+ * Back returns where the visitor came from instead of re-firing this route. The URL is absolute and comes
+ * from config, so one build still serves .zone/.today/.org, and the /shop basename is irrelevant to it.
+ *
+ * The page keeps its PAGE_NAMES entry, but read that as best-effort: trackPage queues through the Segment
+ * SDK and the unload can beat the flush. It records the attempt, not the arrival — measuring arrival needs
+ * attribution on the marketplace side. Never delay the navigation for it.
+ */
+function MarketplaceSettingsRedirect() {
+  useEffect(() => {
+    window.location.replace(`${config.marketplaceUrl}/settings`)
+  }, [])
+  return <PageFallback />
 }
 const ReloadCta = styled(Button)`
   margin-top: 10px;
@@ -113,6 +137,7 @@ export function AliasRedirect({ to }: { to: string }) {
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
+  useDialogScrollLock()
   const prelaunch = useShopPrelaunch()
   const location = useLocation()
 
@@ -185,6 +210,10 @@ export function App() {
               <Route path="/" element={<AliasRedirect to="/overview" />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/items" element={<Assets />} />
+              {/* The seasonal event's storefront. Generic on purpose: which event it is comes from the
+                  CMS, so one route serves every campaign and nothing has to be deployed to change it. The
+                  page sends visitors to /items when no campaign is running. */}
+              <Route path="/event" element={<Event />} />
               {/* Items is the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
               <Route path="/market" element={<AliasRedirect to="/items" />} />
@@ -202,6 +231,7 @@ export function App() {
               <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
               <Route path="/my-items" element={<MyAssets />} />
+              <Route path="/my-store" element={<MyStore />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
               <Route path="/activity" element={<Activity />} />
               {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
@@ -221,7 +251,7 @@ export function App() {
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}
               <Route path="/import" element={<AliasRedirect to="/activity?section=listings" />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/authorizations" element={<Authorizations />} />
+              <Route path="/authorizations" element={<MarketplaceSettingsRedirect />} />
               {/* Selling credits is the one thing the Shop cannot do inside the iOS app's web view — the
                   app sells them through In-App Purchase. Hiding the entrances is not enough on its own:
                   the route stays addressable, and a stale link or a back-navigation would land straight on

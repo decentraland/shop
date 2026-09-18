@@ -4,10 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
-import { fetchStoreMintState, resolveLiveTrade, type CatalogItem } from '~/lib/api'
+import { fetchStoreMintState, resolveLiveCoupon, resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
-import { readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
+import { discountedManaWei, readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
@@ -72,7 +72,10 @@ const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAdd
 async function manaPriceFor(sale: PurchaseTarget, opts: { reportFailure?: boolean } = {}): Promise<bigint | null> {
   if (sale.kind === 'store') return BigInt(sale.mint.item.priceWei)
   try {
-    return await readTradeManaPriceWei(sale.trade)
+    // Discounted here rather than at each consumer: this one figure drives the quoted MANA, whether the
+    // rail is offered at all, the allowance, and the mixed rail's gap. Quoting the list price would show a
+    // buyer more MANA than they pay and hide the rail from anyone holding exactly the sale price.
+    return discountedManaWei(await readTradeManaPriceWei(sale.trade), sale.coupon)
   } catch (err) {
     // The retry passes false: one outage, one report.
     if (opts.reportFailure !== false) captureError(err, { flow: 'buy', step: 'mana_price' })
@@ -369,7 +372,14 @@ export function BuyModal({
          * The rate is AWAITED rather than read from a possibly-unresolved query — deciding off a missing rate
          * would report a perfectly buyable item as unavailable on a slow oracle read.
          */
-        const outcome = await resolveLine(item, session.address, resolveLiveTrade, await ensureManaRate(), resolveStore)
+        const outcome = await resolveLine(
+          item,
+          session.address,
+          resolveLiveTrade,
+          await ensureManaRate(),
+          resolveStore,
+          resolveLiveCoupon
+        )
         // The three outcomes read differently to a buyer, so they are not collapsed: gone means the sale ended,
         // own means they are the seller, and no-price means we could not quote it — see lib/errors.
         if (outcome.status === 'own') throw new Error("You can't buy your own listing.")
@@ -734,7 +744,13 @@ export function BuyModal({
       // (which holds no POL) can take it.
       const txHash =
         sale.kind === 'trade'
-          ? await buyWithMana({ trade: sale.trade, buyer: session.address, signer: session.signer, manaWei })
+          ? await buyWithMana({
+              trade: sale.trade,
+              coupon: sale.coupon,
+              buyer: session.address,
+              signer: session.signer,
+              manaWei
+            })
           : await buyMintWithMana({ mint: sale.mint, buyer: session.address, signer: session.signer, manaWei })
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
@@ -804,7 +820,7 @@ export function BuyModal({
       // Both kinds ride the CreditsManager's own mixed-payment rail — only the external call inside it differs.
       txHash =
         sale.kind === 'trade'
-          ? await buyWithCreditsAndMana({ trade: sale.trade, ...gapArgs })
+          ? await buyWithCreditsAndMana({ trade: sale.trade, coupon: sale.coupon, ...gapArgs })
           : await buyMintWithCreditsAndMana({ mint: sale.mint, ...gapArgs })
     } catch (e) {
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
