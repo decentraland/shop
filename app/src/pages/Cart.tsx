@@ -24,6 +24,7 @@ import {
 } from '~/lib/payment-options'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
+import { recordCouponUses } from '~/store/couponUses'
 import {
   AuthorizationKind,
   ensureAuthorization,
@@ -611,6 +612,9 @@ export function Cart() {
         no_crypto_step: usedGasless,
         transaction_hash: hashes[0] ?? null
       })
+      // Counted before the refetch, which would come back with the figure from before this basket: the
+      // catalogue's `used` moves on a server-side poller, not on the purchase.
+      recordCouponUses(purchasedUnits.map(unit => unit.coupon))
       invalidateAfterPurchase(qc)
       // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
       // standalone success PAGE the purchased lines + tx and tell it settlement is already done
@@ -690,6 +694,8 @@ export function Cart() {
       if (boughtUnits.length > 0) {
         boughtItemIds.forEach(id => remove(id))
         setReview(null)
+        // Only the half that settled: the rest bought nothing and spent no uses.
+        recordCouponUses(boughtUnits.map(unit => unit.coupon))
         invalidateAfterPurchase(qc)
         // The half that DID go through is revenue and has to be reported as such, per settled group.
         track('Shop Completed Purchase', {
