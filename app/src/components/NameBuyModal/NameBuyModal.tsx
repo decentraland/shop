@@ -8,7 +8,8 @@ import {
   NameNotRegisteredError,
   NameRouteCostTooHighError,
   NameSettlementUnknownError,
-  registerNameWithUsdCredits
+  registerNameWithUsdCredits,
+  NAME_PRICE_IN_WEI
 } from '~/lib/names'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
@@ -20,7 +21,11 @@ import { hrefFor } from '~/lib/routes'
 import { captureError } from '~/lib/monitoring'
 import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
+import { useManaBalances } from '~/hooks/useManaBalance'
+import { computePaymentOptions } from '~/lib/payment-options'
+import { USD_CENTS_PER_CREDIT } from '~/lib/currency'
 import { CreditPackPicker } from '~/components/CreditPackPicker'
+import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { RESUME_NAME_KEY } from '~/lib/resume-name'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
@@ -70,6 +75,19 @@ export function NameBuyModal({
   // recommended right now" rather than "none" — see `activePack`.
   const [selectedPack, setSelectedPack] = useState('')
   const [topUpBusy, setTopUpBusy] = useState(false)
+  /**
+   * How the buyer is paying, and whether they have said so yet.
+   *
+   * Asked BEFORE the NAME is confirmed: "can I afford this at all, and with what" comes first, and the
+   * re-entry gate is the last thing between a decided buyer and their purchase. Credits-only buyers never
+   * see the question — there is nothing to choose.
+   */
+  const [chosen, setChosen] = useState<{
+    rail: 'credits' | 'combined'
+    creditsCents?: number
+    manaWei?: bigint
+  } | null>(null)
+  const rail = chosen?.rail ?? 'credits'
   const [error, setError] = useState<string | null>(null)
   // Whether the credit is spent or may be, which decides if a retry is offered at all. Retrying on either
   // buys a second one — for the unknown case while the first may still be in flight.
@@ -114,6 +132,29 @@ export function NameBuyModal({
   const blockedReason = priceUnavailable ? t('names.priceUnavailable') : null
 
   /**
+   * The rails the buyer's own balances support, beyond credits.
+   *
+   * A NAME costs a FIXED 100 MANA — it is priced on-chain, and the credits figure is that price converted —
+   * so the MANA leg needs no oracle read here. `manaOnlyRail: false` because the registration runs through a
+   * server-signed external call only `useCredits` can make, and that reverts on an empty credits array: MANA
+   * can cover the remainder, never the whole thing.
+   */
+  const { data: manaBalances } = useManaBalances(session)
+  const polygonManaWei = manaBalances?.matic ?? 0n
+  const paymentOptions = computePaymentOptions({
+    priceCents: priceCredits != null ? priceCredits * USD_CENTS_PER_CREDIT : 0,
+    priceManaWei: BigInt(NAME_PRICE_IN_WEI),
+    balanceCents: balance?.balanceCents ?? 0,
+    manaBalanceWei: polygonManaWei,
+    manaOnlyRail: false
+  })
+  // A buyer with a rail of their own is not stuck, so the pack picker is not what they need to see.
+  const hasOwnRail = paymentOptions.options.some(o => o.method !== 'credits')
+  const combinedOption = paymentOptions.options.find(o => o.method === 'combined')
+  // Nothing to ask when credits are the only way to pay.
+  const askForMethod = chosen == null && hasOwnRail && !priceUnavailable
+
+  /**
    * Which packs are offered, which one is recommended, and whether the recommendation can deliver.
    *
    * The maths is shared with the item modal and the cart (lib/payments) — they are one rule: never offer a
@@ -149,8 +190,15 @@ export function NameBuyModal({
   async function buy() {
     // Repeats every condition the CTA is disabled on, rather than trusting that it was. The button being
     // disabled is a UI fact; this is the money call, and it should be safe to invoke from anywhere.
-    if (!session || !matches || priceUnavailable || insufficient || startedRef.current) return
+    // Repeats every condition the CTA is disabled on, rather than trusting that it was. `insufficient`
+    // only blocks a credits-only purchase — the whole point of the other rails is to pay when credits alone
+    // cannot.
+    if (!session || !matches || priceUnavailable || startedRef.current) return
+    if (rail === 'credits' && insufficient) return
     startedRef.current = true
+    // Whole credits, so it matches what the reservation actually charges.
+    const creditsSpent =
+      rail === 'combined' ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT) : (priceCredits ?? null)
     setPhase('completing')
     setError(null)
     setStage('preparing')
@@ -159,6 +207,10 @@ export function NameBuyModal({
         name,
         identity: session.identity,
         signer: session.signer,
+        // The mixed rail reserves only the credits leg; the rest is pulled from the buyer's MANA.
+        // Both figures are the ones the buyer agreed to, not today's re-derivation.
+        creditsCents: chosen?.creditsCents,
+        maxManaWei: chosen?.manaWei,
         onProgress: setStage
       })
       // The money left the balance in both outcomes, so both refresh it and both count as a completed
@@ -178,9 +230,16 @@ export function NameBuyModal({
         ],
         purchase_type: 'name',
         is_primary: true,
-        payment_type: 'credits',
-        value_credits: priceCredits ?? null,
-        value_usd: creditsToUsd(priceCredits ?? 0),
+        /**
+         * The rail that actually paid, in the vocabulary the item and cart flows already use — reporting
+         * every NAME as 'credits' would book a mixed purchase's MANA leg as credit revenue.
+         *
+         * `value_credits` is the credits LEG, not the price: on the mixed rail the rest came out of the
+         * buyer's own MANA and was never credit spend.
+         */
+        payment_type: rail === 'combined' ? 'credits_and_mana' : 'credits',
+        value_credits: creditsSpent,
+        value_usd: creditsToUsd(creditsSpent ?? 0),
         transaction_hash: result.originTxHash ?? null,
         settlement: result.status
       })
@@ -291,7 +350,9 @@ export function NameBuyModal({
     }
   }
 
-  const showHead = phase !== 'success' && phase !== 'pending'
+  // The payment step brings its own title, balance line and close button, so the modal's head would be a
+  // second one stacked on top of it.
+  const showHead = phase !== 'success' && phase !== 'pending' && !askForMethod
   const selfCustody = showsWalletConfirmations(session?.providerType)
 
   /**
@@ -329,7 +390,7 @@ export function NameBuyModal({
    * strand someone on a top-up screen they no longer need. `insufficient` is false while the balance is
    * unknown, so a failed read still shows the confirm step and lets the server be the authority.
    */
-  const shortOnCredits = phase === 'confirm' && insufficient
+  const shortOnCredits = phase === 'confirm' && insufficient && !hasOwnRail
   const headTitle =
     phase === 'error' ? t('names.errorTitle') : shortOnCredits ? t('names.buyCreditsTitle') : t('names.buyTitle')
 
@@ -426,7 +487,34 @@ export function NameBuyModal({
           </S.NoFunds>
         )}
 
-        {(phase === 'confirm' || phase === 'error') && !shortOnCredits && (
+        {phase === 'confirm' && !shortOnCredits && askForMethod && (
+          <PaymentMethodStep
+            asset={{
+              name: `${name}.dcl.eth`,
+              caption: t('names.subtitle'),
+              thumb: <S.ThumbGlyph aria-hidden>@</S.ThumbGlyph>
+            }}
+            priceCredits={priceCredits ?? 0}
+            priceCents={(priceCredits ?? 0) * USD_CENTS_PER_CREDIT}
+            options={paymentOptions.options}
+            priceManaWei={BigInt(NAME_PRICE_IN_WEI)}
+            balanceCredits={balance?.credits ?? 0}
+            manaBalanceWei={polygonManaWei}
+            onBuy={method => {
+              /* Latched WITH its amounts: the options are re-derived from live balances every render, so
+                 reading them again at submit could spend a different rail than the one agreed to. */
+              setChosen(
+                method === 'combined' && combinedOption
+                  ? { rail: 'combined', creditsCents: combinedOption.creditsCents, manaWei: combinedOption.manaWei }
+                  : { rail: 'credits' }
+              )
+            }}
+            onClose={onClose}
+            busy={busy}
+          />
+        )}
+
+        {(phase === 'confirm' || phase === 'error') && !shortOnCredits && !askForMethod && (
           <>
             <S.NameRow>
               <S.Thumb aria-hidden>@</S.Thumb>
@@ -486,7 +574,9 @@ export function NameBuyModal({
                 ) : null}
                 <S.PrimaryBtn
                   onClick={() => void buy()}
-                  disabled={!matches || !session || priceUnavailable || insufficient}
+                  /* Short on credits only blocks a credits-only purchase: the MANA rails exist precisely
+                     to pay when credits alone cannot. */
+                  disabled={!matches || !session || priceUnavailable || (rail === 'credits' && insufficient)}
                 >
                   {t('names.buyCta')}
                 </S.PrimaryBtn>

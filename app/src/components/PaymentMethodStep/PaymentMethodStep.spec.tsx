@@ -33,7 +33,7 @@ function setup(over: {
   const onBuy = vi.fn()
   render(
     <PaymentMethodStep
-      item={item}
+      asset={{ name: item.name, thumb: item.thumbnail ? <img src={item.thumbnail} alt="" /> : null }}
       priceCredits={100}
       priceCents={PRICE_CENTS}
       options={computed.options}

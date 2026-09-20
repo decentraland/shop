@@ -11,6 +11,7 @@ import { discountedManaWei, readManaBalanceWei, readTradeManaPriceWei } from '~/
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
+import { CreatorName } from '~/components/CreatorName'
 import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
@@ -1099,7 +1100,11 @@ export function BuyModal({
       <M.Card data-tall={phase === 'processing' || phase === 'loading' || undefined}>
         {methodMode ? (
           <PaymentMethodStep
-            item={item}
+            asset={{
+              name: item.name,
+              thumb: item.thumbnail ? <img src={item.thumbnail} alt="" /> : null,
+              caption: item.creator ? <CreatorName address={item.creator} /> : null
+            }}
             priceCredits={priceCredits}
             priceCents={priceCents}
             options={paymentOptions.options}
