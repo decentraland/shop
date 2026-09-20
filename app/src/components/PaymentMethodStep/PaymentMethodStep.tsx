@@ -105,7 +105,11 @@ export function PaymentMethodStep({
           next.add('mana')
         } else if (mana) next.add('mana')
       }
-      return next.size === prev.size ? prev : next
+      // Compared by CONTENT, not size. This block now both deletes and adds, so a tick that is swapped for
+      // another leaves the count untouched — and returning `prev` there would keep the unusable rail ticked
+      // over a dead confirm button.
+      const same = next.size === prev.size && [...next].every(r => prev.has(r))
+      return same ? prev : next
     })
   }, [creditsUsable, manaUsable, credits, combined, mana])
 

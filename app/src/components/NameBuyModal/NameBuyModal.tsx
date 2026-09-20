@@ -188,8 +188,6 @@ export function NameBuyModal({
   }, [busy, onClose])
 
   async function buy() {
-    // Repeats every condition the CTA is disabled on, rather than trusting that it was. The button being
-    // disabled is a UI fact; this is the money call, and it should be safe to invoke from anywhere.
     // Repeats every condition the CTA is disabled on, rather than trusting that it was. `insufficient`
     // only blocks a credits-only purchase — the whole point of the other rails is to pay when credits alone
     // cannot.

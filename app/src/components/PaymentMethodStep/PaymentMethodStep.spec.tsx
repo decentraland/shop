@@ -193,3 +193,59 @@ describe('PaymentMethodStep', () => {
     })
   })
 })
+
+/**
+ * The rails resolve after mount — two balances, arriving from an RPC read and a signed fetch — so the ticks
+ * have to follow them. Both directions matter: a rail that stops being payable is dropped, and a selection
+ * left empty is re-seeded once one turns up.
+ */
+describe('when the payable rails change after mount', () => {
+  // `setup` renders through RTL's shared container, so re-rendering with new balances is a fresh `render`
+  // into the same tree — which is exactly the update the effect has to react to.
+  function step(over: { balanceCents?: number; manaBalanceWei?: bigint }) {
+    const balanceCents = over.balanceCents ?? 0
+    const manaBalanceWei = over.manaBalanceWei ?? 0n
+    const computed = computePaymentOptions({
+      priceCents: PRICE_CENTS,
+      priceManaWei: PRICE_MANA,
+      balanceCents,
+      manaBalanceWei
+    })
+    return (
+      <PaymentMethodStep
+        asset={{ name: 'x' }}
+        priceCredits={100}
+        priceCents={PRICE_CENTS}
+        options={computed.options}
+        priceManaWei={PRICE_MANA}
+        balanceCredits={balanceCents / 10}
+        manaBalanceWei={manaBalanceWei}
+        onBuy={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+  }
+
+  it('should re-seed an empty selection once a rail arrives', () => {
+    const { rerender } = render(step({}))
+    expect(isOn('credits')).toBe(false)
+
+    rerender(step({ balanceCents: PRICE_CENTS }))
+
+    expect(isOn('credits')).toBe(true)
+  })
+
+  /**
+   * The swap is what a size comparison misses: one tick out, one in, same count. Returning the previous set
+   * there leaves the unusable rail ticked above a confirm button that cannot submit.
+   */
+  it('should swap the tick when one rail replaces another', () => {
+    const { rerender } = render(step({ balanceCents: PRICE_CENTS }))
+    expect(isOn('credits')).toBe(true)
+
+    rerender(step({ manaBalanceWei: PRICE_MANA }))
+
+    expect(isOn('credits')).toBe(false)
+    expect(isOn('mana')).toBe(true)
+  })
+})
