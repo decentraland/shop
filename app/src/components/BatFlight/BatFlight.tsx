@@ -31,9 +31,14 @@ type Flight = {
   facing: 'left' | 'right'
 }
 
-/** Long enough that a round is a surprise rather than a metronome, short enough to be seen at all. */
-const FIRST_DELAY_MS = [6_000, 15_000] as const
-const GAP_MS = [25_000, 55_000] as const
+/**
+ * Often enough to be seen, spaced enough not to read as a metronome.
+ *
+ * The first pass was a round every 25-55s, and with a 7-11s crossing that left the page empty most of the
+ * time — long enough that someone looking for the bats concluded they were broken.
+ */
+const FIRST_DELAY_MS = [3_000, 7_000] as const
+const GAP_MS = [10_000, 22_000] as const
 
 function between([min, max]: readonly [number, number]): number {
   return min + Math.random() * (max - min)

@@ -76,28 +76,29 @@ const rainbow = keyframes`
   }
 `
 
-// A guttering candle: mostly lit, with two brief stumbles at odd intervals so it never reads as a pulse.
-// Deliberately slow and shallow — three dips across 4.5s is far under the three-per-second that makes a
-// flashing element a seizure risk, and a nav tab is on screen the whole session.
+// A guttering candle, on the SAME 6s period as the gradient drift above.
+//
+// It ran at 4.5s first, and two animations on co-prime periods beat against each other: the dip landed at
+// a different point of the colour sweep every cycle, so the tab read as two effects stacked — the colours
+// going by, and then an unrelated blink. Locked to one period they always coincide, and the label reads as
+// one guttering flame.
+//
+// Shallow on purpose, and still far under the three-flashes-per-second that makes a flashing element a
+// seizure risk: this sits in the nav for a whole session.
 const gutter = keyframes`
   0%,
-  19%,
-  21%,
-  46%,
-  49%,
-  71%,
-  73%,
+  26%,
+  30%,
+  68%,
+  72%,
   100% {
     opacity: 1;
   }
-  20% {
-    opacity: 0.35;
+  28% {
+    opacity: 0.62;
   }
-  47.5% {
-    opacity: 0.55;
-  }
-  72% {
-    opacity: 0.25;
+  70% {
+    opacity: 0.52;
   }
 `
 
@@ -219,7 +220,7 @@ export const Tabs = styled.nav`
     color: transparent;
     animation:
       ${rainbow} 6s ease-in-out infinite,
-      ${gutter} 4.5s linear infinite;
+      ${gutter} 6s ease-in-out infinite;
     filter: drop-shadow(0 0 10px rgba(255, 106, 0, 0.55));
   }
 

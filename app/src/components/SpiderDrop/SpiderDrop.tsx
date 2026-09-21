@@ -16,9 +16,9 @@ const LottieSpider = lazy(async () => {
  */
 const VISIT_MS = 5_200
 
-/** Rarer than the bats: a spider dropping over the page is a bigger interruption than one crossing it. */
-const FIRST_DELAY_MS = [12_000, 30_000] as const
-const GAP_MS = [45_000, 90_000] as const
+/** Rarer than the bats: a spider dropping across the page is a bigger interruption than one crossing it. */
+const FIRST_DELAY_MS = [7_000, 14_000] as const
+const GAP_MS = [22_000, 40_000] as const
 
 type Visit = { id: number; side: 'left' | 'right'; inset: number; size: number; top: number }
 
