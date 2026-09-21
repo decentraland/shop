@@ -1,9 +1,7 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
-import { fetchCatalogItems } from '~/lib/collections'
 import { Icon } from '~/components/Icon'
-import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
-import { useProfile } from '~/hooks/useProfile'
+import { fetchSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
 import { isIapMode } from '~/lib/iap'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
@@ -13,13 +11,11 @@ function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
 }
 
-// Text-only "By {creator}" subline for item/collection rows. Resolves the address → DCL profile
-// name via the shared useProfile query (dedupes with the cards elsewhere), falls back to a short
-// address. Mirrors the marketplace's <Profile textOnly> in the suggestion rows.
-function CreatorName({ address }: { address: string }) {
-  const { data } = useProfile(address)
-  const name = data?.name || shortAddress(address)
-  return <S.Sub>{t('search.byCreator', { name })}</S.Sub>
+// Text-only "By {creator}" subline for item/collection rows. The name comes resolved with the
+// suggestions (the server keeps the creators' profile names), so no profile is fetched per row; an
+// unnamed creator shows as a short address.
+function CreatorName({ address, name }: { address: string; name: string | null }) {
+  return <S.Sub>{t('search.byCreator', { name: name || shortAddress(address) })}</S.Sub>
 }
 
 // The collection suggestion row's thumbnail is the shared mosaic (CollectionThumb) sized as a small
@@ -37,8 +33,8 @@ function CollectionRowThumb({ contractAddress }: { contractAddress: string }) {
   )
 }
 
-// Top-N item suggestions shown while typing. Small page — this is a preview, not the full grid.
-const SUGGEST_COUNT = 5
+// Rows per section shown while typing. Small pages — this is a preview, not the full grid.
+const SUGGEST_SIZES = { items: 5, collections: 4, creators: 4 }
 // Don't hit the API for a single character — too noisy, matches the Assets page which lowercases/trims.
 const MIN_QUERY_LEN = 2
 
@@ -59,15 +55,14 @@ type SearchDropdownProps = {
 
 // The autocomplete panel anchored under the NavBar search input. Two modes:
 // - empty query  → recent searches (from localStorage, via the parent)
-// - typed query  → live matches in three sections: Creators, Collections, and Items.
-//   Items come from the SAME feed and filter set the /items grid lands on (fetchCatalogItems →
-//   /v3/catalog/items, the whole catalogue, ranked by relevance — see defaultStatusFor and defaultSortFor
-//   in pages/Assets) so a suggestion is never something the results page then hides, and "See all (N)"
-//   is the number the grid then shows. It used to read the on-sale feed while the grid opened on All:
-//   "pirate hat" offered 188 results and landed on 542.
-//   Collections come from /v1/collections?search=, and Creators from /v3/catalog/creators/search,
-//   which ranks them by profile name and NAMEs (see lib/search). The grid stays items-only — only
-//   the dropdown surfaces creators/collections as jump-to links.
+// - typed query  → live matches in three sections: Items, Collections and Creators, from ONE request
+//   (fetchSuggestions → /v3/catalog/suggest). The items are the SAME feed and ranking the /items grid
+//   lands on (the whole catalogue, by relevance — see defaultStatusFor and defaultSortFor in
+//   pages/Assets), so a suggestion is never something the results page then hides, and "See all (N)" is
+//   the number the grid then shows. It used to read the on-sale feed while the grid opened on All:
+//   "pirate hat" offered 188 results and landed on 542. Collections and creators are matched by the
+//   same terms, and every row names its creator, so nothing else is fetched per keystroke. The grid
+//   stays items-only — only the dropdown surfaces creators/collections as jump-to links.
 // Keyboard nav is limited to Escape/Enter, owned by the parent NavBar.
 export function SearchDropdown({
   query,
@@ -83,33 +78,19 @@ export function SearchDropdown({
   // Read once so both render paths decide off the same value, as NavBar does (the module memoises it anyway).
   const iap = isIapMode()
 
-  const { data: itemData, isFetching: itemsFetching } = useQuery({
+  const { data: suggestions, isFetching: itemsFetching } = useQuery({
     queryKey: ['search-suggest', query],
-    queryFn: () => fetchCatalogItems({ search: query, first: SUGGEST_COUNT, sortBy: 'relevance' }),
+    queryFn: () => fetchSuggestions(query, SUGGEST_SIZES),
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,
     staleTime: 30_000
   })
 
-  const { data: collections = [] } = useQuery({
-    queryKey: ['search-suggest-collections', query],
-    queryFn: () => fetchCollectionSuggestions(query),
-    enabled,
-    placeholderData: keepPreviousData,
-    staleTime: 30_000
-  })
-
-  const { data: creators = [] } = useQuery({
-    queryKey: ['search-suggest-creators', query],
-    queryFn: () => fetchCreatorSuggestions(query),
-    enabled,
-    placeholderData: keepPreviousData,
-    staleTime: 30_000
-  })
-
-  const items = enabled ? (itemData?.items ?? []) : []
-  const total = itemData?.total ?? 0
+  const items = enabled ? (suggestions?.items ?? []) : []
+  const collections = enabled ? (suggestions?.collections ?? []) : []
+  const creators = enabled ? (suggestions?.creators ?? []) : []
+  const total = suggestions?.total ?? 0
 
   if (!enabled) {
     if (recent.length === 0) return null
@@ -168,7 +149,7 @@ export function SearchDropdown({
                         <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
                         <S.Text>
                           <S.Name title={item.name}>{item.name}</S.Name>
-                          {item.creator ? <CreatorName address={item.creator} /> : null}
+                          {item.creator ? <CreatorName address={item.creator} name={item.creatorName} /> : null}
                         </S.Text>
                       </S.Row>
                     </li>
@@ -195,7 +176,9 @@ export function SearchDropdown({
                       <CollectionRowThumb contractAddress={collection.contractAddress} />
                       <S.Text>
                         <S.Name title={collection.name}>{collection.name}</S.Name>
-                        {collection.creator ? <CreatorName address={collection.creator} /> : null}
+                        {collection.creator ? (
+                          <CreatorName address={collection.creator} name={collection.creatorName} />
+                        ) : null}
                       </S.Text>
                     </S.Row>
                   </li>

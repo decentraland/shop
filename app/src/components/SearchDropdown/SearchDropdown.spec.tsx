@@ -9,16 +9,15 @@ vi.mock('~/lib/collections', () => ({
   fetchCatalogItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   fetchCollectionItems: vi.fn().mockResolvedValue({ items: [], total: 0 })
 }))
+const EMPTY = { items: [], total: 0, collections: [], creators: [] }
 vi.mock('~/lib/search', () => ({
-  fetchCollectionSuggestions: vi.fn().mockResolvedValue([]),
-  fetchCreatorSuggestions: vi.fn().mockResolvedValue([])
+  fetchSuggestions: vi.fn().mockResolvedValue({ items: [], total: 0, collections: [], creators: [] })
 }))
-vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 const useManaRate = vi.fn(() => ({ data: undefined }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => useManaRate() }))
 
 import { SearchDropdown } from '~/components/SearchDropdown'
-import { fetchCatalogItems } from '~/lib/collections'
+import { fetchSuggestions } from '~/lib/search'
 
 function renderDropdown(query: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -41,43 +40,86 @@ function renderDropdown(query: string) {
 }
 
 async function lastSuggestCall() {
-  await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
-  return vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]
+  await waitFor(() => expect(fetchSuggestions).toHaveBeenCalled())
+  return vi.mocked(fetchSuggestions).mock.calls.at(-1)!
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(fetchSuggestions).mockResolvedValue(EMPTY)
 })
 
 describe('SearchDropdown suggestions', () => {
-  it('should query the same feed and filter set the results grid lands on: the whole catalogue, by relevance', async () => {
+  it('should ask for the three sections in one request, sized for a preview', async () => {
     renderDropdown('chapeau')
-    // No status or listing-type narrowing: a search opens the grid on All (see pages/Assets), and a
-    // suggestion drawn from a narrower feed could name an item the grid then ranks elsewhere — or count
-    // fewer results than the grid shows.
-    expect(await lastSuggestCall()).toEqual({ search: 'chapeau', first: 5, sortBy: 'relevance' })
+    // One call per keystroke: items (the grid's own feed and ranking, so a suggestion is never something
+    // the results page then hides), collections and creators together, no profile lookups.
+    expect(await lastSuggestCall()).toEqual(['chapeau', { items: 5, collections: 4, creators: 4 }])
   })
 
   it('should not hit the API for a single character', () => {
     renderDropdown('c')
-    expect(fetchCatalogItems).not.toHaveBeenCalled()
+    expect(fetchSuggestions).not.toHaveBeenCalled()
   })
 
   it('should show recent searches instead of results for an empty query', () => {
     renderDropdown('')
-    expect(fetchCatalogItems).not.toHaveBeenCalled()
+    expect(fetchSuggestions).not.toHaveBeenCalled()
     expect(screen.queryByTestId('search-pop')).not.toBeInTheDocument()
   })
 
   it('should offer to see all results with the total the grid will then report', async () => {
-    vi.mocked(fetchCatalogItems).mockResolvedValue({
-      items: [{ id: 'a', name: 'Galaxy Hat', creator: '', contractAddress: '0xabc', itemId: '0', thumbnail: '' }],
+    vi.mocked(fetchSuggestions).mockResolvedValue({
+      ...EMPTY,
+      items: [
+        {
+          id: 'a',
+          name: 'Galaxy Hat',
+          creator: '',
+          creatorName: null,
+          contractAddress: '0xabc',
+          itemId: '0',
+          thumbnail: ''
+        }
+      ],
       total: 542
     } as never)
 
     renderDropdown('galaxy')
 
     expect(await screen.findByTestId('search-see-all')).toHaveTextContent('542')
+  })
+
+  it('should name a creator from the suggestions, and fall back to a short address for an unnamed one', async () => {
+    vi.mocked(fetchSuggestions).mockResolvedValue({
+      ...EMPTY,
+      items: [
+        {
+          id: 'a',
+          name: 'Galaxy Hat',
+          creator: '0x1111111111111111111111111111111111111111',
+          creatorName: 'Galaxy Studio',
+          contractAddress: '0xabc',
+          itemId: '0',
+          thumbnail: ''
+        },
+        {
+          id: 'b',
+          name: 'Plain Hat',
+          creator: '0x2222222222222222222222222222222222222222',
+          creatorName: null,
+          contractAddress: '0xabc',
+          itemId: '1',
+          thumbnail: ''
+        }
+      ],
+      total: 2
+    } as never)
+
+    renderDropdown('hat')
+
+    expect(await screen.findByText(/Galaxy Studio/)).toBeInTheDocument()
+    expect(screen.getByText(/0x2222…2222/)).toBeInTheDocument()
   })
 })
 
@@ -91,7 +133,8 @@ describe('SearchDropdown suggestions', () => {
  */
 describe('SearchDropdown pricing', () => {
   it('should not price a suggestion, even when the row carries one', async () => {
-    vi.mocked(fetchCatalogItems).mockResolvedValue({
+    vi.mocked(fetchSuggestions).mockResolvedValue({
+      ...EMPTY,
       items: [
         {
           id: '0xabc-0',
@@ -103,6 +146,7 @@ describe('SearchDropdown pricing', () => {
           category: 'wearable',
           wearableCategory: 'hat',
           creator: '0xcreator',
+          creatorName: null,
           priceCredits: 270,
           network: 'MATIC',
           chainId: 80002
@@ -121,7 +165,7 @@ describe('SearchDropdown pricing', () => {
   it('should not read the mana oracle at all, keeping the eager navbar chunk free of it', async () => {
     renderDropdown('galaxy')
 
-    await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalled())
     expect(useManaRate).not.toHaveBeenCalled()
   })
 })

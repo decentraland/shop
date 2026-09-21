@@ -55,8 +55,8 @@ describe('search bar', () => {
     await page.type(SEARCH, 'Galaxy')
 
     await page.waitForSelector('[data-testid="search-pop"]')
-    // Item (name match), collection (/v1/collections?search=), and creator (/v3/catalog/creators/search)
-    // all surface in the one stacked list.
+    // Item (name match), collection and creator all surface in the one stacked list, from the one
+    // suggestions request (/v3/catalog/suggest).
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Galaxy Collection')
     await waitForText(page, 'Galaxy Studio')
