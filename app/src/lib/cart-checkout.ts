@@ -2,7 +2,7 @@ import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
-import { getCouponManagerForTrade } from '~/lib/marketplace'
+import { getCouponManagerForTrade, getMarketplaceForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 // Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
 // lib/buy-mana owns the vocabulary for that.
@@ -299,6 +299,10 @@ export async function resolveLine(
 
   const trade = await resolve(item)
   if (!trade) return { status: 'gone' }
+  // A trade names the marketplace it was signed for, and every rail settles it there by resolving that address's
+  // version on the trade's chain. A pair the registry does not deploy is a trade nothing can settle, so it reads
+  // as not for sale here rather than as a purchase that reverts after the buyer confirmed.
+  if (!getMarketplaceForTrade(trade)) return { status: 'gone' }
   if (isOwnTrade(trade, buyerAddress)) return { status: 'own' }
   // Only a line that CLAIMS a discount pays for the extra lookup; one that never had a coupon prices off
   // the trade alone, as it always did. A sale that started after the item was added is therefore a missed

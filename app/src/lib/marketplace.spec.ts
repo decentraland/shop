@@ -38,7 +38,7 @@ vi.mock('decentraland-transactions', () => ({
   })
 }))
 
-const { getCouponManagerForTrade, getLatestOffChainMarketplaceContract } = await import('./marketplace')
+const { getCouponManagerForTrade, getLatestOffChainMarketplaceContract, getMarketplaceForTrade } = await import('./marketplace')
 
 describe('when getting the latest off-chain marketplace contract', () => {
   describe('and the chain has a V3 deployment', () => {
@@ -119,6 +119,40 @@ describe('when resolving the coupon manager a trade settles through', () => {
     })
 
     it('should return null instead of throwing into the checkout review', () => {
+      expect(result).toBeNull()
+    })
+  })
+})
+
+describe('when resolving the marketplace a trade names', () => {
+  let result: { name: string } | null
+
+  describe('and the address is that version\'s deployment on the trade\'s chain, in another casing', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xOFFCHAINMARKETPLACEV3', chainId: 11155111 })
+    })
+
+    it('should return the registry entry', () => {
+      expect(result?.name).toBe('OffChainMarketplaceV3')
+    })
+  })
+
+  describe('and the version is not deployed on the trade\'s chain', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xOffChainMarketplaceV3', chainId: CHAIN_WITHOUT_V3 })
+    })
+
+    it('should return null, since nothing on that chain signed the trade', () => {
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('and the address is not a marketplace the registry knows', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0x0000000000000000000000000000000000000001', chainId: 11155111 })
+    })
+
+    it('should return null', () => {
       expect(result).toBeNull()
     })
   })

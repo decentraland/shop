@@ -13,12 +13,23 @@ import {
   groupUnitsForAuthorization,
   discountedUsdCents,
   couponForTrade,
+  type LineOutcome,
   type StoreResolver,
   type TradeResolver,
   type ResolvedLine
 } from '~/lib/cart-checkout'
 
 const BUYER = '0xBUYER'
+
+// Real marketplace addresses, because the review reads the contract registry to check that a trade names a
+// marketplace deployed on its chain. Polygon mainnet: the V3 marketplace, the manager it redeems coupons
+// through, and the V2 marketplace still settling the listings signed before it. Amoy: its V2 marketplace.
+const MARKETPLACE_V3 = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+const MARKETPLACE_V2 = '0xa40b1d129b8906888720686f3a01921ddf37716f'
+const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
+const POLYGON = 137
+const AMOY = 80002
 
 const item = (id: string, priceCredits: number, over: Partial<CatalogItem> = {}): CatalogItem => ({
   id,
@@ -45,6 +56,8 @@ const item = (id: string, priceCredits: number, over: Partial<CatalogItem> = {})
 const trade = (dollars: number, signer = '0xseller'): Trade =>
   ({
     signer,
+    contract: MARKETPLACE_V2_AMOY,
+    chainId: AMOY,
     received: [
       {
         assetType: TradeAssetType.USD_PEGGED_MANA,
@@ -58,6 +71,8 @@ const trade = (dollars: number, signer = '0xseller'): Trade =>
 const legacyTrade = (mana: number, signer = '0xseller'): Trade =>
   ({
     signer,
+    contract: MARKETPLACE_V2_AMOY,
+    chainId: AMOY,
     received: [{ assetType: TradeAssetType.ERC20, amount: (BigInt(Math.round(mana * 1000)) * 10n ** 15n).toString() }]
   }) as unknown as Trade
 
@@ -834,14 +849,6 @@ describe('when preparing a checkout for authorization', () => {
   })
 })
 
-// Polygon mainnet: the V3 marketplace, the manager it redeems coupons through, and the V2 marketplace still
-// settling the listings signed before it. Real addresses, because the guard reads the contract registry.
-const MARKETPLACE_V3 = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
-const MARKETPLACE_V2 = '0xa40b1d129b8906888720686f3a01921ddf37716f'
-const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
-const POLYGON = 137
-const AMOY = 80002
-
 const coupon = (discountPpm: number) =>
   ({
     id: 'coupon-1',
@@ -1045,5 +1052,40 @@ describe('when resolving a line whose listing is on sale', () => {
     const resolveCoupon = vi.fn(async () => coupon(300_000))
     await resolveLine(plain, BUYER, async () => primaryTrade(10), undefined, undefined, resolveCoupon)
     expect(resolveCoupon).not.toHaveBeenCalled()
+  })
+})
+
+describe('when reviewing a line whose trade names a marketplace not deployed on its chain', () => {
+  let mismatched: TradeResolver
+
+  beforeEach(() => {
+    mismatched = async () => primaryTrade(10, '0xseller', MARKETPLACE_V3, AMOY)
+  })
+
+  describe('and it is reviewed on its own', () => {
+    let outcome: LineOutcome
+
+    beforeEach(async () => {
+      outcome = await resolveLine(item('x', 10), BUYER, mismatched)
+    })
+
+    it('should classify it as gone rather than price a purchase no marketplace can settle', () => {
+      expect(outcome).toEqual({ status: 'gone' })
+    })
+  })
+
+  describe('and it is reviewed as part of a basket', () => {
+    let review: Awaited<ReturnType<typeof reviewCart>>
+
+    beforeEach(async () => {
+      review = await reviewCart([item('x', 10), item('y', 20)], BUYER, async i => (i.id === 'x' ? mismatched(i) : trade(2)))
+    })
+
+    it('should list it as unavailable and keep the rest of the basket buyable', () => {
+      expect({ unavailable: review.unavailable.map(i => i.id), buyable: review.buyable.map(l => l.item.id) }).toEqual({
+        unavailable: ['x'],
+        buyable: ['y']
+      })
+    })
   })
 })

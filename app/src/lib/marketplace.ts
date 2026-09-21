@@ -1,5 +1,5 @@
 import { ChainId, type Trade } from '@dcl/schemas'
-import { ContractName, getContract, getContractName, getCouponManager } from 'decentraland-transactions'
+import { ContractName, getContract, getContractName, getCouponManager, type ContractData } from 'decentraland-transactions'
 
 /**
  * Off-chain marketplace versions, newest first.
@@ -36,19 +36,35 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
 }
 
 /**
- * The coupon manager the marketplace a trade names redeems through, lowercased, or null for a trade whose
- * marketplace the registry does not know, or does not deploy at that address on the trade's chain.
+ * The registry entry of the marketplace a trade names, or null when that address is not a marketplace version
+ * deployed on the trade's chain.
+ *
+ * Every settlement rail resolves the marketplace from the address's version name on the trade's chain, so a
+ * trade whose pair does not hold would be sent to a contract that never signed it, and revert. getContractName
+ * knows addresses, not chains: the same V2 address is deployed on three chains, and a V3 address paired with
+ * another chain's id names that chain's deployment instead of failing.
+ */
+export function getMarketplaceForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): ContractData | null {
+  try {
+    const marketplace = getContract(getContractName(trade.contract), trade.chainId)
+    return marketplace.address.toLowerCase() === trade.contract.toLowerCase() ? marketplace : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The coupon manager the marketplace a trade names redeems through, lowercased, or null when the trade names no
+ * marketplace deployed on its chain, or one without a manager there.
  *
  * Each marketplace version trusts only its own manager, and a trade settles on the version it was signed
  * against, so this is the one manager a coupon must have been signed against to discount the trade.
  */
 export function getCouponManagerForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): string | null {
+  const marketplace = getMarketplaceForTrade(trade)
+  if (!marketplace) return null
   try {
-    const name = getContractName(trade.contract)
-    // getContractName knows addresses, not chains: it would name a version for an address deployed on some
-    // other chain, and that version's manager on THIS chain would then vouch for a trade that settles elsewhere.
-    if (getContract(name, trade.chainId).address.toLowerCase() !== trade.contract.toLowerCase()) return null
-    return getCouponManager(name, trade.chainId).address.toLowerCase()
+    return getCouponManager(getContractName(marketplace.address), trade.chainId).address.toLowerCase()
   } catch {
     return null
   }
