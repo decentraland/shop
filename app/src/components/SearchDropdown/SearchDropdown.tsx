@@ -1,6 +1,6 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { fetchShopItems, type CatalogItem } from '~/lib/api'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import type { CatalogItem } from '~/lib/api'
+import { fetchCatalogItems } from '~/lib/collections'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
 import { useProfile } from '~/hooks/useProfile'
@@ -60,9 +60,11 @@ type SearchDropdownProps = {
 // The autocomplete panel anchored under the NavBar search input. Two modes:
 // - empty query  → recent searches (from localStorage, via the parent)
 // - typed query  → live matches in three sections: Creators, Collections, and Items.
-//   Items come from the SAME feed and filter set the /items grid lands on (fetchShopItems →
-//   /v3/catalog/unified?groupBy=item, on-sale, resales per the flag) so a suggestion is never
-//   something the results page then hides, and "See all (N)" counts what the grid will render.
+//   Items come from the SAME feed and filter set the /items grid lands on (fetchCatalogItems →
+//   /v3/catalog/items, the whole catalogue, ranked by relevance — see defaultStatusFor and defaultSortFor
+//   in pages/Assets) so a suggestion is never something the results page then hides, and "See all (N)"
+//   is the number the grid then shows. It used to read the on-sale feed while the grid opened on All:
+//   "pirate hat" offered 188 results and landed on 542.
 //   Collections come from /v1/collections?search=, and Creators are derived from those collections'
 //   authors (see lib/search). The grid stays items-only — only the dropdown surfaces
 //   creators/collections as jump-to links.
@@ -80,14 +82,10 @@ export function SearchDropdown({
   const enabled = query.length >= MIN_QUERY_LEN
   // Read once so both render paths decide off the same value, as NavBar does (the module memoises it anyway).
   const iap = isIapMode()
-  const secondarySales = useSecondarySales()
-  // Mirror the default state of the grid this dropdown links into (see pages/Assets.tsx): on-sale
-  // only, resales hidden unless the flag says otherwise, no category constraint.
-  const listingType = secondarySales ? undefined : ('primary' as const)
 
   const { data: itemData, isFetching: itemsFetching } = useQuery({
-    queryKey: ['search-suggest', query, listingType],
-    queryFn: () => fetchShopItems({ search: query, first: SUGGEST_COUNT, onSale: true, listingType }),
+    queryKey: ['search-suggest', query],
+    queryFn: () => fetchCatalogItems({ search: query, first: SUGGEST_COUNT, sortBy: 'relevance' }),
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,

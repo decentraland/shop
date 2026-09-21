@@ -724,6 +724,7 @@
     "continueShopping": "Seguir comprando"
   },
   "filterBar": {
+    "sortRelevance": "Relevancia",
     "sortNewest": "Más recientes",
     "sortCheapest": "Más baratos",
     "sortMostExpensive": "Más caros",

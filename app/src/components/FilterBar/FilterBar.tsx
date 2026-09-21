@@ -17,8 +17,9 @@ import { theme } from '~/styles/theme'
 // Rarity order + colors follow the Figma "Rarities/*" tokens (see styles/theme.ts `rarities`).
 export const RARITIES = ['common', 'uncommon', 'epic', 'rare', 'legendary', 'exotic', 'mythic', 'unique']
 
-// Labels match the Figma sort menu (node 1059-160222). The server supports newest/cheapest/
-// most_expensive/name — there is no dedicated "recently listed" sort, so "Newest" covers it.
+// Labels match the Figma sort menu. The server supports newest/cheapest/most_expensive/name (plus
+// discount and relevance, offered only where they mean something) — there is no dedicated "recently
+// listed" sort, so "Newest" covers it.
 // `label` holds an i18n key (translated at render — see the Dropdown below) so the menu follows the
 // active locale; consumers only read `.key`/`.server`.
 export const SORTS: { key: string; label: string; server: ShopSort }[] = [
@@ -27,6 +28,16 @@ export const SORTS: { key: string; label: string; server: ShopSort }[] = [
   { key: 'price-desc', label: 'filterBar.sortMostExpensive', server: 'most_expensive' },
   { key: 'name', label: 'filterBar.sortName', server: 'name' }
 ]
+
+/**
+ * The relevance sort, offered only while a query runs and listed first, since it is what a search opens
+ * on. Without a query every row would tie, so it is not part of SORTS.
+ */
+export const RELEVANCE_SORT: { key: string; label: string; server: ShopSort } = {
+  key: 'relevance',
+  label: 'filterBar.sortRelevance',
+  server: 'relevance'
+}
 
 /**
  * The sort menu while the Deals filter is on, biggest discount first.
