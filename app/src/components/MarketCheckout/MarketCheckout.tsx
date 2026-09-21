@@ -16,6 +16,7 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { getMarketplaceForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
 import { isRejection } from '~/lib/errors'
@@ -154,6 +155,10 @@ export function MarketCheckout({
       try {
         const trade = await fetchTrade(listing.tradeId)
         if (!trade) throw new Error('not found')
+        // Same gate the cart's review applies: the rails settle a trade on the marketplace its address
+        // names on its own chain, so a pair the registry does not deploy has nowhere to settle. Reads as
+        // sold or removed, before anything is quoted or reserved.
+        if (!getMarketplaceForTrade(trade)) throw new Error('not found')
         if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
         const usdCents = manaWeiToUsdCents(listing.manaWei, rate)
         // Guard against a malformed manaWei / bad rate sizing a $0 authorize (manaWeiToUsdCents

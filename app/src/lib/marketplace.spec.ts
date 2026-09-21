@@ -12,7 +12,9 @@ vi.mock('decentraland-transactions', () => ({
   getContract: (name: string, chainId: number) => {
     const deployments: Record<string, number[]> = {
       OffChainMarketplaceV2: [1, 11155111, CHAIN_WITHOUT_V3],
-      OffChainMarketplaceV3: [1, 11155111]
+      OffChainMarketplaceV3: [1, 11155111],
+      // Stands in for every registry entry that is not a marketplace: a real address the lookup answers for.
+      CreditsManager: [1, 11155111, CHAIN_WITHOUT_V3]
     }
     if (!deployments[name]?.includes(chainId)) {
       throw new Error(`Could not get a valid contract for ${name} using chain ${chainId}`)
@@ -23,7 +25,8 @@ vi.mock('decentraland-transactions', () => ({
   getContractName: (address: string) => {
     const names: Record<string, string> = {
       '0xoffchainmarketplacev2': 'OffChainMarketplaceV2',
-      '0xoffchainmarketplacev3': 'OffChainMarketplaceV3'
+      '0xoffchainmarketplacev3': 'OffChainMarketplaceV3',
+      '0xcreditsmanager': 'CreditsManager'
     }
     const name = names[address.toLowerCase()]
     if (!name) throw new Error(`Could not get a valid contract name for address ${address}`)
@@ -155,5 +158,27 @@ describe('when resolving the marketplace a trade names', () => {
     it('should return null', () => {
       expect(result).toBeNull()
     })
+  })
+
+  describe('and the address is a Decentraland contract that is not a marketplace', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xCreditsManager', chainId: 11155111 })
+    })
+
+    it('should return null, since the registry answering for an address does not make it a marketplace', () => {
+      expect(result).toBeNull()
+    })
+  })
+})
+
+describe('when resolving the coupon manager of a trade on a contract that is not a marketplace', () => {
+  let result: string | null
+
+  beforeEach(() => {
+    result = getCouponManagerForTrade({ contract: '0xCreditsManager', chainId: 11155111 })
+  })
+
+  it('should return null rather than a manager for a contract that redeems nothing', () => {
+    expect(result).toBeNull()
   })
 })

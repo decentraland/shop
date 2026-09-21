@@ -46,7 +46,12 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
  */
 export function getMarketplaceForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): ContractData | null {
   try {
-    const marketplace = getContract(getContractName(trade.contract), trade.chainId)
+    const name = getContractName(trade.contract)
+    // getContractName answers for the WHOLE registry, so an address that is some other Decentraland
+    // contract resolves happily. Most would fail later encoding `accept`, but V1 shares V2's ABI and would
+    // build a real transaction against a marketplace this app does not support.
+    if (!OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES.includes(name)) return null
+    const marketplace = getContract(name, trade.chainId)
     return marketplace.address.toLowerCase() === trade.contract.toLowerCase() ? marketplace : null
   } catch {
     return null
@@ -64,6 +69,7 @@ export function getCouponManagerForTrade(trade: Pick<Trade, 'contract' | 'chainI
   const marketplace = getMarketplaceForTrade(trade)
   if (!marketplace) return null
   try {
+    // By name, not `marketplace.name`: that field is the EIP-712 domain name, not a ContractName.
     return getCouponManager(getContractName(marketplace.address), trade.chainId).address.toLowerCase()
   } catch {
     return null

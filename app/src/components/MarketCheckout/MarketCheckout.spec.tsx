@@ -109,6 +109,11 @@ const listing = {
 
 const rate: ManaRate = { rate: 26960836n, decimals: 8 }
 
+/** The real Amoy V2 marketplace, the one the listing's chain deploys. */
+const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+/** A real marketplace, but Polygon mainnet's: valid nowhere for a listing on Amoy. */
+const MARKETPLACE_V3_POLYGON = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+
 function renderModal() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -128,7 +133,9 @@ function priceMatcher(expected: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  fetchTrade.mockResolvedValue({ signer: '0xseller' })
+  // Named on the real Amoy V2 marketplace, matching the listing's chain: the modal refuses a trade whose
+  // marketplace the registry does not deploy on its chain, since the rails would have nowhere to settle it.
+  fetchTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V2_AMOY, chainId: 80002 })
   // ECHOES the requested price, rounded up to a whole credit — exactly what the credits-server does
   // (`Math.ceil(rawPrice / 10) * 10`). A fixed number would silently disagree with the quote this modal
   // showed, which is a real condition it now refuses to charge through.
@@ -673,5 +680,27 @@ describe('when the modal goes away mid-purchase', () => {
     unmount()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+})
+
+describe('when the trade names a marketplace that is not deployed on its chain', () => {
+  beforeEach(() => {
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    fetchTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V3_POLYGON, chainId: 80002 })
+    renderModal()
+  })
+
+  it('should read as sold or removed, since no marketplace could settle it', async () => {
+    expect(await screen.findByText(/sold|no longer/i)).toBeInTheDocument()
+  })
+
+  it('should reserve no credit for it', async () => {
+    await screen.findByText(/sold|no longer/i)
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should never reach the buy rails', async () => {
+    await screen.findByText(/sold|no longer/i)
+    expect(buyWithCredits).not.toHaveBeenCalled()
   })
 })
