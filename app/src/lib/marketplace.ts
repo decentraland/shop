@@ -1,5 +1,5 @@
-import { ChainId } from '@dcl/schemas'
-import { ContractName, getContract } from 'decentraland-transactions'
+import { ChainId, type Trade } from '@dcl/schemas'
+import { ContractName, getContract, getContractName, getCouponManager } from 'decentraland-transactions'
 
 /**
  * Off-chain marketplace versions, newest first.
@@ -33,4 +33,19 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
     }
   }
   throw new Error(`No off-chain marketplace contract exists on chain ${chainId}`)
+}
+
+/**
+ * The coupon manager the marketplace a trade names redeems through, lowercased, or null for a trade whose
+ * marketplace the registry does not know.
+ *
+ * Each marketplace version trusts only its own manager, and a trade settles on the version it was signed
+ * against, so this is the one manager a coupon must have been signed against to discount the trade.
+ */
+export function getCouponManagerForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): string | null {
+  try {
+    return getCouponManager(getContractName(trade.contract), trade.chainId).address.toLowerCase()
+  } catch {
+    return null
+  }
 }

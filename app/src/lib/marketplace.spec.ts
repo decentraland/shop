@@ -18,10 +18,27 @@ vi.mock('decentraland-transactions', () => ({
       throw new Error(`Could not get a valid contract for ${name} using chain ${chainId}`)
     }
     return { address: `0x${name.toLowerCase()}`, name, version: '1.0.0', abi: [] }
-  }
+  },
+  // Mirrors the real one: the address is the only input and an unknown one THROWS.
+  getContractName: (address: string) => {
+    const names: Record<string, string> = {
+      '0xoffchainmarketplacev2': 'OffChainMarketplaceV2',
+      '0xoffchainmarketplacev3': 'OffChainMarketplaceV3'
+    }
+    const name = names[address.toLowerCase()]
+    if (!name) throw new Error(`Could not get a valid contract name for address ${address}`)
+    return name
+  },
+  // One manager per marketplace version, as the real registry pairs them.
+  getCouponManager: (marketplace: string, chainId: number) => ({
+    address: `0xManagerOf${marketplace}On${chainId}`,
+    name: 'CouponManager',
+    version: '1.0.0',
+    abi: []
+  })
 }))
 
-const { getLatestOffChainMarketplaceContract } = await import('./marketplace')
+const { getCouponManagerForTrade, getLatestOffChainMarketplaceContract } = await import('./marketplace')
 
 describe('when getting the latest off-chain marketplace contract', () => {
   describe('and the chain has a V3 deployment', () => {
@@ -59,6 +76,40 @@ describe('when getting the latest off-chain marketplace contract', () => {
       expect(() => getLatestOffChainMarketplaceContract(chainId)).toThrowError(
         'No off-chain marketplace contract exists on chain 42161'
       )
+    })
+  })
+})
+
+describe('when resolving the coupon manager a trade settles through', () => {
+  let result: string | null
+
+  describe('and the trade names the newest marketplace version', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV3', chainId: 11155111 })
+    })
+
+    it('should return that version\'s manager on the trade\'s chain, lowercased', () => {
+      expect(result).toBe('0xmanagerofoffchainmarketplacev3on11155111')
+    })
+  })
+
+  describe('and the trade names the previous marketplace version', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV2', chainId: 11155111 })
+    })
+
+    it('should return the previous version\'s manager rather than the newest one', () => {
+      expect(result).toBe('0xmanagerofoffchainmarketplacev2on11155111')
+    })
+  })
+
+  describe('and the trade names a contract the registry does not know', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0x0000000000000000000000000000000000000001', chainId: 11155111 })
+    })
+
+    it('should return null instead of throwing into the checkout review', () => {
+      expect(result).toBeNull()
     })
   })
 })

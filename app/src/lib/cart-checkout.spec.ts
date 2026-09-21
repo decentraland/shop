@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
+import type { ListingCoupon } from '~/lib/trade-encoding'
 import {
   reviewCart,
   resolveLine,
@@ -833,11 +834,18 @@ describe('when preparing a checkout for authorization', () => {
   })
 })
 
+// Polygon mainnet: the V3 marketplace, the manager it redeems coupons through, and the V2 marketplace still
+// settling the listings signed before it. Real addresses, because the guard reads the contract registry.
+const MARKETPLACE_V3 = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+const MARKETPLACE_V2 = '0xa40b1d129b8906888720686f3a01921ddf37716f'
+const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
+const POLYGON = 137
+
 const coupon = (discountPpm: number) =>
   ({
     id: 'coupon-1',
     signer: '0xseller',
-    couponManager: '0xmanager',
+    couponManager: COUPON_MANAGER_V3,
     couponAddress: '0xcoupon',
     checks: {
       uses: 10,
@@ -890,10 +898,12 @@ describe('when pricing a line that a creator put on sale', () => {
   })
 })
 
-/** A PRIMARY listing: the only kind the coupon contract will discount. */
-const primaryTrade = (dollars: number, signer = '0xseller'): Trade =>
+/** A PRIMARY listing on the V3 marketplace: the only kind the coupon contract will discount. */
+const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLACE_V3): Trade =>
   ({
     signer,
+    contract,
+    chainId: POLYGON,
     sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xcollection', value: '0' }],
     received: [
       {
@@ -935,6 +945,30 @@ describe('when deciding whether a coupon can settle a trade', () => {
   describe('and the listing is not a primary sale', () => {
     it('should drop it, because the coupon reverts on anything but a collection item', () => {
       expect(couponForTrade(coupon(300_000), trade(10))).toBeUndefined()
+    })
+  })
+
+  describe('and the listing settles on a marketplace version other than the one the coupon was signed for', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      result = couponForTrade(coupon(300_000), primaryTrade(10, '0xseller', MARKETPLACE_V2))
+    })
+
+    it('should drop it, because that marketplace verifies coupons against its own manager and would revert', () => {
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('and the listing names a marketplace the contract registry does not know', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      result = couponForTrade(coupon(300_000), primaryTrade(10, '0xseller', '0x0000000000000000000000000000000000000001'))
+    })
+
+    it('should drop it rather than guess which manager could redeem it', () => {
+      expect(result).toBeUndefined()
     })
   })
 })

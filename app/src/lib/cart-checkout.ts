@@ -2,6 +2,7 @@ import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
+import { getCouponManagerForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 // Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
 // lib/buy-mana owns the vocabulary for that.
@@ -351,6 +352,9 @@ export function discountedUsdCents(listCents: number, coupon?: ListingCoupon): n
  *  - inside its window, since the contract rejects one that has expired or has not become effective
  *  - only COLLECTION_ITEM assets, since the coupon reverts on anything else — a secondary listing that
  *    somehow carried one would burn the buyer's gas
+ *  - signed against the manager of the marketplace THIS trade settles on: each version only redeems coupons
+ *    signed against its own manager, so a coupon from another version's manager fails signature verification
+ *    inside `applyCoupon` and reverts the purchase
  */
 export function couponForTrade(
   coupon: ListingCoupon | undefined,
@@ -360,6 +364,8 @@ export function couponForTrade(
   if (!coupon || coupon.discountType !== RATE_DISCOUNT) return undefined
   if (coupon.discount <= 0 || coupon.discount >= PPM) return undefined
   if (Number(coupon.checks.expiration) <= now || Number(coupon.checks.effective) > now) return undefined
+  const manager = getCouponManagerForTrade(trade)
+  if (manager === null || coupon.couponManager.toLowerCase() !== manager) return undefined
   // `?? []` because a malformed trade must fail closed here, not throw out of the review and take the
   // whole basket with it.
   const sent = trade.sent ?? []
