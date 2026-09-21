@@ -28,6 +28,11 @@ vi.mock('~/lib/network', () => ({ requireChain: async () => undefined }))
 const COLLECTIONS = ['0x4c09495cd2d4e3d3fa2808eb655d013de426157b', '0xb0d0d31910da4a14d4e05a9d51b6e9a99a85d676']
 const DAY = 24 * 60 * 60 * 1000
 
+// Polygon mainnet: the manager each live marketplace version redeems through, and the one discount coupon they share.
+const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
+const COUPON_MANAGER_V2 = '0x3fd3056ee72a2a85e9392fab3a450e7736536081'
+const COLLECTION_DISCOUNT_COUPON = '0xc914507fe297b2dddd1232ac3a8903f1c125e794'
+
 describe('collectionsRoot', () => {
   it('hashes a single collection the way the contract does: keccak256 of keccak256(abi.encode(address))', () => {
     const [collection] = COLLECTIONS
@@ -47,25 +52,48 @@ describe('collectionsRoot', () => {
   })
 })
 
-describe('getCouponContracts', () => {
+describe('when resolving the coupon contracts a new sale signs against', () => {
+  let contracts: CouponContracts | null
+
   // Two managers are live on Polygon mainnet, one per marketplace version, and a coupon only redeems on
   // the marketplace wired to the one that signed it. The version the shop lists on is V3, so its manager
-  // is the only one whose coupons apply to those listings; the older manager is 0x3fd3056e…6081.
-  it('returns the manager of the marketplace the shop lists on, not the chain', () => {
-    const contracts = getCouponContracts(ChainId.MATIC_MAINNET)
-    expect(contracts?.couponManager.address).toBe('0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813')
-    expect(contracts?.collectionDiscountCoupon).toBe('0xc914507fe297b2dddd1232ac3a8903f1c125e794')
-    expect(Array.isArray(contracts?.couponManager.abi)).toBe(true)
+  // is the only one whose coupons apply to those listings; the older manager is COUPON_MANAGER_V2.
+  describe('and the chain is Polygon mainnet', () => {
+    beforeEach(() => {
+      contracts = getCouponContracts(ChainId.MATIC_MAINNET)
+    })
+
+    it('should return the manager of the marketplace the shop lists on, not the chain', () => {
+      expect(contracts?.couponManager.address).toBe(COUPON_MANAGER_V3)
+    })
+
+    it("should return the chain's discount coupon", () => {
+      expect(contracts?.collectionDiscountCoupon).toBe(COLLECTION_DISCOUNT_COUPON)
+    })
+
+    it('should carry the manager ABI, which ending a sale sends a transaction through', () => {
+      expect(Array.isArray(contracts?.couponManager.abi)).toBe(true)
+    })
   })
 
-  it('returns the Amoy pair from the library', () => {
-    expect(getCouponContracts(ChainId.MATIC_AMOY)?.couponManager.address).toBe(
-      '0x6c956587d9fe70032781edcdc626310648575382'
-    )
+  describe('and the chain is Amoy', () => {
+    beforeEach(() => {
+      contracts = getCouponContracts(ChainId.MATIC_AMOY)
+    })
+
+    it("should return that chain's pair from the library", () => {
+      expect(contracts?.couponManager.address).toBe('0x6c956587d9fe70032781edcdc626310648575382')
+    })
   })
 
-  it('has nothing for a chain without collections', () => {
-    expect(getCouponContracts(ChainId.ETHEREUM_MAINNET)).toBeNull()
+  describe('and the chain has no collections', () => {
+    beforeEach(() => {
+      contracts = getCouponContracts(ChainId.ETHEREUM_MAINNET)
+    })
+
+    it('should return nothing', () => {
+      expect(contracts).toBeNull()
+    })
   })
 })
 
@@ -197,11 +225,6 @@ describe('liveSaleStatus', () => {
   })
 })
 
-// Polygon mainnet: the manager each live marketplace version redeems through, and the one discount coupon they share.
-const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
-const COUPON_MANAGER_V2 = '0x3fd3056ee72a2a85e9392fab3a450e7736536081'
-const COLLECTION_DISCOUNT_COUPON = '0xc914507fe297b2dddd1232ac3a8903f1c125e794'
-
 describe('when finding the coupon deployment a sale was signed against', () => {
   let contracts: CouponContracts | null
 
@@ -210,7 +233,7 @@ describe('when finding the coupon deployment a sale was signed against', () => {
       contracts = findCouponContracts(ChainId.MATIC_MAINNET, COUPON_MANAGER_V3)
     })
 
-    it('should return it together with the chain\'s discount coupon', () => {
+    it("should return it together with the chain's discount coupon", () => {
       expect({ manager: contracts?.couponManager.address, coupon: contracts?.collectionDiscountCoupon }).toEqual({
         manager: COUPON_MANAGER_V3,
         coupon: COLLECTION_DISCOUNT_COUPON
@@ -291,7 +314,7 @@ describe('when ending a sale', () => {
     vi.clearAllMocks()
   })
 
-  describe('and the sale was signed against the previous version\'s manager', () => {
+  describe("and the sale was signed against the previous version's manager", () => {
     let result: string
 
     beforeEach(async () => {
@@ -308,7 +331,7 @@ describe('when ending a sale', () => {
     })
   })
 
-  describe('and the sale was signed against the current version\'s manager', () => {
+  describe("and the sale was signed against the current version's manager", () => {
     beforeEach(async () => {
       await endSale({ sale, signer }, { connect })
     })
@@ -319,15 +342,21 @@ describe('when ending a sale', () => {
   })
 
   describe('and the sale names a manager this build does not know on its chain', () => {
-    let attempt: Promise<string>
+    let error: Error | undefined
 
-    beforeEach(() => {
+    beforeEach(async () => {
       sale.couponManager = '0x0000000000000000000000000000000000000001'
-      attempt = endSale({ sale, signer }, { connect })
+      error = await endSale({ sale, signer }, { connect }).then(
+        () => undefined,
+        (e: Error) => e
+      )
     })
 
-    it('should refuse before connecting to anything', async () => {
-      await expect(attempt).rejects.toThrow('is not one this build knows on chain 137')
+    it('should refuse with an error naming the chain', () => {
+      expect(error?.message).toContain('is not one this build knows on chain 137')
+    })
+
+    it('should not connect to any manager', () => {
       expect(connect).not.toHaveBeenCalled()
     })
   })
