@@ -166,7 +166,8 @@ describe('SearchDropdown failures', () => {
   it('should report no results only for an answer that came back empty', async () => {
     renderDropdown('zzz')
 
-    expect(await screen.findByText(/No results/)).toBeInTheDocument()
+    // once in the panel and once in the live region that reads it out
+    expect(await screen.findAllByText(/No results/)).not.toHaveLength(0)
     expect(screen.queryByTestId('search-error')).not.toBeInTheDocument()
   })
 
@@ -240,7 +241,8 @@ describe('SearchDropdown pricing', () => {
 
     renderDropdown('galaxy')
 
-    expect(await screen.findByText('Galaxy Hat')).toBeInTheDocument()
+    // The name is split into marked and plain segments, so it is found by its title rather than its text.
+    expect(await screen.findByTitle('Galaxy Hat')).toBeInTheDocument()
     // the number the row still carries must not reach the DOM
     expect(screen.queryByText('270')).not.toBeInTheDocument()
   })

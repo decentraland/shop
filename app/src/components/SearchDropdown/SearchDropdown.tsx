@@ -1,7 +1,10 @@
+import { useEffect, useMemo } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { Icon } from '~/components/Icon'
 import { fetchSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
+import { highlightMatches } from '~/lib/highlight'
+import { SUGGESTIONS_LISTBOX_ID, suggestionRowId, type SuggestionRow } from '~/lib/suggestionNavigation'
 import { isIapMode } from '~/lib/iap'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
@@ -16,6 +19,17 @@ function shortAddress(addr: string): string {
 // unnamed creator shows as a short address.
 function CreatorName({ address, name }: { address: string; name: string | null }) {
   return <S.Sub>{t('search.byCreator', { name: name || shortAddress(address) })}</S.Sub>
+}
+
+// A row's name with the word prefixes the query matched marked up, so the reader sees why the row is there.
+function Highlighted({ text, query }: { text: string; query: string }) {
+  return (
+    <>
+      {highlightMatches(text, query).map((segment, index) =>
+        segment.match ? <mark key={index}>{segment.text}</mark> : <span key={index}>{segment.text}</span>
+      )}
+    </>
+  )
 }
 
 // The collection suggestion row's thumbnail is the shared mosaic (CollectionThumb) sized as a small
@@ -42,6 +56,10 @@ type SearchDropdownProps = {
   // The (debounced) query the dropdown should reflect. Empty string → show recent searches instead.
   query: string
   recent: string[]
+  // The row the keyboard has moved to (see lib/suggestionNavigation), by DOM id; null when none.
+  activeId?: string | null
+  // Every row currently shown, in visual order, so the parent can drive the keyboard over them.
+  onRows?: (rows: SuggestionRow[]) => void
   // Item chosen from the suggestions → open its detail page.
   onSelectItem: (item: CatalogItem) => void
   // Collection / creator chosen → open its storefront page.
@@ -66,10 +84,13 @@ type SearchDropdownProps = {
 //   dropdown surfaces creators/collections as jump-to links.
 // One request also means one failure: when it fails, the panel says so and offers to try again, and
 // never reads as "no results" — that is reserved for an answer that came back empty.
-// Keyboard nav is limited to Escape/Enter, owned by the parent NavBar.
+// It is the listbox of the search box's combobox: the input (in NavBar) owns focus and the keys, this
+// renders every row as an option with a stable id and reports the rows back, in order, for the arrows.
 export function SearchDropdown({
   query,
   recent,
+  activeId = null,
+  onRows,
   onSelectItem,
   onSelectCollection,
   onSelectCreator,
@@ -103,11 +124,67 @@ export function SearchDropdown({
   const collections = enabled ? (suggestions?.collections ?? []) : []
   const creators = enabled ? (suggestions?.creators ?? []) : []
   const total = suggestions?.total ?? 0
+  const showingRecent = !enabled
 
-  if (!enabled) {
+  const rows = useMemo<SuggestionRow[]>(() => {
+    if (showingRecent) {
+      return recent.map(term => ({
+        id: suggestionRowId('recent', term),
+        kind: 'recent',
+        activate: () => onRunSearch(term)
+      }))
+    }
+    const list: SuggestionRow[] = [
+      ...items.map(item => ({
+        id: suggestionRowId('item', item.id),
+        kind: 'item' as const,
+        activate: () => onSelectItem(item)
+      })),
+      ...collections.map(collection => ({
+        id: suggestionRowId('collection', collection.contractAddress),
+        kind: 'collection' as const,
+        activate: () => onSelectCollection(collection)
+      })),
+      ...creators.map(creator => ({
+        id: suggestionRowId('creator', creator.address),
+        kind: 'creator' as const,
+        activate: () => onSelectCreator(creator)
+      }))
+    ]
+    if (total > 0)
+      list.push({ id: suggestionRowId('see-all', query), kind: 'see-all', activate: () => onRunSearch(query) })
+    return list
+    // The handlers are stable enough for a listbox; re-deriving on every parent render would reset the
+    // keyboard position on each keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showingRecent, recent, items, collections, creators, total, query])
+
+  useEffect(() => {
+    onRows?.(rows)
+  }, [rows, onRows])
+
+  // The keyboard moved: keep the active row in view inside the scrolling panel.
+  useEffect(() => {
+    if (activeId) document.getElementById(activeId)?.scrollIntoView({ block: 'nearest' })
+  }, [activeId])
+
+  const option = (id: string) => ({
+    id,
+    role: 'option' as const,
+    'aria-selected': activeId === id,
+    'data-active': activeId === id || undefined
+  })
+
+  if (showingRecent) {
     if (recent.length === 0) return null
     return (
-      <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+      <S.Pop
+        id={SUGGESTIONS_LISTBOX_ID}
+        data-iap={iap || undefined}
+        data-testid="search-pop"
+        role="listbox"
+        aria-label={t('search.suggestions')}
+      >
         <S.SectionHead>
           <span>{t('search.recent')}</span>
           <S.Clear type="button" onClick={onClearRecent}>
@@ -117,7 +194,7 @@ export function SearchDropdown({
         <S.List>
           {recent.map(term => (
             <S.Recent key={term}>
-              <S.RecentBtn type="button" onClick={() => onRunSearch(term)}>
+              <S.RecentBtn type="button" {...option(suggestionRowId('recent', term))} onClick={() => onRunSearch(term)}>
                 <Icon name="search" size={16} color={theme.colors.muted} />
                 <S.RecentText>{term}</S.RecentText>
               </S.RecentBtn>
@@ -136,9 +213,26 @@ export function SearchDropdown({
   }
 
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
+  const count = items.length + collections.length + creators.length
 
   return (
-    <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+    <S.Pop
+      id={SUGGESTIONS_LISTBOX_ID}
+      data-iap={iap || undefined}
+      data-testid="search-pop"
+      role="listbox"
+      aria-label={t('search.suggestions')}
+    >
+      {/* Read out once per answer, not per keystroke: the query is already debounced. */}
+      <S.Live aria-live="polite" data-testid="search-live">
+        {isError
+          ? t('search.error')
+          : nothing
+            ? itemsFetching
+              ? ''
+              : t('search.noResults', { query })
+            : t('search.suggestionCount', { count })}
+      </S.Live>
       {isError ? (
         <S.Empty data-testid="search-error">
           {t('search.error')}{' '}
@@ -163,11 +257,14 @@ export function SearchDropdown({
                         type="button"
                         data-testid="search-pop-row"
                         data-kind="item"
+                        {...option(suggestionRowId('item', item.id))}
                         onClick={() => onSelectItem(item)}
                       >
                         <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
                         <S.Text>
-                          <S.Name title={item.name}>{item.name}</S.Name>
+                          <S.Name title={item.name}>
+                            <Highlighted text={item.name} query={query} />
+                          </S.Name>
                           {item.creator ? <CreatorName address={item.creator} name={item.creatorName} /> : null}
                         </S.Text>
                       </S.Row>
@@ -190,11 +287,14 @@ export function SearchDropdown({
                       type="button"
                       data-testid="search-pop-row"
                       data-kind="collection"
+                      {...option(suggestionRowId('collection', collection.contractAddress))}
                       onClick={() => onSelectCollection(collection)}
                     >
                       <CollectionRowThumb contractAddress={collection.contractAddress} />
                       <S.Text>
-                        <S.Name title={collection.name}>{collection.name}</S.Name>
+                        <S.Name title={collection.name}>
+                          <Highlighted text={collection.name} query={query} />
+                        </S.Name>
                         {collection.creator ? (
                           <CreatorName address={collection.creator} name={collection.creatorName} />
                         ) : null}
@@ -218,11 +318,14 @@ export function SearchDropdown({
                       type="button"
                       data-testid="search-pop-row"
                       data-kind="creator"
+                      {...option(suggestionRowId('creator', creator.address))}
                       onClick={() => onSelectCreator(creator)}
                     >
                       <S.Thumb data-variant="round">{creator.face ? <img src={creator.face} alt="" /> : null}</S.Thumb>
                       <S.Text>
-                        <S.Name title={creator.name}>{creator.name}</S.Name>
+                        <S.Name title={creator.name}>
+                          <Highlighted text={creator.name} query={query} />
+                        </S.Name>
                       </S.Text>
                     </S.Row>
                   </li>
@@ -232,7 +335,12 @@ export function SearchDropdown({
           ) : null}
 
           {total > 0 ? (
-            <S.SeeAll type="button" data-testid="search-see-all" onClick={() => onRunSearch(query)}>
+            <S.SeeAll
+              type="button"
+              data-testid="search-see-all"
+              {...option(suggestionRowId('see-all', query))}
+              onClick={() => onRunSearch(query)}
+            >
               {t('search.seeAll', { count: total.toLocaleString() })}
             </S.SeeAll>
           ) : null}

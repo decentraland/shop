@@ -26,7 +26,7 @@ describe('search bar', () => {
     // "Galaxy Hat" doesn't match the query → not suggested.
     expect(
       await page.evaluate(() =>
-        document.querySelector('[data-testid="search-pop"]')!.textContent!.includes('Galaxy Hat')
+        document.querySelector('[data-testid="search-pop"]')!.textContent.includes('Galaxy Hat')
       )
     ).toBe(false)
   })
@@ -128,13 +128,93 @@ describe('search bar', () => {
     await page.waitForSelector('[data-testid="search-error"]', { timeout: 20000 })
     expect(
       await page.evaluate(() =>
-        document.querySelector('[data-testid="search-pop"]')!.textContent!.includes('No results')
+        document.querySelector('[data-testid="search-pop"]')!.textContent.includes('No results')
       )
     ).toBe(false)
 
     await page.click('[data-testid="search-retry"]')
     await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"]')
     await waitForText(page, 'Galaxy Hat')
+  })
+
+  it('is a combobox: the arrow keys move through every row and Enter opens the active one', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="creator"]')
+    expect(await page.$eval(SEARCH, el => el.getAttribute('role'))).toBe('combobox')
+    expect(await page.$eval(SEARCH, el => el.getAttribute('aria-expanded'))).toBe('true')
+
+    // End lands on the last row ("See all"), one step up is the creator: the active row is announced to
+    // the input and marked in the list.
+    await page.keyboard.press('End')
+    await page.keyboard.press('ArrowUp')
+    const activeId = await page.$eval(SEARCH, el => el.getAttribute('aria-activedescendant'))
+    expect(activeId).toMatch(/^search-row-creator-/)
+    expect(
+      await page.$eval('[data-testid="search-pop-row"][data-kind="creator"]', el => el.getAttribute('aria-selected'))
+    ).toBe('true')
+
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => /\/creator\//.test(location.pathname))
+  })
+
+  it('marks what the query matched in each suggestion', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Neb')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"] mark')
+
+    expect(await page.$eval('[data-testid="search-pop-row"][data-kind="item"] mark', el => el.textContent)).toBe('Neb')
+  })
+
+  it('closes the panel on Escape and keeps what was typed', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.keyboard.press('Escape')
+
+    await page.waitForFunction(() => !document.querySelector('[data-testid="search-pop"]'))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('Nebula')
+    expect(await page.$eval(SEARCH, el => el.getAttribute('aria-expanded'))).toBe('false')
+
+    // A second Escape, with nothing to put away, is the search field's own: it clears.
+    await page.keyboard.press('Escape')
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('')
+  })
+
+  it('clears the box without leaving the page it is on', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.click('[data-testid="subnav-search-clear"]')
+
+    await page.waitForFunction(() => !document.querySelector('[data-testid="search-pop"]'))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('')
+    expect(await page.evaluate(() => location.pathname)).toBe('/overview')
+    // and the box keeps the focus, ready for the next query
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Search the shop')
+  })
+
+  it('clears a search on the results page by dropping only the query from the URL', async () => {
+    app = await launchApp({ path: '/items?q=Nebula&status=not_for_sale' })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="subnav-search-clear"]')
+    await page.click('[data-testid="subnav-search-clear"]')
+
+    await page.waitForFunction(() => location.pathname === '/items' && !/q=/.test(location.search))
+    expect(await page.evaluate(() => location.search)).toBe('?status=not_for_sale')
   })
 
   it('runs a full search on Enter and lands on /items?q=', async () => {
@@ -178,7 +258,7 @@ describe('search bar', () => {
     // 8 of the 26 items matching "torso", the reported one among the missing.
     await page.waitForSelector('[data-testid="browse-sidebar"] input[type="radio"]')
     const opened = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
-      els.map(el => (el as HTMLInputElement).checked)
+      els.map(el => el.checked)
     )
     expect(opened).toEqual([true, false, false])
 
@@ -195,7 +275,7 @@ describe('search bar', () => {
 
     await page.waitForSelector('[data-testid="browse-empty"]')
     const checked = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
-      els.map(el => (el as HTMLInputElement).checked)
+      els.map(el => el.checked)
     )
     expect(checked).toEqual([false, false, true])
   })
@@ -286,7 +366,7 @@ describe('search bar', () => {
     const { page } = app
 
     await page.waitForSelector(SEARCH)
-    const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
+    const value = await page.$eval(SEARCH, el => el.value)
     expect(value).toBe('Nebula')
   })
 
@@ -298,7 +378,7 @@ describe('search bar', () => {
     await page.click('[data-testid="subnav-search-clear"]')
 
     await page.waitForFunction(() => location.pathname === '/items' && location.search === '')
-    const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
+    const value = await page.$eval(SEARCH, el => el.value)
     expect(value).toBe('')
   })
 

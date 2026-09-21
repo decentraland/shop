@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { Network } from '@dcl/schemas'
@@ -23,6 +23,8 @@ import { isIapMode } from '~/lib/iap'
 import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
+import { clearedSearchUrl } from '~/lib/searchClear'
+import { NO_ACTIVE_ROW, SUGGESTIONS_LISTBOX_ID, nextActiveIndex, type SuggestionRow } from '~/lib/suggestionNavigation'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
@@ -61,7 +63,7 @@ export function NavBar() {
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { pathname } = useLocation()
+  const { pathname, search: locationSearch } = useLocation()
   // The Collectibles tab covers the whole browse surface: the grid (/items), an item's detail page
   // (/item/* and /token/* — both render ItemDetail), a collection page (/collection/*) and a creator
   // page (/items/creator/*, already under /items). A NavLink to /items alone wouldn't light up on
@@ -104,6 +106,10 @@ export function NavBar() {
   const [debounced, setDebounced] = useState(urlQuery)
   const [open, setOpen] = useState(false)
   const [recent, setRecent] = useState<string[]>([])
+  // The dropdown's rows in visual order and which one the arrow keys are on (see lib/suggestionNavigation).
+  const [rows, setRows] = useState<SuggestionRow[]>([])
+  const [activeIndex, setActiveIndex] = useState(NO_ACTIVE_ROW)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   // The translucent band washes out over light content, so it deepens once the page scrolls.
   const [scrolled, setScrolled] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -146,8 +152,15 @@ export function NavBar() {
 
   function openDropdown() {
     setRecent(getRecentSearches())
+    setActiveIndex(NO_ACTIVE_ROW)
     setOpen(true)
   }
+
+  // A new list under the keyboard — a new answer, or recent searches instead of results — starts unpositioned.
+  const onRows = useCallback((next: SuggestionRow[]) => {
+    setRows(next)
+    setActiveIndex(NO_ACTIVE_ROW)
+  }, [])
 
   // Full search → land on /items filtered by the query (replace so we don't spam history), remember
   // it, close the panel.
@@ -202,15 +215,22 @@ export function NavBar() {
   function onSearchChange(value: string) {
     setQ(value)
     setOpen(true)
+    setActiveIndex(NO_ACTIVE_ROW)
     if (searchTimer.current) clearTimeout(searchTimer.current)
     searchTimer.current = setTimeout(() => setDebounced(value.trim()), 300)
   }
 
+  // Clearing is about the box: it empties it, closes the panel and hands focus back. Only on the results
+  // page does it also drop the query from the URL (keeping the other filters), because the grid is
+  // showing that query. It used to send everyone to /items, wherever they were.
   function clearSearch() {
     setQ('')
     setDebounced('')
     setOpen(false)
-    navigate('/items', { replace: true })
+    setActiveIndex(NO_ACTIVE_ROW)
+    searchInputRef.current?.focus()
+    const target = clearedSearchUrl(pathname, locationSearch)
+    if (target) navigate(target, { replace: true })
   }
 
   function removeRecent(term: string) {
@@ -224,14 +244,32 @@ export function NavBar() {
 
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') {
-      setOpen(false)
+      // With the panel open, Escape puts it away and keeps the text — a search field clears itself on
+      // Escape natively, so that has to be stopped here. With the panel already closed, the field's own
+      // Escape stands: the second press clears.
+      if (open) {
+        e.preventDefault()
+        setOpen(false)
+        setActiveIndex(NO_ACTIVE_ROW)
+      }
+      return
+    }
+    const moved = open ? nextActiveIndex(activeIndex, rows.length, e.key) : null
+    if (moved !== null) {
+      // The arrows move through the suggestions, never the caret through the text.
+      e.preventDefault()
+      setActiveIndex(moved)
       return
     }
     if (e.key === 'Enter') {
       if (searchTimer.current) clearTimeout(searchTimer.current)
-      runSearch(q)
+      const active = open ? rows[activeIndex] : undefined
+      if (active) active.activate()
+      else runSearch(q)
     }
   }
+
+  const activeRowId = open ? (rows[activeIndex]?.id ?? null) : null
 
   return (
     <>
@@ -322,6 +360,14 @@ export function NavBar() {
             <S.Search ref={wrapRef} data-iap={iap || undefined}>
               <Icon name="search" color={theme.colors.softWhite} />
               <input
+                ref={searchInputRef}
+                type="search"
+                enterKeyHint="search"
+                role="combobox"
+                aria-expanded={open}
+                aria-controls={SUGGESTIONS_LISTBOX_ID}
+                aria-autocomplete="list"
+                aria-activedescendant={activeRowId ?? undefined}
                 value={q}
                 aria-label={t('nav.searchAria')}
                 placeholder={
@@ -347,6 +393,8 @@ export function NavBar() {
                 <SearchDropdown
                   query={debounced}
                   recent={recent}
+                  activeId={activeRowId}
+                  onRows={onRows}
                   onSelectItem={onSelectItem}
                   onSelectCollection={onSelectCollection}
                   onSelectCreator={onSelectCreator}

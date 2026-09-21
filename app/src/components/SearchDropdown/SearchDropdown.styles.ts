@@ -6,6 +6,15 @@ const { colors, radius, media } = theme
 
 const hover = '#f5f4f7'
 
+// The keyboard's row looks like the hovered one, plus a ring: hover alone would leave a keyboard user with
+// no way to tell where they are once the pointer rests on another row.
+const active = `
+  &[data-active] {
+    background: ${hover};
+    box-shadow: inset 0 0 0 2px ${colors.accent};
+  }
+`
+
 // Anchored to the search box (NavBar's Search wrapper is position: relative), left-aligned under the
 // input. Three sections can stack tall, so the whole panel caps its height and scrolls as one.
 export const Pop = styled.div`
@@ -95,6 +104,7 @@ export const Row = styled.button`
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 // `data-variant`: round (creator avatar) / icon (neutral collection fallback tile).
@@ -150,6 +160,13 @@ export const Name = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  /* What the query matched: weight, not a highlighter, so the row's own colours stay as they are. */
+  & mark {
+    background: none;
+    color: inherit;
+    font-weight: 700;
+  }
 `
 
 export const Sub = styled.span`
@@ -193,6 +210,7 @@ export const SeeAll = styled.button`
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 export const Empty = styled.p`
@@ -226,12 +244,23 @@ export const RecentBtn = styled.button`
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 export const RecentText = styled.span`
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+// Visually hidden, read by screen readers: how many suggestions the last answer holds.
+export const Live = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 `
 

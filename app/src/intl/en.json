@@ -56,7 +56,8 @@
     "items": "Items",
     "byCreator": "By {name}",
     "error": "We couldn’t load suggestions.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "suggestionCount": "{count, plural, one {# suggestion} other {# suggestions}}"
   },
   "common": {
     "copy": "Copy",
