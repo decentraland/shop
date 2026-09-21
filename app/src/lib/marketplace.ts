@@ -13,7 +13,7 @@ import { ContractName, getContract } from 'decentraland-transactions'
  * which vendors the same order for the CLI. See that file for why the list cannot simply be imported;
  * app/src/lib/migrateListingsLockstep.spec.ts fails CI if they diverge.
  */
-const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
+export const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
 
 /**
  * The newest off-chain marketplace deployed on a chain.
