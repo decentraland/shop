@@ -9,8 +9,6 @@ import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useMyStoreAccess } from '~/hooks/useMyStoreEnabled'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSaleModal } from '~/components/CreatorSaleModal'
-import { SaleTag } from '~/components/SaleTag'
-import { SaleTimer } from '~/components/SaleTimer'
 import { CurrencyMark } from '~/components/CurrencyMark'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { Price } from '~/components/Price'
@@ -389,29 +387,12 @@ function CollectionRow({
               : ''}
           </S.CollMeta>
         </S.CollName>
-        {/* How much of the run has gone, not what sold in the window: a fraction of supply does not move
-            when the period selector does, and the trend beside it is what answers for the window. */}
-        <S.Claimed data-testid="store-collection-claimed">
-          {collection.claimed.toLocaleString()}
-          <small>/{collection.runTotal.toLocaleString()}</small>
-        </S.Claimed>
-        <S.SparkCell>
-          <Sparkline series={collection.trend} />
-        </S.SparkCell>
-        <S.Earned data-testid="store-collection-earned">
-          <CurrencyMark kind="mana" />
-          {mana(collection.earningsWei)}
-        </S.Earned>
         <S.DiscountCell data-testid="store-collection-discount">
           {discount ? (
             <>
               <S.DiscountTop>
-                {/* Wrapped rather than reached into: the tag pins itself to the start of a column so it
-                    hugs its content elsewhere, and a centred cell needs a flex item it owns. */}
-                <span>
-                  <SaleTag pct={discount.discount / 10_000} />
-                </span>
-                <SaleTimer until={discount.checks.expiration} />
+                <S.Pct pct={discount.discount / 10_000} />
+                <S.Window until={discount.checks.expiration} />
               </S.DiscountTop>
               <S.DiscountFoot>
                 {isSaleCapped(discount)
@@ -426,6 +407,19 @@ function CollectionRow({
             t('myStore.noDiscountShort')
           )}
         </S.DiscountCell>
+        {/* How much of the run has gone, not what sold in the window: a fraction of supply does not move
+            when the period selector does, and the trend further along is what answers for the window. */}
+        <S.Claimed data-testid="store-collection-claimed">
+          {collection.claimed.toLocaleString()}
+          <small>/{collection.runTotal.toLocaleString()}</small>
+        </S.Claimed>
+        <S.Earned data-testid="store-collection-earned">
+          <CurrencyMark kind="mana" />
+          {mana(collection.earningsWei)}
+        </S.Earned>
+        <S.SparkCell>
+          <Sparkline series={collection.trend} />
+        </S.SparkCell>
         <S.ManageBtn
           as="a"
           href={`${config.builderUrl}/collections/${collection.collectionId}`}
@@ -640,16 +634,32 @@ function StoreSkeleton() {
           <S.Bar style={{ width: 96, height: 14 }} />
           <S.Bar style={{ width: 120 }} />
         </S.PanelHead>
-        {Array.from({ length: COLLECTIONS_SHOWN }, (_, i) => (
-          <S.CollRow key={i}>
+        {/* Inside the same run the rows land in, with one bone per track: a skeleton that is a column short
+            snaps its cells sideways the moment the data arrives. */}
+        <S.List>
+          <S.ColHead aria-hidden>
             <span />
-            <S.Dot />
-            <S.Bar style={{ width: '58%', height: 14 }} />
-            <S.Bar />
-            <S.Bar style={{ height: 20 }} />
-            <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
-          </S.CollRow>
-        ))}
+            <span />
+            <S.Bar style={{ width: 84, height: 12 }} />
+            <S.Bar style={{ width: 74, height: 12 }} />
+            <S.Bar style={{ width: 62, height: 12 }} />
+            <S.Bar style={{ width: 68, height: 12 }} />
+            <S.Bar style={{ width: 82, height: 12 }} />
+            <S.Bar style={{ width: 60, height: 12 }} />
+          </S.ColHead>
+          {Array.from({ length: COLLECTIONS_SHOWN }, (_, i) => (
+            <S.CollRow key={i}>
+              <span />
+              <S.Dot />
+              <S.Bar style={{ width: '82%', height: 14 }} />
+              <S.Bar style={{ width: '70%', height: 20 }} />
+              <S.Bar style={{ width: 72 }} />
+              <S.Bar style={{ width: 76 }} />
+              <S.Bar style={{ height: 20 }} />
+              <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
+            </S.CollRow>
+          ))}
+        </S.List>
         {/* The list's own way out: a store past the first page keeps this row, and the panel keeps its
             height when the rows arrive. */}
         <S.More as="div">
@@ -1022,33 +1032,37 @@ export function MyStore() {
                   <S.Empty>{t('myStore.noCollections')}</S.Empty>
                 ) : (
                   <>
-                    <S.ColHead aria-hidden>
-                      <span />
-                      <span />
-                      <span>{t('myStore.colCollection')}</span>
-                      <span>{t('myStore.colClaimed')}</span>
-                      <span>{windowDays ? t('myStore.colTrend', { days: windowDays }) : t('myStore.colTrendAll')}</span>
-                      <span>{t('myStore.colEarnings')}</span>
-                      <span>{t('myStore.colDiscounts')}</span>
-                      <span>{t('myStore.colActions')}</span>
-                    </S.ColHead>
-                    {collectionsShown.map(collection => (
-                      <CollectionRow
-                        key={collection.contractAddress}
-                        collection={collection}
-                        discount={discountByCollection.get(collection.contractAddress) ?? null}
-                        savesByKey={savesByKey}
-                        env={env}
-                        open={open.has(collection.contractAddress)}
-                        onToggle={() =>
-                          setOpen(current => {
-                            const next = new Set(current)
-                            if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
-                            return next
-                          })
-                        }
-                      />
-                    ))}
+                    <S.List>
+                      <S.ColHead aria-hidden>
+                        <span />
+                        <span />
+                        <span>{t('myStore.colCollection')}</span>
+                        <span>{t('myStore.colDiscounts')}</span>
+                        <span>{t('myStore.colClaimed')}</span>
+                        <span>{t('myStore.colEarnings')}</span>
+                        <span>
+                          {windowDays ? t('myStore.colTrend', { days: windowDays }) : t('myStore.colTrendAll')}
+                        </span>
+                        <span>{t('myStore.colActions')}</span>
+                      </S.ColHead>
+                      {collectionsShown.map(collection => (
+                        <CollectionRow
+                          key={collection.contractAddress}
+                          collection={collection}
+                          discount={discountByCollection.get(collection.contractAddress) ?? null}
+                          savesByKey={savesByKey}
+                          env={env}
+                          open={open.has(collection.contractAddress)}
+                          onToggle={() =>
+                            setOpen(current => {
+                              const next = new Set(current)
+                              if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
+                              return next
+                            })
+                          }
+                        />
+                      ))}
+                    </S.List>
                   </>
                 )}
                 {stats.collections.length > 0 ? (

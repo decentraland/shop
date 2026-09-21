@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
 import { Dropdown } from '~/components/Dropdown'
 import { Icon } from '~/components/Icon'
+import { SaleTag } from '~/components/SaleTag'
+import { SaleTimer } from '~/components/SaleTimer'
 import { theme } from '~/styles/theme'
 
 // The seller's dashboard. White panels on the Shop's purple field, the same surface My Creations uses, so
@@ -272,11 +274,14 @@ export const Estimate = styled.span`
 `
 
 export const Panel = styled.section`
-  background: ${theme.colors.overlay};
-  border: 1px solid ${theme.colors.cardLine};
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: ${theme.colors.overlayLight};
   color: ${theme.colors.softWhite};
-  border-radius: ${theme.radius.card};
-  overflow: hidden;
+  border-radius: ${theme.radius.banner};
+  min-width: 0;
   /* The credits mark is pinned near-black globally (Icon.css) so a coloured total never tints it. That
      was chosen for a white card and disappears into this one. */
   .ccy-mark,
@@ -285,16 +290,11 @@ export const Panel = styled.section`
   }
 `
 
-export const PanelBody = styled.div`
-  padding: 0 18px 18px;
-`
-
 export const PanelHead = styled.div`
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px 12px;
 `
 
 export const PanelTitle = styled.h2`
@@ -328,12 +328,16 @@ export const Sort = styled(Dropdown)`
   /* Direct child only: the menu's options are buttons as well, and a descendant rule turned them white
      on the white menu, which is a menu you cannot read. */
   > button {
-    gap: 10px;
-    padding: 5px 6px 5px 11px;
+    gap: 24px;
+    height: 40px;
+    padding: 4px 4px 4px 12px;
     background: transparent;
-    border: 0.5px solid rgba(255, 255, 255, 0.5);
-    color: ${theme.colors.softWhite};
-    text-transform: none;
+    border: 0.5px solid ${theme.colors.white};
+    border-radius: ${theme.radius.btn};
+    color: ${theme.colors.white};
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
     letter-spacing: 0;
   }
   > button:hover {
@@ -357,11 +361,11 @@ export const PanelHint = styled.span`
 /**
  * The row's tracks, shared by the column header so the two cannot drift apart.
  *
- * The name used to take every spare pixel, which spent 440px writing "Cute Beans" while the chart beside
- * it was squeezed into 96. It is capped and ellipsised now, and the slack goes to the trend, which is the
- * one cell that reads better the wider it gets, and to the discount, which has a date under its chip.
+ * Sized so the column centres sit at roughly even distances. The discount is the widest because it holds
+ * two chips side by side; everything else is close to equal.
  */
-const COLLECTION_TRACKS = '24px 56px minmax(180px, 1.2fr) 96px minmax(150px, 1fr) 104px minmax(210px, 1fr) 116px'
+const COLLECTION_TRACKS =
+  '24px 56px minmax(170px, 1fr) minmax(236px, 1.34fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(150px, 1fr) 158px'
 
 /**
  * The band naming the columns, darker than the rows under it.
@@ -374,11 +378,13 @@ export const ColHead = styled.div`
   grid-template-columns: ${COLLECTION_TRACKS};
   align-items: center;
   gap: 12px;
-  padding: 12px 18px;
+  padding: 12px 24px 12px 12px;
+  min-width: min-content;
   background: ${theme.colors.overlayStrong};
+  border-radius: ${theme.radius.card} ${theme.radius.card} 0 0;
   font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: ${theme.colors.gray4};
+  font-size: 14px;
+  color: ${theme.colors.softWhite};
 
   /* Each label sits the way its column's content sits, so a header never points at the wrong figure. */
   > *:nth-child(4),
@@ -399,13 +405,39 @@ export const ColHead = styled.div`
   }
 `
 
+/**
+ * The rows as their own blocks rather than one slab divided by hairlines.
+ *
+ * The design separates them with 2px of the panel's own wash showing through, and rounds only the ends of
+ * the run, so the header and the last row close the shape between them.
+ */
+export const List = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  /*
+   * The run scrolls sideways rather than crushing its own columns.
+   *
+   * The tracks need 1158px before the grid starts taking room from them, and the panel used to clip what
+   * did not fit. It does not any more, and a clipped row is worse than a scrolling one: the action is the
+   * last column, so on a 1024px tablet "Manage" simply left the screen with no way to reach it.
+   */
+  overflow-x: auto;
+
+  > *:last-child {
+    border-radius: 0 0 ${theme.radius.card} ${theme.radius.card};
+  }
+`
+
 export const CollRow = styled.div`
   display: grid;
   grid-template-columns: ${COLLECTION_TRACKS};
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
-  border-top: 1px solid ${theme.colors.cardLine};
+  padding: 12px 24px 12px 12px;
+  min-width: min-content;
+  background: ${theme.colors.overlay};
 
   /* A fixed track keeps every row's action in the same place, centred under its column's label. */
   > *:last-child {
@@ -420,7 +452,7 @@ export const CollRow = styled.div`
    * its colour, the figures lose their weight, and the row still reads.
    */
   &[data-exhausted] {
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(0, 0, 0, 0.55);
     color: ${theme.colors.gray4};
 
     [data-testid='store-collection-thumb'] img {
@@ -439,22 +471,44 @@ export const CollRow = styled.div`
    * action on the second. Placed explicitly rather than left to auto-flow, which dropped both of them
    * into the first two narrow tracks on top of each other.
    */
+  /*
+   * Three lines on a phone: who it is and what to do about it, then the two figures, then the discount.
+   *
+   * Every cell is placed explicitly rather than left to auto-flow, because the columns changed order once
+   * already and an auto-placed grid answers that by putting a sparkline where a button used to be.
+   */
   ${theme.media.maxWidth('mobile')} {
     grid-template-columns: 24px 56px minmax(0, 1fr) auto;
     row-gap: 12px;
 
-    > *:nth-child(6) {
-      display: none;
+    > *:nth-child(1) {
+      grid-area: 1 / 1;
     }
-    > *:nth-child(7) {
-      grid-column: 1 / 4;
+    > *:nth-child(2) {
+      grid-area: 1 / 2;
+    }
+    /* The name takes the whole of its line. Sharing it with the action left "Founders Edition" as an
+       ellipsis and a chip, which is the one cell on the row that has to be readable. */
+    > *:nth-child(3) {
+      grid-area: 1 / 3 / 1 / 5;
+    }
+    > *:nth-child(5) {
+      grid-area: 2 / 1 / 2 / 3;
+      justify-self: start;
+    }
+    > *:nth-child(6) {
+      grid-area: 2 / 3;
+      justify-self: start;
+    }
+    > *:nth-child(8) {
+      grid-area: 2 / 4;
+      justify-self: end;
+    }
+    > *:nth-child(4) {
+      grid-area: 3 / 1 / 3 / 5;
       justify-self: start;
       align-items: flex-start;
       text-align: left;
-    }
-    > *:nth-child(8) {
-      grid-column: 4;
-      justify-self: end;
     }
   }
 `
@@ -537,12 +591,17 @@ export const SoldOutChip = styled.span`
 export const NameLine = styled.span`
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   min-width: 0;
 
-  /* The name yields before the chip does: a long one ellipsises rather than pushing "sold out" onto a
-     line of its own, which made that row taller than every other in the table. */
+  /*
+   * The chip yields before the name does, which is the opposite of what it used to do.
+   *
+   * With a wide name column the name could ellipsise and keep "sold out" beside it. The columns are even
+   * now, so that column is 176px, and yielding the name first left "Founders Ed…" next to a chip: the row
+   * lost the one thing it has to say to save the one thing that repeats on every sold-out row.
+   */
   a {
     min-width: 0;
     flex: 0 1 auto;
@@ -621,9 +680,10 @@ export const Spark = styled.svg`
 `
 
 export const Items = styled.div`
-  border-top: 1px solid ${theme.colors.cardLine};
-  background: ${theme.colors.glassFaint};
-  padding: 4px 18px 10px 56px;
+  /* A shade deeper than the row it belongs to, not lighter. The rows carry their own dark fill now, and a
+     translucent white panel between them read as a different surface breaking the run in half. */
+  background: ${theme.colors.overlayStrong};
+  padding: 4px 24px 10px 48px;
 
   ${theme.media.maxWidth('mobile')} {
     padding-left: 32px;
@@ -961,7 +1021,6 @@ export const FeedWrap = styled.div`
 
 export const Feed = styled.table`
   width: 100%;
-  border-collapse: collapse;
   /* Fixed, so a page of short names and one of long ones lay their columns out identically — the widths
      come from the header row rather than from whatever this page happens to hold. */
   table-layout: fixed;
@@ -989,26 +1048,42 @@ export const Feed = styled.table`
   font-size: 13px;
   min-width: 520px;
 
-  /* The same filled band the collections table wears, so the three tables on this page read as siblings
-     rather than as one design and two others. */
+  /* The same band and the same separated rows the collections table wears, so the three tables on this
+     page read as siblings rather than as one design and two others. The 2px gap is a transparent border
+     over a clipped background, which is how a table draws the design's gaps without losing its columns. */
+  border-collapse: separate;
+  border-spacing: 0;
+
   thead th {
     text-align: left;
     padding: 12px 18px;
     background: ${theme.colors.overlayStrong};
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: ${theme.colors.gray4};
+    font-size: 14px;
+    font-weight: 400;
+    color: ${theme.colors.softWhite};
     white-space: nowrap;
+  }
+  thead th:first-of-type {
+    border-radius: ${theme.radius.card} 0 0 0;
+  }
+  thead th:last-of-type {
+    border-radius: 0 ${theme.radius.card} 0 0;
   }
   tbody td {
     padding: 12px 18px;
-    border-top: 1px solid ${theme.colors.cardLine};
+    background: ${theme.colors.overlay};
+    border-top: 2px solid transparent;
+    background-clip: padding-box;
     vertical-align: middle;
   }
-  tbody tr:hover {
-    background: ${theme.colors.glassFaint};
+  tbody tr:last-of-type td:first-of-type {
+    border-radius: 0 0 0 ${theme.radius.card};
+  }
+  tbody tr:last-of-type td:last-of-type {
+    border-radius: 0 0 ${theme.radius.card} 0;
+  }
+  tbody tr:hover td {
+    background: ${theme.colors.overlayHover};
   }
   td[data-money] {
     text-align: right;
@@ -1310,6 +1385,8 @@ export const FeedHeadBone = styled.div`
   > *:last-child {
     justify-self: end;
   }
+  background: ${theme.colors.overlayStrong};
+  border-radius: ${theme.radius.card} ${theme.radius.card} 0 0;
 `
 
 /** A row of the loading feed, on the table's own column rhythm. */
@@ -1320,7 +1397,9 @@ export const FeedBone = styled.div`
   gap: 12px;
   height: 57px;
   padding: 0 18px;
-  border-top: 1px solid ${theme.colors.cardLine};
+  background: ${theme.colors.overlay};
+  border-top: 2px solid transparent;
+  background-clip: padding-box;
 
   > *:last-child {
     justify-self: end;
@@ -1329,7 +1408,6 @@ export const FeedBone = styled.div`
 
 export const Empty = styled.p`
   margin: 0;
-  padding: 0 18px 18px;
   font-family: ${theme.font.sans};
   font-size: 13px;
   color: ${theme.colors.gray4};
@@ -1464,26 +1542,6 @@ export const Side = styled.div`
 `
 
 /**
- * The footer that carries a panel's own call to action.
- *
- * The button is the Shop's primary rather than a line of coloured text, because starting a discount is
- * the one thing this panel is for and a text link reads as an aside next to the END DISCOUNT controls
- * above it.
- */
-export const PanelFoot = styled.div`
-  padding: 14px 18px;
-  border-top: 1px solid ${theme.colors.cardLine};
-
-  button {
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-`
-
-/**
  * An amount in a table cell, with its currency mark centred against the digits.
  *
  * A table cell lays its content out on the baseline, and the mark is a box rather than a glyph with one,
@@ -1510,9 +1568,11 @@ export const Claimed = styled.span`
   white-space: nowrap;
   text-align: center;
 
+  /* One weight and one colour, as the design draws it: the pair is a single reading ("80 of 250"), and
+     dimming the denominator made the two halves look like different figures. */
   small {
-    color: ${theme.colors.gray4};
-    font-weight: 500;
+    font-size: inherit;
+    font-weight: inherit;
   }
 `
 
@@ -1528,6 +1588,7 @@ export const DiscountCell = styled.span`
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   min-width: 0;
   font-family: ${theme.font.sans};
@@ -1539,10 +1600,53 @@ export const DiscountCell = styled.span`
 /** The cut and the countdown, side by side on the cell's first line. */
 export const DiscountTop = styled.span`
   display: inline-flex;
-  align-items: center;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
+`
+
+/**
+ * The cut, on this table's surface.
+ *
+ * The shared tag is drawn for a card's artwork — a gradient hairline around the fill — which at this size
+ * reads as a smudge against a near-black row. Same fill and ink, no border, the design's own radius.
+ */
+export const Pct = styled(SaleTag)`
+  align-self: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: ${theme.colors.saleTag};
+  line-height: 20px;
+
+  b,
+  span {
+    font-size: 14px;
+    line-height: 20px;
+  }
+`
+
+/**
+ * The countdown, re-inked for this row.
+ *
+ * The shared chip is pink on the item page, beside the price it is cutting. Here it sits next to the pink
+ * cut itself, and two pink chips in one cell made the pair read as one smear — so this one is the row's
+ * own glass, which is what the design asks for.
+ */
+export const Window = styled(SaleTimer)`
+  align-self: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: ${theme.colors.glass};
+  color: ${theme.colors.white};
+
+  b {
+    color: ${theme.colors.white};
+    font-size: 12px;
+    line-height: 16px;
+  }
 `
 
 /** How much of the allowance has gone, and whether the discount moved anything. */
@@ -1567,8 +1671,6 @@ export const ListFoot = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 18px;
-  border-top: 1px solid ${theme.colors.cardLine};
   font-family: ${theme.font.sans};
   font-size: 13px;
   color: ${theme.colors.gray4};
@@ -1585,7 +1687,6 @@ export const ListHead = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 18px;
 
   ${theme.media.maxWidth('mobile')} {
     flex-wrap: wrap;
@@ -1694,7 +1795,6 @@ export const PanelHeadStack = styled.div`
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px 12px;
 `
 
 /** The way out of a table that only shows its first page: the whole history, where it can be filtered. */
