@@ -28,6 +28,19 @@ const base = createConfig(
 // client bundle, so never put secrets here.
 const env = import.meta.env
 
+/**
+ * Whether a hostname belongs to a LIVE deployment: production (`.org`/`.co`) or staging (`.today`/`.net`),
+ * the TLD split @dcl/ui-env itself uses.
+ *
+ * The trailing dot is stripped first and it is not a nicety. A fully qualified name may carry one, the URL
+ * parser keeps it, and DNS resolves it identically — so `https://shop.decentraland.org./` reaches the live
+ * Shop with a hostname the anchored pattern would not match, which is the whole gate open. Lowercasing is
+ * belt and braces: the parser already normalises case.
+ */
+export function isLiveHost(hostname: string): boolean {
+  return /\.(org|co|today|net)$/.test(hostname.toLowerCase().replace(/\.$/, ''))
+}
+
 export const config = {
   /**
    * Whether this is the production deployment, resolved from the hostname at runtime by @dcl/ui-env.
@@ -47,6 +60,21 @@ export const config = {
    * being rehearsed.
    */
   isStaging: base.is(Env.STAGING),
+  /**
+   * Whether this deployment may be driven by the preview overrides: `?viewAs=`, `?mock=1`, `?ff=`, `?ffv=`.
+   *
+   * Read off the HOSTNAME, not off the resolved environment, and those are deliberately different things.
+   * A Vercel preview resolves to DEVELOPMENT, so a store worth reviewing does not exist in it; the way to
+   * show one is `?env=prod`, which points the same bundle at the production feeds — and gating on the
+   * resolved env would switch the overrides off in exactly the case they exist for. Reading the host closes
+   * the other direction too: `?env=dev` on the live Shop cannot turn them on, because the hostname does not
+   * move with the query string.
+   *
+   * The excluded TLDs are @dcl/ui-env's own: `.org`/`.co` is production and `.today`/`.net` is staging,
+   * which reads the production APIs and is the launch rehearsal. Everything else — `localhost`, the e2e
+   * harness, `*.vercel.app`, `decentraland.zone` — may use them.
+   */
+  previewHost: import.meta.env.DEV || (typeof window !== 'undefined' && !isLiveHost(window.location.hostname)),
   /**
    * Arm the pre-launch curtain on the local dev server, so its behaviour can be exercised without a deploy:
    *

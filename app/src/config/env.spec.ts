@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
+import { isLiveHost } from './index'
+
 import dev from './env/dev.json'
 import stg from './env/stg.json'
 import prod from './env/prod.json'
@@ -66,5 +68,45 @@ describe('per-env config JSONs', () => {
     // campaign nobody is about to launch. Previewing a draft is what dev is for — or a local
     // VITE_CONTENTFUL_ADMIN_ENTITY_ID override.
     expect(stg.CONTENTFUL_ADMIN_ENTITY_ID).toBe(prod.CONTENTFUL_ADMIN_ENTITY_ID)
+  })
+})
+
+/**
+ * The host check behind `config.previewHost`, which decides whether `?viewAs=`, `?mock=1`, `?ff=` and
+ * `?ffv=` are honoured. A wrong answer here opens those overrides on the live Shop, so the cases below are
+ * the gate's contract rather than illustrations of it.
+ */
+describe('isLiveHost', () => {
+  it.each(['shop.decentraland.org', 'decentraland.org', 'decentraland.co', 'decentraland.today', 'shop.example.net'])(
+    'treats %s as a live deployment',
+    host => {
+      expect(isLiveHost(host)).toBe(true)
+    }
+  )
+
+  it.each(['localhost', '127.0.0.1', 'shop.decentraland.zone', 'shop-git-branch.vercel.app'])(
+    'treats %s as a preview deployment',
+    host => {
+      expect(isLiveHost(host)).toBe(false)
+    }
+  )
+
+  /**
+   * A fully qualified name may carry a trailing dot, `location.hostname` keeps it, and DNS resolves it the
+   * same — so without stripping it `https://shop.decentraland.org./` reaches production with a hostname the
+   * anchored pattern misses, and every override is on.
+   */
+  it('strips a trailing dot before deciding, so a rooted FQDN cannot slip past', () => {
+    expect(isLiveHost('shop.decentraland.org.')).toBe(true)
+    expect(isLiveHost('decentraland.today.')).toBe(true)
+  })
+
+  it('ignores case', () => {
+    expect(isLiveHost('SHOP.DECENTRALAND.ORG')).toBe(true)
+  })
+
+  it('does not fire on a TLD that merely contains one of the live ones', () => {
+    expect(isLiveHost('shop.decentraland.organic')).toBe(false)
+    expect(isLiveHost('preview.network')).toBe(false)
   })
 })

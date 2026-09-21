@@ -1,4 +1,5 @@
 import { weiOf, type SaleRow } from '~/lib/sales'
+import type { StoreCollection } from '~/lib/storeStats'
 
 const DAY_MS = 86_400_000
 
@@ -29,12 +30,16 @@ export function deltaOfWei(current: bigint, previous: bigint): Delta {
 }
 
 /**
- * Who bought, and how many came back.
+ * Who bought from the STORE, and how many came back.
  *
- * Counts every sale the creator was the seller of, first sales and resales alike: the question is how many
- * PEOPLE the store has, and someone buying a copy a collector resold is not one of them, but someone
- * buying a second item straight from the store is. A store with 200 sales across 190 buyers is a different
- * business from one with 200 across 60, and nothing on the page said which one you had.
+ * First sales only. A creator is also the seller on any token they resell themselves, and those rows are a
+ * different thing wearing the same shape: read against a real store, the top of this list was four LAND
+ * sales from 2021 at up to 20,000 MANA, which swamped every person who had actually bought a wearable and
+ * dated the table five years ago.
+ *
+ * A store with 200 sales across 190 buyers is a different business from one with 200 across 60, and
+ * nothing on the page said which one you had. That question is about customers, so it is asked of the
+ * sales that made them customers.
  */
 export type Collectors = {
   /** Distinct buyers in the window. */
@@ -55,7 +60,8 @@ export type Collectors = {
   topSharePct: number
 }
 
-export function collectorsOf(rows: SaleRow[], topN = 3): Collectors {
+export function collectorsOf(allRows: SaleRow[], topN = 3): Collectors {
+  const rows = allRows.filter(isFirstSale)
   const byBuyer = new Map<string, number>()
   for (const row of rows) {
     const buyer = row.buyer.toLowerCase()
@@ -73,7 +79,9 @@ export function collectorsOf(rows: SaleRow[], topN = 3): Collectors {
 }
 
 /**
- * The people behind the sales, best customer first.
+ * The people behind the sales, best customer first. First sales only, for the reason {@link collectorsOf}
+ * gives, and this table showed the cost of getting it wrong most plainly: a resale carries no item, so
+ * every row read "0 items" while claiming five figures of spend.
  *
  * Counts of DISTINCT items and collections rather than of sales, because those are the two questions the
  * total cannot answer: someone who bought nine copies of one item is a fan of that item, and someone who
@@ -93,7 +101,13 @@ export type Buyer = {
   lastAt: number
 }
 
-export function topBuyers(rows: SaleRow[], limit = 5): Buyer[] {
+/** A copy bought from the creator's own stock, as opposed to one they resold from their own holdings. */
+function isFirstSale(row: SaleRow): boolean {
+  return row.type === 'mint' && row.itemId != null
+}
+
+export function topBuyers(allRows: SaleRow[], limit?: number): Buyer[] {
+  const rows = allRows.filter(isFirstSale)
   const byBuyer = new Map<
     string,
     { bought: number; items: Set<string>; collections: Set<string>; spentWei: bigint; lastAt: number }
@@ -109,9 +123,7 @@ export function topBuyers(rows: SaleRow[], limit = 5): Buyer[] {
       lastAt: 0
     }
     entry.bought += 1
-    // A resale carries no item, only a token, so it counts towards the collection and the spend but not
-    // towards "how many of your items they own".
-    if (row.itemId != null) entry.items.add(`${contract}-${row.itemId}`)
+    entry.items.add(`${contract}-${row.itemId}`)
     entry.collections.add(contract)
     entry.spentWei += weiOf(row.price)
     if (row.timestamp > entry.lastAt) entry.lastAt = row.timestamp
@@ -127,7 +139,7 @@ export function topBuyers(rows: SaleRow[], limit = 5): Buyer[] {
       lastAt: e.lastAt
     }))
     .sort((a, b) => (b.spentWei > a.spentWei ? 1 : b.spentWei < a.spentWei ? -1 : b.bought - a.bought))
-    .slice(0, limit)
+    .slice(0, limit ?? undefined)
 }
 
 /**
@@ -142,89 +154,52 @@ export function daysSinceLastSale(rows: SaleRow[], now: number): number | null {
   return Math.max(0, Math.floor((now - last) / DAY_MS))
 }
 
-/**
- * Whether a discount moved anything, measured against the same stretch of time before it started.
- *
- * Per day rather than in total, because a sale that has been running two days cannot be compared with a
- * month that preceded it. `before` spans exactly as long as the discount has been live, ending the moment
- * it began.
- */
-export type SaleLift = {
-  /** Sales while the discount was live, and per day of it. */
-  during: number
-  duringPerDay: number
-  /** The same for the stretch immediately before it. */
-  before: number
-  beforePerDay: number
-  /** How much faster the store sold, as a percentage. Null when nothing sold before it: no baseline. */
-  liftPct: number | null
-  /** How long the discount has been live, in days, at least a fraction of one. */
-  days: number
+/** One item of the store's top sellers, carrying the collection it came out of. */
+export type BestSeller = {
+  key: string
+  contractAddress: string
+  itemId: string
+  name: string
+  thumbnail: string
+  rarity: string
+  collectionName: string
+  sold: number
+  earnedWei: bigint
 }
 
 /**
- * Null when the answer cannot be honest.
+ * The store's best sellers across every collection, best first.
  *
- * Two ways that happens, and both matter. A discount that has not started yet has nothing to measure. And
- * a comparison window reaching back further than the rows go would read every sale that was never fetched
- * as a sale that never happened, turning "we did not look" into a flattering zero, which is the worst kind
- * of wrong number: it makes every discount look like it worked.
- */
-export function saleLift(
-  rows: SaleRow[],
-  sale: { effective: number; expiration: number },
-  now: number,
-  /**
-   * How far back the ROWS WERE FETCHED, which is not the same as how far back these particular rows go.
-   *
-   * A discount covers some of the store, so its rows are a subset, and the oldest of that subset only says
-   * when that collection last sold. Judging coverage by it would refuse to measure a discount on a
-   * collection that has been quiet, which is precisely the collection a creator puts a discount on.
-   * Defaults to the oldest row here for a caller that did not filter.
-   */
-  coveredSince?: number
-): SaleLift | null {
-  const start = sale.effective
-  const end = Math.min(sale.expiration, now)
-  if (end <= start) return null
-
-  const span = end - start
-  const comparisonStart = start - span
-  const covered = coveredSince ?? rows.reduce((min, row) => (row.timestamp < min ? row.timestamp : min), now)
-  if (comparisonStart < covered) return null
-
-  const during = rows.filter(row => row.timestamp >= start && row.timestamp <= end).length
-  const before = rows.filter(row => row.timestamp >= comparisonStart && row.timestamp < start).length
-  const days = span / DAY_MS
-  const duringPerDay = during / days
-  const beforePerDay = before / days
-
-  return {
-    during,
-    duringPerDay,
-    before,
-    beforePerDay,
-    liftPct: beforePerDay === 0 ? null : ((duringPerDay - beforePerDay) / beforePerDay) * 100,
-    days
-  }
-}
-
-/**
- * Items people saved and nobody bought.
+ * The collections table already orders each collection's own items, but nothing answered "what is selling
+ * HERE" across the store: a creator with twenty collections would have to expand all of them and compare
+ * by eye. Items that sold nothing in the window are left out rather than padding the list to five — a
+ * table of zeroes is not a ranking.
  *
- * A save is the one demand signal that costs a shopper nothing, so an item with many of them and no sales
- * is not being ignored: it is being considered and turned down, which is a price to look at rather than a
- * listing to promote. Items with no saves are left out — an item nobody has saved and nobody has bought is
- * the ordinary case, not a finding.
+ * Ties break on earnings and then on name, so the order is stable: a store where six items each sold one
+ * copy would otherwise reshuffle its top five on every render.
  */
-export type WantedItem = { key: string; name: string; saves: number; sold: number }
-
-export function wantedButUnsold(
-  items: { key: string; name: string; sold: number }[],
-  savesByKey: Map<string, number>
-): WantedItem[] {
-  return items
-    .map(item => ({ key: item.key, name: item.name, saves: savesByKey.get(item.key) ?? 0, sold: item.sold }))
-    .filter(item => item.saves > 0 && item.sold === 0)
-    .sort((a, b) => b.saves - a.saves || a.name.localeCompare(b.name))
+export function bestSellers(collections: StoreCollection[], limit = 5): BestSeller[] {
+  return collections
+    .flatMap(collection =>
+      collection.items
+        .filter(item => item.sold > 0)
+        .map(item => ({
+          key: item.key,
+          contractAddress: collection.contractAddress,
+          itemId: item.itemId,
+          name: item.name,
+          thumbnail: item.thumbnail,
+          rarity: item.rarity,
+          collectionName: collection.name,
+          sold: item.sold,
+          earnedWei: item.earnedWei
+        }))
+    )
+    .sort(
+      (a, b) =>
+        b.sold - a.sold ||
+        (b.earnedWei > a.earnedWei ? 1 : b.earnedWei < a.earnedWei ? -1 : 0) ||
+        a.name.localeCompare(b.name)
+    )
+    .slice(0, limit)
 }

@@ -227,7 +227,7 @@ async function getSnapshot(): Promise<Snapshot> {
  * Mirrors credits-server's parseAddressListVariant so one flag drives both sides.
  */
 export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]> {
-  const override = devVariantOverrideFor(flag)
+  const override = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
   if (override !== undefined) return parseAddressList(override)
   try {
     const value = (await getSnapshot()).variants[flagKey(flag)]
@@ -248,6 +248,41 @@ function parseAddressList(value: string): string[] {
         .filter(address => /^0x[0-9a-f]{40}$/.test(address))
     )
   )
+}
+
+/**
+ * A flag forced from the query string, on preview deployments only.
+ *
+ * `?ff=shop-my-store:true` for a boolean, `?ffv=shop-my-store:0xabc…,0xdef…` for a variant payload — the
+ * same syntax as the `VITE_FEATURE_FLAG*_OVERRIDES` vars, so there is one thing to learn. Entries are
+ * separated by ',' for booleans and ';' for variants, whose payload is itself a comma-separated list.
+ *
+ * The build-time overrides cannot serve a preview deploy: they are `VITE_*` vars baked in at build, and a
+ * Vercel preview is built by plain `npm run build`. Without a query override a flag-gated page cannot be
+ * shown to a reviewer at all — `dapps-shop-my-store` is absent from both flag files, so /my-store redirects
+ * home on every deployment there is.
+ *
+ * Gated on {@link config.previewHost}, which reads the HOSTNAME rather than the resolved environment, so no
+ * query string can flip a flag on the live Shop or on staging.
+ */
+function queryOverrideFor(flag: FeatureFlag, param: 'ff' | 'ffv'): string | undefined {
+  if (!config.previewHost || typeof window === 'undefined') return undefined
+  const raw = new URLSearchParams(window.location.search).get(param)
+  if (!raw) return undefined
+
+  for (const entry of raw.split(param === 'ffv' ? ';' : ',')) {
+    if (entry.trim().length === 0) continue
+    const separator = entry.indexOf(':')
+    // Warned about rather than dropped: the audience here is somebody pasting a long URL, who has less
+    // chance of spotting the typo than the developer editing .env.local.
+    if (separator === -1) {
+      console.warn(`Ignoring ?${param} override "${entry}": expected "<flag>:<value>"`)
+      continue
+    }
+    if (entry.slice(0, separator).trim() !== String(flag)) continue
+    return entry.slice(separator + 1).trim()
+  }
+  return undefined
 }
 
 /**
@@ -282,6 +317,12 @@ function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
   return undefined
 }
 
+/** The boolean form of {@link queryOverrideFor}; an unrecognised value falls through to the real flag. */
+function queryFlagOverrideFor(flag: FeatureFlag): boolean | undefined {
+  const value = queryOverrideFor(flag, 'ff')
+  return value === 'true' ? true : value === 'false' ? false : undefined
+}
+
 /**
  * Whether a flag is on. FAILS CLOSED — an unreachable flag service, a malformed body or an absent flag all
  * resolve to `false`.
@@ -292,7 +333,7 @@ function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
  * to credit the seller for them.
  */
 export async function getIsFeatureEnabled(flag: FeatureFlag): Promise<boolean> {
-  const override = devOverrideFor(flag)
+  const override = devOverrideFor(flag) ?? queryFlagOverrideFor(flag)
   if (override !== undefined) return override
   try {
     const flags = await getFeatureFlags()

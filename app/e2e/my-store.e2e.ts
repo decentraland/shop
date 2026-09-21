@@ -211,7 +211,7 @@ describe('when a creator opens their store', () => {
     await page.waitForSelector('[data-testid="store-sale"]')
 
     // A page of the feed, not a handful kept from the aggregate: the rest is a click away.
-    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(12)
+    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(5)
     const buyer = await page.$eval('[data-testid="store-sale-buyer"]', el => ({
       href: el.getAttribute('href'),
       target: el.getAttribute('target'),
@@ -229,10 +229,35 @@ describe('when a creator opens their store', () => {
     expect(saleItem.href).toMatch(/^\/item\/0x[0-9a-f]+\/\d+$/i)
     expect(saleItem.target).toBe('_blank')
 
-    // Numbered pages: the second one holds the remaining three sales, and the page you are on is marked.
-    await page.click('[data-testid="store-sales-page-2"]')
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="store-sale"]').length === 3)
-    expect(await page.$eval('[data-testid="store-sales-page-2"]', el => el.getAttribute('aria-current'))).toBe('page')
+    // Numbered pages: fifteen sales across three, and the page you are on is marked. The count is asserted
+    // before the click so a changed page size fails saying so, rather than timing out on a missing button.
+    expect(await page.$$eval('[data-testid^="store-sales-page-"]', pages => pages.length)).toBe(3)
+    await page.click('[data-testid="store-sales-page-3"]')
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="store-sales-page-3"]')?.getAttribute('aria-current') === 'page'
+    )
+    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(5)
+  })
+
+  it('should rank what is selling across the store, leaving out what is not', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+    await page.waitForSelector('[data-testid="store-best"]')
+
+    // Ten first sales of the boots against four of the hat. The cape only ever changed hands as a resale
+    // and the crown never sold at all, so neither belongs in a ranking of what this store is selling.
+    const rows = await page.$$eval('[data-testid="store-best"]', found =>
+      found.map(row => (row as HTMLElement).innerText.replace(/\s+/g, ' ').trim())
+    )
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatch(/^1 Galaxy Boots/)
+    expect(rows[1]).toMatch(/^2 Galaxy Hat/)
+
+    const sold = await page.$$eval('[data-testid="store-best-sold"]', cells =>
+      cells.map(cell => (cell as HTMLElement).innerText.trim())
+    )
+    expect(sold).toEqual(['10', '4'])
   })
 
   it('should fit a phone without scrolling sideways', async () => {
@@ -264,7 +289,9 @@ describe('when a creator reads how their store is doing', () => {
     // Four buyers, one of whom took more than half, which is the fact that reframes the rest.
     expect(await text(app, 'store-collectors')).toBe('4')
     // Nine of the fifteen went to one of them, which is the reading the bare count cannot give.
-    expect(body).toContain('1 buyer is 60% of sales')
+    // Nine of the fourteen FIRST sales went to one of them. The resale in the fixture is left out: a token
+    // the creator flipped is not a customer of their store.
+    expect(body).toContain('1 buyer is 64% of sales')
     // The discount has been live two days, with sales before it to compare against.
     await page.waitForSelector('[data-testid="creator-sale-lift"]')
     expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)

@@ -108,6 +108,29 @@ describe('buildStoreStats', () => {
     expect(collection.items.find(i => i.itemId === '1')?.sold).toBe(0)
   })
 
+  it('sums what each item earned, and only from its own first sales', () => {
+    const stats = build({
+      rows: [
+        row({ itemId: '0', daysAgo: 1, price: '4000000000000000000' }),
+        row({ itemId: '0', daysAgo: 2, price: '6000000000000000000' }),
+        // A resale of the same item: it moves a copy that was already sold, so it is not the creator's
+        // to count here — the row would otherwise inflate the item that never earned it.
+        row({ itemId: '0', daysAgo: 3, price: '99000000000000000000', type: 'order' }),
+        row({ itemId: '1', daysAgo: 1, price: '1000000000000000000' })
+      ],
+      total: 4,
+      catalogue: [item({ blockchainItemId: '0' }), item({ blockchainItemId: '1' })]
+    })
+    const items = stats.collections[0].items
+    expect(items.find(i => i.itemId === '0')?.earnedWei).toBe(10_000000000000000000n)
+    expect(items.find(i => i.itemId === '1')?.earnedWei).toBe(1_000000000000000000n)
+  })
+
+  it('leaves an item that never sold at nothing earned rather than undefined', () => {
+    const stats = build({ catalogue: [item({ blockchainItemId: '0' })] })
+    expect(stats.collections[0].items[0].earnedWei).toBe(0n)
+  })
+
   it('reads each item state from its supply and its listing', () => {
     const stats = build({
       catalogue: [
@@ -287,6 +310,25 @@ describe('buildStoreStats', () => {
  * These pin which figure comes from which, because the failure they guard against is silent: a headline
  * that is right beside a breakdown that no longer admits it is only part of the story.
  */
+describe('how much of a run is gone', () => {
+  it('adds up claimed copies and the size of the run across the collection', () => {
+    const stats = build({
+      catalogue: [
+        item({ blockchainItemId: '0', totalSupply: 30, remainingSupply: 70 }),
+        item({ blockchainItemId: '1', totalSupply: 50, remainingSupply: 100 })
+      ]
+    })
+    expect(stats.collections[0]).toMatchObject({ claimed: 80, runTotal: 250 })
+  })
+
+  // Supply, not the window: moving the period selector does not change how much of a run has gone.
+  it('is not touched by the window the page is showing', () => {
+    const catalogue = [item({ blockchainItemId: '0', totalSupply: 30, remainingSupply: 70 })]
+    expect(build({ catalogue, days: 7 }).collections[0].claimed).toBe(30)
+    expect(build({ catalogue, days: null }).collections[0].claimed).toBe(30)
+  })
+})
+
 describe('a collection with nothing left to sell', () => {
   const soldOut = (id: string) => item({ blockchainItemId: id, totalSupply: 10, remainingSupply: 0 })
 

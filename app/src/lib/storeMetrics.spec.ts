@@ -1,14 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import {
-  collectorsOf,
-  daysSinceLastSale,
-  deltaOf,
-  deltaOfWei,
-  saleLift,
-  topBuyers,
-  wantedButUnsold
-} from './storeMetrics'
+import { bestSellers, collectorsOf, daysSinceLastSale, deltaOf, deltaOfWei, topBuyers } from './storeMetrics'
 import type { SaleRow } from './sales'
+import type { StoreCollection, StoreItem } from './storeStats'
 
 const DAY = 86_400_000
 const NOW = Date.UTC(2026, 0, 31, 12, 0, 0, 0)
@@ -90,6 +83,14 @@ describe('collectorsOf', () => {
     expect(collectorsOf([])).toEqual({ total: 0, repeat: 0, repeatPct: 0, topSharePct: 0, top: [] })
   })
 
+  it('counts customers of the store, not the people a creator resold a token to', () => {
+    const mixed = [
+      row({ daysAgo: 1, buyer: '0xcustomer' }),
+      row({ daysAgo: 2, buyer: '0xflipper', itemId: null, type: 'order' })
+    ]
+    expect(collectorsOf(mixed).total).toBe(1)
+  })
+
   /**
    * Taken from a real store: 2,206 sales in a month, of which one address took 2,202. Its headline read
    * like a thriving shop and its actual customer list was four people and a bot. This is the number that
@@ -130,10 +131,26 @@ describe('topBuyers', () => {
     expect(topBuyers(rows).find(b => b.address === '0xfan')?.lastAt).toBe(NOW)
   })
 
-  // A resale is on a token, not an item, so it cannot say which of the creator's items somebody owns.
-  it('counts a sale with no item towards the collection and the spend but not the items', () => {
-    const [only] = topBuyers([row({ daysAgo: 1, buyer: '0xone', itemId: null, type: 'order' })])
-    expect(only).toMatchObject({ bought: 1, items: 0, collections: 1 })
+  /**
+   * Taken from a real store: its four biggest "buyers" were LAND resales from 2021, up to 20,000 MANA
+   * each, which outranked every person who had bought a wearable and dated the table five years ago.
+   * A resale also carries no item, so each of those rows read "0 items" beside five figures of spend.
+   */
+  it('leaves out the tokens a creator resold from their own holdings', () => {
+    const withResales = [
+      row({ daysAgo: 1, buyer: '0xcustomer', itemId: '0' }),
+      row({ daysAgo: 2, buyer: '0xflipper', itemId: null, type: 'order', price: '20000000000000000000000' })
+    ]
+    const buyers = topBuyers(withResales)
+
+    expect(buyers).toHaveLength(1)
+    expect(buyers[0]).toMatchObject({ address: '0xcustomer', items: 1 })
+  })
+
+  it('returns everyone when no limit is asked for, so the table can be paged', () => {
+    const many = Array.from({ length: 12 }, (_, i) => row({ daysAgo: i, buyer: `0xb${i}`, itemId: '0' }))
+    expect(topBuyers(many)).toHaveLength(12)
+    expect(topBuyers(many, 5)).toHaveLength(5)
   })
 
   it('keeps only as many as asked for', () => {
@@ -151,88 +168,68 @@ describe('daysSinceLastSale', () => {
   })
 })
 
-describe('saleLift', () => {
-  // A discount live for four days, with the four days before it to compare against.
-  const sale = { effective: NOW - 4 * DAY, expiration: NOW + 3 * DAY }
-  const rows = [
-    row({ daysAgo: 1 }),
-    row({ daysAgo: 2 }),
-    row({ daysAgo: 2.5 }),
-    row({ daysAgo: 3 }),
-    row({ daysAgo: 5 }),
-    row({ daysAgo: 7 }),
-    // Fetched, and older than the comparison window, which is what makes the window trustworthy.
-    row({ daysAgo: 20 })
+describe('bestSellers', () => {
+  function item(name: string, sold: number, earned: bigint): StoreItem {
+    return {
+      key: `k-${name}`,
+      itemId: name,
+      name,
+      thumbnail: '',
+      rarity: 'epic',
+      left: 10,
+      minted: 20,
+      sold,
+      earnedWei: earned,
+      lifetimeSold: null,
+      priceCredits: 10,
+      manaWei: null,
+      createdAt: null,
+      state: 'discounted'
+    }
+  }
+
+  function collection(name: string, items: StoreItem[]): StoreCollection {
+    return {
+      contractAddress: `0x${name}`,
+      collectionId: name,
+      name,
+      items,
+      listed: items.length,
+      classic: 0,
+      soldOut: 0,
+      sold: items.reduce((n, i) => n + i.sold, 0),
+      earningsWei: 0n,
+      createdAt: null,
+      trend: [],
+      claimed: 0,
+      runTotal: 0,
+      exhausted: false
+    }
+  }
+
+  const collections = [
+    collection('alpha', [item('a1', 3, 30n), item('a2', 9, 90n)]),
+    collection('beta', [item('b1', 12, 120n), item('b2', 0, 0n)])
   ]
 
-  it('compares each stretch by the day, since they are not the same length in the end', () => {
-    const lift = saleLift(rows, sale, NOW)
-
-    expect(lift?.during).toBe(4)
-    expect(lift?.before).toBe(2)
-    expect(lift?.days).toBe(4)
-    expect(lift?.liftPct).toBe(100)
+  it('ranks across collections, not inside one', () => {
+    expect(bestSellers(collections).map(b => b.name)).toEqual(['b1', 'a2', 'a1'])
   })
 
-  it('stops the live stretch at today, not at the day the discount is booked to end', () => {
-    expect(saleLift(rows, sale, NOW)?.days).toBe(4)
+  it('carries the collection each item came out of', () => {
+    expect(bestSellers(collections)[0]).toMatchObject({ name: 'b1', collectionName: 'beta', earnedWei: 120n })
   })
 
-  it('reports no lift rather than an infinite one when nothing sold before', () => {
-    const quiet = [row({ daysAgo: 1 }), row({ daysAgo: 30 })]
-    expect(saleLift(quiet, sale, NOW)?.liftPct).toBeNull()
+  it('leaves out what did not sell rather than padding the list with zeroes', () => {
+    expect(bestSellers(collections).map(b => b.name)).not.toContain('b2')
   })
 
-  /**
-   * The failure this guards against is the flattering one. The rows only cover the window that was
-   * fetched; if the stretch before the discount falls outside them, every sale that was never fetched
-   * reads as a sale that never happened, and the discount looks like it doubled a store that was already
-   * selling.
-   */
-  it('refuses to answer when the rows do not reach back far enough to compare', () => {
-    const shallow = [row({ daysAgo: 1 }), row({ daysAgo: 4.5 })]
-    expect(saleLift(shallow, sale, NOW)).toBeNull()
+  it('breaks a tie on earnings, then on name, so the order does not reshuffle', () => {
+    const tied = [collection('c', [item('zed', 5, 10n), item('amp', 5, 10n), item('rich', 5, 99n)])]
+    expect(bestSellers(tied).map(b => b.name)).toEqual(['rich', 'amp', 'zed'])
   })
 
-  /**
-   * A discount covers part of a store, so it is measured against that part. How far back the reading can
-   * be trusted is a property of the FETCH, not of the subset, which is why the caller passes it: judging
-   * coverage by a quiet collection's own oldest sale would refuse to measure exactly the collection a
-   * creator puts a discount on.
-   */
-  it('trusts the coverage it is told about rather than the oldest row it was handed', () => {
-    const quietCollection = [row({ daysAgo: 1 }), row({ daysAgo: 3 })]
-    expect(saleLift(quietCollection, sale, NOW)).toBeNull()
-    expect(saleLift(quietCollection, sale, NOW, NOW - 30 * DAY)?.during).toBe(2)
-  })
-
-  it('has nothing to say about a discount that has not started', () => {
-    expect(saleLift(rows, { effective: NOW + DAY, expiration: NOW + 5 * DAY }, NOW)).toBeNull()
-  })
-})
-
-describe('wantedButUnsold', () => {
-  const items = [
-    { key: 'a', name: 'Galaxy Hat', sold: 0 },
-    { key: 'b', name: 'Galaxy Boots', sold: 3 },
-    { key: 'c', name: 'Galaxy Cape', sold: 0 },
-    { key: 'd', name: 'Galaxy Crown', sold: 0 }
-  ]
-  const saves = new Map([
-    ['a', 12],
-    ['b', 40],
-    ['c', 31]
-  ])
-
-  it('keeps only what people saved and nobody bought, most wanted first', () => {
-    expect(wantedButUnsold(items, saves)).toEqual([
-      { key: 'c', name: 'Galaxy Cape', saves: 31, sold: 0 },
-      { key: 'a', name: 'Galaxy Hat', saves: 12, sold: 0 }
-    ])
-  })
-
-  // An item nobody saved and nobody bought is the ordinary case; listing it would bury the finding.
-  it('leaves out an item nobody has saved', () => {
-    expect(wantedButUnsold(items, saves).some(item => item.key === 'd')).toBe(false)
+  it('keeps only as many as asked for', () => {
+    expect(bestSellers(collections, 2).map(b => b.name)).toEqual(['b1', 'a2'])
   })
 })

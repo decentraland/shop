@@ -76,6 +76,7 @@ export type IconName =
   | 'gender-male'
   | 'gender-unisex'
   | 'heart'
+  | 'history'
   | 'heart-solid'
   | 'info'
   | 'link-out'
