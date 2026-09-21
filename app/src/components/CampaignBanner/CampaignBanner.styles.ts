@@ -5,32 +5,42 @@ import { theme } from '~/styles/theme'
 const { colors, gradients, media, radius } = theme
 
 /**
- * The event's banner strip, above its grid.
+ * The event's banner, above its grid.
  *
- * Shorter than the home hero on purpose: this one sits over a filter sidebar and a grid rather than
- * opening a page, so it announces the event without pushing the items below the fold.
+ * Deliberately the SAME geometry as the home hero (see pages/Overview.styles.ts): same ratios at both
+ * sizes, same full-bleed treatment, same copy inset. One banner format means one set of artwork can
+ * serve both surfaces, and the event does not announce itself in a different shape from everything else.
  */
 export const Banner = styled.section`
   position: relative;
   display: flex;
   align-items: center;
-  aspect-ratio: 1920 / 220;
-  max-height: 220px;
-  margin-bottom: 28px;
+  aspect-ratio: 1920 / 340;
+  max-height: 340px;
+  margin-bottom: 32px;
   overflow: hidden;
-  border-radius: ${radius.banner};
   background: #14161b;
 
+  /* Out to the window edges, undoing both the page gutter and its max-width at once — the hero's own
+     expression, which is correct whether or not the width cap is in effect. No border-radius for the
+     same reason the hero has none: rounded corners flush with the window read as a rendering fault. */
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  border-radius: 0;
+
+  /* …and the copy back onto the page's content edge, so the headline starts on the same vertical line as
+     the section titles below it. The percentage resolves against the CONTAINING block, not this
+     element's 100vw, which is what makes one expression work at every viewport. */
+  padding-inline: calc(50vw - 50%);
+
+  /* The hero's mobile frame is a different composition, not a squeeze of the wide one: near-square, with
+     the copy centred near the bottom edge. Matched here so one mobile asset also serves both. */
   ${media.maxWidth('mobile')} {
-    aspect-ratio: 390 / 200;
+    aspect-ratio: 390 / 389;
     max-height: none;
-    border-radius: 0;
-    /* Out to the window edges, the way the home hero runs: a rounded inset strip at this width reads as a
-       widget rather than as the page's header. */
-    width: 100vw;
-    margin-inline: calc(50% - 50vw);
-    padding-inline: calc(50vw - 50%);
+    align-items: flex-end;
     justify-content: center;
+    padding-bottom: 43px;
   }
 `
 
@@ -50,12 +60,13 @@ export const Inner = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: 16px;
-  padding-inline: 40px;
+
+  /* No side padding of its own: the Banner's padding-inline already lands this on the page's content
+     edge, exactly as HeroInner relies on the Hero's. */
 
   ${media.maxWidth('mobile')} {
     align-items: center;
     text-align: center;
-    padding-inline: 16px;
   }
 `
 

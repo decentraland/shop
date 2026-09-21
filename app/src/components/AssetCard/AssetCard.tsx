@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart, type AddToCartSource } from '~/store/cart'
+import { BatBurst } from '~/components/BatBurst'
 import { useFavorite } from '~/store/favorites'
 import { useLocale } from '~/store/locale'
 import { useHoverPreview } from '~/store/hoverPreview'
@@ -19,6 +20,9 @@ import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import type { CatalogItem } from '~/lib/api'
 import * as S from './AssetCard.styles'
+
+/** One burst per card per this long, so sweeping the pointer over a grid is not a swarm. */
+const HOVER_BURST_COOLDOWN_MS = 2_500
 
 const HOVER_DELAY_MS = 120
 
@@ -86,6 +90,9 @@ export function AssetCard(props: AssetCardProps) {
   const own = isOwnListing(item, address)
   const { key: favKey, faved, toggle: toggleFav } = useFavorite(item)
   const favCount = useFavoriteCount(item)
+  const [burst, setBurst] = useState(0)
+  const [hoverBurst, setHoverBurst] = useState(0)
+  const lastHoverBurst = useRef(0)
   const locale = useLocale(s => s.locale)
   const favCountLabel = favCount === undefined ? null : favCount.toLocaleString(locale)
   const favAction = faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')
@@ -128,6 +135,16 @@ export function AssetCard(props: AssetCardProps) {
     // flash the red border + 3D preview on a tap). Hover is desktop-only; the matching style swap is
     // gated behind @media (hover: hover).
     if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
+    // Seasonal flourish, read off the document like the favourite burst rather than through the campaign
+    // hooks. Throttled per card: dragging the pointer across a grid brushes a dozen of them, and without
+    // this every one would let off its own burst.
+    if (
+      document.documentElement.dataset.campaignTheme === 'halloween' &&
+      Date.now() - lastHoverBurst.current > HOVER_BURST_COOLDOWN_MS
+    ) {
+      lastHoverBurst.current = Date.now()
+      setHoverBurst(n => n + 1)
+    }
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
@@ -346,6 +363,14 @@ export function AssetCard(props: AssetCardProps) {
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
     >
+      {/* Out of BOTH side edges rather than up from the middle, so the card looks like it disturbed
+          something roosting on it. Only the left one reports back; they run to the same length. */}
+      {hoverBurst ? (
+        <>
+          <BatBurst key={`hover-l-${hoverBurst}`} from="left" onDone={() => setHoverBurst(0)} />
+          <BatBurst key={`hover-r-${hoverBurst}`} from="right" />
+        </>
+      ) : null}
       {/* Whole-card navigation as a SINGLE overlaid link (keyboard + screen-reader reachable), instead
           of an interactive <article role="link"> that wraps the fav/cart/creator buttons — nesting
           interactive controls inside a link is invalid and breaks SR/tab order. The overlay sits below
@@ -397,6 +422,13 @@ export function AssetCard(props: AssetCardProps) {
           data-testid="card-fav"
           onClick={e => {
             e.stopPropagation()
+            // Read off the document rather than through the campaign hooks: this is a one-shot decided at
+            // the instant of the click, and subscribing every card in a 50-card grid to the campaign
+            // queries to decorate one of them is a poor trade. Only on the way IN — un-favouriting is not
+            // a moment to celebrate.
+            if (!faved && document.documentElement.dataset.campaignTheme === 'halloween') {
+              setBurst(n => n + 1)
+            }
             toggleFav(item, source)
           }}
           aria-label={favLabel}
@@ -406,6 +438,7 @@ export function AssetCard(props: AssetCardProps) {
             <S.FavFill name="heart-solid" size={16} aria-hidden />
           </S.FavIcons>
           {favCountLabel ? <S.FavCount data-testid="card-fav-count">{favCountLabel}</S.FavCount> : null}
+          {burst ? <BatBurst key={burst} onDone={() => setBurst(0)} /> : null}
         </S.Fav>
       ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the

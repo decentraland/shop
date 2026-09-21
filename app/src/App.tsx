@@ -2,13 +2,16 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
+import { BatFlight } from '~/components/BatFlight'
 import { PrelaunchNotice } from '~/components/PrelaunchNotice'
+import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { useCampaignThemeAttribute } from '~/hooks/useCampaignTheme'
 import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
@@ -138,6 +141,8 @@ export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
   useDialogScrollLock()
+  // Paints the running event's skin onto <html>; a no-op the rest of the year.
+  const campaignTheme = useCampaignThemeAttribute()
   const prelaunch = useShopPrelaunch()
   const location = useLocation()
 
@@ -196,6 +201,19 @@ export function App() {
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />
+      {/* Seasonal decoration, mounted only while that skin is on — it brings its own lazy chunk, so an
+          ordinary day neither renders nor downloads it.
+
+          Boundaried for the same reason the footer below is, and it matters more here: these live outside
+          the main ErrorBoundary, and a rejected lazy import (chunk 404, ad blocker, a drop in coverage
+          mid-navigation) is NOT caught by Suspense. Without this, a decoration failing to download takes
+          the nav, the cart and the checkout down with it — on the busiest days of the campaign. */}
+      {campaignTheme === 'halloween' ? (
+        <Sentry.ErrorBoundary fallback={<></>}>
+          <BatFlight />
+          <SpiderDrop />
+        </Sentry.ErrorBoundary>
+      ) : null}
       <NavBar />
       {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
           whose content is genuinely short (the credits packs) look better with the footer visible than
