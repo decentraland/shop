@@ -160,11 +160,8 @@ describe('when a creator opens their store', () => {
     // and named by who did the selling: a resale is the creator's, a royalty is somebody else's.
     expect(body).toContain('14 first sales · 1 resold')
 
-    // Only what the creator can act on: nothing is priced in MANA here, so that row is absent rather than
-    // sitting at zero.
-    expect(await page.$('[data-testid="store-attn-classic"]')).toBeNull()
-    expect(await text(app, 'store-attn-soldout')).toBe('1')
-    expect(await text(app, 'store-attn-unlisted')).toBe('1')
+    // What is selling across the whole store, which no single collection's breakdown can answer.
+    await page.waitForSelector('[data-testid="store-best"]')
 
     // The collection wears the discount that is running on it.
     expect(await text(app, 'store-collection-name')).toBe('Galaxy Drip')
@@ -277,7 +274,7 @@ describe('when a creator opens their store', () => {
  * than against itself, because the failure they guard is a plausible-looking number, not a missing one.
  */
 describe('when a creator reads how their store is doing', () => {
-  it('should say which way each figure moved, who is buying, and what is going unsold', async () => {
+  it('should say which way each figure moved, who is buying, and what is selling', async () => {
     app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
     const { page } = app
     await page.setViewport({ width: 1440, height: 1300 })
@@ -292,19 +289,9 @@ describe('when a creator reads how their store is doing', () => {
     // Nine of the fourteen FIRST sales went to one of them. The resale in the fixture is left out: a token
     // the creator flipped is not a customer of their store.
     expect(body).toContain('1 buyer is 64% of sales')
-    // The discount has been live two days, with sales before it to compare against.
-    await page.waitForSelector('[data-testid="creator-sale-lift"]')
-    expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)
-    await page.screenshot({ path: '/tmp/lift.png', clip: { x: 860, y: 150, width: 560, height: 760 } })
-  })
-
-  it("should count what nobody bought against the item's whole life, not against this month", async () => {
-    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
-    await app.page.waitForSelector('[data-testid="store-collection"]')
-    const body = await bodyText(app.page)
-
-    // The crown has sold its only copy, so it is sold out rather than unwanted however quiet the month was.
-    expect(body).toContain('Saved, never bought')
+    // The discount is reported on the row it applies to, with how much of it has been taken.
+    expect(body).toContain('-30%')
+    expect(body).toMatch(/of \d+ sold at this price/)
   })
 })
 
@@ -327,7 +314,7 @@ describe('when every figure on the dashboard has something to report', () => {
     const { page } = app
     await page.setViewport({ width: 1440, height: 1250 })
     await page.waitForSelector('[data-testid="store-collection"]')
-    await page.waitForSelector('[data-testid="creator-sale-lift"]')
+    await page.waitForSelector('[data-testid="store-best"]')
     const body = await bodyText(page)
 
     // Twenty-four this month against six the month before, all four buyers counted, one of them most of it.
@@ -337,11 +324,8 @@ describe('when every figure on the dashboard has something to report', () => {
     expect(await text(app, 'store-delta')).toContain('%')
     expect(await text(app, 'store-collectors')).toBe('4')
     expect(body).toContain('% of sales')
-    // The discount has been live two days with sales on either side of that line.
-    expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)
-    // A collection with nothing left wears the chip, and the capsule nobody has bought is called out.
+    // A collection with nothing left wears the chip.
     expect(await page.$('[data-testid="store-collection-soldout"]')).not.toBeNull()
-    expect(body).toContain('Saved, never bought')
 
     // The tiles are grid cells, so one of them running to a second line grows every card beside it. They
     // are measured rather than eyeballed: equal heights are the whole reason the copy is kept short.

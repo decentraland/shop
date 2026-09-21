@@ -29,16 +29,35 @@ const base = createConfig(
 const env = import.meta.env
 
 /**
- * Whether a hostname belongs to a LIVE deployment: production (`.org`/`.co`) or staging (`.today`/`.net`),
- * the TLD split @dcl/ui-env itself uses.
+ * The hostnames that may use the preview overrides. An ALLOWLIST, so an unknown host fails closed.
  *
- * The trailing dot is stripped first and it is not a nicety. A fully qualified name may carry one, the URL
- * parser keeps it, and DNS resolves it identically — so `https://shop.decentraland.org./` reaches the live
- * Shop with a hostname the anchored pattern would not match, which is the whole gate open. Lowercasing is
- * belt and braces: the parser already normalises case.
+ * A denylist of the live TLDs would hand the overrides to every hostname nobody thought of — a vanity
+ * domain, a raw CDN or bucket origin, an alias added next quarter — and since `?env=prod` aims the same
+ * bundle at the production feeds, an unlisted host would be a live Shop with the flag overrides open. The
+ * two directions are not symmetric: being wrong here costs one line in this list and a redeploy, being
+ * wrong the other way costs a feature flag anybody can flip.
+ *
+ * The Shop serves from `decentraland.{zone,today,org}/shop`, so `.zone` is the dev site and production and
+ * staging are excluded by not appearing. `*.vercel.app` is the per-PR deploy preview.
  */
-export function isLiveHost(hostname: string): boolean {
-  return /\.(org|co|today|net)$/.test(hostname.toLowerCase().replace(/\.$/, ''))
+const PREVIEW_HOSTS = [
+  /^localhost$/,
+  /^127\.0\.0\.1$/,
+  /^\[?::1\]?$/,
+  /(^|\.)vercel\.app$/,
+  /(^|\.)decentraland\.zone$/
+]
+
+/**
+ * The trailing dot is stripped first and it is not a nicety: a fully qualified name may carry one, the URL
+ * parser keeps it, and DNS resolves it identically. Under a denylist that was an outright bypass
+ * (`decentraland.org.` matched nothing); under this allowlist it would instead lock a legitimate preview
+ * out, which is the safe direction but still wrong. Lowercasing is belt and braces — the parser already
+ * normalises case.
+ */
+export function isPreviewHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  return PREVIEW_HOSTS.some(pattern => pattern.test(host))
 }
 
 export const config = {
@@ -70,11 +89,11 @@ export const config = {
    * the other direction too: `?env=dev` on the live Shop cannot turn them on, because the hostname does not
    * move with the query string.
    *
-   * The excluded TLDs are @dcl/ui-env's own: `.org`/`.co` is production and `.today`/`.net` is staging,
-   * which reads the production APIs and is the launch rehearsal. Everything else — `localhost`, the e2e
-   * harness, `*.vercel.app`, `decentraland.zone` — may use them.
+   * See {@link PREVIEW_HOSTS} for who qualifies: `localhost` and the e2e harness, the per-PR deploy
+   * previews, and `decentraland.zone`. Production and staging are not on that list, and neither is any
+   * host nobody has thought of yet.
    */
-  previewHost: import.meta.env.DEV || (typeof window !== 'undefined' && !isLiveHost(window.location.hostname)),
+  previewHost: import.meta.env.DEV || (typeof window !== 'undefined' && isPreviewHost(window.location.hostname)),
   /**
    * Arm the pre-launch curtain on the local dev server, so its behaviour can be exercised without a deploy:
    *

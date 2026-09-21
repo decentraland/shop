@@ -231,8 +231,15 @@ describe('at phone width', () => {
     })
 
     expect(box?.width).toBe(196)
-    // The gap is the visible half of "does not stretch": a grown field leaves only the row's own 8px.
-    expect(box!.slack).toBeGreaterThan(24)
+    /**
+     * The width above is the guard; this is the corroborating half. A stretched field would eat the gap
+     * down to the row's own 8px column-gap, so anything above that means the field held its size.
+     *
+     * The threshold used to be 24, calibrated when two icons followed the field. Activity now sits there
+     * too, which spends 48px of the row and leaves 11 — the field did not move, the icons did. At 375px
+     * this row is genuinely tight: the alternative to accepting it is shrinking the 40px touch targets.
+     */
+    expect(box!.slack).toBeGreaterThan(8)
   })
 
   /**

@@ -2,8 +2,3 @@
 export function formatDateTime(ms: number): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms))
 }
-
-/** A date with no time, e.g. "Jul 29, 2026" — for a deadline, where the hour is noise. */
-export function shortDate(ms: number): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(ms))
-}

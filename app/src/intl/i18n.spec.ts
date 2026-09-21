@@ -74,7 +74,7 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * SEVEN deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
+   * FIVE deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
    * surfaces:
    *
    * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
@@ -90,11 +90,8 @@ describe('web2-first copy rule', () => {
    * therefore has nothing to re-price. The whole message exists to name that currency: the creator opened
    * this to run a discount and the answer is which rail their listings are on.
    *
-   * `myStore.attnClassic`, its tooltip `myStore.attnClassicHint`, and `myStore.manaUnit`, in the creator's
-   * store dashboard. The first two are the row that points at the listings a discount cannot reach and the
-   * explanation behind it, which is the same fact `creatorSale.reviewClassicWhy` exists to state; the last
-   * labels the earnings figure, and creators ARE paid in MANA — calling that total anything else would
-   * misreport what they were paid.
+   * `myStore.manaUnit`, in the creator's store dashboard. It labels the earnings figure, and creators ARE
+   * paid in MANA — calling that total anything else would misreport what they were paid.
    *
    * `currency.polygonMana`, the tooltip on the MANA mark. It never introduces the word anywhere new: the
    * mark only appears beside an amount ALREADY denominated in MANA, and what it answers is which mana —
@@ -137,8 +134,6 @@ describe('web2-first copy rule', () => {
     'manaPricingBanner.lead',
     'migrate.phaseConfirmingCancel',
     'currency.polygonMana',
-    'myStore.attnClassic',
-    'myStore.attnClassicHint',
     'myStore.manaUnit',
     'network.confirmInWallet',
     'network.current',

@@ -635,47 +635,51 @@ function StoreSkeleton() {
       </S.Tiles>
 
       {/* The shape the loaded page takes. A skeleton laid out differently is a jump dressed as a state. */}
-      <S.Columns style={{ marginTop: 22 }}>
-        <S.Panel>
-          <S.PanelHead>
-            <S.Bar style={{ width: 96, height: 14 }} />
-            <S.Bar style={{ width: 120 }} />
-          </S.PanelHead>
-          {Array.from({ length: COLLECTIONS_SHOWN }, (_, i) => (
-            <S.CollRow key={i}>
-              <span />
-              <S.Dot />
-              <S.Bar style={{ width: '58%', height: 14 }} />
-              <S.Bar />
-              <S.Bar style={{ height: 20 }} />
-              <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
-            </S.CollRow>
-          ))}
-          {/* The list's own way out: a store past the first page keeps this row, and the panel keeps its
-              height when the rows arrive. */}
-          <S.More as="div">
-            <S.Bar style={{ width: 150, height: 13, margin: '0 auto' }} />
-          </S.More>
-        </S.Panel>
+      <S.Panel style={{ marginTop: 22 }}>
+        <S.PanelHead>
+          <S.Bar style={{ width: 96, height: 14 }} />
+          <S.Bar style={{ width: 120 }} />
+        </S.PanelHead>
+        {Array.from({ length: COLLECTIONS_SHOWN }, (_, i) => (
+          <S.CollRow key={i}>
+            <span />
+            <S.Dot />
+            <S.Bar style={{ width: '58%', height: 14 }} />
+            <S.Bar />
+            <S.Bar style={{ height: 20 }} />
+            <S.Bar style={{ width: 96, height: 32, borderRadius: 8 }} />
+          </S.CollRow>
+        ))}
+        {/* The list's own way out: a store past the first page keeps this row, and the panel keeps its
+            height when the rows arrive. */}
+        <S.More as="div">
+          <S.Bar style={{ width: 150, height: 13, margin: '0 auto' }} />
+        </S.More>
+      </S.Panel>
 
-        <S.Side>
-          <S.Panel>
+      <S.Duo style={{ marginTop: 22 }}>
+        {[0, 1].map(panel => (
+          <S.Panel key={panel}>
             <S.PanelHead>
               <S.Bar style={{ width: 110, height: 14 }} />
+              <S.Bar style={{ width: 80 }} />
             </S.PanelHead>
-            {[0, 1, 2].map(i => (
-              <S.AttnRow key={i}>
-                <S.Stripe />
-                <S.AttnText>
-                  <S.Bar style={{ width: '44%', height: 13 }} />
-                  <S.Bar style={{ width: '70%', marginTop: 6 }} />
-                </S.AttnText>
-                <S.Bar style={{ width: 22, height: 18 }} />
-              </S.AttnRow>
+            <S.FeedHeadBone>
+              {[0, 1, 2, 3].map(i => (
+                <S.Bar key={i} style={{ width: 46, height: 9 }} />
+              ))}
+            </S.FeedHeadBone>
+            {Array.from({ length: SALES_PER_PAGE }, (_, i) => (
+              <S.FeedBone key={i}>
+                <S.Bar style={{ width: '38%' }} />
+                <S.Bar style={{ width: '24%' }} />
+                <S.Bar style={{ width: 56 }} />
+                <S.Bar style={{ width: 64 }} />
+              </S.FeedBone>
             ))}
           </S.Panel>
-        </S.Side>
-      </S.Columns>
+        ))}
+      </S.Duo>
 
       <S.Panel style={{ marginTop: 22 }}>
         <S.PanelHead>
@@ -687,7 +691,7 @@ function StoreSkeleton() {
             <S.Bar key={i} style={{ width: 46, height: 9 }} />
           ))}
         </S.FeedHeadBone>
-        {Array.from({ length: SALES_PER_PAGE }, (_, i) => (
+        {Array.from({ length: BUYERS_PER_PAGE }, (_, i) => (
           <S.FeedBone key={i}>
             <S.Bar style={{ width: '30%' }} />
             <S.Bar style={{ width: '18%' }} />
@@ -746,9 +750,17 @@ export function MyStore() {
   const saleAddresses = useMemo(() => [...new Set(salesRows.map(row => row.buyer.toLowerCase()))].sort(), [salesRows])
   const { data: buyers, isLoading: buyersLoading } = useBuyerNames(saleAddresses)
   const buyerPages = Math.max(1, Math.ceil(trend.buyers.length / BUYERS_PER_PAGE))
+  /**
+   * Clamped on READ rather than reset on every change that could shrink the list.
+   *
+   * Switching from all time to seven days can take forty buyers down to three. A page index kept from the
+   * longer list then slices past the end — no rows, and because the list is not empty the empty state does
+   * not show either, so the panel is a header over nothing with no pager left to click back with.
+   */
+  const buyerPageShown = Math.min(buyerPage, buyerPages - 1)
   const buyersShown = useMemo(
-    () => trend.buyers.slice(buyerPage * BUYERS_PER_PAGE, (buyerPage + 1) * BUYERS_PER_PAGE),
-    [trend.buyers, buyerPage]
+    () => trend.buyers.slice(buyerPageShown * BUYERS_PER_PAGE, (buyerPageShown + 1) * BUYERS_PER_PAGE),
+    [trend.buyers, buyerPageShown]
   )
   // Only the faces on screen: a store with hundreds of customers would otherwise ask for hundreds of
   // profiles to draw a page of five rows.
@@ -780,9 +792,11 @@ export function MyStore() {
   const best = useMemo(() => bestSellers(stats?.collections ?? []), [stats])
 
   /** One page of that order, so a store with fifty collections opens on eight rather than on all of them. */
+  const collectionPageShown = Math.min(collectionPage, collectionPages - 1)
   const collectionsShown = useMemo(
-    () => sortedCollections.slice(collectionPage * COLLECTIONS_SHOWN, (collectionPage + 1) * COLLECTIONS_SHOWN),
-    [sortedCollections, collectionPage]
+    () =>
+      sortedCollections.slice(collectionPageShown * COLLECTIONS_SHOWN, (collectionPageShown + 1) * COLLECTIONS_SHOWN),
+    [sortedCollections, collectionPageShown]
   )
 
   if (access === 'off') return <Navigate to="/" replace />
@@ -1012,7 +1026,7 @@ export function MyStore() {
                       <span />
                       <span />
                       <span>{t('myStore.colCollection')}</span>
-                      <span>{t('myStore.colSales')}</span>
+                      <span>{t('myStore.colClaimed')}</span>
                       <span>{windowDays ? t('myStore.colTrend', { days: windowDays }) : t('myStore.colTrendAll')}</span>
                       <span>{t('myStore.colEarnings')}</span>
                       <span>{t('myStore.colDiscounts')}</span>
@@ -1052,7 +1066,7 @@ export function MyStore() {
                       ) : null}
                     </span>
                     <Pager
-                      page={collectionPage}
+                      page={collectionPageShown}
                       pages={collectionPages}
                       onChange={setCollectionPage}
                       name="collections"
@@ -1143,7 +1157,7 @@ export function MyStore() {
                   <S.PanelHeadStack>
                     <div>
                       <S.PanelTitle id="store-feed-h">{t('myStore.recentSales')}</S.PanelTitle>
-                      <S.PanelSub>{t('myStore.recentSalesSub', { n: salesRows.length })}</S.PanelSub>
+                      <S.PanelSub>{t('myStore.recentSalesSub')}</S.PanelSub>
                     </div>
                     <S.ViewAll to="/activity">
                       {t('myStore.viewAll')}
@@ -1398,7 +1412,7 @@ export function MyStore() {
                 {buyerPages > 1 ? (
                   <S.ListFoot>
                     <span />
-                    <Pager page={buyerPage} pages={buyerPages} onChange={setBuyerPage} name="buyers" />
+                    <Pager page={buyerPageShown} pages={buyerPages} onChange={setBuyerPage} name="buyers" />
                   </S.ListFoot>
                 ) : null}
               </S.Panel>

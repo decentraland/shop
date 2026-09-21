@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { isLiveHost } from './index'
+import { isPreviewHost } from './index'
 
 import dev from './env/dev.json'
 import stg from './env/stg.json'
@@ -73,40 +73,53 @@ describe('per-env config JSONs', () => {
 
 /**
  * The host check behind `config.previewHost`, which decides whether `?viewAs=`, `?mock=1`, `?ff=` and
- * `?ffv=` are honoured. A wrong answer here opens those overrides on the live Shop, so the cases below are
- * the gate's contract rather than illustrations of it.
+ * `?ffv=` are honoured. A wrong answer opens those overrides on the live Shop, so the cases below are the
+ * gate's contract rather than illustrations of it.
  */
-describe('isLiveHost', () => {
-  it.each(['shop.decentraland.org', 'decentraland.org', 'decentraland.co', 'decentraland.today', 'shop.example.net'])(
-    'treats %s as a live deployment',
+describe('isPreviewHost', () => {
+  it.each(['localhost', '127.0.0.1', 'shop.decentraland.zone', 'decentraland.zone', 'shop-git-branch.vercel.app'])(
+    'lets %s use the preview overrides',
     host => {
-      expect(isLiveHost(host)).toBe(true)
+      expect(isPreviewHost(host)).toBe(true)
     }
   )
 
-  it.each(['localhost', '127.0.0.1', 'shop.decentraland.zone', 'shop-git-branch.vercel.app'])(
-    'treats %s as a preview deployment',
+  it.each(['decentraland.org', 'shop.decentraland.org', 'decentraland.today', 'decentraland.co', 'decentraland.net'])(
+    'keeps %s away from them',
     host => {
-      expect(isLiveHost(host)).toBe(false)
+      expect(isPreviewHost(host)).toBe(false)
     }
   )
 
   /**
-   * A fully qualified name may carry a trailing dot, `location.hostname` keeps it, and DNS resolves it the
-   * same — so without stripping it `https://shop.decentraland.org./` reaches production with a hostname the
-   * anchored pattern misses, and every override is on.
+   * The point of the allowlist: a host nobody listed gets nothing. Under a denylist of the live TLDs each
+   * of these would have been a live Shop with the flag overrides open.
    */
-  it('strips a trailing dot before deciding, so a rooted FQDN cannot slip past', () => {
-    expect(isLiveHost('shop.decentraland.org.')).toBe(true)
-    expect(isLiveHost('decentraland.today.')).toBe(true)
+  it.each(['shop.decentraland.com', 'shop.example.io', '203.0.113.7', 'shop-cdn-origin.internal'])(
+    'refuses %s, which nobody listed either way',
+    host => {
+      expect(isPreviewHost(host)).toBe(false)
+    }
+  )
+
+  /**
+   * A fully qualified name may carry a trailing dot and `location.hostname` keeps it, so the comparison has
+   * to normalise or a legitimate preview is locked out — and under the denylist this replaced, the same
+   * detail let `decentraland.org.` through as a preview.
+   */
+  it('strips a trailing dot before deciding', () => {
+    expect(isPreviewHost('shop.decentraland.zone.')).toBe(true)
+    expect(isPreviewHost('decentraland.org.')).toBe(false)
   })
 
   it('ignores case', () => {
-    expect(isLiveHost('SHOP.DECENTRALAND.ORG')).toBe(true)
+    expect(isPreviewHost('SHOP.DECENTRALAND.ZONE')).toBe(true)
+    expect(isPreviewHost('SHOP.DECENTRALAND.ORG')).toBe(false)
   })
 
-  it('does not fire on a TLD that merely contains one of the live ones', () => {
-    expect(isLiveHost('shop.decentraland.organic')).toBe(false)
-    expect(isLiveHost('preview.network')).toBe(false)
+  it('anchors on a label boundary, so a lookalike domain does not qualify', () => {
+    expect(isPreviewHost('decentraland.zone.evil.com')).toBe(false)
+    expect(isPreviewHost('notdecentraland.zone')).toBe(false)
+    expect(isPreviewHost('myvercel.app.attacker.net')).toBe(false)
   })
 })

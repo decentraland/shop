@@ -303,12 +303,14 @@ describe('featureFlags', () => {
 describe('preview query overrides', () => {
   const ADDRESS = '0xAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaa'
 
+  const previewHost = config.previewHost
+
   beforeEach(() => {
     resetFeatureFlagsCache()
   })
   afterEach(() => {
     window.history.replaceState({}, '', '/')
-    config.previewHost = true
+    config.previewHost = previewHost
     vi.unstubAllGlobals()
   })
 

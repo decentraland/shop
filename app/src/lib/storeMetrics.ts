@@ -139,7 +139,7 @@ export function topBuyers(allRows: SaleRow[], limit?: number): Buyer[] {
       lastAt: e.lastAt
     }))
     .sort((a, b) => (b.spentWei > a.spentWei ? 1 : b.spentWei < a.spentWei ? -1 : b.bought - a.bought))
-    .slice(0, limit ?? undefined)
+    .slice(0, limit)
 }
 
 /**
