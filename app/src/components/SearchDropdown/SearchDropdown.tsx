@@ -65,9 +65,9 @@ type SearchDropdownProps = {
 //   in pages/Assets) so a suggestion is never something the results page then hides, and "See all (N)"
 //   is the number the grid then shows. It used to read the on-sale feed while the grid opened on All:
 //   "pirate hat" offered 188 results and landed on 542.
-//   Collections come from /v1/collections?search=, and Creators are derived from those collections'
-//   authors (see lib/search). The grid stays items-only — only the dropdown surfaces
-//   creators/collections as jump-to links.
+//   Collections come from /v1/collections?search=, and Creators from /v3/catalog/creators/search,
+//   which ranks them by profile name and NAMEs (see lib/search). The grid stays items-only — only
+//   the dropdown surfaces creators/collections as jump-to links.
 // Keyboard nav is limited to Escape/Enter, owned by the parent NavBar.
 export function SearchDropdown({
   query,
