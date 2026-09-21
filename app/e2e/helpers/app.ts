@@ -57,8 +57,8 @@ export type Fixtures = {
   importable: unknown
   shopListings: unknown
   collections: unknown
-  creatorNames: unknown
-  accounts: unknown
+  /** Ranked creators for the search dropdown (/v3/catalog/creators/search). */
+  creators: unknown
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
@@ -94,8 +94,7 @@ function defaults(): Fixtures {
     importable: fx.importable,
     shopListings: fx.shopListings,
     collections: fx.collections,
-    creatorNames: fx.creatorNames,
-    accounts: fx.accounts,
+    creators: fx.creators,
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
@@ -714,13 +713,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       return json(req, { data: rows, total: rows.length })
     }
     if (path === '/v1/nfts') {
-      // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
-      if (u.searchParams.get('category') === 'ens') {
-        let names = (F.creatorNames as { data: any[] }).data ?? []
-        const search = u.searchParams.get('search')?.toLowerCase()
-        if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
-        return json(req, { data: names, total: names.length })
-      }
       // Owner-scoped (?owner=) vs PUBLIC token lookup (?contractAddress=&tokenId=) are different
       // questions: a buyer owns nothing yet the token still exists. Answering both from one fixture made
       // the non-owner path untestable — the viewer always looked like the owner.
@@ -731,13 +723,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         return json(req, { data: match, total: match.length })
       }
       return json(req, F.ownedNfts)
-    }
-    // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
-    if (path === '/v1/accounts') {
-      const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
-      let rows = (F.accounts as { data: any[] }).data ?? []
-      if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
-      return json(req, { data: rows, total: rows.length })
     }
     // Creator sales (lib/coupons). The POST answers the way marketplace-server does — the stored coupon with
     // its id, status and initial on-chain state — and the GET returns everything this run has stored.
@@ -765,6 +750,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
     // i.e. the section rendered its skeletons and then removed itself.
     if (path === '/v3/catalog/creators') return json(req, F.rankings)
+    // Creator suggestions (lib/search.ts → fetchCreatorSuggestions): the fixture creators whose name
+    // contains the query, the way the server's ranked search would answer.
+    if (path === '/v3/catalog/creators/search') {
+      const search = u.searchParams.get('search')?.toLowerCase() ?? ''
+      const rows = ((F.creators as { data: any[] }).data ?? []).filter(c =>
+        String(c.name).toLowerCase().includes(search)
+      )
+      return json(req, { data: rows })
+    }
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     // Save counts, read in bulk for everything on screen. They move with the run's accumulator, so
     // hearting an item raises its number.
