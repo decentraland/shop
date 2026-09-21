@@ -368,9 +368,21 @@ export function NameBuyModal({
   const awaitingBuyer = selfCustody && (stage === 'preparing' || stage === 'awaiting-confirmation')
   const currentStep = awaitingBuyer ? 1 : totalSteps
 
-  // The step's own name. The wallet prompt is the buyer's to act on; everything past it is the purchase
-  // completing, which is what the design says and all it needs to say.
-  const processingText = awaitingBuyer ? t('names.confirming') : t('names.completing')
+  /**
+   * The step's own name. The wallet prompt is the buyer's to act on; everything past it is the purchase
+   * completing — except the minting itself, which gets said out loud.
+   *
+   * `registering` ran under "Completing transaction…" beside a 1/1 counter, so the headline announced an
+   * ending while the longest part of the purchase was still running, and the only accurate line on screen
+   * was the note underneath. That is the hierarchy inverted: the wait was reported in the smallest type on
+   * the panel. The counter is right as it stands — it counts what the BUYER has to do, and a managed
+   * wallet really does have one — so the fix is the headline telling the truth next to it.
+   */
+  const processingText = awaitingBuyer
+    ? t('names.confirming')
+    : stage === 'registering'
+      ? t('names.registering')
+      : t('names.completing')
 
   /**
    * The one thing the step name cannot carry: `registering` is the bridge and the Ethereum mint, and it

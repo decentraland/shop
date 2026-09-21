@@ -242,17 +242,21 @@ describe('NameBuyModal', () => {
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
 
-    // The long stretch. It has to say the wait is expected, or a buyer concludes it broke and tries again.
-    // Carried BESIDE the step name rather than replacing it: the step is still "completing transaction".
-    it('should say the bridge takes minutes, without renaming the step it is part of', async () => {
+    /**
+     * The long stretch, and the one the buyer waits through. It used to run under "Completing
+     * transaction…" with the minutes-long wait explained only in the note below, which put the headline
+     * and the truth in opposite places: the panel announced an ending while its longest phase was still
+     * running. The step name now says what is happening and the note keeps the duration.
+     */
+    it('should name the minting as the step, not report the transaction as completing', async () => {
       const advance = renderAtStage('registering')
 
       await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
       act(() => advance())
 
-      expect(screen.getByText(/registering your NAME/i)).toBeTruthy()
+      expect(screen.getByText(/registering your NAME…/i)).toBeTruthy()
       expect(screen.getByText(/few minutes/i)).toBeTruthy()
-      expect(screen.getByText(/completing transaction/i)).toBeTruthy()
+      expect(screen.queryByText(/completing transaction/i)).toBeNull()
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
 
