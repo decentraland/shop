@@ -46,6 +46,11 @@ import { idToSalt } from '~/lib/trade-encoding'
 import { readManaUsdRate, manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { friendlyError } from '~/lib/errors'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
+import { AuthorizationKind, ensureAuthorization } from '~/lib/authorizations'
+import { requireChain } from '~/lib/network'
+import { canPayGasItself } from '~/lib/wallet-kind'
+import type { ProviderType } from '@dcl/schemas'
+import { ContractName, getContract } from 'decentraland-transactions'
 
 // 100 MANA — the fixed DCLControllerV2.register cost and the useCredits maxCreditedValue. Matches the
 // credits-server's NAME_PRICE_IN_WEI and the marketplace webapp's PRICE_IN_WEI.
@@ -351,6 +356,26 @@ export async function registerNameWithUsdCredits(opts: {
   beneficiary?: string
   chainId?: ChainId
   provider?: NameRouteProvider
+  /**
+   * Pay part of the NAME with the buyer's own Polygon MANA instead of credits.
+   *
+   * The cents to reserve — anything short of the full price leaves a gap the CreditsManager pulls from the
+   * buyer's wallet as `maxUncreditedValue`, exactly as the item's mixed rail does. It cannot be zero: the
+   * registration runs through a server-signed external call that only `useCredits` can make, and that
+   * reverts with `NoCredits()` on an empty credits array. So a NAME is always at least one credit.
+   *
+   * Omitted (the default) reserves the whole price and spends no MANA.
+   */
+  creditsCents?: number
+  /**
+   * The most MANA this purchase may pull, as it was SHOWN to the buyer.
+   *
+   * The gap is derived from a fresh oracle read at submit, while the figure on screen came from a rate
+   * cached for up to a minute. Without a cap those two disagree silently and the contract pulls the
+   * difference: an 11% MANA move turns a screen that said 7.41 into a 15 MANA charge. This is the mixed
+   * rail's equivalent of the credits-only invariant below — refuse and release rather than overspend.
+   */
+  maxManaWei?: bigint
   // Test seam: shrink the Across poll so specs don't wait on real timers.
   acrossPoll?: { intervalMs?: number; maxAttempts?: number }
   // Progress for the UI. See NameRegistrationStage — the phases differ by MINUTES, so a screen that cannot
@@ -390,8 +415,12 @@ export async function registerNameWithUsdCredits(opts: {
     // caller's, because readManaUsdRate dials config.rpcUrl and a marketplace from another chain has no
     // contract there to answer.
     const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address)
-    const usdCents = sizeNameUsdCents(rate)
-    console.info('[names] step 1/6 sized reservation', { usdCents, manaRate: rate })
+    const fullPriceCents = sizeNameUsdCents(rate)
+    // A caller paying part in MANA reserves less; never more than the price, and never nothing (NoCredits).
+    const usdCents =
+      opts.creditsCents != null ? Math.max(1, Math.min(Math.trunc(opts.creditsCents), fullPriceCents)) : fullPriceCents
+    const payingWithMana = usdCents < fullPriceCents
+    console.info('[names] step 1/6 sized reservation', { usdCents, fullPriceCents, payingWithMana, manaRate: rate })
 
     // 2) Fetch the signed cross-chain route (independent of sizing; short-lived quote).
     const route = await fetchNameCreditRoute(identity, name, { chainId, provider })
@@ -412,11 +441,55 @@ export async function registerNameWithUsdCredits(opts: {
       maxCreditedValue: authorized.maxCreditedValue
     })
 
-    // Invariant: the credit must cover the 100 MANA name price, or useCredits would try to charge the
-    // buyer the shortfall in MANA (which they don't have) and revert. A rare rate swing between our
-    // read and the server's could break it — release and bail rather than hand over a doomed tx.
-    if (ethers.BigNumber.from(authorized.maxCreditedValue).lt(NAME_PRICE_IN_WEI)) {
+    /**
+     * Invariant, for a credits-only purchase: the credit must cover the 100 MANA price.
+     *
+     * Without it `useCredits` charges the shortfall to the buyer's MANA — which a credits-only buyer has
+     * not agreed to spend and may not hold — and reverts. A rare rate swing between our read and the
+     * server's could cause it, so release the reservation and bail rather than hand over a doomed tx.
+     *
+     * When the buyer IS paying part in MANA the gap is the point, and `buildNameUseCreditsArgs` turns it
+     * into `maxUncreditedValue` — the cap the contract refunds against, so an over-estimate costs nothing.
+     */
+    if (!payingWithMana && ethers.BigNumber.from(authorized.maxCreditedValue).lt(NAME_PRICE_IN_WEI)) {
       throw new Error('Credit under-sized for the name price')
+    }
+
+    /**
+     * 3b) Let the CreditsManager pull the MANA leg.
+     *
+     * Only for a mixed purchase: `useCredits` calls `safeTransferFrom(buyer, ...)` for the uncredited
+     * value, which reverts without an allowance. Ordered BEFORE the submit so the buyer approves and pays
+     * in one sitting, and skipped entirely when credits cover the price — a credits-only NAME must not
+     * start asking for MANA permissions it will never use.
+     */
+    if (payingWithMana) {
+      /**
+       * Derived from `availableAmount`, the same field `buildNameUseCreditsArgs` uses — NOT
+       * `maxCreditedValue`. They are equal today, but a partially consumed credit would make the real pull
+       * bigger than the amount this asked an allowance for, and a leftover allowance would then pass the
+       * check without an approve being sent, reverting inside `safeTransferFrom`.
+       */
+      const gapWei = ethers.BigNumber.from(NAME_PRICE_IN_WEI).sub(authorized.credit.availableAmount)
+      if (opts.maxManaWei != null && gapWei.gt(opts.maxManaWei.toString())) {
+        throw new Error('The MANA needed moved past what was agreed')
+      }
+      if (gapWei.gt(0)) {
+        progress('awaiting-confirmation')
+        await ensureAuthorization({
+          auth: {
+            kind: AuthorizationKind.Allowance,
+            contractAddress: getContract(ContractName.MANAToken, chainId).address,
+            spenderAddress: getContract(ContractName.CreditsManager, chainId).address,
+            chainId
+          },
+          // The shop's Session always carries a JsonRpcSigner; the wider `ethers.Signer` on this function
+          // predates the MANA leg and every call site passes the narrower one.
+          signer: signer as ethers.providers.JsonRpcSigner,
+          requiredWei: BigInt(gapWei.toString())
+        })
+        console.info('[names] step 3b/6 mana allowance ensured', { gapWei: gapWei.toString() })
+      }
     }
 
     // 4) Submit useCredits — gasless (relayer pays) first, buyer-submitted fallback. A self-custody wallet
@@ -513,6 +586,90 @@ export async function registerNameWithUsdCredits(opts: {
     // Keep the original as `cause` so Sentry still gets the real failure behind the friendly copy.
     // Assigned rather than passed to the constructor: the TS lib target is ES2020, which predates
     // ErrorOptions (same approach as lib/store.ts).
+    const failure: Error & { cause?: unknown } = new Error(
+      friendlyError(e, "Couldn't register the name. Please try again.", { sale: true })
+    )
+    failure.cause = e
+    throw failure
+  }
+}
+
+/**
+ * Register a NAME by paying with the buyer's own MANA on ETHEREUM — no credits, no bridge.
+ *
+ * The buyer approves MANA to DCLControllerV2 and calls `register` on L1, which is the same thing the
+ * classic marketplace does for a crypto-paid claim. Nothing crosses a chain, so there is no route to sign,
+ * no executor to front the bridge and no reconciler to settle: the NAME is minted in that one transaction.
+ *
+ * SELF-CUSTODY ONLY, and the reason is gas rather than taste. Every step here runs on Ethereum, where the
+ * shop has no relayer — the wallet pays. A managed (social) wallet holds no ETH, so it would prompt for a
+ * confirmation its owner cannot satisfy and revert with INSUFFICIENT_FUNDS. Callers gate on
+ * `canPayGasItself(providerType)`; this throws if that gate was missed, rather than trusting it.
+ *
+ * The buyer's wallet must also BE on Ethereum. Unlike the Polygon rails, reads here cannot stand in for the
+ * write: switching is the caller's job (`switchChain`) so the modal can explain it before the wallet asks.
+ */
+export async function registerNameWithEthereumMana(opts: {
+  name: string
+  signer: ethers.providers.JsonRpcSigner
+  web3Provider: ethers.providers.Web3Provider
+  providerType?: string | null
+  /** The NAME beneficiary. Defaults to the signer's address. */
+  beneficiary?: string
+  onProgress?: (stage: NameRegistrationStage) => void
+}): Promise<{ status: 'registered'; originTxHash: string }> {
+  const { name, signer, web3Provider } = opts
+  const progress = (stage: NameRegistrationStage) => {
+    try {
+      opts.onProgress?.(stage)
+    } catch {
+      /* reporting progress must not abort a purchase */
+    }
+  }
+  const chainId = config.ethereumChainId
+  const buyer = (opts.beneficiary ?? (await signer.getAddress())).toLowerCase()
+
+  if (!canPayGasItself(opts.providerType as ProviderType | null | undefined)) {
+    throw new Error('This wallet cannot pay its own gas on Ethereum')
+  }
+
+  console.info('[names] ethereum register start', { name, buyer, chainId })
+  progress('preparing')
+  try {
+    // The wallet has to be ON Ethereum: this is a real L1 write, so a Polygon-pointed wallet would sign
+    // against the wrong chain. Verified rather than switched — the caller switches, having said why.
+    await requireChain(web3Provider, chainId)
+
+    // 100 MANA to the controller. `ensureAuthorization` skips a sufficient existing allowance, so a repeat
+    // buyer approves once.
+    progress('awaiting-confirmation')
+    await ensureAuthorization({
+      auth: {
+        kind: AuthorizationKind.Allowance,
+        contractAddress: getContract(ContractName.MANAToken, chainId).address,
+        spenderAddress: getContract(ContractName.DCLControllerV2, chainId).address,
+        chainId
+      },
+      signer,
+      requiredWei: BigInt(NAME_PRICE_IN_WEI)
+    })
+
+    const controller = getContract(ContractName.DCLControllerV2, chainId)
+    const contract = new ethers.Contract(controller.address, controller.abi, signer) as ethers.Contract & {
+      register(name: string, beneficiary: string): Promise<ethers.providers.TransactionResponse>
+    }
+    const tx = await contract.register(name, buyer)
+    console.info('[names] ethereum register submitted', { txHash: tx.hash })
+
+    // Mined on Ethereum IS the registration — there is no bridge to wait on afterwards, which is why this
+    // rail never reports 'pending'.
+    progress('confirming')
+    const receipt = await tx.wait()
+    if (receipt.status === 0) throw new Error('The registration was not completed')
+    console.info('[names] ethereum register confirmed', { txHash: tx.hash })
+    return { status: 'registered', originTxHash: tx.hash }
+  } catch (e) {
+    console.error('[names] ethereum register failed — raw error:', e, { name, buyer })
     const failure: Error & { cause?: unknown } = new Error(
       friendlyError(e, "Couldn't register the name. Please try again.", { sale: true })
     )

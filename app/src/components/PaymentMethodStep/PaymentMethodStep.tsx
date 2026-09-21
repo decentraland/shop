@@ -1,15 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { formatMana } from '~/lib/mana-format'
 import { type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
-import type { CatalogItem } from '~/lib/api'
 import creditsCoin from '~/assets/payment/credits-coin.webp'
-import manaLogo from '~/assets/payment/mana-logo.webp'
-// The row's big mark is the DCL logo; the small marks beside a MANA *amount* are the Polygon MANA coin.
+// Every MANA mark here is the token's own symbol — the Polygon diamond, the Ethereum hexagon — so the
+// two rails read as the same currency on different chains rather than a brand logo beside a symbol.
 import manaCoin from '~/assets/mana-matic.svg'
 import * as S from './PaymentMethodStep.styles'
 
@@ -34,7 +32,7 @@ export type { PaymentMethod }
  * submitted into a failure.
  */
 export function PaymentMethodStep({
-  item,
+  asset,
   priceCredits,
   priceCents,
   options,
@@ -46,7 +44,11 @@ export function PaymentMethodStep({
   busy = false,
   notice
 }: {
-  item: CatalogItem
+  /**
+   * What is being bought, as much as this step needs to name it. Not a `CatalogItem`: a NAME is not one,
+   * and the row only ever renders a thumb, a title and a caption.
+   */
+  asset: { name: string; caption?: ReactNode; thumb?: ReactNode }
   priceCredits: number
   /** The item's exact price in cents — what each leg of a split is derived from. */
   priceCents: number
@@ -71,26 +73,45 @@ export function PaymentMethodStep({
 
   // Which rails the buyer has ticked. Seeded from what is payable, preferring credits — the mixed rail is
   // only the preselection when neither single rail covers the price on its own.
-  const [picked, setPicked] = useState<Set<'credits' | 'mana'>>(() => {
-    if (credits) return new Set<'credits' | 'mana'>(['credits'])
-    if (combined) return new Set<'credits' | 'mana'>(['credits', 'mana'])
-    if (mana) return new Set<'credits' | 'mana'>(['mana'])
-    return new Set<'credits' | 'mana'>()
+  type Ticked = 'credits' | 'mana'
+  const [picked, setPicked] = useState<Set<Ticked>>(() => {
+    if (credits) return new Set<Ticked>(['credits'])
+    if (combined) return new Set<Ticked>(['credits', 'mana'])
+    if (mana) return new Set<Ticked>(['mana'])
+    return new Set<Ticked>()
   })
 
   const creditsUsable = !!credits || !!combined
   const manaUsable = !!mana || !!combined
 
-  // The rails are recomputed as balances and prices resolve; drop a tick that stopped being payable so
-  // confirm can never submit a selection the money no longer supports.
+  /**
+   * The rails are recomputed as balances and prices resolve, so the ticks follow them: one that stopped
+   * being payable is dropped, and an EMPTY selection is re-seeded once a rail turns up.
+   *
+   * The re-seed is not cosmetic. `useState`'s initialiser runs once, and the two balances arrive from
+   * different places — an RPC read and a signed fetch — so mounting before the credit balance lands seeds
+   * nothing. Without this the buyer is left staring at unticked rows above a dead button, with no way to
+   * tell that the answer arrived after the question.
+   */
   useEffect(() => {
     setPicked(prev => {
       const next = new Set(prev)
       if (next.has('credits') && !creditsUsable) next.delete('credits')
       if (next.has('mana') && !manaUsable) next.delete('mana')
-      return next.size === prev.size ? prev : next
+      if (next.size === 0) {
+        if (credits) next.add('credits')
+        else if (combined) {
+          next.add('credits')
+          next.add('mana')
+        } else if (mana) next.add('mana')
+      }
+      // Compared by CONTENT, not size. This block now both deletes and adds, so a tick that is swapped for
+      // another leaves the count untouched — and returning `prev` there would keep the unusable rail ticked
+      // over a dead confirm button.
+      const same = next.size === prev.size && [...next].every(r => prev.has(r))
+      return same ? prev : next
     })
-  }, [creditsUsable, manaUsable])
+  }, [creditsUsable, manaUsable, credits, combined, mana])
 
   /** The rail a ticked set settles as, or null when the combination isn't payable. */
   const hasC = picked.has('credits')
@@ -118,7 +139,7 @@ export function PaymentMethodStep({
     method === 'combined' && combined ? combined.credits : (credits?.credits ?? usdCentsToCredits(priceCents))
   const manaLeg = method === 'combined' && combined ? combined.manaWei : (mana?.manaWei ?? priceManaWei)
 
-  function toggle(rail: 'credits' | 'mana') {
+  function toggle(rail: Ticked) {
     setPicked(prev => {
       const next = new Set(prev)
       if (next.has(rail)) next.delete(rail)
@@ -137,15 +158,11 @@ export function PaymentMethodStep({
       </S.Head>
 
       <S.AssetCard>
-        <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+        <S.Thumb>{asset.thumb}</S.Thumb>
         <S.AssetInfo>
           <div>
-            <S.AssetName title={item.name}>{item.name || t('buyModal.itemFallback')}</S.AssetName>
-            {item.creator ? (
-              <S.AssetBy>
-                <CreatorName address={item.creator} />
-              </S.AssetBy>
-            ) : null}
+            <S.AssetName title={asset.name}>{asset.name || t('buyModal.itemFallback')}</S.AssetName>
+            {asset.caption ? <S.AssetBy>{asset.caption}</S.AssetBy> : null}
           </div>
           <S.AssetPrice>
             <CurrencyIcon />
@@ -209,7 +226,7 @@ export function PaymentMethodStep({
           <S.Content>
             <S.InfoGroup>
               <S.Logo>
-                <S.RailArt src={manaLogo} w={35.328} h={35.328} alt="" aria-hidden />
+                <S.RailArt src={manaCoin} w={35.328} h={35.328} alt="" aria-hidden />
               </S.Logo>
               <S.TextBlock>
                 <S.Label>{t('buyModal.methodMana')}</S.Label>

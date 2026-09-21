@@ -637,3 +637,16 @@ export const PackCtas = styled.div`
   display: flex;
   gap: 12px;
 `
+
+// The NAME's stand-in for an item thumbnail on the payment step.
+export const ThumbGlyph = styled.span`
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: ${theme.gradients.amethyst};
+  font-family: ${theme.font.sans};
+  font-size: 32px;
+  font-weight: 700;
+  color: ${theme.colors.white};
+`

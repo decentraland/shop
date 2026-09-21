@@ -55,9 +55,16 @@ vi.mock('~/lib/names', () => {
     NameRouteCostTooHighError,
     NameNotRegisteredError,
     NameSettlementUnknownError,
-    registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a)
+    registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a),
+    // The fixed on-chain price the MANA rails are sized against.
+    NAME_PRICE_IN_WEI: '100000000000000000000'
   }
 })
+
+// The buyer's own MANA, per chain. Zero by default so the existing cases keep exercising the credits-only
+// flow they were written for; the MANA cases raise it.
+const manaBalances = { data: { matic: 0n, ethereum: 0n } }
+vi.mock('~/hooks/useManaBalance', () => ({ useManaBalances: () => manaBalances }))
 
 const track = vi.fn()
 vi.mock('~/lib/analytics', () => ({
@@ -141,6 +148,7 @@ describe('NameBuyModal', () => {
     iap.on = false
     sessionStorage.clear()
     balance = { balanceCents: 5000, credits: 500 }
+    manaBalances.data = { matic: 0n, ethereum: 0n }
     // Restored per test: the progress cases below switch it to cover both wallet kinds, and leaking that
     // would silently change which copy every later case is asserting.
     session.providerType = 'magic'
@@ -507,6 +515,64 @@ describe('NameBuyModal', () => {
       fireEvent.click(buyButton())
 
       await waitFor(() => expect(screen.getByText('Boom from the lib')).toBeTruthy())
+    })
+  })
+
+  /**
+   * Choosing HOW to pay, before the NAME is confirmed.
+   *
+   * A NAME costs a fixed 100 MANA, so a buyer holding MANA can cover part (Polygon, mixed with credits) or
+   * all of it (Ethereum, spending no credits at all). The question is only asked when there is something to
+   * choose — a credits-only buyer goes straight to the re-entry gate, as before.
+   */
+  describe('and the buyer holds MANA of their own', () => {
+    const MANA = (n: number) => BigInt(n) * 10n ** 18n
+
+    it('should not ask anything of a buyer whose only rail is credits', () => {
+      renderModal(67)
+
+      expect(screen.queryByTestId('pay-with-credits')).toBeNull()
+      expect(screen.getByLabelText(/re-?enter|confirm/i)).toBeTruthy()
+    })
+
+    it('should offer the mixed rail when Polygon MANA can cover what credits cannot', () => {
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      renderModal(67)
+
+      expect(screen.getByTestId('pay-with-credits')).toBeTruthy()
+      expect(screen.getByTestId('pay-with-mana')).toBeTruthy()
+      // Nothing to pay the whole thing on L1 with, so no third row at all.
+      expect(screen.queryByTestId('pay-with-alt')).toBeNull()
+    })
+
+    /**
+     * Short on credits but holding MANA is NOT being stuck, so the pack picker — which exists for a buyer
+     * with no way to pay — must give way to the choice they actually have.
+     */
+    it('should offer the rails instead of selling credit packs to a buyer who holds MANA', () => {
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      creditPacks.packs = [{ id: 'p100', credits: 100, usd: 11.99 }]
+      renderModal(67)
+
+      expect(screen.queryByTestId('credit-packs')).toBeNull()
+      expect(screen.getByTestId('pay-with-mana')).toBeTruthy()
+    })
+
+    it('should reserve only the credits leg when the mixed rail is confirmed', async () => {
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      registerNameWithUsdCredits.mockResolvedValue({ status: 'registered', originTxHash: '0x1' })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('confirm-payment'))
+      reenter()
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalledTimes(1))
+      // 30 credits floored to whole credits = 300 cents; the rest rides on MANA.
+      expect(registerNameWithUsdCredits.mock.calls[0][0].creditsCents).toBe(300)
     })
   })
 

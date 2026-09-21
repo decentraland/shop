@@ -17,6 +17,8 @@ vi.mock('~/config', () => ({
 // provider ctor) so we can drive `available`; everything else (BigNumber, used by the register tests)
 // stays the real implementation.
 const availableMock = vi.hoisted(() => vi.fn())
+// DCLControllerV2.register, for the Ethereum rail. Same stubbed Contract as the registrar read above.
+const registerMock = vi.hoisted(() => vi.fn())
 vi.mock('ethers', async importOriginal => {
   const actual = await importOriginal<typeof import('ethers')>()
   return {
@@ -24,7 +26,7 @@ vi.mock('ethers', async importOriginal => {
     ethers: {
       ...actual.ethers,
       providers: { ...actual.ethers.providers, JsonRpcProvider: vi.fn(() => ({})) },
-      Contract: vi.fn(() => ({ available: availableMock }))
+      Contract: vi.fn(() => ({ available: availableMock, register: registerMock }))
     }
   }
 })
@@ -59,6 +61,11 @@ vi.mock('~/lib/credits', () => ({ authorizeUsdCredit, cancelUsdIntents }))
 // Buyer-submitted useCredits fallback.
 const { sendUseCredits } = vi.hoisted(() => ({ sendUseCredits: vi.fn() }))
 vi.mock('~/lib/buy', () => ({ sendUseCredits }))
+
+// The MANA leg's allowance. Mocked wholesale: its real graph reaches the wallet, and what these cases
+// assert is WHETHER it is asked for, not how it is granted.
+const { ensureAuthorization } = vi.hoisted(() => ({ ensureAuthorization: vi.fn() }))
+vi.mock('~/lib/authorizations', () => ({ ensureAuthorization, AuthorizationKind: { Allowance: 'allowance' } }))
 
 // Gasless submit + settlement wait. Fully mock the module (its real graph pulls decentraland-
 // transactions' cross-chain ESM) but provide stand-in error classes — names.ts and this spec both
@@ -620,5 +627,216 @@ describe('checkNameAvailability', () => {
     const ctrl = new AbortController()
     ctrl.abort()
     await expect(checkNameAvailability('bob', { signal: ctrl.signal })).rejects.toThrow(/abort/i)
+  })
+})
+
+/**
+ * Paying part of a NAME with the buyer's own Polygon MANA.
+ *
+ * The registration cannot leave the CreditsManager — it runs through a server-signed external call only
+ * `useCredits` can make — so MANA never replaces the credit, it covers the REMAINDER. The contract pulls
+ * that remainder up front as `maxUncreditedValue` and refunds whatever the call did not need.
+ */
+describe('when the buyer pays part of the NAME with MANA', () => {
+  it('should reserve only the credits the buyer chose, not the whole price', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    // Half the 100 MANA price in credits; the rest rides on MANA.
+    authorizeUsdCredit.mockResolvedValueOnce(authorized('50000000000000000000'))
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      creditsCents: 2000,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(authorizeUsdCredit.mock.calls[0][1]).toBe(2000)
+    // The gap the contract will pull from the wallet: 100 MANA priced, 50 credited.
+    const args = sendUseCreditsGasless.mock.calls[0][0].args
+    expect(args.maxCreditedValue).toBe(NAME_PRICE_IN_WEI)
+    expect(args.maxUncreditedValue).toBe('50000000000000000000')
+  })
+
+  // The invariant that guards a credits-only buyer must not fire here: the gap IS the purchase.
+  it('should not refuse an under-sized credit when the gap was asked for', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized('10000000000000000000'))
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    const res = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      creditsCents: 400,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(res.status).toBe('registered')
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `useCredits` reverts with `NoCredits()` on an empty credits array, and the credits-server refuses a
+   * non-positive `usdPriceCents`. A caller asking for zero would get a 400 and a dead purchase, so the
+   * floor is enforced here instead.
+   */
+  it('should never reserve nothing, however little the caller asks for', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized('1000000000000000000'))
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      creditsCents: 0,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(authorizeUsdCredit.mock.calls[0][1]).toBe(1)
+  })
+
+  /**
+   * `useCredits` pulls the uncredited leg with `safeTransferFrom(buyer, ...)`, which reverts without an
+   * allowance — so the approval has to happen BEFORE the submit, not after a failed one.
+   */
+  it('should let the CreditsManager pull the MANA leg before submitting', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized('50000000000000000000'))
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      creditsCents: 2000,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(ensureAuthorization).toHaveBeenCalledTimes(1)
+    // Exactly the gap, not the whole price: an allowance is the buyer's money, so ask for what is spent.
+    expect(ensureAuthorization.mock.calls[0][0].requiredWei).toBe(50000000000000000000n)
+    expect(ensureAuthorization.mock.calls[0][0].auth.kind).toBe('allowance')
+  })
+
+  // A credits-only NAME must not start asking for MANA permissions it will never use.
+  it('should not ask for a MANA allowance when credits cover the price', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(ensureAuthorization).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The MANA figure on screen comes from a rate cached for up to a minute; the gap is derived from a fresh
+   * read at submit. Without a cap the contract silently pulls the difference — an 11% MANA move turns a
+   * screen that said 7.41 into a 15 MANA charge.
+   */
+  it('should refuse to pull more MANA than the buyer was shown', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    // The credit covers 50 MANA, so the real gap is 50 — far past the 10 the buyer agreed to.
+    authorizeUsdCredit.mockResolvedValueOnce(authorized('50000000000000000000'))
+
+    await expect(
+      registerNameWithUsdCredits({
+        name: 'my-name',
+        identity: IDENTITY,
+        signer: SIGNER,
+        creditsCents: 2000,
+        maxManaWei: 10n * 10n ** 18n,
+        acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+      })
+    ).rejects.toThrow()
+
+    // Nothing was submitted, and the dollars went back.
+    expect(sendUseCreditsGasless).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).toHaveBeenCalled()
+  })
+
+  it('should go through when the gap is within what was agreed', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized('50000000000000000000'))
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    const res = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      creditsCents: 2000,
+      maxManaWei: 60n * 10n ** 18n,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(res.status).toBe('registered')
+  })
+
+  // Asking for more than the price would reserve dollars the purchase cannot spend.
+  it('should cap the reservation at the full price', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      creditsCents: 999_999,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(authorizeUsdCredit.mock.calls[0][1]).toBe(4000)
   })
 })
