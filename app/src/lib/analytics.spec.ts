@@ -405,6 +405,68 @@ describe('first-party analytics proxy', () => {
   })
 })
 
+describe('analytics identity for the support widget', () => {
+  // Stands in for a loaded analytics.js: `initialize` is what marks it as the real one.
+  function loadedAnalytics() {
+    return {
+      track: vi.fn(),
+      identify: vi.fn(),
+      page: vi.fn(),
+      initialize: () => {},
+      ready: (callback: () => void) => callback(),
+      user: () => ({ anonymousId: () => 'anon-42' })
+    }
+  }
+
+  it('tells a listener that registered before analytics started, so a conversation carries the anon id', async () => {
+    // React runs a child's effect before its parent's: the Intercom widget asks for the id before App
+    // has called initAnalytics, and dropping that request left every conversation without an anon_id.
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+    expect(listener).not.toHaveBeenCalled()
+    ;(window as unknown as { analytics?: unknown }).analytics = loadedAnalytics()
+
+    mod.initAnalytics()
+
+    expect(listener).toHaveBeenCalled()
+    expect(mod.anonymousId()).toBe('anon-42')
+  })
+
+  it('runs a listener registered after analytics started', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
+    ;(window as unknown as { analytics?: unknown }).analytics = loadedAnalytics()
+    mod.initAnalytics()
+    const listener = vi.fn()
+
+    mod.onAnalyticsReady(listener)
+
+    expect(listener).toHaveBeenCalled()
+  })
+
+  it('never calls a listener when analytics is off, and reports no id', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: '' })
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+
+    mod.initAnalytics()
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(mod.anonymousId()).toBeUndefined()
+  })
+
+  it('never calls a listener for a crawler', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, GOOGLEBOT)
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+
+    mod.initAnalytics()
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(mod.anonymousId()).toBeUndefined()
+  })
+})
+
 describe('bot traffic', () => {
   it('sends nothing at all when the visitor is a crawler', async () => {
     const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, GOOGLEBOT)

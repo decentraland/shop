@@ -47,9 +47,11 @@ function segment(): SegmentApi | undefined {
   if (IS_BOT) return undefined
   const a = (window as unknown as { analytics?: SegmentApi }).analytics
   if (!a) return undefined
-  // Importing the Segment snippet installs a stub that queues calls until `load` runs. With no write key
-  // `load` never runs, so that queue is never flushed — report it as "no analytics" so events keep
-  // falling through to the dev console instead of piling up in an array.
+  // FRAGILE: reads three analytics.js internals (`invoked`, `_writeKey`, `initialize`). Importing the
+  // Segment snippet installs a stub that queues calls until `load` runs. With no write key `load` never
+  // runs, so that queue is never flushed — report it as "no analytics" so events keep falling through to
+  // the dev console instead of piling up in an array. Re-check this on any decentraland-dapps upgrade
+  // that moves the snippet (dist/modules/analytics/snippet) to a new analytics.js major.
   const stubAwaitingLoad = !!a.invoked && !a._writeKey && typeof a.initialize !== 'function'
   return stubAwaitingLoad ? undefined : a
 }
@@ -60,9 +62,20 @@ export function anonymousId(): string | undefined {
   return typeof user?.anonymousId === 'function' ? user.anonymousId() : undefined
 }
 
+// Callbacks handed over before `initAnalytics` ran. React fires a child's effect before its parent's, so
+// the Intercom widget asks to be told about the anonymous id before App has loaded analytics.js — without
+// this buffer that request would be dropped and the conversation would never carry an `anon_id`. Set to
+// null once analytics has started (or been ruled out), after which callbacks go straight to Segment.
+let pendingReady: (() => void)[] | null = []
+
 /** Runs `callback` once analytics.js has loaded. Never runs when analytics is off or the visitor is a bot. */
 export function onAnalyticsReady(callback: () => void): void {
-  segment()?.ready?.(callback)
+  const a = segment()
+  if (a?.ready) {
+    a.ready(callback)
+    return
+  }
+  pendingReady?.push(callback)
 }
 
 // Context props stamped on every event. Reads the wallet store imperatively so pre-/post-login events
@@ -234,11 +247,19 @@ let initialized = false
 export function initAnalytics(): void {
   if (initialized) return
   initialized = true
-  if (IS_BOT) return
+  if (IS_BOT) {
+    pendingReady = null
+    return
+  }
   const writeKey = config.segmentWriteKey
   if (!writeKey) {
     if (import.meta.env.DEV) console.debug('[analytics] no VITE_SEGMENT_WRITE_KEY → events log to console only')
+    pendingReady = null
     return
   }
   loadSegment(writeKey)
+  const waiting = pendingReady ?? []
+  pendingReady = null
+  const a = segment()
+  for (const callback of waiting) a?.ready?.(callback)
 }
