@@ -106,6 +106,14 @@ export const config = {
   shopServerUrl: env.VITE_SHOP_SERVER_URL ?? base.get('SHOP_SERVER_URL'),
   stripePublishableKey: env.VITE_STRIPE_PK ?? base.get('STRIPE_PUBLISHABLE_KEY'),
   segmentWriteKey: env.VITE_SEGMENT_WRITE_KEY ?? base.get('SEGMENT_WRITE_KEY'),
+  /**
+   * First-party analytics.js bundle. Ad blockers drop `cdn.segment.com`, so the script is served from
+   * Decentraland's own proxy instead and analytics.js resolves its settings from that origin too.
+   * Empty/invalid → the loader falls back to Segment's CDN rather than losing tracking entirely.
+   */
+  segmentAnalyticsUrl: String(env.VITE_SEGMENT_ANALYTICS_URL ?? base.get('SEGMENT_ANALYTICS_URL') ?? ''),
+  // Intercom support widget. Empty id → the widget is never mounted.
+  intercomAppId: String(env.VITE_INTERCOM_APP_ID ?? base.get('INTERCOM_APP_ID') ?? ''),
   // Sentry error monitoring. Empty DSN → monitoring no-ops (errors only hit the console). The DSN is a
   // public ingest key (ships in the bundle), NEVER a secret — it lives in the per-env JSONs like the
   // other client-safe values.

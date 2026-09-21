@@ -3,10 +3,15 @@
 // components call `track`/`identify`/`trackPage`, never window.analytics directly.
 //
 // - No-ops (logs to console in dev) when VITE_SEGMENT_WRITE_KEY is empty, so local/dev never sends.
+// - No-ops for crawlers, so bot traffic never enters the funnel.
+// - analytics.js is served from a first-party proxy (config.segmentAnalyticsUrl), because ad blockers
+//   drop cdn.segment.com and take a large share of real users' events with it.
 // - Injects the common context props on every event (address, is_signed_in, session_id, network, app_env).
 // - Event names/props are INTERNAL (precise); nothing here is user-facing, so no web2/web3 copy rules apply.
 // - Never emit PII, secrets, or .env values. Wallet addresses are pseudonymous public ids (allowed).
 import { ProviderType } from '@dcl/schemas'
+import { isbot } from 'isbot'
+import { configureAnalyticsSnippet, installAnalyticsSnippet } from 'decentraland-dapps/dist/modules/analytics/snippet'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import type { CatalogItem } from '~/lib/api'
@@ -18,8 +23,13 @@ type SegmentApi = {
   identify: (id: string, traits?: Props) => void
   page: (name?: string, props?: Props) => void
   reset?: () => void
+  ready?: (callback: () => void) => void
+  user?: () => { anonymousId?: () => string | undefined } | undefined
   load?: (writeKey: string) => void
+  // Set by Segment's snippet (`invoked`, `_writeKey`) and by the real analytics.js (`initialize`).
   invoked?: boolean
+  initialize?: unknown
+  _writeKey?: string
 }
 
 // A per-page-load id so funnel steps from one visit stitch together (not a wallet/tx concept).
@@ -29,8 +39,30 @@ const SESSION_ID =
 const NETWORK = config.chainId === 80002 ? 'amoy' : 'polygon'
 const APP_ENV = config.chainId === 80002 ? 'dev' : 'prod'
 
+// Crawlers would otherwise pollute every funnel metric with views nobody made. Resolved once per page
+// load rather than per event: the user agent cannot change under us and the match is a sizeable regex.
+const IS_BOT = typeof navigator !== 'undefined' && isbot(navigator.userAgent)
+
 function segment(): SegmentApi | undefined {
-  return (window as unknown as { analytics?: SegmentApi }).analytics
+  if (IS_BOT) return undefined
+  const a = (window as unknown as { analytics?: SegmentApi }).analytics
+  if (!a) return undefined
+  // Importing the Segment snippet installs a stub that queues calls until `load` runs. With no write key
+  // `load` never runs, so that queue is never flushed — report it as "no analytics" so events keep
+  // falling through to the dev console instead of piling up in an array.
+  const stubAwaitingLoad = !!a.invoked && !a._writeKey && typeof a.initialize !== 'function'
+  return stubAwaitingLoad ? undefined : a
+}
+
+/** Segment's anonymous id, or undefined before analytics.js has loaded (and for bots). */
+export function anonymousId(): string | undefined {
+  const user = segment()?.user?.()
+  return typeof user?.anonymousId === 'function' ? user.anonymousId() : undefined
+}
+
+/** Runs `callback` once analytics.js has loaded. Never runs when analytics is off or the visitor is a bot. */
+export function onAnalyticsReady(callback: () => void): void {
+  segment()?.ready?.(callback)
 }
 
 // Context props stamped on every event. Reads the wallet store imperatively so pre-/post-login events
@@ -182,50 +214,27 @@ export function isUserRejection(e: unknown): boolean {
   return errorCode(e) === 'user_rejected'
 }
 
-// Standard Segment analytics.js loader (dependency-free). Only runs when a write key is configured.
+/**
+ * Loads analytics.js through `decentraland-dapps`' snippet, pointed at the first-party proxy.
+ *
+ * Setting only the script src is not enough: analytics.js resolves its SETTINGS endpoint from
+ * `analytics._cdn`, and that request goes to Segment's CDN — and gets blocked — unless `_cdn` names the
+ * proxy origin too. `configureAnalyticsSnippet` does both, and ignores a url that is not valid https, so
+ * a missing or broken proxy falls back to Segment's CDN rather than losing tracking altogether.
+ */
 function loadSegment(writeKey: string): void {
-  const w = window as unknown as { analytics?: SegmentApi & Props }
-  if (w.analytics && (w.analytics as SegmentApi).invoked) return
-  const analytics: SegmentApi & { methods?: string[]; factory?: (m: string) => unknown; push?: unknown } & Props =
-    (w.analytics as never) || ([] as never)
-  analytics.invoked = true
-  analytics.methods = [
-    'track',
-    'identify',
-    'page',
-    'group',
-    'alias',
-    'ready',
-    'on',
-    'once',
-    'off',
-    'reset',
-    'setAnonymousId'
-  ]
-  analytics.factory =
-    (method: string) =>
-    (...args: unknown[]) => {
-      ;(analytics as unknown as { push: (a: unknown[]) => void }).push([method, ...args])
-      return analytics
-    }
-  for (const method of analytics.methods) {
-    ;(analytics as unknown as Props)[method] = analytics.factory(method)
-  }
-  analytics.load = (key: string) => {
-    const script = document.createElement('script')
-    script.async = true
-    script.src = `https://cdn.segment.com/analytics.js/v1/${encodeURIComponent(key)}/analytics.min.js`
-    document.head.appendChild(script)
-  }
-  w.analytics = analytics
-  analytics.load(writeKey)
-  ;(analytics as SegmentApi).page()
+  configureAnalyticsSnippet({ analyticsUrl: config.segmentAnalyticsUrl || undefined })
+  installAnalyticsSnippet()
+  const analytics = (window as unknown as { analytics?: SegmentApi }).analytics
+  analytics?.load?.(writeKey)
+  analytics?.page()
 }
 
 let initialized = false
 export function initAnalytics(): void {
   if (initialized) return
   initialized = true
+  if (IS_BOT) return
   const writeKey = config.segmentWriteKey
   if (!writeKey) {
     if (import.meta.env.DEV) console.debug('[analytics] no VITE_SEGMENT_WRITE_KEY → events log to console only')
