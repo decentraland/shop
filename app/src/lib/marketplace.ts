@@ -37,14 +37,18 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
 
 /**
  * The coupon manager the marketplace a trade names redeems through, lowercased, or null for a trade whose
- * marketplace the registry does not know.
+ * marketplace the registry does not know, or does not deploy at that address on the trade's chain.
  *
  * Each marketplace version trusts only its own manager, and a trade settles on the version it was signed
  * against, so this is the one manager a coupon must have been signed against to discount the trade.
  */
 export function getCouponManagerForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): string | null {
   try {
-    return getCouponManager(getContractName(trade.contract), trade.chainId).address.toLowerCase()
+    const name = getContractName(trade.contract)
+    // getContractName knows addresses, not chains: it would name a version for an address deployed on some
+    // other chain, and that version's manager on THIS chain would then vouch for a trade that settles elsewhere.
+    if (getContract(name, trade.chainId).address.toLowerCase() !== trade.contract.toLowerCase()) return null
+    return getCouponManager(name, trade.chainId).address.toLowerCase()
   } catch {
     return null
   }

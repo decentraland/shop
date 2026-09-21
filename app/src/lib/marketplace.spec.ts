@@ -103,6 +103,16 @@ describe('when resolving the coupon manager a trade settles through', () => {
     })
   })
 
+  describe('and the trade pairs a known address with a chain that version is not deployed on', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV3', chainId: CHAIN_WITHOUT_V3 })
+    })
+
+    it('should return null rather than lend that chain\'s manager to a trade that settles elsewhere', () => {
+      expect(result).toBeNull()
+    })
+  })
+
   describe('and the trade names a contract the registry does not know', () => {
     beforeEach(() => {
       result = getCouponManagerForTrade({ contract: '0x0000000000000000000000000000000000000001', chainId: 11155111 })

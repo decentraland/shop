@@ -362,6 +362,9 @@ export const creditsResponse = {
 // Secondary ERC721 order for Nebula Jacket (token 7), priced $13.50 (135 credits). `contract` is the
 // real Amoy OffChainMarketplaceV2 address so getContractName() resolves it in the browser.
 export const OFFCHAIN_MARKETPLACE_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+// The V3 deployment on Amoy: where the shop lists now, and the only marketplace that redeems a coupon signed
+// against the V3 manager (`saleCoupon.couponManager`). A coupon only settles on the version wired to its manager.
+export const OFFCHAIN_MARKETPLACE_V3_AMOY = '0x36fd1434a6c4b8ade80c9847c1d15033ce34488c'
 export const MANA_AMOY = '0x7ad72b9f944ea9793cf4055d88f81138cc2c63a0'
 export const buyTrade = {
   id: 'trade-2',
@@ -622,11 +625,16 @@ export const unifiedListingsOnSale = {
   data: [{ ...unifiedListings.data[0], ...onSaleFields }, ...unifiedListings.data.slice(1)]
 }
 
-/** The Galaxy Hat's primary trade — a COLLECTION_ITEM mint, which is the only kind a coupon may discount. */
+/**
+ * The Galaxy Hat's primary trade — a COLLECTION_ITEM mint, which is the only kind a coupon may discount. Listed on
+ * V3, the version `saleCoupon` was signed for: the checkout drops a coupon whose manager is not the one of the
+ * marketplace the trade settles on, since that marketplace would reject it.
+ */
 export const saleTrade = {
   ...buyTrade,
   id: 'trade-1',
   type: 'public_item_order',
+  contract: OFFCHAIN_MARKETPLACE_V3_AMOY,
   signer: CREATOR_ADDRESS,
   sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
   received: [

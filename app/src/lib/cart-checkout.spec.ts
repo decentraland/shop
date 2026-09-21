@@ -840,6 +840,7 @@ const MARKETPLACE_V3 = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
 const MARKETPLACE_V2 = '0xa40b1d129b8906888720686f3a01921ddf37716f'
 const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
 const POLYGON = 137
+const AMOY = 80002
 
 const coupon = (discountPpm: number) =>
   ({
@@ -899,11 +900,11 @@ describe('when pricing a line that a creator put on sale', () => {
 })
 
 /** A PRIMARY listing on the V3 marketplace: the only kind the coupon contract will discount. */
-const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLACE_V3): Trade =>
+const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLACE_V3, chainId = POLYGON): Trade =>
   ({
     signer,
     contract,
-    chainId: POLYGON,
+    chainId,
     sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xcollection', value: '0' }],
     received: [
       {
@@ -956,6 +957,18 @@ describe('when deciding whether a coupon can settle a trade', () => {
     })
 
     it('should drop it, because that marketplace verifies coupons against its own manager and would revert', () => {
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('and the listing pairs the Polygon marketplace address with another chain id', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      result = couponForTrade(coupon(300_000), primaryTrade(10, '0xseller', MARKETPLACE_V3, AMOY))
+    })
+
+    it('should drop it, because that chain\'s manager did not sign for a trade that settles on Polygon', () => {
       expect(result).toBeUndefined()
     })
   })
