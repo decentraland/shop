@@ -63,7 +63,7 @@ jobs:
           node-version: 24
 
       - name: Set package.json version
-        uses: decentraland/oddish-action@b6857320dc1ef81ecfee41d4095dc835f1a77c9f # master @ fix/wait-registry-new-version
+        uses: decentraland/oddish-action@v1
         with:
           cwd: './app'
           deterministic-snapshot: true
@@ -100,7 +100,7 @@ jobs:
       - name: Publish
         id: publish
         # Auth via npm Trusted Publishers (OIDC) — `id-token: write` is granted on this job.
-        uses: decentraland/oddish-action@b6857320dc1ef81ecfee41d4095dc835f1a77c9f # master @ fix/wait-registry-new-version
+        uses: decentraland/oddish-action@v1
         with:
           cwd: './app/dist'
           deterministic-snapshot: true
