@@ -1149,6 +1149,7 @@
     "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Inténtalo de nuevo en un momento.",
     "insufficientCredits": "Te faltan {credits} Créditos para comprar este NAME.",
     "errorRouteCost": "El registro de NAMEs no está disponible temporalmente. Inténtalo de nuevo más tarde.",
+    "errorRouteExpired": "El precio expiró antes de completar tu compra. No se te cobró nada — inténtalo de nuevo.",
     "errorNotRegistered": "Se usaron tus Créditos pero el NAME no pudo registrarse, así que los fondos volvieron a Decentraland para su recuperación. Contacta a soporte con este NAME y lo resolvemos — no vuelvas a comprar.",
     "errorSettlementUnknown": "No pudimos confirmar si tu compra se completó. No vuelvas a comprar — revisá Mis Ítems en unos minutos y contactá a soporte con este NAME si no aparece.",
     "errorSpentDismiss": "Entendido"
