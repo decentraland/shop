@@ -41,7 +41,8 @@ vi.mock('decentraland-transactions', () => ({
   })
 }))
 
-const { getCouponManagerForTrade, getLatestOffChainMarketplaceContract, getMarketplaceForTrade } = await import('./marketplace')
+const { getCouponManagerForTrade, getLatestOffChainMarketplaceContract, getMarketplaceForTrade } =
+  await import('./marketplace')
 
 describe('when getting the latest off-chain marketplace contract', () => {
   describe('and the chain has a V3 deployment', () => {
@@ -91,7 +92,7 @@ describe('when resolving the coupon manager a trade settles through', () => {
       result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV3', chainId: 11155111 })
     })
 
-    it('should return that version\'s manager on the trade\'s chain, lowercased', () => {
+    it("should return that version's manager on the trade's chain, lowercased", () => {
       expect(result).toBe('0xmanagerofoffchainmarketplacev3on11155111')
     })
   })
@@ -101,7 +102,7 @@ describe('when resolving the coupon manager a trade settles through', () => {
       result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV2', chainId: 11155111 })
     })
 
-    it('should return the previous version\'s manager rather than the newest one', () => {
+    it("should return the previous version's manager rather than the newest one", () => {
       expect(result).toBe('0xmanagerofoffchainmarketplacev2on11155111')
     })
   })
@@ -111,7 +112,7 @@ describe('when resolving the coupon manager a trade settles through', () => {
       result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV3', chainId: CHAIN_WITHOUT_V3 })
     })
 
-    it('should return null rather than lend that chain\'s manager to a trade that settles elsewhere', () => {
+    it("should return null rather than lend that chain's manager to a trade that settles elsewhere", () => {
       expect(result).toBeNull()
     })
   })
@@ -125,12 +126,22 @@ describe('when resolving the coupon manager a trade settles through', () => {
       expect(result).toBeNull()
     })
   })
+
+  describe('and the trade names a Decentraland contract that is not a marketplace', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xCreditsManager', chainId: 11155111 })
+    })
+
+    it('should return null rather than a manager for a contract that redeems nothing', () => {
+      expect(result).toBeNull()
+    })
+  })
 })
 
 describe('when resolving the marketplace a trade names', () => {
   let result: { name: string } | null
 
-  describe('and the address is that version\'s deployment on the trade\'s chain, in another casing', () => {
+  describe("and the address is that version's deployment on the trade's chain, in another casing", () => {
     beforeEach(() => {
       result = getMarketplaceForTrade({ contract: '0xOFFCHAINMARKETPLACEV3', chainId: 11155111 })
     })
@@ -140,7 +151,7 @@ describe('when resolving the marketplace a trade names', () => {
     })
   })
 
-  describe('and the version is not deployed on the trade\'s chain', () => {
+  describe("and the version is not deployed on the trade's chain", () => {
     beforeEach(() => {
       result = getMarketplaceForTrade({ contract: '0xOffChainMarketplaceV3', chainId: CHAIN_WITHOUT_V3 })
     })
@@ -168,17 +179,5 @@ describe('when resolving the marketplace a trade names', () => {
     it('should return null, since the registry answering for an address does not make it a marketplace', () => {
       expect(result).toBeNull()
     })
-  })
-})
-
-describe('when resolving the coupon manager of a trade on a contract that is not a marketplace', () => {
-  let result: string | null
-
-  beforeEach(() => {
-    result = getCouponManagerForTrade({ contract: '0xCreditsManager', chainId: 11155111 })
-  })
-
-  it('should return null rather than a manager for a contract that redeems nothing', () => {
-    expect(result).toBeNull()
   })
 })

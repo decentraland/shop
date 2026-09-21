@@ -67,7 +67,7 @@ describe('cart-availability', () => {
       expect(classifyTrade(primary, trade(0))).toBe('unavailable')
     })
 
-    describe('when the trade names a marketplace not deployed on its chain', () => {
+    describe('and the trade names a marketplace not deployed on its chain', () => {
       let result: ReturnType<typeof classifyTrade>
 
       beforeEach(() => {

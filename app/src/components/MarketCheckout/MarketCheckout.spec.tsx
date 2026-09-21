@@ -684,23 +684,24 @@ describe('when the modal goes away mid-purchase', () => {
 })
 
 describe('when the trade names a marketplace that is not deployed on its chain', () => {
-  beforeEach(() => {
+  let soldLabel: HTMLElement
+
+  beforeEach(async () => {
     useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
     fetchTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V3_POLYGON, chainId: 80002 })
     renderModal()
+    soldLabel = await screen.findByText(/sold|no longer/i)
   })
 
-  it('should read as sold or removed, since no marketplace could settle it', async () => {
-    expect(await screen.findByText(/sold|no longer/i)).toBeInTheDocument()
+  it('should read as sold or removed, since no marketplace could settle it', () => {
+    expect(soldLabel).toBeInTheDocument()
   })
 
-  it('should reserve no credit for it', async () => {
-    await screen.findByText(/sold|no longer/i)
+  it('should reserve no credit for it', () => {
     expect(authorizeUsdCredit).not.toHaveBeenCalled()
   })
 
-  it('should never reach the buy rails', async () => {
-    await screen.findByText(/sold|no longer/i)
+  it('should never reach the buy rails', () => {
     expect(buyWithCredits).not.toHaveBeenCalled()
   })
 })
