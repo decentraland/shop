@@ -719,14 +719,6 @@ export const ProgressFill = styled.span`
   }
 `
 
-// Same field as ProcessingTitle above, same reason.
-export const ProgressCount = styled.span`
-  font-family: ${theme.font.sans};
-  font-size: 16px;
-  line-height: 22px;
-  color: ${theme.colors.softWhite};
-`
-
 export const Success = styled.div`
   /* Its own stacking context, so the confetti layer (z-index: -1) lands BEHIND this content instead of
      escaping past it and hiding behind the page background. z-index is inert without a position, so both
