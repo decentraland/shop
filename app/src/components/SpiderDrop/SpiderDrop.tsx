@@ -17,9 +17,12 @@ const LottieSpider = lazy(async () => {
  */
 const VISIT_MS = 5_200
 
-/** Rarer than the bats: a spider dropping across the page is a bigger interruption than one crossing it. */
-const FIRST_DELAY_MS = [7_000, 14_000] as const
-const GAP_MS = [22_000, 40_000] as const
+/**
+ * A visit every ~8-10s: the 5.2s the spider is on screen plus this pause, which is what keeps the whole
+ * cycle under the ten seconds asked for.
+ */
+const FIRST_DELAY_MS = [2_000, 4_000] as const
+const GAP_MS = [2_500, 4_500] as const
 
 type Visit = { id: number; side: 'left' | 'right'; inset: number; size: number; top: number }
 

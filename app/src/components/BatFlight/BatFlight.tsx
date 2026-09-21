@@ -33,13 +33,14 @@ type Flight = {
 }
 
 /**
- * Often enough to be seen, spaced enough not to read as a metronome.
+ * Near-continuous, by request: the gap is the PAUSE between rounds, and a crossing takes 7-11s, so a
+ * 1-3s gap means a pair is in the air roughly four fifths of the time.
  *
- * The first pass was a round every 25-55s, and with a 7-11s crossing that left the page empty most of the
- * time — long enough that someone looking for the bats concluded they were broken.
+ * Measured from the moment the previous round LEAVES the screen, not from when it started, so the cycle
+ * is the crossing plus this.
  */
-const FIRST_DELAY_MS = [3_000, 7_000] as const
-const GAP_MS = [10_000, 22_000] as const
+const FIRST_DELAY_MS = [1_000, 2_500] as const
+const GAP_MS = [1_000, 3_000] as const
 
 /**
  * How far off horizontal a crossing may wander, in radians (about 8 degrees).
