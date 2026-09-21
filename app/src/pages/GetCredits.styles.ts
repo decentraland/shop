@@ -657,12 +657,20 @@ export const ProcessingBody = styled.div`
   gap: 8px;
 `
 
+/**
+ * Light, because this panel has no surface of its own.
+ *
+ * `Processing` sets no background, so the text sits straight on the body's purple gradient. Against that
+ * field the dark token it used measured 1.01:1 at the outer stop (#32134c) — the same luminance as the
+ * background, so the words were not dim, they were invisible — and 2.62:1 at the centre (#952dc6). Soft
+ * white measures 5.90:1 to 15.35:1 across the same stops, clearing AA everywhere.
+ */
 export const ProcessingTitle = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 
   strong {
     font-weight: 700;
@@ -709,13 +717,6 @@ export const ProgressFill = styled.span`
     width: 30%;
     animation: none;
   }
-`
-
-export const ProgressCount = styled.span`
-  font-family: ${theme.font.sans};
-  font-size: 16px;
-  line-height: 22px;
-  color: ${theme.colors.text2};
 `
 
 export const Success = styled.div`

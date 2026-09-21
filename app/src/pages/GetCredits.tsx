@@ -498,11 +498,14 @@ export function GetCredits() {
             <S.ProcessingTitle>
               <strong>{t('getCredits.processing')}</strong>…
             </S.ProcessingTitle>
+            {/* The bar is indeterminate on purpose — the buyer has already paid and the wait is on the
+                grant landing, which we cannot time. It used to sit beside a hardcoded "1/1", which said
+                the opposite of the bar next to it and counted nothing: there is no step left for the
+                buyer to take here. (The NAME modal's counter is computed and does mean something.) */}
             <S.Progress aria-hidden>
               <S.ProgressTrack>
                 <S.ProgressFill />
               </S.ProgressTrack>
-              <S.ProgressCount>1/1</S.ProgressCount>
             </S.Progress>
           </S.ProcessingBody>
         </S.Processing>
