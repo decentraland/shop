@@ -367,9 +367,13 @@ export function couponForTrade(
 ): ListingCoupon | undefined {
   if (!coupon || coupon.discountType !== RATE_DISCOUNT) return undefined
   if (coupon.discount <= 0 || coupon.discount >= PPM) return undefined
-  if (Number(coupon.checks.expiration) <= now || Number(coupon.checks.effective) > now) return undefined
+  // Read through, because these are unvalidated server fields: a coupon missing `checks` or its manager
+  // has to leave by the same door as any other unusable one. Reaching into it would throw instead, and the
+  // basket turns a throw into "no longer available" — telling the buyer a live listing is gone when the
+  // honest outcome is its list price.
+  if (Number(coupon.checks?.expiration) <= now || !(Number(coupon.checks?.effective) <= now)) return undefined
   const manager = getCouponManagerForTrade(trade)
-  if (manager === null || coupon.couponManager.toLowerCase() !== manager) return undefined
+  if (manager === null || coupon.couponManager?.toLowerCase() !== manager) return undefined
   // `?? []` because a malformed trade must fail closed here, not throw out of the review and take the
   // whole basket with it.
   const sent = trade.sent ?? []

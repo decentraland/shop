@@ -968,6 +968,24 @@ describe('when deciding whether a coupon can settle a trade', () => {
     })
   })
 
+  describe('and the coupon arrives without the fields the guard reads', () => {
+    let withoutManager: ListingCoupon
+    let withoutChecks: ListingCoupon
+
+    beforeEach(() => {
+      withoutManager = { ...coupon(300_000), couponManager: undefined } as unknown as ListingCoupon
+      withoutChecks = { ...coupon(300_000), checks: undefined } as unknown as ListingCoupon
+    })
+
+    it('should drop one with no manager rather than throw out of the review', () => {
+      expect(couponForTrade(withoutManager, primaryTrade(10))).toBeUndefined()
+    })
+
+    it('should drop one with no checks for the same reason', () => {
+      expect(couponForTrade(withoutChecks, primaryTrade(10))).toBeUndefined()
+    })
+  })
+
   describe('and the listing pairs the Polygon marketplace address with another chain id', () => {
     let result: ListingCoupon | undefined
 
@@ -1052,6 +1070,28 @@ describe('when resolving a line whose listing is on sale', () => {
     const resolveCoupon = vi.fn(async () => coupon(300_000))
     await resolveLine(plain, BUYER, async () => primaryTrade(10), undefined, undefined, resolveCoupon)
     expect(resolveCoupon).not.toHaveBeenCalled()
+  })
+})
+
+describe('when the live coupon of an on-sale line is malformed', () => {
+  let outcome: LineOutcome
+
+  beforeEach(async () => {
+    const malformed = { ...coupon(300_000), couponManager: undefined } as unknown as ListingCoupon
+    outcome = await resolveLine(
+      item('i1', 135, { coupon: coupon(300_000) }),
+      BUYER,
+      async () => primaryTrade(10),
+      undefined,
+      undefined,
+      async () => malformed
+    )
+  })
+
+  it('should still be buyable, at the list price the trade was signed at', () => {
+    expect(outcome).toEqual(
+      expect.objectContaining({ status: 'buyable', line: expect.objectContaining({ usdCents: 1000, coupon: undefined }) })
+    )
   })
 })
 
