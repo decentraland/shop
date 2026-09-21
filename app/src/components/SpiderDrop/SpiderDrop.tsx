@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { between } from '~/lib/random'
 import * as S from './SpiderDrop.styles'
 
 const LottieSpider = lazy(async () => {
@@ -47,10 +48,6 @@ function planVisit(id: number): Visit {
     size: visitSize(),
     top: subnavBottom()
   }
-}
-
-function between([min, max]: readonly [number, number]): number {
-  return min + Math.random() * (max - min)
 }
 
 /**

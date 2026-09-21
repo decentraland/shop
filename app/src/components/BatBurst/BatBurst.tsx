@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import batUrl from './bat.svg'
+import { between } from '~/lib/random'
 import * as S from './BatBurst.styles'
 
 type Bat = { dx: number; dy: number; rot: number; size: number; scale: number; dur: number; delay: number }
@@ -18,10 +19,6 @@ const COUNT: Record<BurstFrom, number> = { center: 7, left: 4, right: 4 }
 
 /** The longest a burst can last, so the caller can be told when to unmount it. */
 const LIFETIME_MS = 1_150
-
-function between([min, max]: readonly [number, number]): number {
-  return min + Math.random() * (max - min)
-}
 
 /** The arc each origin sprays into, in radians, as [start, size]. */
 const ARC: Record<BurstFrom, readonly [number, number]> = {

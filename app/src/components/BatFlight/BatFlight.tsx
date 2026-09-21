@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { between } from '~/lib/random'
 import * as S from './BatFlight.styles'
 
 /**
@@ -39,10 +40,6 @@ type Flight = {
  */
 const FIRST_DELAY_MS = [3_000, 7_000] as const
 const GAP_MS = [10_000, 22_000] as const
-
-function between([min, max]: readonly [number, number]): number {
-  return min + Math.random() * (max - min)
-}
 
 /**
  * How far off horizontal a crossing may wander, in radians (about 8 degrees).
