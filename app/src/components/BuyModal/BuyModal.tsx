@@ -14,6 +14,7 @@ import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
 import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
+import { recordCouponUse } from '~/store/couponUses'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
@@ -631,6 +632,7 @@ export function BuyModal({
     try {
       // Invalidations FIRST: they are what refresh the buyer's balance and drop the item from the PDP, and a
       // Segment fault must not be able to skip them (analytics is the part most likely to throw).
+      recordCouponUse(item.coupon)
       invalidateAfterPurchase(qc, item)
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
@@ -699,6 +701,9 @@ export function BuyModal({
   // grids, My Assets and Activity all reflect the sale). Also bumps the MANA balance, which both rails
   // spend, and the USD balance, which the combined rail spends.
   function refreshAfterPurchase() {
+    // Counted here rather than waited for: the catalogue's `used` comes from a server-side poller, so a
+    // refetch in the next second returns the figure from before this purchase.
+    recordCouponUse(item.coupon)
     void qc.invalidateQueries({ queryKey: ['mana-balance'] })
     void qc.invalidateQueries({ queryKey: ['usd-balance'] })
     void qc.invalidateQueries({ queryKey: ['detail-trade'] })

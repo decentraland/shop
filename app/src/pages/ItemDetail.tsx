@@ -23,6 +23,7 @@ import {
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { couponUsedWith, useCouponUses } from '~/store/couponUses'
 import { itemIdFromTokenId } from '~/lib/token-id'
 import { routeSegment } from '~/lib/routes'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
@@ -179,6 +180,13 @@ export function ItemDetail() {
 
   const qc = useQueryClient()
   const add = useCart(s => s.add)
+  /**
+   * Uses this session has watched the discount spend, which the catalogue has not caught up to yet.
+   *
+   * Subscribed here rather than read where it is used: the catalogue answers a refetch after a purchase
+   * with the same bytes, so react-query hands back the same object and nothing would redraw on its own.
+   */
+  const couponSpent = useCouponUses(state => state.spent)
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
@@ -673,7 +681,9 @@ export function ItemDetail() {
    */
   const offerStock = (() => {
     if (!saleActive) return null
-    const claimed = current.coupon?.used ?? 0
+    // Not `coupon.used` straight from the catalogue: the server learns of a purchase on its own schedule,
+    // so a buyer who just took one would watch the bar sit still until it caught up.
+    const claimed = couponUsedWith(couponSpent, current.coupon)
     const total = Number(current.coupon?.checks?.uses ?? 0)
     return total > 0 && claimed <= total ? { claimed, total } : null
   })()

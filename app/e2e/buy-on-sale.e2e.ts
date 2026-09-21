@@ -33,11 +33,27 @@ describe('buy an item a creator put on sale', () => {
     const struck = await page.$eval('[data-testid="detail-price-was"]', el => el.textContent ?? '').catch(() => '')
     expect(struck).toContain('270')
 
+    // What the offer bar reads before the purchase. The fixture's coupon carries no spent uses, and the
+    // mocked catalogue will keep saying so after the sale settles, which is the real server's behaviour
+    // for up to a refresh interval.
+    const stockBefore = await page.$eval('[data-testid="detail-offer-stock"]', el => (el as HTMLElement).innerText)
+    expect(stockBefore).toContain('0 of 100')
+
     await clickWhenEnabled(page, 'button', /buy now/i)
     await waitForText(page, 'Buy Item')
     await clickWhenEnabled(page, 'button', /^buy$/i)
 
     await waitForText(page, 'Purchase complete!', 30000)
+
+    /**
+     * The copy this buyer just took is spent, and the bar says so without waiting for the catalogue to
+     * agree. The count comes from a server-side poller, so refetching returns the figure from before the
+     * purchase, which is why the buyer used to have to reload the page to watch it move.
+     */
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="detail-offer-stock"]')?.textContent?.includes('1 of 100') ?? false,
+      { timeout: 15000 }
+    )
 
     // The relayed meta-transaction wraps useCredits, whose external call must target acceptWithCoupon.
     // Settling through plain `accept` would ask the marketplace for the full 270 credits.
