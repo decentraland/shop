@@ -59,6 +59,8 @@ export type Fixtures = {
   collections: unknown
   /** Ranked creators for the search dropdown (/v3/catalog/creators/search). */
   creators: unknown
+  /** How many times `/v3/catalog/suggest` answers 500 before it answers at all — the dropdown's error path. */
+  suggestFailures?: number
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
@@ -742,6 +744,42 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
     // contractAddress / creator query param.
+    // The dropdown's one request (lib/search.ts → fetchSuggestions): items by the same name rule as the
+    // items feed, collections and creators from their fixtures, each row naming its creator the way the
+    // server does from the creator profiles (the fixture creator has a name; nobody else does).
+    if (path === '/v3/catalog/suggest') {
+      // Counted down on the run's own copy of the fixtures, so each launch starts afresh.
+      if ((F.suggestFailures ?? 0) > 0) {
+        F.suggestFailures = (F.suggestFailures ?? 0) - 1
+        return json(req, { ok: false, message: 'suggestions unavailable' }, 500)
+      }
+      const search = (u.searchParams.get('search') ?? '').trim().toLowerCase()
+      const size = (key: string, fallback: number) => Number(u.searchParams.get(key) ?? fallback)
+      const creatorName = (address: unknown) =>
+        String(address ?? '').toLowerCase() === fx.CREATOR_ADDRESS.toLowerCase() ? 'Galaxy Studio' : null
+      const matching = search
+        ? ((F.shopListings as { data: any[] }).data ?? [])
+            .map(toCatalogRow)
+            .filter(r => String(r.name).toLowerCase().includes(search))
+        : []
+      const items = matching.slice(0, size('items', 5)).map(r => ({ ...r, creatorName: creatorName(r.creator) }))
+      const collections = search
+        ? ((F.collections as { data: any[] }).data ?? [])
+            .filter(c => String(c.name).toLowerCase().includes(search))
+            .slice(0, size('collections', 4))
+            .map(c => ({ ...c, creatorName: creatorName(c.creator), items: 2, sales: 0 }))
+        : []
+      const creators = search
+        ? ((F.creators as { data: any[] }).data ?? [])
+            .filter(c => String(c.name).toLowerCase().includes(search))
+            .slice(0, size('creators', 4))
+        : []
+      return json(req, {
+        items: { data: items, total: matching.length },
+        collections: { data: collections },
+        creators: { data: creators }
+      })
+    }
     if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')

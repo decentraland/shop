@@ -53,7 +53,11 @@
     "creators": "Creadores",
     "collections": "Colecciones",
     "items": "Artículos",
-    "byCreator": "Por {name}"
+    "byCreator": "Por {name}",
+    "popular": "Búsquedas populares",
+    "error": "No pudimos cargar las sugerencias.",
+    "retry": "Probar de nuevo",
+    "suggestionCount": "{count, plural, one {# sugerencia} other {# sugerencias}}"
   },
   "common": {
     "copy": "Copiar",

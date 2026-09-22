@@ -1,26 +1,29 @@
 import { config } from '~/config'
+import type { CatalogItem } from '~/lib/api'
+import { toCatalogItem, type RawCollectionItem } from '~/lib/catalogItem'
 
 // ---------------------------------------------------------------------------
-// Multi-entity search for the search-bar suggestions dropdown.
+// The search-bar suggestions, in one request.
 //
-// The item GRID search (see lib/api.ts fetchListings → /v3/catalog/shop) already covers item
-// name + tags server-side. This module adds the two entity types the grid can't surface as
-// dedicated rows: COLLECTIONS and CREATORS. The dropdown stacks all three as one vertical list;
-// the grid stays items-only.
-//
-// - Collections: the indexer's GET /v1/collections?search=<name> matches collection name and
-//   returns { name, contractAddress, creator }.
-// - Creators: the server's GET /v3/catalog/creators/search matches a creator's profile name and the
-//   NAMEs they hold, ranked, and answers with the display name + avatar — so "search by author"
-//   finds authors even when no item/collection name matches. It replaced three calls (names →
-//   owners → seller check → profiles) whose first step came back unranked and cut off the exact
-//   match. ("NAMEs" is internal plumbing — the UI only ever says "Creators".)
+// GET /v3/catalog/suggest answers the three sections the dropdown stacks — items, collections and
+// creators — ranked by the same matching the results grid uses, with `total` being what the grid the
+// query opens will report. Every item and collection row already names its creator, so the dropdown
+// resolves no profiles. It replaced three requests per keystroke (the items feed, /v1/collections by
+// substring and the creators search) plus a profile lookup per row.
 // ---------------------------------------------------------------------------
+
+export type SuggestedItem = CatalogItem & {
+  // What to call the creator, resolved server-side; null when the creator has no known name.
+  creatorName: string | null
+}
 
 export type CollectionHit = {
   contractAddress: string
   name: string
   creator: string
+  creatorName: string | null
+  items: number
+  sales: number
 }
 
 export type CreatorHit = {
@@ -29,40 +32,56 @@ export type CreatorHit = {
   face?: string
 }
 
-type RawCollection = {
-  contractAddress: string
-  name: string
-  creator: string
+export type Suggestions = {
+  items: SuggestedItem[]
+  // Items the grid the query opens will show, i.e. the "See all (N)" number.
+  total: number
+  collections: CollectionHit[]
+  creators: CreatorHit[]
 }
 
-// Matching collections by name. Small page — this feeds a preview dropdown, not a grid.
-export async function fetchCollectionSuggestions(search: string, first = 4): Promise<CollectionHit[]> {
-  const qs = new URLSearchParams({ search, first: String(first) })
-  const res = await fetch(`${config.marketplaceServerUrl}/v1/collections?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchCollectionSuggestions ${res.status}`)
-  const { data } = (await res.json()) as { data?: RawCollection[] }
-  return (data ?? [])
-    .filter(c => c.contractAddress && c.name)
-    .map(c => ({ contractAddress: c.contractAddress, name: c.name, creator: c.creator ?? '' }))
+export const EMPTY_SUGGESTIONS: Suggestions = { items: [], total: 0, collections: [], creators: [] }
+
+export type SuggestionSizes = { items?: number; collections?: number; creators?: number }
+
+type RawSuggestions = {
+  items?: { data?: (RawCollectionItem & { creatorName?: string | null })[]; total?: number }
+  collections?: { data?: Partial<CollectionHit>[] }
+  creators?: { data?: { address?: string; name?: string; face?: string | null }[] }
 }
 
-type RawCreator = {
-  address: string
-  name: string
-  face?: string | null
-}
-
-// Creators matching the query by profile name or by a NAME they hold, ranked by the server
-// (GET /v3/catalog/creators/search). One call: the server keeps a table of every creator with an
-// approved collection, so "is a seller" holds by construction and nothing gates it here.
-export async function fetchCreatorSuggestions(search: string, first = 4): Promise<CreatorHit[]> {
+export async function fetchSuggestions(
+  search: string,
+  { items = 5, collections = 4, creators = 4 }: SuggestionSizes = {},
+  // Lets the caller drop a request the reader has already typed past.
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<Suggestions> {
   const term = search.trim()
-  if (!term) return []
-  const qs = new URLSearchParams({ search: term, first: String(first) })
-  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/creators/search?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchCreatorSuggestions ${res.status}`)
-  const { data } = (await res.json()) as { data?: RawCreator[] }
-  return (data ?? [])
-    .filter(c => c.address && c.name)
-    .map(c => ({ address: c.address.toLowerCase(), name: c.name, face: c.face ?? undefined }))
+  if (!term) return EMPTY_SUGGESTIONS
+  const qs = new URLSearchParams({
+    search: term,
+    items: String(items),
+    collections: String(collections),
+    creators: String(creators)
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/suggest?${qs.toString()}`, { signal })
+  if (!res.ok) throw new Error(`fetchSuggestions ${res.status}`)
+  const body = (await res.json()) as RawSuggestions
+  return {
+    items: (body.items?.data ?? []).map(row => ({ ...toCatalogItem(row), creatorName: row.creatorName ?? null })),
+    total: body.items?.total ?? 0,
+    collections: (body.collections?.data ?? [])
+      .filter(c => c.contractAddress && c.name)
+      .map(c => ({
+        contractAddress: c.contractAddress!,
+        name: c.name!,
+        creator: c.creator ?? '',
+        creatorName: c.creatorName ?? null,
+        items: c.items ?? 0,
+        sales: c.sales ?? 0
+      })),
+    creators: (body.creators?.data ?? [])
+      .filter(c => c.address && c.name)
+      .map(c => ({ address: c.address!.toLowerCase(), name: c.name!, face: c.face ?? undefined }))
+  }
 }
