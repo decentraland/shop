@@ -130,6 +130,23 @@ describe('the wearables category filter', () => {
  * The sidebar is only useful if every key it can emit resolves to a server filter, and if the parents
  * mean the union of their children — otherwise picking Head would return less than the rows beneath it.
  */
+describe('a category reached by URL', () => {
+  it('should start with a third-level key unfolded and marked, as a shared link or a search facet lands on it', () => {
+    renderFilter({ category: 'wearable', subCategory: 'Hat' })
+
+    expect(isExpanded('Accessories')).toBe(true)
+    expect(row('Hat')).toHaveAttribute('data-active')
+    expect(row('Accessories')).not.toHaveAttribute('data-active')
+  })
+
+  it('should start with Emotes open for an emote category', () => {
+    renderFilter({ category: 'emote', subCategory: 'Dance' })
+
+    expect(isExpanded('Emotes')).toBe(true)
+    expect(row('Dance')).toHaveAttribute('data-active')
+  })
+})
+
 describe('the sub-category to on-chain category mapping', () => {
   it('should map every third-level key', () => {
     const thirdLevel = [

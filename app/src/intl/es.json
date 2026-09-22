@@ -55,6 +55,8 @@
     "items": "Artículos",
     "byCreator": "Por {name}",
     "popular": "Búsquedas populares",
+    "explore": "Explorar",
+    "noEntities": "Sin ítems, colecciones ni creadores para “{query}”",
     "error": "No pudimos cargar las sugerencias.",
     "retry": "Probar de nuevo",
     "suggestionCount": "{count, plural, one {# sugerencia} other {# sugerencias}}"

@@ -4,7 +4,16 @@
 
 import type { Suggestions } from '~/lib/search'
 
-export type SuggestionSection = 'items' | 'collections' | 'creators'
+export type SuggestionSection = 'items' | 'collections' | 'creators' | 'facets'
+
+// `type` predates `section`; both are kept so nothing built on the old name breaks. Exhaustive on purpose:
+// a new section must name its type here or fail to compile.
+const TYPE_OF_SECTION: Record<SuggestionSection, 'item' | 'collection' | 'creator' | 'facet'> = {
+  items: 'item',
+  collections: 'collection',
+  creators: 'creator',
+  facets: 'facet'
+}
 
 /**
  * One exposure = one normalized query while the panel is open: retyping the same word with different
@@ -18,21 +27,24 @@ export function exposureKey(query: string): string {
 export function suggestionsViewedProps(
   query: string,
   suggestions: Suggestions,
-  timing: { fetchMs: number | null; cacheHit: boolean }
+  timing: { fetchMs: number | null; cacheHit: boolean },
+  facetCount = 0
 ): Record<string, unknown> {
   return {
     query: query.trim(),
     item_count: suggestions.items.length,
     collection_count: suggestions.collections.length,
     creator_count: suggestions.creators.length,
+    facet_count: facetCount,
     total: suggestions.total,
     fetch_ms: timing.cacheHit ? null : timing.fetchMs === null ? null : Math.round(timing.fetchMs),
     cache_hit: timing.cacheHit
   }
 }
 
-export function noResultsProps(query: string): Record<string, unknown> {
-  return { query: query.trim() }
+/** No results means no items, collections or creators; a facet offered alongside is counted, not excluded. */
+export function noResultsProps(query: string, facetCount = 0): Record<string, unknown> {
+  return { query: query.trim(), facet_count: facetCount }
 }
 
 /** True when the answer offers nothing in any of the three sections. */
@@ -52,11 +64,9 @@ export function suggestionClickedProps(
   click: SuggestionClick,
   target: Record<string, unknown>
 ): Record<string, unknown> {
-  const type = click.section === 'items' ? 'item' : click.section === 'collections' ? 'collection' : 'creator'
   return {
     query: click.query.trim(),
-    // `type` predates `section`; both are kept so nothing built on the old name breaks.
-    type,
+    type: TYPE_OF_SECTION[click.section],
     ...target,
     section: click.section,
     position: click.position,

@@ -1,3 +1,4 @@
+import { RARITIES } from '~/lib/rarity'
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
 import { Chevron } from '~/components/Chevron'
@@ -15,7 +16,7 @@ import { theme } from '~/styles/theme'
 // and Creator instead keep Rarity + Price inline in the bar via the optional filter slots below.
 
 // Rarity order + colors follow the Figma "Rarities/*" tokens (see styles/theme.ts `rarities`).
-export const RARITIES = ['common', 'uncommon', 'epic', 'rare', 'legendary', 'exotic', 'mythic', 'unique']
+export { RARITIES }
 
 // Labels match the Figma sort menu. The server supports newest/cheapest/most_expensive/name (plus
 // discount and relevance, offered only where they mean something) — there is no dedicated "recently

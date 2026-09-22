@@ -34,6 +34,7 @@ function dropdownIn(qc: QueryClient, query: string, handlers: Handlers = {}) {
           onSelectItem={vi.fn()}
           onSelectCollection={vi.fn()}
           onSelectCreator={vi.fn()}
+          onSelectFacet={vi.fn()}
           onRunSearch={vi.fn()}
           onRemoveRecent={vi.fn()}
           onClearRecent={vi.fn()}
@@ -430,6 +431,7 @@ describe('SearchDropdown exposure events', () => {
       item_count: 1,
       collection_count: 1,
       creator_count: 1,
+      facet_count: 0,
       total: 12,
       fetch_ms: expect.any(Number),
       cache_hit: false
@@ -447,7 +449,7 @@ describe('SearchDropdown exposure events', () => {
     vi.mocked(fetchSuggestions).mockResolvedValueOnce(EMPTY).mockRejectedValue(new Error('fetchSuggestions 500'))
     const { rerenderWith } = renderDropdown('zzz')
 
-    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Search No Results', { query: 'zzz' }))
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Search No Results', { query: 'zzz', facet_count: 0 }))
     expect(track).toHaveBeenCalledTimes(1)
 
     rerenderWith('zzzz')
@@ -592,5 +594,81 @@ describe('SearchDropdown when a refresh of a shown answer fails', () => {
       position: 0,
       via: 'keyboard'
     })
+  })
+})
+
+describe('SearchDropdown facets', () => {
+  it('should offer the category a query names first, before the items, with no request of its own', async () => {
+    vi.mocked(fetchSuggestions).mockResolvedValue(galaxy as never)
+    const onSelectFacet = vi.fn()
+    const onRows = vi.fn()
+    renderDropdown('hat', { onSelectFacet, onRows })
+
+    const facet = await screen.findByRole('option', { name: /Hat/ })
+    expect(facet).toHaveAttribute('data-kind', 'facet')
+    expect(facet).toHaveAttribute('data-facet', 'category:Hat')
+    expect(facet).toHaveTextContent('Wearables · Accessories')
+    await screen.findByRole('option', { name: 'Galaxy Studio' })
+    expect(screen.getAllByRole('option')[0]).toBe(facet)
+    const rows: SuggestionRow[] = onRows.mock.calls.at(-1)![0]
+    expect(rows.map(row => row.kind)).toEqual(['facet', 'item', 'collection', 'creator', 'see-all'])
+    expect(fetchSuggestions).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(facet)
+    expect(onSelectFacet).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'category', key: 'Hat', top: 'wearable' }),
+      {
+        section: 'facets',
+        position: 0,
+        via: 'click'
+      }
+    )
+    rows[0].activate('keyboard')
+    expect(onSelectFacet).toHaveBeenLastCalledWith(expect.objectContaining({ key: 'Hat' }), {
+      section: 'facets',
+      position: 0,
+      via: 'keyboard'
+    })
+  })
+
+  it('should keep the facet when the three sections come back empty, say so precisely, and count it in both events', async () => {
+    vi.mocked(fetchSuggestions).mockResolvedValue(EMPTY)
+    renderDropdown('zapatillas')
+
+    expect(await screen.findByRole('option', { name: /Feet|Pies/ })).toHaveAttribute('data-kind', 'facet')
+    expect(await screen.findAllByText(/No items, collections or creators/)).not.toHaveLength(0)
+    expect(screen.queryByText(/^No results/)).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(track).toHaveBeenCalledWith('Shop Search No Results', { query: 'zapatillas', facet_count: 1 })
+    )
+    expect(track).toHaveBeenCalledWith(
+      'Shop Viewed Search Suggestions',
+      expect.objectContaining({ query: 'zapatillas', item_count: 0, facet_count: 1, cache_hit: false })
+    )
+    expect(track).toHaveBeenCalledTimes(2)
+  })
+
+  it('should keep the facet and the retry on an error, and report nothing', async () => {
+    vi.mocked(fetchSuggestions).mockRejectedValue(new Error('fetchSuggestions 500'))
+    const onRows = vi.fn()
+    renderDropdown('epic', { onRows })
+
+    await screen.findByTestId('search-error', {}, { timeout: 4000 })
+    const facet = screen.getByRole('option', { name: /Epic/ })
+    expect(facet).toHaveAttribute('data-facet', 'rarity:epic')
+    expect(facet).toHaveTextContent('Rarity')
+    expect(screen.getByRole('listbox')).toContainElement(facet)
+    expect(screen.getByTestId('search-retry').closest('[role="listbox"]')).toBeNull()
+    expect(onRows).toHaveBeenLastCalledWith([expect.objectContaining({ kind: 'facet' })])
+    expect(track).not.toHaveBeenCalled()
+  })
+
+  it('should offer no facet for a query that is not exactly a category or rarity', async () => {
+    vi.mocked(fetchSuggestions).mockResolvedValue(galaxy as never)
+    renderDropdown('pirate hat')
+
+    await screen.findByRole('option', { name: 'Galaxy Studio' })
+    expect(screen.queryByRole('option', { name: /^Hat/ })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('option').every(option => option.getAttribute('data-kind') !== 'facet')).toBe(true)
   })
 })

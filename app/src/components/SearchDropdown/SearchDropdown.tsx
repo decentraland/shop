@@ -13,6 +13,8 @@ import {
 } from '~/lib/searchAnalytics'
 import { highlightMatches } from '~/lib/highlight'
 import { popularSearchesFor } from '~/lib/popularSearches'
+import { facetId, facetsFor, type Facet } from '~/lib/searchFacets'
+import { rarityColor } from '~/lib/rarity'
 import {
   SUGGESTIONS_LISTBOX_ID,
   suggestionRowId,
@@ -62,6 +64,27 @@ function CollectionRowThumb({ contractAddress }: { contractAddress: string }) {
   )
 }
 
+function facetLabel(facet: Facet): string {
+  return facet.kind === 'category' ? t(facet.labelKey) : t(`rarity.${facet.key}`)
+}
+
+// Where the facet sits: "Wearables · Accessories" for a category, "Rarity" for a rarity.
+function facetPath(facet: Facet): string {
+  return facet.kind === 'category' ? facet.parents.map(key => t(key)).join(' · ') : t('filterBar.rarity')
+}
+
+function FacetThumb({ facet }: { facet: Facet }) {
+  return (
+    <S.Thumb data-variant="icon">
+      {facet.kind === 'rarity' ? (
+        <S.RarityDot style={{ background: rarityColor(facet.key) }} />
+      ) : (
+        <Icon name={facet.icon ?? 'search'} />
+      )}
+    </S.Thumb>
+  )
+}
+
 // Rows per section shown while typing. Small pages — this is a preview, not the full grid.
 const SUGGEST_SIZES = { items: 5, collections: 4, creators: 4 }
 // Don't hit the API for a single character — too noisy, matches the Assets page which lowercases/trims.
@@ -73,6 +96,7 @@ const NO_ITEMS: Suggestions['items'] = []
 const NO_COLLECTIONS: CollectionHit[] = []
 const NO_CREATORS: CreatorHit[] = []
 const NO_TERMS: string[] = []
+const NO_FACETS: Facet[] = []
 
 /** How a chosen suggestion is reported: where it sat and how it was chosen. */
 export type SuggestionChoice = { section: SuggestionSection; position: number; via: SuggestionActivation }
@@ -91,6 +115,8 @@ type SearchDropdownProps = {
   // Collection / creator chosen → open its storefront page.
   onSelectCollection: (collection: CollectionHit, choice: SuggestionChoice) => void
   onSelectCreator: (creator: CreatorHit, choice: SuggestionChoice) => void
+  // A category or rarity the query named → open its grid, the way the sidebar would.
+  onSelectFacet: (facet: Facet, choice: SuggestionChoice) => void
   // "See all results" / a recent or popular search → run a full search on /items.
   onRunSearch: (query: string) => void
   onRemoveRecent: (query: string) => void
@@ -123,6 +149,7 @@ export function SearchDropdown({
   onSelectItem,
   onSelectCollection,
   onSelectCreator,
+  onSelectFacet,
   onRunSearch,
   onRemoveRecent,
   onClearRecent
@@ -164,16 +191,24 @@ export function SearchDropdown({
   const total = suggestions?.total ?? 0
   const showingRecent = !enabled
   const popular = useMemo(() => (showingRecent ? popularSearchesFor(recent) : NO_TERMS), [showingRecent, recent])
+  // A category or rarity the query names, recognised locally (lib/searchFacets): no request, and still
+  // offered when the request fails.
+  const facets = useMemo(() => (enabled ? facetsFor(query) : NO_FACETS), [enabled, query])
 
   // What each row DOES, rebuilt on every render from the props and data in force and read through a ref
   // at activation time: a row the parent kept from an earlier report still runs today's handler on
   // today's data, by click and by keyboard alike.
   const actions = new Map<string, (via: SuggestionActivation) => void>()
-  if (!isError) {
-    if (showingRecent) {
-      for (const term of recent) actions.set(suggestionRowId('recent', term), () => onRunSearch(term))
-      for (const term of popular) actions.set(suggestionRowId('popular', term), () => onRunSearch(term))
-    } else {
+  if (showingRecent) {
+    for (const term of recent) actions.set(suggestionRowId('recent', term), () => onRunSearch(term))
+    for (const term of popular) actions.set(suggestionRowId('popular', term), () => onRunSearch(term))
+  } else {
+    facets.forEach((facet, position) =>
+      actions.set(suggestionRowId('facet', facetId(facet)), via =>
+        onSelectFacet(facet, { section: 'facets', position, via })
+      )
+    )
+    if (!isError) {
       items.forEach((item, position) =>
         actions.set(suggestionRowId('item', item.id), via => onSelectItem(item, { section: 'items', position, via }))
       )
@@ -203,16 +238,17 @@ export function SearchDropdown({
       const id = suggestionRowId(kind, key)
       return { id, kind, activate: via => latest.current.get(id)?.(via) }
     }
-    if (isError) return []
     if (showingRecent) return [...recent.map(term => row('recent', term)), ...popular.map(term => row('popular', term))]
-    const list = [
+    const list = facets.map(facet => row('facet', facetId(facet)))
+    if (isError) return list
+    list.push(
       ...items.map(item => row('item', item.id)),
       ...collections.map(collection => row('collection', collection.contractAddress)),
       ...creators.map(creator => row('creator', creator.address))
-    ]
+    )
     if (total > 0) list.push(row('see-all', query))
     return list
-  }, [isError, showingRecent, recent, popular, items, collections, creators, total, query])
+  }, [isError, showingRecent, recent, popular, facets, items, collections, creators, total, query])
 
   // Told only when the LIST changes — the same ids in the same order are the same list — so a rerender
   // of the parent never turns into another report, another render, another report. Before the paint, so
@@ -230,8 +266,10 @@ export function SearchDropdown({
     if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: 'nearest' })
   }, [activeId])
 
-  // One exposure event per query while the panel is open, and only for an answer that is really this
-  // query's: not the previous one kept as a placeholder, not an error, not a request still in flight.
+  // One exposure per query while the panel is open, and only for an answer that is really this query's:
+  // not the previous one kept as a placeholder, not an error, not a request still in flight. "No results"
+  // is about the three sections; a facet offered next to an empty answer is counted in both events, which
+  // then go out together.
   const exposed = useRef(new Set<string>())
   const settled = enabled && !isError && !isPlaceholderData && !itemsFetching && suggestions !== undefined
   useEffect(() => {
@@ -239,15 +277,19 @@ export function SearchDropdown({
     const key = exposureKey(query)
     if (exposed.current.has(key)) return
     exposed.current.add(key)
-    if (hasNoResults(suggestions)) {
-      track('Shop Search No Results', noResultsProps(query))
-    } else {
+    const empty = hasNoResults(suggestions)
+    if (empty) track('Shop Search No Results', noResultsProps(query, facets.length))
+    if (!empty || facets.length > 0)
       track(
         'Shop Viewed Search Suggestions',
-        suggestionsViewedProps(query, suggestions, { fetchMs: answer?.fetchMs ?? null, cacheHit: !isFetchedAfterMount })
+        suggestionsViewedProps(
+          query,
+          suggestions,
+          { fetchMs: answer?.fetchMs ?? null, cacheHit: !isFetchedAfterMount },
+          facets.length
+        )
       )
-    }
-  }, [settled, query, suggestions, answer, isFetchedAfterMount])
+  }, [settled, query, suggestions, answer, isFetchedAfterMount, facets])
 
   // Every option: out of the tab order (the input keeps the focus), marked when the keyboard is on it.
   const option = (id: string) => ({
@@ -259,7 +301,9 @@ export function SearchDropdown({
   })
 
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
-  const count = items.length + collections.length + creators.length
+  const count = facets.length + items.length + collections.length + creators.length
+  // Nothing in the three sections is not an empty panel when a facet is on offer: the copy says which.
+  const emptyCopy = facets.length > 0 ? t('search.noEntities', { query }) : t('search.noResults', { query })
 
   if (showingRecent) {
     return (
@@ -342,7 +386,7 @@ export function SearchDropdown({
           : nothing
             ? itemsFetching
               ? ''
-              : t('search.noResults', { query })
+              : emptyCopy
             : t('search.suggestionCount', { count })}
       </S.Live>
       {isError ? (
@@ -353,10 +397,41 @@ export function SearchDropdown({
           </S.Clear>
         </S.Empty>
       ) : nothing ? (
-        <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
+        <S.Empty>{itemsFetching ? t('search.searching') : emptyCopy}</S.Empty>
       ) : null}
       {/* Mounted in every state, empty or not: the box names it as its listbox as long as the panel is open. */}
       <S.Listbox id={SUGGESTIONS_LISTBOX_ID} role="listbox" aria-label={t('search.suggestions')}>
+        {facets.length > 0 ? (
+          <S.Group role="group" aria-labelledby="search-group-facets">
+            <S.SectionHead id="search-group-facets" role="presentation">
+              <span>{t('search.explore')}</span>
+            </S.SectionHead>
+            <S.List role="none">
+              {facets.map(facet => {
+                const id = suggestionRowId('facet', facetId(facet))
+                const path = facetPath(facet)
+                return (
+                  <li key={id} role="none">
+                    <S.Row
+                      type="button"
+                      data-testid="search-pop-row"
+                      data-kind="facet"
+                      data-facet={facetId(facet)}
+                      {...option(id)}
+                      onClick={() => activate(id, 'click')}
+                    >
+                      <FacetThumb facet={facet} />
+                      <S.Text>
+                        <S.Name title={facetLabel(facet)}>{facetLabel(facet)}</S.Name>
+                        {path ? <S.Sub>{path}</S.Sub> : null}
+                      </S.Text>
+                    </S.Row>
+                  </li>
+                )
+              })}
+            </S.List>
+          </S.Group>
+        ) : null}
         {items.length > 0 ? (
           <S.Group role="group" aria-labelledby="search-group-items">
             <S.SectionHead id="search-group-items" role="presentation">

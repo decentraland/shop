@@ -37,10 +37,12 @@ describe('when describing an exposure of the suggestions', () => {
       item_count: 2,
       collection_count: 1,
       creator_count: 0,
+      facet_count: 0,
       total: 42,
       fetch_ms: 42,
       cache_hit: false
     })
+    expect(suggestionsViewedProps('hat', answer, { fetchMs: 1, cacheHit: false }, 1)).toMatchObject({ facet_count: 1 })
   })
 
   it('should report a cache hit with no duration', () => {
@@ -53,7 +55,9 @@ describe('when describing an exposure of the suggestions', () => {
   it('should call an answer empty only when all three sections are', () => {
     expect(hasNoResults(EMPTY_SUGGESTIONS)).toBe(true)
     expect(hasNoResults({ ...EMPTY_SUGGESTIONS, creators: [{ address: '0xa', name: 'A' }] })).toBe(false)
-    expect(noResultsProps(' zzz ')).toEqual({ query: 'zzz' })
+    expect(noResultsProps(' zzz ')).toEqual({ query: 'zzz', facet_count: 0 })
+    // a facet offered next to an empty answer is counted, and the answer still counts as empty
+    expect(noResultsProps('hat', 1)).toEqual({ query: 'hat', facet_count: 1 })
   })
 })
 
@@ -78,6 +82,20 @@ describe('when describing a chosen suggestion', () => {
     expect(suggestionClickedProps({ query: 'g', section: 'collections', position: 0, via: 'click' }, {}).type).toBe(
       'collection'
     )
+    expect(
+      suggestionClickedProps(
+        { query: 'hat', section: 'facets', position: 0, via: 'click' },
+        { facet_kind: 'category', facet_key: 'Hat' }
+      )
+    ).toEqual({
+      query: 'hat',
+      type: 'facet',
+      facet_kind: 'category',
+      facet_key: 'Hat',
+      section: 'facets',
+      position: 0,
+      via: 'click'
+    })
   })
 })
 
