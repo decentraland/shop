@@ -218,8 +218,14 @@ export function NameBuyModal({
     if (rail === 'credits' && insufficient) return
     startedRef.current = true
     // Whole credits, so it matches what the reservation actually charges.
+    // Zero on the Ethereum rail: it spends no credits at all, so booking the price here would report the
+    // buyer's own MANA as credit revenue.
     const creditsSpent =
-      rail === 'combined' ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT) : (priceCredits ?? null)
+      rail === 'ethereum'
+        ? 0
+        : rail === 'combined'
+          ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT)
+          : (priceCredits ?? null)
     setPhase('completing')
     setError(null)
     setStage('preparing')
@@ -267,7 +273,7 @@ export function NameBuyModal({
          * `value_credits` is the credits LEG, not the price: on the mixed rail the rest came out of the
          * buyer's own MANA and was never credit spend.
          */
-        payment_type: rail === 'combined' ? 'credits_and_mana' : 'credits',
+        payment_type: rail === 'ethereum' ? 'ethereum_mana' : rail === 'combined' ? 'credits_and_mana' : 'credits',
         value_credits: creditsSpent,
         value_usd: creditsToUsd(creditsSpent ?? 0),
         transaction_hash: result.originTxHash ?? null,

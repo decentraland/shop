@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { WrongNetworkError } from '~/lib/network'
 import type { AuthIdentity } from '@dcl/crypto'
 import type { ethers } from 'ethers'
 
@@ -81,6 +82,8 @@ vi.mock('~/lib/authorizations', () => ({ ensureAuthorization, AuthorizationKind:
  */
 const { requireChain } = vi.hoisted(() => ({ requireChain: vi.fn() }))
 vi.mock('~/lib/network', async orig => ({ ...(await orig<Record<string, unknown>>()), requireChain }))
+// The REAL class and the REAL guard: a hand-made `{ name: 'WrongNetworkError' }` would pass a check the
+// production error has to satisfy through `instanceof`, which is exactly the gap that let this ship.
 
 // Gasless submit + settlement wait. Fully mock the module (its real graph pulls decentraland-
 // transactions' cross-chain ESM) but provide stand-in error classes — names.ts and this spec both
@@ -913,6 +916,21 @@ describe('when the buyer pays a NAME with Ethereum MANA', () => {
 
     await expect(run()).rejects.toThrow()
     expect(registerMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The wrong chain has to reach the CALLER as itself.
+   *
+   * The modal answers it with a screen offering the switch, and that screen is the rail's whole way in for a
+   * wallet sitting on Polygon — which is where the shop's wallets sit by default. Wrapped in a friendly
+   * Error the way every other failure is, `isWrongNetworkError` sees a plain `Error`, the check fails, and
+   * the buyer gets the generic failure panel with nothing to act on.
+   */
+  it('should let a wrong-network error through instead of wrapping it', async () => {
+    const wrong = new WrongNetworkError(137, 1)
+    requireChain.mockRejectedValueOnce(wrong)
+
+    await expect(run()).rejects.toBe(wrong)
   })
 
   // A mined-but-reverted tx is not a registration, however successful the receipt looks.

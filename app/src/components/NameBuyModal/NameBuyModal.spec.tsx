@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { RESUME_NAME_KEY } from '~/lib/resume-name'
+import { WrongNetworkError } from '~/lib/network'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 
@@ -596,6 +597,26 @@ describe('NameBuyModal', () => {
       expect(registerNameWithUsdCredits).not.toHaveBeenCalled()
     })
 
+    // Zero credits leave the balance on this rail, so booking the price would report the buyer's own MANA
+    // as credit revenue.
+    it('should report the Ethereum rail as spending no credits', async () => {
+      session.providerType = 'injected'
+      manaBalances.data = { matic: 0n, ethereum: MANA_L1(500) }
+      registerNameWithEthereumMana.mockResolvedValue({ status: 'registered', originTxHash: '0xl1' })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('pay-with-alt'))
+      fireEvent.click(screen.getByTestId('confirm-payment'))
+      reenter()
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(track.mock.calls.some(c => c[0] === 'Shop Completed Purchase')).toBe(true))
+      const done = track.mock.calls.find(c => c[0] === 'Shop Completed Purchase')![1] as Record<string, unknown>
+      expect(done.payment_type).toBe('ethereum_mana')
+      expect(done.value_credits).toBe(0)
+      expect(done.value_usd).toBe(0)
+    })
+
     /**
      * A wallet on the wrong chain is not a failed purchase — nothing was signed or spent — so it gets a
      * screen with the one control that fixes it rather than the error panel and its retry button.
@@ -603,8 +624,10 @@ describe('NameBuyModal', () => {
     it('should offer to switch the network instead of failing', async () => {
       session.providerType = 'injected'
       manaBalances.data = { matic: 0n, ethereum: MANA_L1(500) }
-      const wrongNetwork = Object.assign(new Error('wrong network'), { name: 'WrongNetworkError' })
-      registerNameWithEthereumMana.mockRejectedValue(wrongNetwork)
+      // The REAL error class, not a hand-made object with the right `name`: `isWrongNetworkError` checks
+      // `instanceof`, and a fabricated stand-in passes a check production cannot — which is how the wrapped
+      // error that made this screen unreachable got past the suite in the first place.
+      registerNameWithEthereumMana.mockRejectedValue(new WrongNetworkError(137, 1))
       renderModal(67)
 
       fireEvent.click(screen.getByTestId('pay-with-alt'))

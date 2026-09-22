@@ -46,7 +46,7 @@ import { idToSalt } from '~/lib/trade-encoding'
 import { readManaUsdRate, manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { friendlyError } from '~/lib/errors'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
-import { requireChain } from '~/lib/network'
+import { requireChain, isWrongNetworkError } from '~/lib/network'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import type { ProviderType } from '@dcl/schemas'
 import { AuthorizationKind, ensureAuthorization } from '~/lib/authorizations'
@@ -684,6 +684,13 @@ export async function registerNameWithEthereumMana(opts: {
   } catch (e) {
     console.error('[names] ethereum register failed — raw error:', e, { name, buyer })
     if (e instanceof NameGasNotPayableError) throw e
+    /**
+     * A wallet on the wrong chain is not a failed purchase — nothing was signed and nothing was spent — and
+     * the modal answers it with a screen that offers the switch. Wrapping it here hides it: the wrapper is a
+     * plain `Error`, so the caller's `isWrongNetworkError` sees nothing and the buyer gets the generic
+     * failure panel instead of the one control that fixes their situation.
+     */
+    if (isWrongNetworkError(e)) throw e
     const failure: Error & { cause?: unknown } = new Error(
       friendlyError(e, "Couldn't register the name. Please try again.", { sale: true })
     )
