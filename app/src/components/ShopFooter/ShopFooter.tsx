@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNearViewport } from '~/hooks/useNearViewport'
 import { useLocale } from '~/store/locale'
 import { LOCALES, t, type Locale } from '~/intl/i18n'
 import * as S from './ShopFooter.styles'
@@ -63,6 +64,7 @@ function SocialRow() {
 export function ShopFooter() {
   const locale = useLocale(s => s.locale)
   const setLocale = useLocale(s => s.setLocale)
+  const newsletter = useNearViewport<HTMLIFrameElement>()
   const [openSection, setOpenSection] = useState<string | null>(null)
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
@@ -87,8 +89,16 @@ export function ShopFooter() {
 
           <S.News>
             <S.NewsTitle>{t('footer.newsletterTitle')}</S.NewsTitle>
+            {/* The src is withheld until the footer is nearly on screen, because this one iframe is the
+                most expensive thing on every page it sits at the bottom of: beehiiv's bundle drags Google
+                Tag Manager and an antibot client in behind it, ~320KB of third-party script that was all
+                downloading before the visitor had seen the first screen.
+                Withholding the src rather than the element: the frame keeps its box either way, so there
+                is nothing to reserve and no shift when it fills. `loading="lazy"` was tried first and does
+                not work here — see useNearViewport. */}
             <S.NewsFrame
-              src={BEEHIIV_EMBED_URL}
+              ref={newsletter.ref}
+              src={newsletter.near ? BEEHIIV_EMBED_URL : undefined}
               height="65"
               frameBorder="0"
               scrolling="no"

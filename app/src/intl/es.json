@@ -167,12 +167,6 @@
     "body": "La página que buscas no está aquí. Volvamos a la tienda.",
     "cta": "Ver coleccionables"
   },
-  "prelaunch": {
-    "title": "Estamos preparando la tienda",
-    "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — vuelve muy pronto.",
-    "connected": "Las cuentas con acceso anticipado verán la tienda aquí.",
-    "signIn": "Iniciar sesión"
-  },
   "cart": {
     "empty": {
       "title": "¡Aquí no hay nada... todavía!",

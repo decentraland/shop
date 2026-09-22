@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
@@ -33,6 +33,57 @@ const sentryUpload = Boolean(process.env.SENTRY_AUTH_TOKEN)
  */
 const sentryRelease = process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}`
 
+// The home hero is the LCP element of the Shop's most visited page, and the preload scanner cannot see
+// it: the <img> exists only once the entry chunk has run, so on production the request left at 314ms of
+// which 272ms was pure discovery delay. This emits the preload into the HTML instead.
+//
+// Generated rather than hand-written in index.html because the file name carries a content hash — a
+// hardcoded href would not fail, it would quietly download a second, stale image forever. `media` mirrors
+// the <picture> in Overview.tsx so exactly one of the two is ever fetched; keep the pairs in step.
+//
+// A running CAMPAIGN replaces the hero art from the CMS, and this still preloads the bundled default.
+// That is correct rather than wasteful: the campaign is resolved by two chained async reads (a feature
+// flag, then Contentful), so the default is what the page renders first in every case, campaign or not.
+// The desktop entry is the EXACT complement of the <source>'s own query rather than `(min-width: 769px)`:
+// a fractional viewport (browser zoom lands there) between 768 and 769 matches neither, so the page would
+// show the wide art with nothing preloaded for it.
+const PRELOADED_HERO = [
+  { source: 'src/assets/overview/hero-credits-outfits.webp', media: 'not all and (max-width: 768px)' },
+  { source: 'src/assets/overview/hero-credits-mobile.webp', media: '(max-width: 768px)' }
+]
+
+function preloadHero(): Plugin {
+  return {
+    name: 'preload-hero',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        return PRELOADED_HERO.map(hero => {
+          const emitted = Object.values(ctx.bundle ?? {}).find(
+            output =>
+              output.type === 'asset' && (output.originalFileNames ?? []).some(name => name.endsWith(hero.source))
+          )
+          // Throw rather than skip. A renamed or deleted hero asset would otherwise drop the preload in
+          // silence, and the only symptom would be a slower LCP noticed in some Lighthouse run weeks later.
+          if (!emitted) throw new Error(`preload-hero: ${hero.source} is not in the bundle — was it renamed?`)
+          return {
+            tag: 'link',
+            attrs: {
+              rel: 'preload',
+              as: 'image',
+              href: `${base}${emitted.fileName}`,
+              media: hero.media,
+              fetchpriority: 'high'
+            },
+            injectTo: 'head-prepend' as const
+          }
+        })
+      }
+    }
+  }
+}
+
 // The app package.json is `private` and vite doesn't copy it, so emit a publishable package.json into
 // dist. That's the manifest npm/oddish publishes; the CDN serves this package at <name>/<version>/.
 function emitPackageJson() {
@@ -65,6 +116,7 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({ globals: { Buffer: true, global: true, process: true } }),
+    preloadHero(),
     emitPackageJson(),
     ...(sentryUpload
       ? [

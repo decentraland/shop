@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "lighthouse": "node scripts/lighthouse.mjs"
   },
   "dependencies": {
     "@dcl/crypto": "^3.4.5",
@@ -61,6 +62,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "jsdom": "^25.0.1",
+    "lighthouse": "^13.5.0",
     "nano-staged": "^0.8.0",
     "prettier": "^3.9.5",
     "puppeteer": "^25.3.0",

@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+import { canHover } from '~/lib/hover'
 import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
@@ -87,7 +88,7 @@ export function HoverPreviewLayer() {
   const address = useWallet(s => s.session?.address)
   const { data: avatar } = useProfile(address)
 
-  // Defer mounting the iframe to browser idle so warming never competes with the initial page render.
+  // Defer mounting the iframe so warming never competes with the initial page render (see the effect).
   const [mounted, setMounted] = useState(false)
   const [booted, setBooted] = useState(false) // engine up (first default-avatar LOAD seen)
   const bootedRef = useRef(false)
@@ -104,13 +105,42 @@ export function HoverPreviewLayer() {
   // store's hover token, which bumps on show() and ignores re-entering the same card.
   const poseRef = useRef({ token: -1, emote: HOVER_POSES[0] })
 
+  // Warm the engine only where the feature can be reached, and only once the page it is speculating on
+  // has finished loading.
+  //
+  // The pointer check is not a device check for its own sake: a card's hover handler bails out unless
+  // `(hover: hover)` matches (AssetCard `onEnter`, same `canHover`), so on a touch device this engine can
+  // never be asked for anything — and it was still pulling ~1.2MB of Babylon on every phone load.
+  //
+  // Waiting for `load` is not a delay picked to move a metric either. The idle callback used to run on its
+  // own with `timeout: 3000`, and on a page whose main thread is busy — which is precisely when this
+  // fires — the timeout is what wins, so the warm-up landed in the middle of the initial load and took
+  // bandwidth from the content the visitor actually asked for. Idle after `load` is the same speculation,
+  // in the window it belongs to; a human cannot scroll to a card and hover it faster than that.
   useEffect(() => {
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(() => setMounted(true), { timeout: 3000 })
-      return () => window.cancelIdleCallback(id)
+    if (!canHover()) return
+    let idle: number | undefined
+    const warm = () => {
+      idle =
+        typeof window.requestIdleCallback === 'function'
+          ? window.requestIdleCallback(() => setMounted(true), { timeout: 2000 })
+          : window.setTimeout(() => setMounted(true), 200)
     }
-    const id = window.setTimeout(() => setMounted(true), 1500)
-    return () => window.clearTimeout(id)
+    const cancel = () => {
+      if (idle === undefined) return
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle)
+      else window.clearTimeout(idle)
+    }
+    // `load` has no replay: a component mounted after it would wait for an event that already fired.
+    if (document.readyState === 'complete') {
+      warm()
+      return cancel
+    }
+    window.addEventListener('load', warm, { once: true })
+    return () => {
+      window.removeEventListener('load', warm)
+      cancel()
+    }
   }, [])
 
   // Being suspended tears the iframe down, so the next one boots a fresh engine. Forget the boot, or

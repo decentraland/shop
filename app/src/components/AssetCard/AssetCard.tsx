@@ -5,6 +5,7 @@ import { useFavorite } from '~/store/favorites'
 import { useLocale } from '~/store/locale'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
+import { canHover } from '~/lib/hover'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
@@ -126,8 +127,8 @@ export function AssetCard(props: AssetCardProps) {
   function onEnter() {
     // Touch devices synthesize a `mouseenter` on tap — don't enter the hover state there (it would
     // flash the red border + 3D preview on a tap). Hover is desktop-only; the matching style swap is
-    // gated behind @media (hover: hover).
-    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
+    // gated behind @media (hover: hover), and HoverPreviewLayer warms its engine on the same answer.
+    if (!canHover()) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
