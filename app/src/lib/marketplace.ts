@@ -1,5 +1,11 @@
 import { ChainId, type Trade } from '@dcl/schemas'
-import { ContractName, getContract, getContractName, getCouponManager, type ContractData } from 'decentraland-transactions'
+import {
+  ContractName,
+  getContract,
+  getContractName,
+  getCouponManager,
+  type ContractData
+} from 'decentraland-transactions'
 
 /**
  * Off-chain marketplace versions, newest first.
@@ -36,6 +42,17 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
 }
 
 /**
+ * Every off-chain marketplace version a trade can still SETTLE on. A different question from the list above,
+ * which says where a new listing goes: a listing signed against an older version keeps settling there for as
+ * long as it is open, and V1 still carries live primary listings on Polygon mainnet. Its ABI is V2's, so the
+ * rails build and settle it like any other.
+ */
+export const SETTLEABLE_OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [
+  ...OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES,
+  ContractName.OffChainMarketplace
+]
+
+/**
  * The registry entry of the marketplace a trade names, or null when that address is not a marketplace version
  * deployed on the trade's chain.
  *
@@ -48,9 +65,8 @@ export function getMarketplaceForTrade(trade: Pick<Trade, 'contract' | 'chainId'
   try {
     const name = getContractName(trade.contract)
     // getContractName answers for the WHOLE registry, so an address that is some other Decentraland
-    // contract resolves happily. Most would fail later encoding `accept`, but V1 shares V2's ABI and would
-    // build a real transaction against a marketplace this app does not support.
-    if (!OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES.includes(name)) return null
+    // contract resolves happily. Only a marketplace version can settle a trade.
+    if (!SETTLEABLE_OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES.includes(name)) return null
     const marketplace = getContract(name, trade.chainId)
     return marketplace.address.toLowerCase() === trade.contract.toLowerCase() ? marketplace : null
   } catch {

@@ -5,12 +5,14 @@ const CHAIN_WITHOUT_V3 = 137
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
+    OffChainMarketplace: 'OffChainMarketplace',
     OffChainMarketplaceV2: 'OffChainMarketplaceV2',
     OffChainMarketplaceV3: 'OffChainMarketplaceV3'
   },
   // Mirrors the real getContract: it THROWS for a version a chain does not have.
   getContract: (name: string, chainId: number) => {
     const deployments: Record<string, number[]> = {
+      OffChainMarketplace: [1, 11155111, CHAIN_WITHOUT_V3],
       OffChainMarketplaceV2: [1, 11155111, CHAIN_WITHOUT_V3],
       OffChainMarketplaceV3: [1, 11155111],
       // Stands in for every registry entry that is not a marketplace: a real address the lookup answers for.
@@ -24,6 +26,7 @@ vi.mock('decentraland-transactions', () => ({
   // Mirrors the real one: the address is the only input and an unknown one THROWS.
   getContractName: (address: string) => {
     const names: Record<string, string> = {
+      '0xoffchainmarketplace': 'OffChainMarketplace',
       '0xoffchainmarketplacev2': 'OffChainMarketplaceV2',
       '0xoffchainmarketplacev3': 'OffChainMarketplaceV3',
       '0xcreditsmanager': 'CreditsManager'
@@ -168,6 +171,16 @@ describe('when resolving the marketplace a trade names', () => {
 
     it('should return null', () => {
       expect(result).toBeNull()
+    })
+  })
+
+  describe('and the address is the first marketplace version, which new listings no longer go to', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xOffChainMarketplace', chainId: 11155111 })
+    })
+
+    it('should return it, since a listing signed against it still settles there', () => {
+      expect(result?.name).toBe('OffChainMarketplace')
     })
   })
 

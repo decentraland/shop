@@ -27,6 +27,8 @@ const BUYER = '0xBUYER'
 const MARKETPLACE_V3 = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
 const MARKETPLACE_V2 = '0xa40b1d129b8906888720686f3a01921ddf37716f'
 const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+/** The first version, which still carries live primary listings on Polygon mainnet. */
+const MARKETPLACE_V1 = '0x540fb08eDb56AaE562864B390542C97F562825BA'
 const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
 const POLYGON = 137
 const AMOY = 80002
@@ -1106,6 +1108,18 @@ describe('when the live coupon of an on-sale line is malformed', () => {
         line: expect.objectContaining({ usdCents: 1000, coupon: undefined })
       })
     )
+  })
+})
+
+describe('when reviewing a line whose trade settles on the first marketplace version', () => {
+  let outcome: LineOutcome
+
+  beforeEach(async () => {
+    outcome = await resolveLine(item('v1', 10), BUYER, async () => primaryTrade(10, '0xseller', MARKETPLACE_V1))
+  })
+
+  it('should keep it buyable, since an open listing settles on the version it was signed against', () => {
+    expect(outcome.status).toBe('buyable')
   })
 })
 

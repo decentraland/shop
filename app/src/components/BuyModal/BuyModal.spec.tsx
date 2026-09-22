@@ -34,7 +34,9 @@ const session = {
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
 
 // The real Amoy V2 marketplace, the one the trade fixture names. Hoisted with the mock that answers for it.
-const { MARKETPLACE_ADDRESS } = vi.hoisted(() => ({ MARKETPLACE_ADDRESS: '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7' }))
+const { MARKETPLACE_ADDRESS } = vi.hoisted(() => ({
+  MARKETPLACE_ADDRESS: '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+}))
 
 // The completed state fires the confetti, which lazy-loads lottie-web — a canvas/rAF runtime that throws on
 // import under jsdom, taking the Suspense subtree (and the CTAs asserted below) with it.
