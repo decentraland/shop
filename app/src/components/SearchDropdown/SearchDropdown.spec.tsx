@@ -53,8 +53,10 @@ describe('SearchDropdown suggestions', () => {
   it('should ask for the three sections in one request, sized for a preview', async () => {
     renderDropdown('chapeau')
     // One call per keystroke: items (the grid's own feed and ranking, so a suggestion is never something
-    // the results page then hides), collections and creators together, no profile lookups.
-    expect(await lastSuggestCall()).toEqual(['chapeau', { items: 5, collections: 4, creators: 4 }])
+    // the results page then hides), collections and creators together, no profile lookups — and abortable.
+    const call = await lastSuggestCall()
+    expect(call.slice(0, 2)).toEqual(['chapeau', { items: 5, collections: 4, creators: 4 }])
+    expect(call[2]?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('should not hit the API for a single character', () => {
@@ -120,6 +122,87 @@ describe('SearchDropdown suggestions', () => {
 
     expect(await screen.findByText(/Galaxy Studio/)).toBeInTheDocument()
     expect(screen.getByText(/0x2222…2222/)).toBeInTheDocument()
+  })
+})
+
+describe('SearchDropdown failures', () => {
+  const hat = {
+    id: 'a',
+    name: 'Galaxy Hat',
+    creator: '',
+    creatorName: null,
+    contractAddress: '0xabc',
+    itemId: '0',
+    thumbnail: ''
+  }
+  const visor = {
+    id: 'b',
+    name: 'Galaxy Visor',
+    creator: '',
+    creatorName: null,
+    contractAddress: '0xabc',
+    itemId: '1',
+    thumbnail: ''
+  }
+
+  it('should say the suggestions could not load and offer a retry, never "no results", when the request fails', async () => {
+    // The request retries once on its own before the panel gives up, so two failures, then the reader's retry.
+    vi.mocked(fetchSuggestions)
+      .mockRejectedValueOnce(new Error('fetchSuggestions 500'))
+      .mockRejectedValueOnce(new Error('fetchSuggestions 500'))
+      .mockResolvedValueOnce({ ...EMPTY, items: [hat], total: 1 } as never)
+
+    renderDropdown('galaxy')
+
+    expect(await screen.findByTestId('search-error', {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.queryByText(/No results/)).not.toBeInTheDocument()
+
+    screen.getByTestId('search-retry').click()
+
+    expect(await screen.findByTitle('Galaxy Hat')).toBeInTheDocument()
+    expect(screen.queryByTestId('search-error')).not.toBeInTheDocument()
+  })
+
+  it('should report no results only for an answer that came back empty', async () => {
+    renderDropdown('zzz')
+
+    expect(await screen.findByText(/No results/)).toBeInTheDocument()
+    expect(screen.queryByTestId('search-error')).not.toBeInTheDocument()
+  })
+
+  it('should hand the request its abort signal and never let a slow older answer replace a newer one', async () => {
+    let resolveOld: (value: unknown) => void = () => undefined
+    vi.mocked(fetchSuggestions).mockImplementationOnce(() => new Promise(resolve => (resolveOld = resolve)) as never)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const dropdown = (query: string) => (
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <SearchDropdown
+            query={query}
+            recent={[]}
+            onSelectItem={vi.fn()}
+            onSelectCollection={vi.fn()}
+            onSelectCreator={vi.fn()}
+            onRunSearch={vi.fn()}
+            onRemoveRecent={vi.fn()}
+            onClearRecent={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(dropdown('gal'))
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(fetchSuggestions).mock.calls[0][2]?.signal).toBeInstanceOf(AbortSignal)
+
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce({ ...EMPTY, items: [visor], total: 1 } as never)
+    rerender(dropdown('galaxy'))
+    expect(await screen.findByTitle('Galaxy Visor')).toBeInTheDocument()
+
+    // the older answer arrives late: the newer query's rows stay
+    resolveOld({ ...EMPTY, items: [hat], total: 1 })
+    await new Promise(r => setTimeout(r, 20))
+    expect(screen.getByTitle('Galaxy Visor')).toBeInTheDocument()
+    expect(screen.queryByTitle('Galaxy Hat')).not.toBeInTheDocument()
   })
 })
 

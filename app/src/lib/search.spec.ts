@@ -5,7 +5,11 @@ vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://market.test
 import { fetchSuggestions, EMPTY_SUGGESTIONS } from '~/lib/search'
 
 function mockFetch(body: unknown, status = 200) {
-  const fetchMock = vi.fn(async (_url: string) => ({ ok: status === 200, status, json: async () => body }))
+  const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+    ok: status === 200,
+    status,
+    json: async () => body
+  }))
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -15,12 +19,14 @@ afterEach(() => {
 })
 
 describe('when fetching suggestions', () => {
-  it('should ask the one endpoint with the trimmed query and each section size', async () => {
+  it('should ask the one endpoint with the trimmed query and each section size, abortable by the caller', async () => {
     const fetchMock = mockFetch({ items: { data: [], total: 0 }, collections: { data: [] }, creators: { data: [] } })
+    const controller = new AbortController()
 
-    await fetchSuggestions('  galaxy ', { items: 3, collections: 2, creators: 1 })
+    await fetchSuggestions('  galaxy ', { items: 3, collections: 2, creators: 1 }, { signal: controller.signal })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1]).toEqual({ signal: controller.signal })
     const url = String(fetchMock.mock.calls[0][0])
     expect(url).toContain('/v3/catalog/suggest?')
     expect(url).toContain('search=galaxy')

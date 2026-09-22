@@ -54,7 +54,9 @@
     "creators": "Creadores",
     "collections": "Colecciones",
     "items": "Artículos",
-    "byCreator": "Por {name}"
+    "byCreator": "Por {name}",
+    "error": "No pudimos cargar las sugerencias.",
+    "retry": "Probar de nuevo"
   },
   "common": {
     "copy": "Copiar",
