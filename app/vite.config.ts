@@ -4,6 +4,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { HOME_PATHS } from './src/lib/homePath'
 
 // Build/dev config. Points at a LOCAL marketplace-server by default (see .env / config.ts).
 // DCL libs (connect/dapps/crypto) need Node globals (Buffer/global/process) in the browser.
@@ -47,7 +48,9 @@ const sentryRelease = process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}`
 //
 // `matchMedia` rather than a `media` attribute per link, because it is the SAME query the <picture> in
 // Overview.tsx switches on: one expression, evaluated once, so the two cannot describe different
-// breakpoints or leave a fractional viewport matching neither.
+// breakpoints or leave a fractional viewport matching neither. The path test comes from `lib/homePath`,
+// shared with nothing else today but unit-tested there — a list spelled out here would be free to drift
+// from the router without anything failing.
 //
 // A running CAMPAIGN replaces the hero art from the CMS, and this still preloads the bundled default.
 // That is correct rather than wasteful: the campaign is resolved by two chained async reads (a feature
@@ -56,11 +59,6 @@ const PRELOADED_HERO = {
   desktop: 'src/assets/overview/hero-credits-outfits.webp',
   mobile: 'src/assets/overview/hero-credits-mobile.webp'
 }
-
-// Every path that renders the home hero. `/` redirects to `/overview` but renders through the same
-// document, and the deployed Shop is served under `/shop`. Trailing slashes are stripped before the
-// comparison, so `/shop/` and `/` collapse onto the entries below.
-const HOME_PATHS = ['', '/overview', '/shop', '/shop/overview']
 
 function preloadHero(): Plugin {
   return {
