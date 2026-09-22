@@ -1,4 +1,5 @@
-import { ethers } from 'ethers'
+import type { ethers } from 'ethers'
+import { loadEthers } from '~/lib/lazy-ethers'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { config } from '~/config'
@@ -42,8 +43,9 @@ function rpcUrlForChain(chainId: number): string {
 // gates a payment rail is the Polygon one regardless of where the wallet currently sits.
 export async function readManaBalanceWei(address: string, chainId: number = config.chainId): Promise<bigint> {
   const mana = getContract(ContractName.MANAToken, chainId)
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrlForChain(chainId))
-  const erc20 = new ethers.Contract(mana.address, ERC20_BALANCE_ABI, provider) as Erc20BalanceContract
+  const lib = await loadEthers()
+  const provider = new lib.providers.JsonRpcProvider(rpcUrlForChain(chainId))
+  const erc20 = new lib.Contract(mana.address, ERC20_BALANCE_ABI, provider) as Erc20BalanceContract
   const balance = await erc20.balanceOf(address)
   return BigInt(balance.toString())
 }
@@ -107,14 +109,15 @@ export async function readTradeManaPriceWei(trade: Trade, chainId: number = trad
   if (priceAsset.assetType !== Number(TradeAssetType.USD_PEGGED_MANA)) return BigInt(amount)
 
   const market = getContract(getContractName(trade.contract), chainId)
-  const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
-  const mkt = new ethers.Contract(
+  const lib = await loadEthers()
+  const provider = new lib.providers.JsonRpcProvider(config.rpcUrl)
+  const mkt = new lib.Contract(
     market.address,
     ['function manaUsdAggregator() view returns (address)'],
     provider
   ) as OracleReaderContract
   const aggAddr = await mkt.manaUsdAggregator()
-  const agg = new ethers.Contract(
+  const agg = new lib.Contract(
     aggAddr,
     [
       'function decimals() view returns (uint8)',

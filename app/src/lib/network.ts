@@ -1,4 +1,4 @@
-import { ethers } from 'ethers'
+import type { ethers } from 'ethers'
 import { ChainId, getChainName } from '@dcl/schemas'
 
 /**
@@ -99,7 +99,7 @@ export const AMOY_ADD_PARAMS = {
  * the network. A rejection (4001) propagates: the user declining is an answer, not an error to retry around.
  */
 export async function switchChain(provider: ethers.providers.Web3Provider, chainId: number): Promise<void> {
-  const hexChain = ethers.utils.hexValue(chainId)
+  const hexChain = `0x${chainId.toString(16)}`
   try {
     await provider.send('wallet_switchEthereumChain', [{ chainId: hexChain }])
   } catch (e) {
