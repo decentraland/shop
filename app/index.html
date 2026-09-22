@@ -60,12 +60,13 @@
     <!-- Sitemap -->
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
 
-    <!-- Warm the 3D preview / fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
     <!-- Warm the 3D item-preview pipeline so hover-to-preview feels instant: open connections to the
-         wearable-preview app + the content server it pulls assets from (both zone/dev and org/prod). -->
+         wearable-preview app + the content server it pulls assets from (both zone/dev and org/prod).
+
+         Inter is deliberately NOT here: it is served from our own origin now (see the @font-face rules in
+         src/styles/index.css). A render-blocking stylesheet on fonts.googleapis.com made the first paint
+         wait on a second host's DNS and TLS before it could even discover the font on a third — worth
+         2.4s of simulated First Contentful Paint on a throttled phone. -->
     <link rel="preconnect" href="https://wearable-preview.decentraland.zone" />
     <link rel="preconnect" href="https://wearable-preview.decentraland.org" />
     <link rel="preconnect" href="https://peer.decentraland.zone" crossorigin />
