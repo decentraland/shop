@@ -326,3 +326,11 @@ export const RecentRemove = styled.button`
     color: ${colors.text};
   }
 `
+
+// A rarity facet's mark: its colour, nothing else.
+export const RarityDot = styled.span`
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+`

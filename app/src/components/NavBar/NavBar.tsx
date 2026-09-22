@@ -29,6 +29,7 @@ import { clearedSearchUrl } from '~/lib/searchClear'
 import { NO_ACTIVE_ROW, SUGGESTIONS_LISTBOX_ID, searchKeyAction, type SuggestionRow } from '~/lib/suggestionNavigation'
 import { searchHistoryMode } from '~/lib/searchHistory'
 import { clearedSearchProps, suggestionClickedProps } from '~/lib/searchAnalytics'
+import { facetUrl, type Facet } from '~/lib/searchFacets'
 import type { SuggestionChoice } from '~/components/SearchDropdown/SearchDropdown'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
@@ -208,6 +209,23 @@ export function NavBar() {
       suggestionClickedProps({ query: q, ...choice }, { contract_address: collection.contractAddress })
     )
     navigate(`/collection/${collection.contractAddress}`)
+  }
+
+  // A facet is a way into a category or rarity, not a search: the reader lands on the grid the sidebar
+  // would give, built from the facet alone, and the box empties (the destination has no query, and a
+  // URL without one leaves the box as it was).
+  function onSelectFacet(facet: Facet, choice: SuggestionChoice) {
+    cancelDebounce()
+    setOpen(false)
+    if (q.trim()) recordSearch(q.trim())
+    setQ('')
+    setDebounced('')
+    track(
+      'Shop Search Suggestion Clicked',
+      suggestionClickedProps({ query: q, ...choice }, { facet_kind: facet.kind, facet_key: facet.key })
+    )
+    const target = facetUrl(facet)
+    navigate(target, { replace: searchHistoryMode({ pathname, search: locationSearch }, target) === 'replace' })
   }
 
   function onSelectCreator(creator: CreatorHit, choice: SuggestionChoice) {
@@ -433,6 +451,7 @@ export function NavBar() {
                   onSelectItem={onSelectItem}
                   onSelectCollection={onSelectCollection}
                   onSelectCreator={onSelectCreator}
+                  onSelectFacet={onSelectFacet}
                   onRunSearch={runSearch}
                   onRemoveRecent={removeRecent}
                   onClearRecent={clearRecent}

@@ -23,7 +23,7 @@ async function expectNoViolations(page: App['page'], state: string) {
  * reference, a control without a name, or an option outside a listbox.
  */
 describe('search box accessibility', () => {
-  it('has no axe violations with results, with recent and popular searches, when empty and on an error', async () => {
+  it('has no axe violations with results, with recent and popular searches, when empty, on an error and with a facet alone', async () => {
     app = await launchApp({ path: '/overview', fixtures: { suggestFailures: 2 } })
     const { page } = app
 
@@ -64,5 +64,14 @@ describe('search box accessibility', () => {
     expect(await page.$eval(SEARCH, el => el.getAttribute('aria-controls'))).toBe('search-suggestions')
     expect(await page.$('#search-suggestions')).not.toBeNull()
     await expectNoViolations(page, 'no results')
+
+    // a facet alone: the query names a category the fixtures hold nothing for
+    await page.$eval(SEARCH, el => el.select())
+    await page.type(SEARCH, 'zapatillas')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="facet"]')
+    await page.waitForFunction(() =>
+      document.querySelector('[data-testid="search-pop"]')?.textContent?.includes('No items, collections or creators')
+    )
+    await expectNoViolations(page, 'facet only')
   })
 })

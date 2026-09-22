@@ -3,6 +3,9 @@ import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
 import { rarities } from '~/styles/theme'
 
+// The rarity keys a filter may carry, in the order the filter bar lists them.
+export const RARITIES = ['common', 'uncommon', 'epic', 'rare', 'legendary', 'exotic', 'mythic', 'unique']
+
 const FALLBACK_COLOR = '#E6E6E6'
 
 // Parse a #rrggbb color to [r, g, b]; null when it isn't a full 6-digit hex (defends against a

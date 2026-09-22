@@ -474,6 +474,41 @@ describe('the search box', () => {
     expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Galaxy')
   })
 
+  it("opens a facet's grid from the facet alone, pushed, and empties the box", () => {
+    const box = renderSearch('/items?q=hat&status=not_for_sale')
+    fireEvent.focus(box)
+    // typed over the URL's query, so the box holds text the destination will not carry
+    fireEvent.change(box, { target: { value: 'hat' } })
+    const props = dropdownProps.mock.calls.at(-1)![0] as {
+      onSelectFacet: (facet: unknown, choice: unknown) => void
+    }
+
+    act(() => {
+      props.onSelectFacet(
+        { kind: 'category', key: 'Hat', top: 'wearable', labelKey: 'categories.hat', parents: [] },
+        { section: 'facets', position: 0, via: 'keyboard' }
+      )
+    })
+
+    // from scratch: the status filter of the page it came from is not carried over
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?category=wearable&subCategory=Hat')
+    expect(box).toHaveValue('')
+    expect(track).toHaveBeenCalledWith('Shop Search Suggestion Clicked', {
+      query: 'hat',
+      type: 'facet',
+      facet_kind: 'category',
+      facet_key: 'Hat',
+      section: 'facets',
+      position: 0,
+      via: 'keyboard'
+    })
+
+    act(() => {
+      props.onSelectFacet({ kind: 'rarity', key: 'epic' }, { section: 'facets', position: 0, via: 'click' })
+    })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?rarities=epic')
+  })
+
   it('leaves a modified Enter and an IME composition to the text', () => {
     const box = renderSearch('/overview')
     fireEvent.change(box, { target: { value: 'Nebula' } })

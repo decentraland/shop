@@ -3,7 +3,7 @@
 // order (recent searches, or items, collections, creators and "See all"); the active one is an index into
 // it. Kept pure so the semantics are testable without a DOM.
 
-export type SuggestionRowKind = 'item' | 'collection' | 'creator' | 'see-all' | 'recent' | 'popular'
+export type SuggestionRowKind = 'facet' | 'item' | 'collection' | 'creator' | 'see-all' | 'recent' | 'popular'
 
 export type SuggestionActivation = 'click' | 'keyboard'
 
