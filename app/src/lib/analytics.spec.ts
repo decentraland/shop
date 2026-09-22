@@ -45,7 +45,9 @@ function setUserAgent(userAgent: string) {
 }
 
 function analyticsGlobal() {
-  return (window as unknown as { analytics?: { _cdn?: string; _writeKey?: string } }).analytics
+  return (
+    window as unknown as { analytics?: { _cdn?: string; _writeKey?: string; invoked?: boolean; initialize?: unknown } }
+  ).analytics
 }
 
 // The snippet may insert its script before an existing one instead of appending to <head>, so look it
@@ -343,6 +345,19 @@ describe('initAnalytics', () => {
 
     expect(loadedScript()).not.toBeNull()
     expect((window as unknown as { analytics?: unknown }).analytics).toBeDefined()
+  })
+
+  it('finds the snippet internals the stub check reads, so a dapps upgrade that drops them fails here', async () => {
+    // `segment()` tells the not-yet-loaded snippet apart from the real analytics.js by these three
+    // undocumented fields. If an upgrade renames them, tracking would silently stop (or queue forever)
+    // in production; this pins them so the failure is a red test instead.
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
+    mod.initAnalytics()
+
+    const snippet = analyticsGlobal()
+    expect(snippet?.invoked).toBe(true)
+    expect(snippet?._writeKey).toBe('wk_test')
+    expect(snippet?.initialize).toBeUndefined()
   })
 })
 

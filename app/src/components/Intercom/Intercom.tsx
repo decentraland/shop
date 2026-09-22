@@ -4,6 +4,10 @@ import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { anonymousId, onAnalyticsReady } from '~/lib/analytics'
 
+// Hoisted: the dapps widget is a PureComponent, so a fresh literal per render would defeat its shallow
+// prop check and re-render the launcher for nothing.
+const INTERCOM_SETTINGS = { alignment: 'right' } as const
+
 type IntercomIdentity = {
   address?: string | null
   providerType?: string | null
@@ -49,5 +53,5 @@ export function Intercom() {
   const data = useMemo(() => intercomData({ address, providerType, anonId }), [address, providerType, anonId])
 
   if (!appId) return null
-  return <IntercomWidget appId={appId} data={data} settings={{ alignment: 'right' }} />
+  return <IntercomWidget appId={appId} data={data} settings={INTERCOM_SETTINGS} />
 }

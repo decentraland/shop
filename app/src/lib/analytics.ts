@@ -28,7 +28,7 @@ type SegmentApi = {
   load?: (writeKey: string) => void
   // Set by Segment's snippet (`invoked`, `_writeKey`) and by the real analytics.js (`initialize`).
   invoked?: boolean
-  initialize?: unknown
+  initialize?: () => void
   _writeKey?: string
 }
 
