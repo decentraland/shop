@@ -24,8 +24,9 @@ type WalletState = {
    * Has the silent restore finished, whatever its outcome?
    *
    * `session === null` is ambiguous on its own: it means BOTH "this visitor has no wallet" and "we have
-   * not looked yet". Anything that treats the absence of a wallet as a decision — the pre-launch curtain
-   * — has to be able to tell those apart, or it acts on the second while meaning the first and flickers.
+   * not looked yet". Anything that treats the absence of a wallet as a decision — an address-list gate
+   * such as the store dashboard's or the outfit studio's — has to be able to tell those apart, or it acts
+   * on the second while meaning the first and flickers.
    */
   restored: boolean
   connecting: boolean

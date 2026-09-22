@@ -68,21 +68,10 @@ export enum FeatureFlag {
    *
    * Reads an address-list VARIANT to roll out gradually: with one, only those addresses get the dashboard
    * and everyone else keeps today's My Items; without one, the flag alone answers and it is on for all.
-   * An empty list therefore means "no restriction", not "nobody" — the opposite of the pre-launch gate,
-   * because this flag opens a surface rather than closing the Shop.
+   * An empty list therefore means "no restriction", not "nobody": this flag opens a surface, so an
+   * unset list is "everyone", never "no one".
    */
   SHOP_MY_STORE = 'shop-my-store',
-  /**
-   * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
-   * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
-   *
-   * Cosmetic by construction. This bundle is static and the APIs behind it are public, so a check here is a
-   * curtain, not a lock — what actually refuses a purchase is the same flag read server-side by
-   * credits-server on /credits/authorize, against the signed-fetch address. Read under the SAME key and
-   * variant as that check so one list drives both and they cannot drift apart.
-   */
-  SHOP_PRELAUNCH = 'shop-prelaunch',
-
   /**
    * Address-list variant of accounts that see the outfit-authoring studio. COSMETIC: the real
    * gate is shop-server's OUTFIT_CREATORS allowlist, enforced against the signed-fetch address.
@@ -115,8 +104,8 @@ export enum FeatureFlag {
    * free public read against the registrar on Ethereum and keeps working either way, so a closed feature
    * still answers "is this name taken?" and points at the classic marketplace, which can sell one today.
    *
-   * Cosmetic here, like the pre-launch gate: this bundle is static and the endpoint behind it is public, so
-   * what actually refuses a registration is the same flag read server-side by credits-server on
+   * Cosmetic here: this bundle is static and the endpoint behind it is public, so what actually refuses a
+   * registration is the same flag read server-side by credits-server on
    * /credits-name-route. Read under the SAME key so one flip drives both and they cannot drift apart.
    *
    * Registering leaves Polygon — the credit is spent there and the mint happens on Ethereum behind a bridge

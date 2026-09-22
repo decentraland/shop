@@ -22,6 +22,11 @@ vi.mock('~/components/LazyWearablePreview', () => ({
 
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 
+// The pointer's hover capability, controllable per test: the layer reads it ONCE at mount while a card
+// re-reads it on every enter, so the two can legitimately disagree on a page that is already open.
+const { hoverCapable } = vi.hoisted(() => ({ hoverCapable: { value: true } }))
+vi.mock('~/lib/hover', () => ({ canHover: () => hoverCapable.value }))
+
 import { HoverPreviewLayer } from './HoverPreviewLayer'
 import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
@@ -72,10 +77,70 @@ function lastUpdateOptions() {
   return (call?.[2] as { options: Record<string, unknown> } | undefined)?.options
 }
 
+// jsdom reports `complete` as soon as it has parsed the document, so the state these tests are about —
+// a page still fetching something slow — has to be set explicitly.
+function setReadyState(state: DocumentReadyState) {
+  Object.defineProperty(document, 'readyState', { value: state, configurable: true })
+}
+
+function renderLayer(path = '/items') {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <HoverPreviewLayer />
+    </MemoryRouter>
+  )
+}
+
 beforeEach(() => {
   sendMessage.mockClear()
+  hoverCapable.value = true
+  setReadyState('complete')
   useHoverPreview.setState({ item: null, anchor: null, ready: false, token: 0 })
   useCart.setState({ fittingOpen: false })
+})
+
+/**
+ * The engine's warm-up is deliberately speculative and waits for `load`. Demand is not speculation: once
+ * someone has hovered a card, making them wait on an unrelated download is the one cost that deferral is
+ * not allowed to have. Both cases below leave the warm-up unable to fire and assert the engine mounts
+ * anyway.
+ */
+describe('HoverPreviewLayer — when a hover arrives before the warm-up could run', () => {
+  it('should mount on demand while the page is still loading', async () => {
+    setReadyState('interactive')
+
+    const { queryByTitle } = renderLayer()
+    expect(queryByTitle('preview')).toBeNull()
+
+    await act(async () => {
+      useHoverPreview.getState().show(makeItem(), document.createElement('div'))
+    })
+
+    expect(queryByTitle('preview')).not.toBeNull()
+  })
+
+  it('should mount on demand when the pointer gains hover after the layer mounted', async () => {
+    hoverCapable.value = false
+
+    const { queryByTitle } = renderLayer()
+    expect(queryByTitle('preview')).toBeNull()
+
+    // A mouse is attached: the card re-reads the capability, finds it true, and asks.
+    hoverCapable.value = true
+    await act(async () => {
+      useHoverPreview.getState().show(makeItem(), document.createElement('div'))
+    })
+
+    expect(queryByTitle('preview')).not.toBeNull()
+  })
+
+  it('should keep no engine warm on a touch pointer that never asks', async () => {
+    hoverCapable.value = false
+
+    const { queryByTitle } = renderLayer()
+
+    expect(queryByTitle('preview')).toBeNull()
+  })
 })
 
 /**
