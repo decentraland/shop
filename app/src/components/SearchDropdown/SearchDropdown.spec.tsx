@@ -5,8 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // ~/lib/collections pulls decentraland-transactions transitively (via the CollectionThumb in the
 // styles), which doesn't resolve under vitest — stub the seam.
-vi.mock('~/lib/api', () => ({ fetchShopItems: vi.fn().mockResolvedValue({ items: [], total: 0 }) }))
-vi.mock('~/lib/collections', () => ({ fetchCollectionItems: vi.fn().mockResolvedValue({ items: [], total: 0 }) }))
+vi.mock('~/lib/collections', () => ({
+  fetchCatalogItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+  fetchCollectionItems: vi.fn().mockResolvedValue({ items: [], total: 0 })
+}))
 vi.mock('~/lib/search', () => ({
   fetchCollectionSuggestions: vi.fn().mockResolvedValue([]),
   fetchCreatorSuggestions: vi.fn().mockResolvedValue([])
@@ -15,11 +17,8 @@ vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }
 const useManaRate = vi.fn(() => ({ data: undefined }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => useManaRate() }))
 
-const secondarySales = vi.fn(() => false)
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales() }))
-
 import { SearchDropdown } from '~/components/SearchDropdown'
-import { fetchShopItems } from '~/lib/api'
+import { fetchCatalogItems } from '~/lib/collections'
 
 function renderDropdown(query: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -42,40 +41,43 @@ function renderDropdown(query: string) {
 }
 
 async function lastSuggestCall() {
-  await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
-  return vi.mocked(fetchShopItems).mock.calls.at(-1)![0]
+  await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
+  return vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  secondarySales.mockReturnValue(false)
 })
 
 describe('SearchDropdown suggestions', () => {
-  it('should query the same feed and filter set the results grid lands on', async () => {
+  it('should query the same feed and filter set the results grid lands on: the whole catalogue, by relevance', async () => {
     renderDropdown('chapeau')
-    expect(await lastSuggestCall()).toMatchObject({
-      search: 'chapeau',
-      onSale: true,
-      listingType: 'primary'
-    })
-  })
-
-  it('should stop restricting to mints once resales are enabled, matching the grid', async () => {
-    secondarySales.mockReturnValue(true)
-    renderDropdown('chapeau')
-    expect(await lastSuggestCall()).toMatchObject({ onSale: true, listingType: undefined })
+    // No status or listing-type narrowing: a search opens the grid on All (see pages/Assets), and a
+    // suggestion drawn from a narrower feed could name an item the grid then ranks elsewhere — or count
+    // fewer results than the grid shows.
+    expect(await lastSuggestCall()).toEqual({ search: 'chapeau', first: 5, sortBy: 'relevance' })
   })
 
   it('should not hit the API for a single character', () => {
     renderDropdown('c')
-    expect(fetchShopItems).not.toHaveBeenCalled()
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
   })
 
   it('should show recent searches instead of results for an empty query', () => {
     renderDropdown('')
-    expect(fetchShopItems).not.toHaveBeenCalled()
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
     expect(screen.queryByTestId('search-pop')).not.toBeInTheDocument()
+  })
+
+  it('should offer to see all results with the total the grid will then report', async () => {
+    vi.mocked(fetchCatalogItems).mockResolvedValue({
+      items: [{ id: 'a', name: 'Galaxy Hat', creator: '', contractAddress: '0xabc', itemId: '0', thumbnail: '' }],
+      total: 542
+    } as never)
+
+    renderDropdown('galaxy')
+
+    expect(await screen.findByTestId('search-see-all')).toHaveTextContent('542')
   })
 })
 
@@ -89,14 +91,12 @@ describe('SearchDropdown suggestions', () => {
  */
 describe('SearchDropdown pricing', () => {
   it('should not price a suggestion, even when the row carries one', async () => {
-    vi.mocked(fetchShopItems).mockResolvedValue({
+    vi.mocked(fetchCatalogItems).mockResolvedValue({
       items: [
         {
-          tradeId: 'trade-1',
-          listingType: 'primary',
+          id: '0xabc-0',
           contractAddress: '0xabc',
           itemId: '0',
-          tokenId: null,
           name: 'Galaxy Hat',
           thumbnail: '',
           rarity: 'epic',
@@ -104,12 +104,8 @@ describe('SearchDropdown pricing', () => {
           wearableCategory: 'hat',
           creator: '0xcreator',
           priceCredits: 270,
-          available: 10,
           network: 'MATIC',
-          chainId: 80002,
-          source: 'native',
-          manaWei: null,
-          listingCount: 1
+          chainId: 80002
         }
       ],
       total: 1
@@ -125,7 +121,7 @@ describe('SearchDropdown pricing', () => {
   it('should not read the mana oracle at all, keeping the eager navbar chunk free of it', async () => {
     renderDropdown('galaxy')
 
-    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
     expect(useManaRate).not.toHaveBeenCalled()
   })
 })

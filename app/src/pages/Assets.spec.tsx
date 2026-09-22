@@ -449,6 +449,62 @@ describe('Assets — pinned to a set of collections', () => {
 })
 
 /**
+ * A search opens ranked by relevance — the server's default for a query, spelled out by the client so an
+ * explicit choice can still differ from it. Search wins over Deals, and a stale `sort=relevance` without a
+ * query falls back rather than reach the server.
+ */
+describe('Assets — the sort a search opens on', () => {
+  it('should rank a search by relevance, on the full-catalogue feed the search reads', async () => {
+    renderAssets('/items?q=hat')
+    const call = (await lastCatalogItemsCall())!
+
+    expect(call.search).toBe('hat')
+    expect(call.sortBy).toBe('relevance')
+    expect(fetchShopItems).not.toHaveBeenCalled()
+  })
+
+  it('should let an explicitly chosen sort win over relevance', async () => {
+    renderAssets('/items?q=hat&sort=price-asc')
+    const call = (await lastCatalogItemsCall())!
+
+    expect(call.sortBy).toBe('cheapest')
+  })
+
+  it('should keep relevance when the Deals filter is on too: the query is the stronger signal', async () => {
+    useCreatorSalesEnabled.mockReturnValue(true)
+    renderAssets('/items?q=hat&deals=true')
+    const call = (await lastCatalogItemsCall())!
+
+    expect(call.sortBy).toBe('relevance')
+  })
+
+  it('should fall back to newest when the URL carries relevance but no query', async () => {
+    renderAssets('/items?sort=relevance')
+    const call = (await lastShopItemsCall())!
+
+    expect(call.sortBy).toBe('newest')
+    expect(call.search).toBeUndefined()
+  })
+
+  it('should offer Relevance in the sort menu, selected, while a query runs', async () => {
+    renderAssets('/items?q=hat')
+    await lastCatalogItemsCall()
+    await userEvent.click(screen.getByLabelText('Sort by'))
+
+    expect(screen.getByRole('option', { name: 'Relevance' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('should not offer Relevance without a query, and select Newest when the URL still carries it', async () => {
+    renderAssets('/items?sort=relevance')
+    await lastShopItemsCall()
+    await userEvent.click(screen.getByLabelText('Sort by'))
+
+    expect(screen.queryByRole('option', { name: 'Relevance' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Newest' })).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
+/**
  * The Deals filter asks the server for the half of the catalogue a creator is discounting right now.
  *
  * It is NOT `onSale`, which this grid already sends to mean "listed at all" — the two read alike and

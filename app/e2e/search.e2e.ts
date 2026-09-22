@@ -19,8 +19,8 @@ describe('search bar', () => {
     await page.waitForSelector(SEARCH)
     await page.type(SEARCH, 'Nebula')
 
-    // The dropdown fetches the same feed the results grid uses (/v3/catalog/unified?groupBy=item)
-    // and shows the matching item.
+    // The dropdown fetches the same feed the results grid lands on (/v3/catalog/items, the whole
+    // catalogue, ranked by relevance) and shows the matching item.
     await page.waitForSelector('[data-testid="search-pop"]')
     await waitForText(page, 'Nebula Jacket')
     // "Galaxy Hat" doesn't match the query → not suggested.
@@ -41,8 +41,9 @@ describe('search bar', () => {
 
     expect(await clickByText(page, '[data-testid="search-pop-row"]', /nebula jacket/i)).toBe(true)
 
-    // Nebula Jacket is a secondary listing (tokenId 7) → routed to /token/<collection>/7.
-    await page.waitForFunction(() => /\/token\//.test(location.pathname))
+    // A suggestion is an ITEM of the catalogue, as the results grid shows it → routed to /item/<collection>/<id>,
+    // whatever listings it has (the grid a search lands on is the full catalogue, not the on-sale feed).
+    await page.waitForFunction(() => /\/item\//.test(location.pathname))
     await waitForText(page, 'Nebula Jacket')
   })
 
@@ -187,7 +188,7 @@ describe('search bar', () => {
   it('keeps "See all results" in view without scrolling the suggestions', async () => {
     // Enough suggestions to OVERFLOW the panel — the default fixture has one match, and with a single row
     // the footer sits at the bottom whether or not it is pinned, so the assertions below would pass
-    // either way. Local to this spec: `unifiedListings` also feeds the browse grid, where extra rows
+    // either way. Local to this spec: `shopListings` also feeds the catalogue grids, where extra rows
     // change what other specs count.
     const many = Array.from({ length: 20 }, (_, i) => ({
       tradeId: `pinned-${i}`,
@@ -209,7 +210,7 @@ describe('search bar', () => {
       manaWei: null,
       listingCount: 1
     }))
-    app = await launchApp({ path: '/overview', fixtures: { unifiedListings: { data: many, total: many.length } } })
+    app = await launchApp({ path: '/overview', fixtures: { shopListings: { data: many, total: many.length } } })
     const { page } = app
     // Short on purpose: the panel is capped at 70vh, which is what makes the capped suggestion list
     // overflow it.
