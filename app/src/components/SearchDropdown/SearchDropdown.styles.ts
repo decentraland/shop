@@ -6,6 +6,15 @@ const { colors, radius, media } = theme
 
 const hover = '#f5f4f7'
 
+// The keyboard's row looks like the hovered one, plus a ring: hover alone would leave a keyboard user with
+// no way to tell where they are once the pointer rests on another row.
+const active = `
+  &[data-active] {
+    background: ${hover};
+    box-shadow: inset 0 0 0 2px ${colors.accent};
+  }
+`
+
 // Anchored to the search box (NavBar's Search wrapper is position: relative), left-aligned under the
 // input. Three sections can stack tall, so the whole panel caps its height and scrolls as one.
 export const Pop = styled.div`
@@ -52,6 +61,59 @@ export const Pop = styled.div`
   }
 `
 
+// The listbox proper: its options live in groups; it has no chrome of its own.
+export const Listbox = styled.div`
+  display: block;
+`
+
+export const Group = styled.div`
+  display: block;
+`
+
+// Recent searches beside their removal controls: the options on the left, the × buttons on the right,
+// row for row — the buttons are not options, so they cannot live inside the listbox.
+export const RecentArea = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+`
+
+export const RemoveList = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  & li {
+    height: 40px;
+    display: flex;
+    align-items: center;
+  }
+`
+
+// The popular searches, as chips that wrap.
+export const Chips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 10px 10px;
+`
+
+export const Chip = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid ${colors.line};
+  border-radius: ${radius.pill};
+  background: ${colors.white};
+  color: ${colors.text};
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover {
+    background: ${hover};
+  }
+  ${active}
+`
+
 export const SectionHead = styled.div`
   display: flex;
   align-items: center;
@@ -95,6 +157,7 @@ export const Row = styled.button`
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 // `data-variant`: round (creator avatar) / icon (neutral collection fallback tile).
@@ -150,6 +213,13 @@ export const Name = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  /* What the query matched: weight, not a highlighter, so the row's own colours stay as they are. */
+  & mark {
+    background: none;
+    color: inherit;
+    font-weight: 700;
+  }
 `
 
 export const Sub = styled.span`
@@ -193,6 +263,7 @@ export const SeeAll = styled.button`
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 export const Empty = styled.p`
@@ -202,20 +273,16 @@ export const Empty = styled.p`
   text-align: center;
 `
 
-export const Recent = styled.li`
-  display: flex;
-  align-items: center;
-`
-
 export const RecentBtn = styled.button`
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 10px;
   background: none;
   border: 0;
-  padding: 9px 10px;
+  padding: 0 10px;
   border-radius: 10px;
   text-align: left;
   font-size: 14px;
@@ -226,6 +293,7 @@ export const RecentBtn = styled.button`
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 export const RecentText = styled.span`
@@ -235,8 +303,17 @@ export const RecentText = styled.span`
   white-space: nowrap;
 `
 
+// Visually hidden, read by screen readers: how many suggestions the last answer holds.
+export const Live = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+`
+
 export const RecentRemove = styled.button`
-  flex: 0 0 auto;
   background: none;
   border: 0;
   color: ${colors.muted};

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 
 /**
@@ -46,7 +46,14 @@ vi.mock('~/hooks/useManaBalance', () => ({
 }))
 vi.mock('~/store/cart', () => ({ useCart: () => 0 }))
 vi.mock('~/components/CartPopover', () => ({ CartPopover: () => null }))
-vi.mock('~/components/SearchDropdown', () => ({ SearchDropdown: () => null }))
+// The dropdown stands in as a prop recorder: what query it is handed is what the keys and the timers leave.
+const dropdownProps = vi.fn()
+vi.mock('~/components/SearchDropdown', () => ({
+  SearchDropdown: (props: Record<string, unknown>) => {
+    dropdownProps(props)
+    return null
+  }
+}))
 vi.mock('~/components/NotificationsBell', () => ({ NotificationsBell: () => null }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
 // The creator's store entry, gated on its flag AND on having published something. Both are network reads,
@@ -60,6 +67,7 @@ const iap = { on: false }
 vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
 
 import { NavBar } from './NavBar'
+import { track } from '~/lib/analytics'
 
 const CHAINS = [ChainId.ETHEREUM_MAINNET, ChainId.MATIC_MAINNET]
 
@@ -314,5 +322,165 @@ describe('the creator store entrance', () => {
     session = null
 
     expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
+  })
+})
+
+/**
+ * The search box's keys and its history.
+ *
+ * The dropdown is mocked away here, so what these pin is the box itself: Escape puts the panel away and,
+ * pressed again, clears the way the button does; a search is pushed so "back" returns to the previous one,
+ * and only an exact repeat of the current destination replaces it.
+ */
+function Probe() {
+  const location = useLocation()
+  const type = useNavigationType()
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="probe">{`${type} ${location.pathname}${location.search}`}</output>
+      {/* stands in for the browser's Back: a URL change the box did not make */}
+      <button type="button" data-testid="probe-go" onClick={() => navigate('/items?q=Galaxy')} />
+    </>
+  )
+}
+
+// The query the dropdown was last handed, or null while it is not mounted.
+const lastDropdownQuery = () => (dropdownProps.mock.calls.at(-1)?.[0] as { query: string } | undefined)?.query ?? null
+
+function renderSearch(route = '/overview') {
+  render(
+    <MemoryRouter initialEntries={[route]}>
+      <NavBar />
+      <Probe />
+    </MemoryRouter>
+  )
+  return screen.getByRole('combobox')
+}
+
+describe('the search box', () => {
+  beforeEach(() => {
+    iap.on = false
+    vi.mocked(track).mockClear()
+    dropdownProps.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('names its listbox only while the panel is open, and no active row without one', () => {
+    const box = renderSearch('/overview')
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).not.toHaveAttribute('aria-controls')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.focus(box)
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    expect(box).toHaveAttribute('aria-controls', 'search-suggestions')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).not.toHaveAttribute('aria-controls')
+  })
+
+  it('drops a pending debounce when the box is cleared, so the panel never gets what was just erased', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.click(screen.getByTestId('subnav-search-clear'))
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    fireEvent.focus(box)
+
+    expect(box).toHaveValue('')
+    expect(lastDropdownQuery()).toBe('')
+    expect(dropdownProps.mock.calls.some(call => (call[0] as { query: string }).query === 'Nebula')).toBe(false)
+  })
+
+  it('drops it on a double Escape too', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    fireEvent.keyDown(box, { key: 'Escape' })
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    fireEvent.focus(box)
+
+    expect(box).toHaveValue('')
+    expect(lastDropdownQuery()).toBe('')
+  })
+
+  it('lets a URL change win over a keystroke still waiting on its debounce', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Neb' } })
+
+    fireEvent.click(screen.getByTestId('probe-go'))
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(box).toHaveValue('Galaxy')
+    expect(lastDropdownQuery()).toBe('Galaxy')
+  })
+
+  it('puts the panel away on Escape and, pressed again, clears the box and says so', () => {
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).toHaveValue('Nebula')
+    expect(track).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveValue('')
+    expect(track).toHaveBeenCalledWith('Shop Cleared Search', { page: '/overview' })
+  })
+
+  it('reports the clear button the same way, with the route alone', () => {
+    const box = renderSearch('/items?q=Nebula&status=not_for_sale')
+    expect(box).toHaveValue('Nebula')
+
+    fireEvent.click(screen.getByTestId('subnav-search-clear'))
+
+    expect(track).toHaveBeenCalledWith('Shop Cleared Search', { page: '/items' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('REPLACE /items?status=not_for_sale')
+  })
+
+  it('pushes a new search and replaces an exact repeat of the current one', () => {
+    const box = renderSearch('/overview')
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Nebula')
+
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('REPLACE /items?q=Nebula')
+
+    fireEvent.change(box, { target: { value: 'Galaxy' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Galaxy')
+  })
+
+  it('leaves a modified Enter and an IME composition to the text', () => {
+    const box = renderSearch('/overview')
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.keyDown(box, { key: 'Enter', metaKey: true })
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+
+    expect(screen.getByTestId('probe')).toHaveTextContent('POP /overview')
   })
 })
