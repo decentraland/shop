@@ -37,6 +37,10 @@ const { values: argv } = parseArgs({
     // The first run against a cold DNS/TLS/CDN path is reliably the outlier — 72 against 87/90 on the
     // same URL minutes apart — so one run is thrown away before the batch starts. Set 0 to keep it.
     warmup: { type: 'string', default: '1' },
+    // Measure the page a SIGNED-IN visitor gets. The two are genuinely different pages: a session mounts
+    // the notifications bell (a ~227 KiB chunk a visitor never downloads) and adds the profile, favorites
+    // and notification reads, so a guest-only baseline says nothing about half the audience.
+    session: { type: 'boolean', default: false },
     out: { type: 'string' },
     headful: { type: 'boolean', default: false },
     summary: { type: 'boolean', default: false }
@@ -50,7 +54,7 @@ const warmup = Number(argv.warmup)
 const url = argv.url ?? SCENARIOS[argv.scenario]
 // Defaults to the scenario name so a batch is identifiable without spelling it out; `--label` overrides
 // it for anything the URL cannot say (authenticated, a campaign running, a preview deploy).
-const label = argv.label ?? argv.scenario
+const label = `${argv.label ?? argv.scenario}${argv.session ? '-signedin' : ''}`
 
 if (!['desktop', 'mobile'].includes(preset)) throw new Error(`--preset must be desktop or mobile, got "${preset}"`)
 if (!argv.summary && !url)
@@ -216,9 +220,40 @@ const meta = {
   // production it is noise, but cheap noise.
   dirty: git('status', '--porcelain') !== '',
   cache: 'cold',
-  session: 'none',
+  // 'seeded' is the e2e suite's throwaway identity, not a real account — see the session block below.
+  session: argv.session ? 'seeded' : 'none',
   warmup,
   headless: !argv.headful
+}
+
+// A signed-in run drives Lighthouse through a Puppeteer page so the session can be installed as an
+// on-new-document script. That ordering is what makes it work: Lighthouse clears storage and THEN
+// navigates, and this script runs at the start of the document it navigates to — so the seed survives the
+// clear and the HTTP cache stays cold, which is the whole point of the run.
+//
+// The identity is the e2e suite's own `buildTestSession`, imported rather than reimplemented so there is
+// one definition of the fake user. It is a deterministic throwaway key that signs nothing real. The
+// account has no published avatar and an empty cart, so this measures what a SESSION costs, not what one
+// particular shopper's data costs.
+let browser
+let initScript
+if (argv.session) {
+  const { default: puppeteer } = await import('puppeteer')
+  // Type-stripped at import (see the `--experimental-strip-types` flag on the npm script).
+  const { buildTestSession, sessionInitScript } = await import('../e2e/helpers/session.ts')
+  browser = await puppeteer.connect({ browserURL: `http://127.0.0.1:${chrome.port}`, defaultViewport: null })
+  initScript = sessionInitScript(await buildTestSession())
+}
+
+// A FRESH tab per run, not one reused across the batch. Reusing it fails with `Target.setAutoAttach:
+// Session with given id not found` on pages that mount several cross-origin iframes — the previous
+// navigation's targets are still detaching while Lighthouse attaches to the next one. It showed up only
+// on the heavier of two pages being compared, which is the worst way for a measurement tool to break.
+async function sessionPage() {
+  if (!browser) return undefined
+  const page = await browser.newPage()
+  await page.evaluateOnNewDocument(initScript)
+  return page
 }
 
 console.log(`${url}\n${preset}, ${runs} run(s) after ${warmup} warm-up, label "${label}"\n`)
@@ -226,11 +261,15 @@ console.log(`${url}\n${preset}, ${runs} run(s) after ${warmup} warm-up, label "$
 const lhrs = []
 try {
   for (let i = 0; i < warmup; i++) {
-    await lighthouse(url, { logLevel: 'error', output: 'json', port: chrome.port }, config)
+    const page = await sessionPage()
+    await lighthouse(url, { logLevel: 'error', output: 'json', port: chrome.port }, config, page)
+    await page?.close()
     console.log(`  warm-up ${i + 1}/${warmup} (discarded)`)
   }
   for (let i = 0; i < runs; i++) {
-    const result = await lighthouse(url, { logLevel: 'error', output: 'json', port: chrome.port }, config)
+    const page = await sessionPage()
+    const result = await lighthouse(url, { logLevel: 'error', output: 'json', port: chrome.port }, config, page)
+    await page?.close()
     if (!result?.lhr) throw new Error(`run ${i + 1} produced no report`)
     const lhr = result.lhr
     if (lhr.runtimeError?.code) throw new Error(`run ${i + 1}: ${lhr.runtimeError.message}`)
@@ -244,7 +283,18 @@ try {
     lhrs.push(lhr)
   }
 } finally {
+  await browser?.disconnect()
   await chrome.kill()
+}
+
+// A session that silently failed to restore would report a guest run under a signed-in label, which is
+// worse than no measurement. The notifications bell is the tell: `NavBar` mounts it only with a session,
+// and it is a chunk of its own, so its absence from the network log means the seed did not take.
+if (
+  argv.session &&
+  !lhrs.some(lhr => lhr.audits['network-requests'].details.items.some(r => /NotificationsBell/.test(r.url)))
+) {
+  throw new Error('--session: no NotificationsBell chunk in any run — the seeded session did not restore')
 }
 
 const rows = await writeIndex()

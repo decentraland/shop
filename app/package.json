@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "lighthouse": "node scripts/lighthouse.mjs"
+    "lighthouse": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lighthouse.mjs"
   },
   "dependencies": {
     "@dcl/crypto": "^3.4.5",
