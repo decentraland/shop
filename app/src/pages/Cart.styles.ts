@@ -17,8 +17,9 @@ const mobile = '@media (max-width: 880px)'
 export const Checkout = styled.div`
   max-width: 1510px;
   margin: 0 auto;
-  /* Grows into the page's leftover height and passes it down to Upsell, so the white cross-sell band ends at
-     the footer rather than leaving a gray strip. Needs .page[data-route="/cart"] to be a flex column. */
+  /* Grows into the page's leftover height and passes it down to Upsell, so a short cart leaves its slack
+     BELOW the cross-sell rail rather than inside the band. Needs .page[data-route="/cart"] to be a flex
+     column. */
   width: 100%;
   flex: 1 0 auto;
   display: flex;
@@ -70,27 +71,34 @@ export const Body = styled.div`
   }
 `
 
-// Groups the breadcrumb + the two-column body, and paints the cart's light band: a full-bleed gray
-// rect over the page's purple field, which is how Figma draws it (1551:315391, 1922x798). Reaching the
-// viewport edges needs the 100vw/50% dance; the negative top eats .page's own padding so the gray
-// starts flush under the sticky sub-nav instead of leaving a purple seam.
+// Groups the breadcrumb + the two-column body over a full-bleed band, which is how Figma draws the cart
+// (1551:315391, 1922x798). The band used to be the light gray of the old marketplace; on the shop's purple
+// field it is a translucent wash instead, so the region still reads as one surface without reintroducing
+// white. Reaching the viewport edges needs the 100vw/50% dance; the negative top eats .page's own padding
+// so the band starts flush under the sticky sub-nav instead of leaving a seam.
 export const Top = styled.div`
   position: relative;
-  /* The gray band is 733px in Figma (1553-317103) — taller than the panels inside it, deliberately. Without
-     this it collapsed to the panels' height, and the page shell's own viewport-filling min-height then padded
-     the page out BELOW the cross-sell, so a strip of gray showed under "You might also like" instead of the
-     footer. Giving the band its designed height puts the leftover space where the design wants it. */
-  min-height: 733px;
-  /* Gray below the panels so the band never hugs the last card: Figma's band runs y152–950 with the
-     content ending at 854. The min-height above only covers a SHORT cart — once the list outgrows it
-     the band tracks the content, and without this padding it would butt straight into the purple. */
-  padding-bottom: 96px;
+  /* Breathing room under the panels so the band never hugs the last card. No min-height floor: Figma's
+     733px was sized for an opaque band that had to reach the cross-sell, and keeping it here only pushed
+     the rail below down behind a stretch of empty wash. The band now tracks its content. */
+  padding-bottom: 48px;
 
-  /* No band of its own: the cart sits on the shop's purple field like every other page. It used to
-     paint a full-bleed light one here, which is also why the "You might also like" rail below it read as
-     a seam — the rail was already on the field and the cart was not.
+  /* The wash. Deliberately darker than the field and LIGHTER than the cards, so the three tiers read
+     page > band > card and the cards sit on something instead of floating. The cards' own 40% composites
+     over this to 52%, which only helps their contrast. */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -28px;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: ${colors.overlayLight};
+    z-index: 0;
+  }
 
-     The light ink is set here so descendants inherit it; the cards below carry the contrast. */
+  /* The light ink is set here so descendants inherit it; the cards below carry the contrast. */
   color: ${colors.softWhite};
   & > * {
     position: relative;
@@ -98,10 +106,6 @@ export const Top = styled.div`
   }
 
   ${mobile} {
-    /* The single-column layout is already taller than the desktop band, and the fixed summary bar sits over
-       the bottom of it — a floor here would only add empty gray. */
-    min-height: 0;
-
     /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout). */
     padding-bottom: 32px;
 
@@ -111,7 +115,7 @@ export const Top = styled.div`
   }
 `
 
-// The left column = TWO stacked white cards, 12px apart, both rounded-16 on the gray page.
+// The left column = TWO stacked translucent cards, 12px apart, both rounded-16 on the band.
 export const Left = styled.div`
   min-width: 0;
   display: flex;
@@ -708,10 +712,10 @@ export const MsgNotice = styled(ErrorNotice)`
 export const Upsell = styled.div`
   position: relative;
   flex: 1 0 auto;
-  margin-top: 48px;
   /* The padding is the whole gap from the top of the section to the heading; the shared carousel's own
-     top margin is zeroed below so the two don't stack. */
-  padding: 47px 0 24px;
+     top margin is zeroed below so the two don't stack. It is the only gap now — the 48px margin that used
+     to sit on top of it was clearing the old opaque band's edge, which no longer needs clearing. */
+  padding: 32px 0 24px;
 
   & section {
     margin-top: 0;
