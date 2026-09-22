@@ -52,7 +52,9 @@ type RawSuggestions = {
 
 export async function fetchSuggestions(
   search: string,
-  { items = 5, collections = 4, creators = 4 }: SuggestionSizes = {}
+  { items = 5, collections = 4, creators = 4 }: SuggestionSizes = {},
+  // Lets the caller drop a request the reader has already typed past.
+  { signal }: { signal?: AbortSignal } = {}
 ): Promise<Suggestions> {
   const term = search.trim()
   if (!term) return EMPTY_SUGGESTIONS
@@ -62,7 +64,7 @@ export async function fetchSuggestions(
     collections: String(collections),
     creators: String(creators)
   })
-  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/suggest?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/suggest?${qs.toString()}`, { signal })
   if (!res.ok) throw new Error(`fetchSuggestions ${res.status}`)
   const body = (await res.json()) as RawSuggestions
   return {

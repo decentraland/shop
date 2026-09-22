@@ -97,6 +97,46 @@ describe('search bar', () => {
     await page.waitForFunction(() => /\/creator\//.test(location.pathname))
   })
 
+  it('makes one suggestions request per query and fetches no profile per row', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+    const seen: string[] = []
+    page.on('request', req => seen.push(req.url()))
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="creator"]')
+    await waitForText(page, 'Galaxy Studio')
+
+    const count = (part: string) => seen.filter(url => url.includes(part)).length
+    expect(count('/v3/catalog/suggest?')).toBe(1)
+    // The three requests the dropdown used to make, and the profile lookup per row, are gone. The
+    // collection rows' mosaics still fetch their thumbnails; that is the one other call left.
+    expect(count('/lambdas/profiles')).toBe(0)
+    expect(count('/v1/collections?')).toBe(0)
+    expect(count('/v3/catalog/creators/search')).toBe(0)
+    expect(count('/v1/nfts?category=ens')).toBe(0)
+  })
+
+  it('says so and offers a retry when the suggestions fail, instead of reporting no results', async () => {
+    // Two failures: the request retries once on its own, then the panel shows the error.
+    app = await launchApp({ path: '/overview', fixtures: { suggestFailures: 2 } })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-error"]', { timeout: 20000 })
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('[data-testid="search-pop"]')!.textContent!.includes('No results')
+      )
+    ).toBe(false)
+
+    await page.click('[data-testid="search-retry"]')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"]')
+    await waitForText(page, 'Galaxy Hat')
+  })
+
   it('runs a full search on Enter and lands on /items?q=', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app

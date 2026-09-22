@@ -59,6 +59,8 @@ export type Fixtures = {
   collections: unknown
   /** Ranked creators for the search dropdown (/v3/catalog/creators/search). */
   creators: unknown
+  /** How many times `/v3/catalog/suggest` answers 500 before it answers at all — the dropdown's error path. */
+  suggestFailures?: number
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
@@ -746,6 +748,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // items feed, collections and creators from their fixtures, each row naming its creator the way the
     // server does from the creator profiles (the fixture creator has a name; nobody else does).
     if (path === '/v3/catalog/suggest') {
+      // Counted down on the run's own copy of the fixtures, so each launch starts afresh.
+      if ((F.suggestFailures ?? 0) > 0) {
+        F.suggestFailures = (F.suggestFailures ?? 0) - 1
+        return json(req, { ok: false, message: 'suggestions unavailable' }, 500)
+      }
       const search = (u.searchParams.get('search') ?? '').trim().toLowerCase()
       const size = (key: string, fallback: number) => Number(u.searchParams.get(key) ?? fallback)
       const creatorName = (address: unknown) =>

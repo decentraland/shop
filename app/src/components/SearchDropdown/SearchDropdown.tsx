@@ -61,8 +61,11 @@ type SearchDropdownProps = {
 //   pages/Assets), so a suggestion is never something the results page then hides, and "See all (N)" is
 //   the number the grid then shows. It used to read the on-sale feed while the grid opened on All:
 //   "pirate hat" offered 188 results and landed on 542. Collections and creators are matched by the
-//   same terms, and every row names its creator, so nothing else is fetched per keystroke. The grid
-//   stays items-only — only the dropdown surfaces creators/collections as jump-to links.
+//   same terms, and every row names its creator, so no profile is fetched per row; the collection rows'
+//   mosaics (CollectionThumb) still load their own thumbnails. The grid stays items-only — only the
+//   dropdown surfaces creators/collections as jump-to links.
+// One request also means one failure: when it fails, the panel says so and offers to try again, and
+// never reads as "no results" — that is reserved for an answer that came back empty.
 // Keyboard nav is limited to Escape/Enter, owned by the parent NavBar.
 export function SearchDropdown({
   query,
@@ -78,13 +81,22 @@ export function SearchDropdown({
   // Read once so both render paths decide off the same value, as NavBar does (the module memoises it anyway).
   const iap = isIapMode()
 
-  const { data: suggestions, isFetching: itemsFetching } = useQuery({
+  const {
+    data: suggestions,
+    isFetching: itemsFetching,
+    isError,
+    refetch
+  } = useQuery({
     queryKey: ['search-suggest', query],
-    queryFn: () => fetchSuggestions(query, SUGGEST_SIZES),
+    // The signal drops a request the reader has typed past; the key keeps a slow older answer from ever
+    // replacing a newer one.
+    queryFn: ({ signal }) => fetchSuggestions(query, SUGGEST_SIZES, { signal }),
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,
-    staleTime: 30_000
+    staleTime: 30_000,
+    // One retry: a keystroke's request is not worth hammering a failing server, and the panel offers its own.
+    retry: 1
   })
 
   const items = enabled ? (suggestions?.items ?? []) : []
@@ -127,7 +139,14 @@ export function SearchDropdown({
 
   return (
     <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
-      {nothing ? (
+      {isError ? (
+        <S.Empty data-testid="search-error">
+          {t('search.error')}{' '}
+          <S.Clear type="button" data-testid="search-retry" onClick={() => void refetch()}>
+            {t('search.retry')}
+          </S.Clear>
+        </S.Empty>
+      ) : nothing ? (
         <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
       ) : (
         <>

@@ -53,7 +53,9 @@
     "creators": "Creators",
     "collections": "Collections",
     "items": "Items",
-    "byCreator": "By {name}"
+    "byCreator": "By {name}",
+    "error": "We couldn’t load suggestions.",
+    "retry": "Try again"
   },
   "common": {
     "copy": "Copy",
