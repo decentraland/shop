@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { t } from '~/intl/i18n'
 import { CATEGORIES, type Sub, type Top } from '~/lib/categories'
 import { Chevron } from '~/components/Chevron'
@@ -64,6 +64,15 @@ export function CategoryFilter({
   // selected row would be folded out of sight.
   const [expandedSubKey, setExpandedSubKey] = useState<string | null>(() => parentOfLeaf(subCategory))
 
+  // The accordion follows the filter whenever the filter changes from OUTSIDE — a search facet, a URL, Back
+  // — with the sidebar already mounted: the sections holding the active row open. Keyed on the filter
+  // values, not on renders, so a section folded by hand stays folded until the filter next changes.
+  useEffect(() => {
+    if (CATEGORIES.some(top => top.key === category && top.subs)) setExpandedKey(category)
+    const parent = parentOfLeaf(subCategory)
+    if (parent) setExpandedSubKey(parent)
+  }, [category, subCategory])
+
   // Clicking a nesting row both selects it and toggles its children — same bargain `clickTop` strikes,
   // so Head stays a usable filter on its own instead of becoming a folder you cannot pick.
   function clickSub(sub: Sub) {
@@ -106,7 +115,7 @@ export function CategoryFilter({
             </S.Cat>
 
             {top.subs ? (
-              <S.Subs data-open={open || undefined}>
+              <S.Subs data-subs data-open={open || undefined}>
                 <S.SubsInner>
                   {top.subs.map(sub => {
                     const subOpen = expandedSubKey === sub.key && !!sub.subs
@@ -128,7 +137,7 @@ export function CategoryFilter({
                         </S.Sub>
 
                         {sub.subs ? (
-                          <S.Subs data-open={subOpen || undefined}>
+                          <S.Subs data-subs data-open={subOpen || undefined}>
                             <S.SubsInner>
                               {sub.subs.map(leaf => (
                                 <S.SubSub

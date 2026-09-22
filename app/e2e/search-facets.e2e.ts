@@ -11,6 +11,19 @@ const SEARCH = 'input[aria-label="Search the shop"]'
 const FACET = '[data-testid="search-pop-row"][data-kind="facet"]'
 
 // A wait that names itself and where the page was when it gave up, so a CI timeout says which step.
+// Evaluated INSIDE the page (it must not close over anything here): the sidebar row with this label is
+// active AND every accordion above it is open. The accordions fold with grid-template-rows: 0fr, so a
+// folded row is still in the DOM and presence alone proves nothing.
+const UNFOLDED = ([label]: string[]): boolean => {
+  const row = Array.from(document.querySelectorAll('[data-sub][data-active]')).find(
+    el => el.textContent?.trim() === label
+  )
+  if (!row) return false
+  const accordions: Element[] = []
+  for (let el = row.parentElement; el; el = el.parentElement) if (el.hasAttribute('data-subs')) accordions.push(el)
+  return accordions.length > 0 && accordions.every(el => el.hasAttribute('data-open'))
+}
+
 async function until(page: App['page'], name: string, fn: (arg: string[]) => boolean, arg: string[] = []) {
   try {
     await page.waitForFunction(fn, {}, arg)
@@ -55,9 +68,7 @@ describe('search facets', () => {
     )
     // the sidebar marks the category (a category has no chip by design; rarities do), the grid asks for
     // it, and the box is empty
-    await until(page, 'sidebar marks Hat', () =>
-      Array.from(document.querySelectorAll('[data-sub][data-active]')).some(el => el.textContent?.trim() === 'Hat')
-    )
+    await until(page, 'sidebar shows Hat active and unfolded', UNFOLDED, ['Hat'])
     await until(
       page,
       'grid request carries wearableCategory=hat',
@@ -121,6 +132,8 @@ describe('search facets', () => {
     await page.waitForSelector('[data-facet="category:Dance"]')
     await page.click('[data-facet="category:Dance"]')
     await until(page, 'emote URL', () => location.search === '?category=emote&subCategory=Dance')
+    // the sidebar was already mounted: it still opens Emotes and marks the row
+    await until(page, 'sidebar shows Dance active and unfolded', UNFOLDED, ['Dance'])
     // from the facet alone: the rarity the reader came from is not carried over
     expect(await page.evaluate(() => location.search)).not.toMatch(/rarities/)
   })
