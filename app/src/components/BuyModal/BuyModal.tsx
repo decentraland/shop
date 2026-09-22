@@ -1116,7 +1116,11 @@ export function BuyModal({
             priceManaWei={manaPriceWei ?? 0n}
             balanceCredits={balanceCredits}
             manaBalanceWei={effectiveManaBalanceWei}
-            onBuy={method => void startPurchase(method)}
+            /* The item flow passes no `altRail`, so the step can never hand back 'alt' — narrowed rather
+               than cast so a future alt rail here fails to compile instead of falling through. */
+            onBuy={method => {
+              if (method !== 'alt') void startPurchase(method)
+            }}
             onClose={onClose}
             busy={busy}
             /**

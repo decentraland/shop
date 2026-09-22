@@ -29,6 +29,7 @@ import { NameNotRegisteredError, NameRouteCostTooHighError, NameSettlementUnknow
 // to resolve under vitest (ERR_UNSUPPORTED_DIR_IMPORT). The error class is defined inside the factory so it
 // is not read during hoisting, and the spec imports it back from here.
 const registerNameWithUsdCredits = vi.fn()
+const registerNameWithEthereumMana = vi.fn()
 vi.mock('~/lib/names', () => {
   class NameRouteCostTooHighError extends Error {
     constructor() {
@@ -44,6 +45,12 @@ vi.mock('~/lib/names', () => {
       this.name = 'NameSettlementUnknownError'
     }
   }
+  class NameGasNotPayableError extends Error {
+    constructor() {
+      super('RAW_GAS_INTERNAL')
+      this.name = 'NameGasNotPayableError'
+    }
+  }
   class NameNotRegisteredError extends Error {
     constructor() {
       // Raw wording again, so the assertions below cannot pass by echoing the error's own message.
@@ -52,10 +59,12 @@ vi.mock('~/lib/names', () => {
     }
   }
   return {
+    NameGasNotPayableError,
     NameRouteCostTooHighError,
     NameNotRegisteredError,
     NameSettlementUnknownError,
     registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a),
+    registerNameWithEthereumMana: (...a: unknown[]) => registerNameWithEthereumMana(...a),
     // The fixed on-chain price the MANA rails are sized against.
     NAME_PRICE_IN_WEI: '100000000000000000000'
   }
@@ -141,6 +150,7 @@ const buyButton = () => screen.getByRole('button', { name: /buy name/i })
 describe('NameBuyModal', () => {
   beforeEach(() => {
     registerNameWithUsdCredits.mockReset()
+    registerNameWithEthereumMana.mockReset()
     track.mockReset()
     createPackCheckout.mockReset()
     captureError.mockReset()
@@ -530,6 +540,84 @@ describe('NameBuyModal', () => {
    * choose — a credits-only buyer goes straight to the re-entry gate, as before.
    */
   describe('and the buyer holds MANA of their own', () => {
+    const MANA_L1 = (n: number) => BigInt(n) * 10n ** 18n
+
+    // Settles on its own chain and spends no credits, so it can never be ticked alongside the others.
+    it('should let the Ethereum rail take the selection over, and give it back', () => {
+      session.providerType = 'injected'
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA_L1(500), ethereum: MANA_L1(500) }
+      renderModal(67)
+
+      const alt = screen.getByTestId('pay-with-alt')
+      fireEvent.click(alt)
+      expect(alt.getAttribute('data-selected')).toBe('true')
+      expect(screen.getByTestId('pay-with-credits').getAttribute('data-selected')).not.toBe('true')
+
+      fireEvent.click(screen.getByTestId('pay-with-credits'))
+      expect(alt.getAttribute('data-selected')).not.toBe('true')
+    })
+
+    /**
+     * A managed wallet cannot pay for an Ethereum transaction, so the row is absent rather than disabled:
+     * there is nothing its owner could do to make it work.
+     */
+    it('should not offer the Ethereum rail to a wallet that cannot pay its own gas', () => {
+      session.providerType = 'magic'
+      manaBalances.data = { matic: 0n, ethereum: MANA_L1(500) }
+      renderModal(67)
+
+      expect(screen.queryByTestId('pay-with-alt')).toBeNull()
+    })
+
+    // Held L1 MANA that cannot pay: the balance is on screen, so a row that vanished would read as a bug.
+    it('should show the Ethereum rail disabled when the balance falls short', () => {
+      session.providerType = 'injected'
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA_L1(500), ethereum: MANA_L1(40) }
+      renderModal(67)
+
+      expect(screen.getByTestId<HTMLButtonElement>('pay-with-alt').disabled).toBe(true)
+    })
+
+    it('should register on Ethereum, spending no credits, once that rail is confirmed', async () => {
+      session.providerType = 'injected'
+      manaBalances.data = { matic: 0n, ethereum: MANA_L1(500) }
+      registerNameWithEthereumMana.mockResolvedValue({ status: 'registered', originTxHash: '0xl1' })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('pay-with-alt'))
+      fireEvent.click(screen.getByTestId('confirm-payment'))
+      // The NAME still has to be re-typed: choosing how to pay is not confirming what is bought.
+      reenter()
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(registerNameWithEthereumMana).toHaveBeenCalledTimes(1))
+      expect(registerNameWithUsdCredits).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A wallet on the wrong chain is not a failed purchase — nothing was signed or spent — so it gets a
+     * screen with the one control that fixes it rather than the error panel and its retry button.
+     */
+    it('should offer to switch the network instead of failing', async () => {
+      session.providerType = 'injected'
+      manaBalances.data = { matic: 0n, ethereum: MANA_L1(500) }
+      const wrongNetwork = Object.assign(new Error('wrong network'), { name: 'WrongNetworkError' })
+      registerNameWithEthereumMana.mockRejectedValue(wrongNetwork)
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('pay-with-alt'))
+      fireEvent.click(screen.getByTestId('confirm-payment'))
+      reenter()
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(screen.getByTestId('name-switch-chain')).toBeTruthy())
+      expect(screen.getByTestId('name-switch-chain-cta')).toBeTruthy()
+      // Not the failure screen: there is nothing to retry until the network changes.
+      expect(screen.queryByText(/couldn.t complete your purchase/i)).toBeNull()
+    })
+
     const MANA = (n: number) => BigInt(n) * 10n ** 18n
 
     it('should not ask anything of a buyer whose only rail is credits', () => {
