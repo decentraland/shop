@@ -116,7 +116,10 @@ export function HoverPreviewLayer() {
   // own with `timeout: 3000`, and on a page whose main thread is busy — which is precisely when this
   // fires — the timeout is what wins, so the warm-up landed in the middle of the initial load and took
   // bandwidth from the content the visitor actually asked for. Idle after `load` is the same speculation,
-  // in the window it belongs to; a human cannot scroll to a card and hover it faster than that.
+  // in the window it belongs to.
+  //
+  // This is SPECULATION ONLY. Real demand does not come through here — see the effect below, which is
+  // what keeps the wait off the visitor.
   useEffect(() => {
     if (!canHover()) return
     let idle: number | undefined
@@ -142,6 +145,19 @@ export function HoverPreviewLayer() {
       cancel()
     }
   }, [])
+
+  // A hover jumps the queue above, and must: the warm-up is speculation and waits for `load`, but a page
+  // can sit in `interactive` for seconds behind one slow non-critical resource with the first row of cards
+  // already on screen and hoverable. Making someone wait on an unrelated download AFTER they asked for the
+  // feature is the one cost the deferral must not have.
+  //
+  // It is also what covers a pointer that gains hover after mount. `canHover()` above is read once, in an
+  // effect with no dependencies, while a card re-checks it on every enter — so a mouse attached to a
+  // touch device would leave the card asking a layer that had decided, permanently, not to exist.
+  // Demand is the source of truth; the warm-up only tries to be early.
+  useEffect(() => {
+    if (item) setMounted(true)
+  }, [item])
 
   // Being suspended tears the iframe down, so the next one boots a fresh engine. Forget the boot, or
   // that engine's first LOAD — the default avatar — is read as the answer to a hover and reveals a bare

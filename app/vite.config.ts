@@ -34,23 +34,33 @@ const sentryUpload = Boolean(process.env.SENTRY_AUTH_TOKEN)
 const sentryRelease = process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}`
 
 // The home hero is the LCP element of the Shop's most visited page, and the preload scanner cannot see
-// it: the <img> exists only once the entry chunk has run, so on production the request left at 314ms of
-// which 272ms was pure discovery delay. This emits the preload into the HTML instead.
+// it: the <img> exists only once the entry chunk has run, so on production the request left at 264ms
+// (desktop) / 350ms (mobile), of which 244 / 331 was pure discovery delay. This puts the preload in the
+// HTML instead.
 //
-// Generated rather than hand-written in index.html because the file name carries a content hash — a
-// hardcoded href would not fail, it would quietly download a second, stale image forever. `media` mirrors
-// the <picture> in Overview.tsx so exactly one of the two is ever fetched; keep the pairs in step.
+// Emitted as a script rather than two <link> tags because ONE index.html serves every route. Static links
+// preload the home hero on /items, /cart and /credits too — 55 KB of image those pages never render,
+// at high priority, competing with the content they do. The script runs at parse time, before the entry
+// module, so a Home entry still gets the early discovery; every other route gets nothing. (It is inline,
+// which the served CSP allows via 'unsafe-inline' in script-src — the same way the site's own edge worker
+// injects script there.)
+//
+// `matchMedia` rather than a `media` attribute per link, because it is the SAME query the <picture> in
+// Overview.tsx switches on: one expression, evaluated once, so the two cannot describe different
+// breakpoints or leave a fractional viewport matching neither.
 //
 // A running CAMPAIGN replaces the hero art from the CMS, and this still preloads the bundled default.
 // That is correct rather than wasteful: the campaign is resolved by two chained async reads (a feature
 // flag, then Contentful), so the default is what the page renders first in every case, campaign or not.
-// The desktop entry is the EXACT complement of the <source>'s own query rather than `(min-width: 769px)`:
-// a fractional viewport (browser zoom lands there) between 768 and 769 matches neither, so the page would
-// show the wide art with nothing preloaded for it.
-const PRELOADED_HERO = [
-  { source: 'src/assets/overview/hero-credits-outfits.webp', media: 'not all and (max-width: 768px)' },
-  { source: 'src/assets/overview/hero-credits-mobile.webp', media: '(max-width: 768px)' }
-]
+const PRELOADED_HERO = {
+  desktop: 'src/assets/overview/hero-credits-outfits.webp',
+  mobile: 'src/assets/overview/hero-credits-mobile.webp'
+}
+
+// Every path that renders the home hero. `/` redirects to `/overview` but renders through the same
+// document, and the deployed Shop is served under `/shop`. Trailing slashes are stripped before the
+// comparison, so `/shop/` and `/` collapse onto the entries below.
+const HOME_PATHS = ['', '/overview', '/shop', '/shop/overview']
 
 function preloadHero(): Plugin {
   return {
@@ -59,26 +69,23 @@ function preloadHero(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler(_html, ctx) {
-        return PRELOADED_HERO.map(hero => {
+        const href = (source: string) => {
           const emitted = Object.values(ctx.bundle ?? {}).find(
-            output =>
-              output.type === 'asset' && (output.originalFileNames ?? []).some(name => name.endsWith(hero.source))
+            output => output.type === 'asset' && (output.originalFileNames ?? []).some(name => name.endsWith(source))
           )
           // Throw rather than skip. A renamed or deleted hero asset would otherwise drop the preload in
           // silence, and the only symptom would be a slower LCP noticed in some Lighthouse run weeks later.
-          if (!emitted) throw new Error(`preload-hero: ${hero.source} is not in the bundle — was it renamed?`)
-          return {
-            tag: 'link',
-            attrs: {
-              rel: 'preload',
-              as: 'image',
-              href: `${base}${emitted.fileName}`,
-              media: hero.media,
-              fetchpriority: 'high'
-            },
-            injectTo: 'head-prepend' as const
-          }
-        })
+          if (!emitted) throw new Error(`preload-hero: ${source} is not in the bundle — was it renamed?`)
+          return `${base}${emitted.fileName}`
+        }
+        const script =
+          `(function(){var p=location.pathname.replace(/\\/+$/,"");` +
+          `if(${JSON.stringify(HOME_PATHS)}.indexOf(p)<0)return;` +
+          `var l=document.createElement("link");l.rel="preload";l.as="image";` +
+          `l.setAttribute("fetchpriority","high");` +
+          `l.href=matchMedia("(max-width: 768px)").matches?${JSON.stringify(href(PRELOADED_HERO.mobile))}:${JSON.stringify(href(PRELOADED_HERO.desktop))};` +
+          `document.head.appendChild(l)})()`
+        return [{ tag: 'script', children: script, injectTo: 'head-prepend' as const }]
       }
     }
   }
