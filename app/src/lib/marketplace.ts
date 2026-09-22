@@ -1,19 +1,28 @@
-import { ChainId } from '@dcl/schemas'
-import { ContractName, getContract } from 'decentraland-transactions'
+import { ChainId, type Trade } from '@dcl/schemas'
+import {
+  ContractName,
+  getContract,
+  getContractName,
+  getCouponManager,
+  type ContractData
+} from 'decentraland-transactions'
 
 /**
  * Off-chain marketplace versions, newest first.
  *
  * The EIP-712 domain names its verifying contract, so the version a listing is signed against is part of
  * what the seller signed — and every allowance, approval and minter right the shop asks for has to name
- * that same contract, or the listing cannot settle. V3 is testnet-only for now, so mainnet has to keep
- * using V2 rather than fail.
+ * that same contract, or the listing cannot settle. V3 is deployed on every chain the shop uses, so a new
+ * listing goes there; the list is still ordered because a chain without the newest version must not fail.
  *
  * KEEP IN LOCKSTEP with the identically-named list in `tools/migrate-listings/src/dcl-transactions.ts`,
  * which vendors the same order for the CLI. See that file for why the list cannot simply be imported;
  * app/src/lib/migrateListingsLockstep.spec.ts fails CI if they diverge.
  */
-const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [ContractName.OffChainMarketplaceV3, ContractName.OffChainMarketplaceV2]
+export const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [
+  ContractName.OffChainMarketplaceV3,
+  ContractName.OffChainMarketplaceV2
+]
 
 /**
  * The newest off-chain marketplace deployed on a chain.
@@ -30,4 +39,55 @@ export function getLatestOffChainMarketplaceContract(chainId: ChainId) {
     }
   }
   throw new Error(`No off-chain marketplace contract exists on chain ${chainId}`)
+}
+
+/**
+ * Every off-chain marketplace version a trade can still SETTLE on. A different question from the list above,
+ * which says where a new listing goes: a listing signed against an older version keeps settling there for as
+ * long as it is open, and V1 still carries live primary listings on Polygon mainnet. Its ABI is V2's, so the
+ * rails build and settle it like any other.
+ */
+export const SETTLEABLE_OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = [
+  ...OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES,
+  ContractName.OffChainMarketplace
+]
+
+/**
+ * The registry entry of the marketplace a trade names, or null when that address is not a marketplace version
+ * deployed on the trade's chain.
+ *
+ * Every settlement rail resolves the marketplace from the address's version name on the trade's chain, so a
+ * trade whose pair does not hold would be sent to a contract that never signed it, and revert. getContractName
+ * knows addresses, not chains: the same V2 address is deployed on three chains, and a V3 address paired with
+ * another chain's id names that chain's deployment instead of failing.
+ */
+export function getMarketplaceForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): ContractData | null {
+  try {
+    const name = getContractName(trade.contract)
+    // getContractName answers for the WHOLE registry, so an address that is some other Decentraland
+    // contract resolves happily. Only a marketplace version can settle a trade.
+    if (!SETTLEABLE_OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES.includes(name)) return null
+    const marketplace = getContract(name, trade.chainId)
+    return marketplace.address.toLowerCase() === trade.contract.toLowerCase() ? marketplace : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The coupon manager the marketplace a trade names redeems through, lowercased, or null when the trade names no
+ * marketplace deployed on its chain, or one without a manager there.
+ *
+ * Each marketplace version trusts only its own manager, and a trade settles on the version it was signed
+ * against, so this is the one manager a coupon must have been signed against to discount the trade.
+ */
+export function getCouponManagerForTrade(trade: Pick<Trade, 'contract' | 'chainId'>): string | null {
+  const marketplace = getMarketplaceForTrade(trade)
+  if (!marketplace) return null
+  try {
+    // By name, not `marketplace.name`: that field is the EIP-712 domain name, not a ContractName.
+    return getCouponManager(getContractName(marketplace.address), trade.chainId).address.toLowerCase()
+  } catch {
+    return null
+  }
 }

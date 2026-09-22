@@ -2,6 +2,7 @@ import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
+import { getCouponManagerForTrade, getMarketplaceForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 // Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
 // lib/buy-mana owns the vocabulary for that.
@@ -298,6 +299,10 @@ export async function resolveLine(
 
   const trade = await resolve(item)
   if (!trade) return { status: 'gone' }
+  // A trade names the marketplace it was signed for, and every rail settles it there by resolving that address's
+  // version on the trade's chain. A pair the registry does not deploy is a trade nothing can settle, so it reads
+  // as not for sale here rather than as a purchase that reverts after the buyer confirmed.
+  if (!getMarketplaceForTrade(trade)) return { status: 'gone' }
   if (isOwnTrade(trade, buyerAddress)) return { status: 'own' }
   // Only a line that CLAIMS a discount pays for the extra lookup; one that never had a coupon prices off
   // the trade alone, as it always did. A sale that started after the item was added is therefore a missed
@@ -351,6 +356,9 @@ export function discountedUsdCents(listCents: number, coupon?: ListingCoupon): n
  *  - inside its window, since the contract rejects one that has expired or has not become effective
  *  - only COLLECTION_ITEM assets, since the coupon reverts on anything else — a secondary listing that
  *    somehow carried one would burn the buyer's gas
+ *  - signed against the manager of the marketplace THIS trade settles on: each version only redeems coupons
+ *    signed against its own manager, so a coupon from another version's manager fails signature verification
+ *    inside `applyCoupon` and reverts the purchase
  */
 export function couponForTrade(
   coupon: ListingCoupon | undefined,
@@ -359,7 +367,13 @@ export function couponForTrade(
 ): ListingCoupon | undefined {
   if (!coupon || coupon.discountType !== RATE_DISCOUNT) return undefined
   if (coupon.discount <= 0 || coupon.discount >= PPM) return undefined
-  if (Number(coupon.checks.expiration) <= now || Number(coupon.checks.effective) > now) return undefined
+  // Read through, because these are unvalidated server fields: a coupon missing `checks` or its manager
+  // has to leave by the same door as any other unusable one. Reaching into it would throw instead, and the
+  // basket turns a throw into "no longer available" — telling the buyer a live listing is gone when the
+  // honest outcome is its list price.
+  if (Number(coupon.checks?.expiration) <= now || !(Number(coupon.checks?.effective) <= now)) return undefined
+  const manager = getCouponManagerForTrade(trade)
+  if (manager === null || coupon.couponManager?.toLowerCase() !== manager) return undefined
   // `?? []` because a malformed trade must fail closed here, not throw out of the review and take the
   // whole basket with it.
   const sent = trade.sent ?? []
