@@ -138,6 +138,23 @@ describe('search facets', () => {
     expect(await page.evaluate(() => location.search)).not.toMatch(/rarities/)
   })
 
+  it('unfolds the sidebar again when Back returns to a category, without a remount', async () => {
+    app = await launchApp({ path: '/items?category=wearable&subCategory=Hat' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await until(page, 'Hat unfolded on load', UNFOLDED, ['Hat'])
+    await page.type(SEARCH, 'dance')
+    await page.waitForSelector('[data-facet="category:Dance"]')
+    await page.click('[data-facet="category:Dance"]')
+    await until(page, 'emote URL', () => location.search === '?category=emote&subCategory=Dance')
+    await until(page, 'Dance unfolded', UNFOLDED, ['Dance'])
+
+    await page.goBack()
+    await until(page, 'back to Hat', () => location.search === '?category=wearable&subCategory=Hat')
+    await until(page, 'Hat unfolded again after Back', UNFOLDED, ['Hat'])
+  })
+
   it('keeps the facet on offer when nothing else matches, and says what is missing', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app
