@@ -84,8 +84,9 @@ export const Top = styled.div`
   padding-bottom: 48px;
 
   /* The wash. Deliberately darker than the field and LIGHTER than the cards, so the three tiers read
-     page > band > card and the cards sit on something instead of floating. The cards' own 40% composites
-     over this to 52%, which only helps their contrast. */
+     page > band > card and the cards sit on something instead of floating. Same token as the cards, which
+     is what makes the section read as its own surface rather than a faint tint: the cards double it up and
+     composite to 64%. */
   &::before {
     content: '';
     position: absolute;
@@ -94,7 +95,7 @@ export const Top = styled.div`
     left: 50%;
     width: 100vw;
     transform: translateX(-50%);
-    background: ${colors.overlayLight};
+    background: ${colors.overlay};
     z-index: 0;
   }
 
