@@ -155,7 +155,9 @@ export function SearchDropdown({
     retry: 1
   })
 
-  const suggestions = enabled ? answer?.suggestions : undefined
+  // On an error nothing of the answer is shown, even when a failed refresh left the previous one behind:
+  // rows that no longer act (the actions are dropped on error) must not stay on screen either.
+  const suggestions = enabled && !isError ? answer?.suggestions : undefined
   const items = suggestions?.items ?? NO_ITEMS
   const collections = suggestions?.collections ?? NO_COLLECTIONS
   const creators = suggestions?.creators ?? NO_CREATORS

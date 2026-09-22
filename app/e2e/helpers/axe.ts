@@ -12,6 +12,18 @@ type Violation = { id: string; impact: string | null; help: string; nodes: { tar
 export async function axeViolations(page: Page, selectors: string[]): Promise<Violation[]> {
   const loaded = await page.evaluate(() => typeof (window as unknown as { axe?: unknown }).axe !== 'undefined')
   if (!loaded) await page.addScriptTag({ path: require.resolve('axe-core/axe.min.js') })
+  // The panel pops in over 160 ms; a contrast read mid-fade sees blended colours. Judge the page at rest.
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all(
+        document
+          .getAnimations()
+          .filter(animation => Number.isFinite(animation.effect?.getTiming().iterations ?? Infinity))
+          .map(animation => animation.finished.catch(() => undefined))
+      ),
+      new Promise(resolve => setTimeout(resolve, 1000))
+    ])
+  )
   return page.evaluate(async (include: string[]) => {
     const axe = (
       window as unknown as {

@@ -556,3 +556,41 @@ describe('SearchDropdown rows the parent keeps', () => {
     expect(screen.getByRole('listbox')).toHaveAttribute('id', 'search-suggestions')
   })
 })
+
+describe('SearchDropdown when a refresh of a shown answer fails', () => {
+  it('should take the old rows off the screen with the error, and bring the fresh ones back on retry, DOM, reported rows and actions alike', async () => {
+    const failure = new Error('fetchSuggestions 503')
+    vi.mocked(fetchSuggestions)
+      .mockResolvedValueOnce(galaxy as never)
+      // the refresh retries once on its own before it counts as failed
+      .mockRejectedValueOnce(failure)
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce({ ...galaxy, total: 7 } as never)
+    const onRows = vi.fn()
+    const onSelectCollection = vi.fn()
+    const { qc } = renderDropdown('galaxy', { onRows, onSelectCollection })
+    await screen.findByRole('option', { name: 'Galaxy Studio' })
+    expect(screen.getAllByRole('option')).toHaveLength(4)
+
+    await qc.refetchQueries()
+    await screen.findByTestId('search-error', {}, { timeout: 4000 })
+    // the answer is still in the cache, but nothing of it is shown or navigable
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(screen.queryByTestId('search-see-all')).not.toBeInTheDocument()
+    expect(onRows).toHaveBeenLastCalledWith([])
+    expect(screen.getByRole('listbox')).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByTestId('search-retry'))
+    await screen.findByRole('option', { name: 'Galaxy Studio' })
+    expect(screen.queryByTestId('search-error')).not.toBeInTheDocument()
+    const rows: SuggestionRow[] = onRows.mock.calls.at(-1)![0]
+    expect(rows.map(row => row.id)).toEqual(screen.getAllByRole('option').map(option => option.id))
+    expect(screen.getByTestId('search-see-all')).toHaveTextContent('7')
+    rows[1].activate('keyboard')
+    expect(onSelectCollection).toHaveBeenCalledWith(galaxyCollection, {
+      section: 'collections',
+      position: 0,
+      via: 'keyboard'
+    })
+  })
+})
