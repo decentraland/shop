@@ -70,13 +70,6 @@ export async function activeChainId(provider: ethers.providers.Web3Provider): Pr
 }
 
 /**
- * Refuse to continue unless the wallet is already on `chainId`. NEVER prompts and never switches.
- *
- * This guards the gas-paying legs. Submitting on the wrong chain is not a cosmetic problem: the DCL contract
- * addresses hold no code on other networks, so the call succeeds as a no-op — a green receipt for a purchase
- * that bought nothing, or a cancellation that cancelled nothing.
- */
-/**
  * The read-only RPC for a chain.
  *
  * MANA is deployed on both Polygon and Ethereum at DIFFERENT addresses, so a contract's chain and the RPC
@@ -92,6 +85,13 @@ export function rpcUrlForChain(chainId: number): string {
   return Number.isFinite(ethereum) && Number(chainId) === ethereum ? config.ethereumRpcUrl : config.rpcUrl
 }
 
+/**
+ * Refuse to continue unless the wallet is already on `chainId`. NEVER prompts and never switches.
+ *
+ * This guards the gas-paying legs. Submitting on the wrong chain is not a cosmetic problem: the DCL contract
+ * addresses hold no code on other networks, so the call succeeds as a no-op — a green receipt for a purchase
+ * that bought nothing, or a cancellation that cancelled nothing.
+ */
 export async function requireChain(provider: ethers.providers.Web3Provider, chainId: number): Promise<void> {
   const current = await activeChainId(provider)
   if (current !== chainId) throw new WrongNetworkError(current, chainId)
