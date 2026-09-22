@@ -24,7 +24,10 @@ import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { clearedSearchUrl } from '~/lib/searchClear'
-import { NO_ACTIVE_ROW, SUGGESTIONS_LISTBOX_ID, nextActiveIndex, type SuggestionRow } from '~/lib/suggestionNavigation'
+import { NO_ACTIVE_ROW, SUGGESTIONS_LISTBOX_ID, searchKeyAction, type SuggestionRow } from '~/lib/suggestionNavigation'
+import { searchHistoryMode } from '~/lib/searchHistory'
+import { clearedSearchProps, suggestionClickedProps } from '~/lib/searchAnalytics'
+import type { SuggestionChoice } from '~/components/SearchDropdown/SearchDropdown'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
@@ -162,25 +165,22 @@ export function NavBar() {
     setActiveIndex(NO_ACTIVE_ROW)
   }, [])
 
-  // Full search → land on /items filtered by the query (replace so we don't spam history), remember
-  // it, close the panel.
+  // Full search → land on /items filtered by the query, remember it, close the panel. A new search or a
+  // search from another page is pushed, so "back" returns to the previous one; repeating exactly the
+  // current destination replaces it (see lib/searchHistory). Enter, "See all", a recent and a popular
+  // search all come through here.
   function runSearch(value: string) {
     const trimmed = value.trim()
     setOpen(false)
     if (trimmed) recordSearch(trimmed)
-    navigate(trimmed ? `/items?q=${encodeURIComponent(trimmed)}` : '/items', {
-      replace: true
-    })
+    const target = trimmed ? `/items?q=${encodeURIComponent(trimmed)}` : '/items'
+    navigate(target, { replace: searchHistoryMode({ pathname, search: locationSearch }, target) === 'replace' })
   }
 
-  function onSelectItem(item: CatalogItem) {
+  function onSelectItem(item: CatalogItem, choice: SuggestionChoice) {
     setOpen(false)
     if (q.trim()) recordSearch(q.trim())
-    track('Shop Search Suggestion Clicked', {
-      query: q.trim(),
-      type: 'item',
-      item_id: item.id
-    })
+    track('Shop Search Suggestion Clicked', suggestionClickedProps({ query: q, ...choice }, { item_id: item.id }))
     // A token row → /token, a catalog row → /item (see lib/routes detailRouteFor).
     const detailPath = detailRouteFor(item)
     if (detailPath) {
@@ -190,25 +190,23 @@ export function NavBar() {
     }
   }
 
-  function onSelectCollection(collection: CollectionHit) {
+  function onSelectCollection(collection: CollectionHit, choice: SuggestionChoice) {
     setOpen(false)
     if (q.trim()) recordSearch(q.trim())
-    track('Shop Search Suggestion Clicked', {
-      query: q.trim(),
-      type: 'collection',
-      contract_address: collection.contractAddress
-    })
+    track(
+      'Shop Search Suggestion Clicked',
+      suggestionClickedProps({ query: q, ...choice }, { contract_address: collection.contractAddress })
+    )
     navigate(`/collection/${collection.contractAddress}`)
   }
 
-  function onSelectCreator(creator: CreatorHit) {
+  function onSelectCreator(creator: CreatorHit, choice: SuggestionChoice) {
     setOpen(false)
     if (q.trim()) recordSearch(q.trim())
-    track('Shop Search Suggestion Clicked', {
-      query: q.trim(),
-      type: 'creator',
-      creator_address: creator.address
-    })
+    track(
+      'Shop Search Suggestion Clicked',
+      suggestionClickedProps({ query: q, ...choice }, { creator_address: creator.address })
+    )
     navigate(`/items/creator/${creator.address}`)
   }
 
@@ -222,8 +220,10 @@ export function NavBar() {
 
   // Clearing is about the box: it empties it, closes the panel and hands focus back. Only on the results
   // page does it also drop the query from the URL (keeping the other filters), because the grid is
-  // showing that query. It used to send everyone to /items, wherever they were.
+  // showing that query. It used to send everyone to /items, wherever they were. Only ever a reader's
+  // action — the button or Escape — and reported as such when there was text to clear.
   function clearSearch() {
+    if (q.trim()) track('Shop Cleared Search', clearedSearchProps(pathname))
     setQ('')
     setDebounced('')
     setOpen(false)
@@ -242,30 +242,47 @@ export function NavBar() {
     setRecent([])
   }
 
+  // The keys, decided by lib/suggestionNavigation: arrows over the rows while the panel is open, Home
+  // and End only once a row is active (until then they move the caret), Enter on the active row or as a
+  // search, Escape to put the panel away and, pressed again, to clear the box the way the button does
+  // (a search field would clear itself on Escape, but without dropping the query from the URL). Modifiers
+  // and IME composition are the text's, never ours.
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') {
-      // With the panel open, Escape puts it away and keeps the text — a search field clears itself on
-      // Escape natively, so that has to be stopped here. With the panel already closed, the field's own
-      // Escape stands: the second press clears.
-      if (open) {
+    const action = searchKeyAction(
+      {
+        key: e.key,
+        altKey: e.altKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+        isComposing: e.nativeEvent.isComposing
+      },
+      { open, activeIndex, count: rows.length }
+    )
+    if (!action) return
+    switch (action.type) {
+      case 'move':
+        e.preventDefault()
+        setActiveIndex(action.index)
+        return
+      case 'activate':
+        e.preventDefault()
+        rows[activeIndex]?.activate('keyboard')
+        return
+      case 'submit':
+        if (searchTimer.current) clearTimeout(searchTimer.current)
+        runSearch(q)
+        return
+      case 'close':
         e.preventDefault()
         setOpen(false)
         setActiveIndex(NO_ACTIVE_ROW)
-      }
-      return
-    }
-    const moved = open ? nextActiveIndex(activeIndex, rows.length, e.key) : null
-    if (moved !== null) {
-      // The arrows move through the suggestions, never the caret through the text.
-      e.preventDefault()
-      setActiveIndex(moved)
-      return
-    }
-    if (e.key === 'Enter') {
-      if (searchTimer.current) clearTimeout(searchTimer.current)
-      const active = open ? rows[activeIndex] : undefined
-      if (active) active.activate()
-      else runSearch(q)
+        return
+      case 'clear':
+        if (!q) return
+        e.preventDefault()
+        clearSearch()
+        return
     }
   }
 

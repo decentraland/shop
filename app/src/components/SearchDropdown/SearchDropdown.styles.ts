@@ -61,6 +61,59 @@ export const Pop = styled.div`
   }
 `
 
+// The listbox proper: its options live in groups; it has no chrome of its own.
+export const Listbox = styled.div`
+  display: block;
+`
+
+export const Group = styled.div`
+  display: block;
+`
+
+// Recent searches beside their removal controls: the options on the left, the × buttons on the right,
+// row for row — the buttons are not options, so they cannot live inside the listbox.
+export const RecentArea = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+`
+
+export const RemoveList = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  & li {
+    height: 40px;
+    display: flex;
+    align-items: center;
+  }
+`
+
+// The popular searches, as chips that wrap.
+export const Chips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 10px 10px;
+`
+
+export const Chip = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid ${colors.line};
+  border-radius: ${radius.pill};
+  background: ${colors.white};
+  color: ${colors.text};
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover {
+    background: ${hover};
+  }
+  ${active}
+`
+
 export const SectionHead = styled.div`
   display: flex;
   align-items: center;
@@ -220,20 +273,16 @@ export const Empty = styled.p`
   text-align: center;
 `
 
-export const Recent = styled.li`
-  display: flex;
-  align-items: center;
-`
-
 export const RecentBtn = styled.button`
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 10px;
   background: none;
   border: 0;
-  padding: 9px 10px;
+  padding: 0 10px;
   border-radius: 10px;
   text-align: left;
   font-size: 14px;
@@ -265,7 +314,6 @@ export const Live = styled.span`
 `
 
 export const RecentRemove = styled.button`
-  flex: 0 0 auto;
   background: none;
   border: 0;
   color: ${colors.muted};

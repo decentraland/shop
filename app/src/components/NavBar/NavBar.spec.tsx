@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 
 /**
@@ -55,6 +55,7 @@ const iap = { on: false }
 vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
 
 import { NavBar } from './NavBar'
+import { track } from '~/lib/analytics'
 
 const CHAINS = [ChainId.ETHEREUM_MAINNET, ChainId.MATIC_MAINNET]
 
@@ -274,5 +275,85 @@ describe('the seasonal event tab', () => {
 
     const labels = Array.from(container.querySelectorAll('[data-testid="subnav-tabs"] a')).map(a => a.textContent)
     expect(labels.slice(0, 3)).toEqual(['Overview', 'Halloween', 'Collectibles'])
+  })
+})
+
+/**
+ * The search box's keys and its history.
+ *
+ * The dropdown is mocked away here, so what these pin is the box itself: Escape puts the panel away and,
+ * pressed again, clears the way the button does; a search is pushed so "back" returns to the previous one,
+ * and only an exact repeat of the current destination replaces it.
+ */
+function Probe() {
+  const location = useLocation()
+  const type = useNavigationType()
+  return <output data-testid="probe">{`${type} ${location.pathname}${location.search}`}</output>
+}
+
+function renderSearch(route = '/overview') {
+  render(
+    <MemoryRouter initialEntries={[route]}>
+      <NavBar />
+      <Probe />
+    </MemoryRouter>
+  )
+  return screen.getByRole('combobox')
+}
+
+describe('the search box', () => {
+  beforeEach(() => {
+    iap.on = false
+    vi.mocked(track).mockClear()
+  })
+
+  it('puts the panel away on Escape and, pressed again, clears the box and says so', () => {
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).toHaveValue('Nebula')
+    expect(track).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveValue('')
+    expect(track).toHaveBeenCalledWith('Shop Cleared Search', { page: '/overview' })
+  })
+
+  it('reports the clear button the same way, with the route alone', () => {
+    const box = renderSearch('/items?q=Nebula&status=not_for_sale')
+    expect(box).toHaveValue('Nebula')
+
+    fireEvent.click(screen.getByTestId('subnav-search-clear'))
+
+    expect(track).toHaveBeenCalledWith('Shop Cleared Search', { page: '/items' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('REPLACE /items?status=not_for_sale')
+  })
+
+  it('pushes a new search and replaces an exact repeat of the current one', () => {
+    const box = renderSearch('/overview')
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Nebula')
+
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('REPLACE /items?q=Nebula')
+
+    fireEvent.change(box, { target: { value: 'Galaxy' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Galaxy')
+  })
+
+  it('leaves a modified Enter and an IME composition to the text', () => {
+    const box = renderSearch('/overview')
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.keyDown(box, { key: 'Enter', metaKey: true })
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+
+    expect(screen.getByTestId('probe')).toHaveTextContent('POP /overview')
   })
 })

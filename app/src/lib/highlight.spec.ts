@@ -32,6 +32,16 @@ describe('when highlighting what the query matched in a name', () => {
     expect(marked('  Spaced  ', 'sp')).toBe('  [Sp]aced  ')
   })
 
+  it('should keep a decomposed accent on the text it shows, and match it like the composed one', () => {
+    expect(marked('Ma\u0301scara', 'masc')).toBe('[Másc]ara')
+    expect(marked('Máscara', 'ma\u0301sc')).toBe('[Másc]ara')
+  })
+
+  it('should not pretend to expand what the server expands: a ligature stays unmarked', () => {
+    // The server's unaccent turns Æ into AE, so "aether" matches "Æther" there; here it simply is not marked.
+    expect(marked('Æther Cloak', 'aether')).toBe('Æther Cloak')
+  })
+
   it('should return one plain segment for an empty name', () => {
     expect(highlightMatches('', 'x')).toEqual([{ text: '', match: false }])
   })

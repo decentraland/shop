@@ -1,10 +1,24 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { Icon } from '~/components/Icon'
-import { fetchSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
+import { track } from '~/lib/analytics'
+import { fetchSuggestions, type CollectionHit, type CreatorHit, type Suggestions } from '~/lib/search'
+import {
+  exposureKey,
+  hasNoResults,
+  noResultsProps,
+  suggestionsViewedProps,
+  type SuggestionSection
+} from '~/lib/searchAnalytics'
 import { highlightMatches } from '~/lib/highlight'
-import { SUGGESTIONS_LISTBOX_ID, suggestionRowId, type SuggestionRow } from '~/lib/suggestionNavigation'
+import { popularSearchesFor } from '~/lib/popularSearches'
+import {
+  SUGGESTIONS_LISTBOX_ID,
+  suggestionRowId,
+  type SuggestionActivation,
+  type SuggestionRow
+} from '~/lib/suggestionNavigation'
 import { isIapMode } from '~/lib/iap'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
@@ -52,27 +66,39 @@ const SUGGEST_SIZES = { items: 5, collections: 4, creators: 4 }
 // Don't hit the API for a single character — too noisy, matches the Assets page which lowercases/trims.
 const MIN_QUERY_LEN = 2
 
+// Shared empties: a fresh [] on every render would make the rows a new list each time, and the parent
+// would be told of "new rows" for ever.
+const NO_ITEMS: Suggestions['items'] = []
+const NO_COLLECTIONS: CollectionHit[] = []
+const NO_CREATORS: CreatorHit[] = []
+const NO_TERMS: string[] = []
+
+/** How a chosen suggestion is reported: where it sat and how it was chosen. */
+export type SuggestionChoice = { section: SuggestionSection; position: number; via: SuggestionActivation }
+
 type SearchDropdownProps = {
-  // The (debounced) query the dropdown should reflect. Empty string → show recent searches instead.
+  // The (debounced) query the dropdown should reflect. Empty string → show recent and popular searches instead.
   query: string
   recent: string[]
   // The row the keyboard has moved to (see lib/suggestionNavigation), by DOM id; null when none.
   activeId?: string | null
-  // Every row currently shown, in visual order, so the parent can drive the keyboard over them.
+  // Every row currently shown, in visual order, so the parent can drive the keyboard over them. Called
+  // only when the list actually changes, never on a mere rerender.
   onRows?: (rows: SuggestionRow[]) => void
   // Item chosen from the suggestions → open its detail page.
-  onSelectItem: (item: CatalogItem) => void
+  onSelectItem: (item: CatalogItem, choice: SuggestionChoice) => void
   // Collection / creator chosen → open its storefront page.
-  onSelectCollection: (collection: CollectionHit) => void
-  onSelectCreator: (creator: CreatorHit) => void
-  // "See all results" / a recent-search pick → run a full search on /items.
+  onSelectCollection: (collection: CollectionHit, choice: SuggestionChoice) => void
+  onSelectCreator: (creator: CreatorHit, choice: SuggestionChoice) => void
+  // "See all results" / a recent or popular search → run a full search on /items.
   onRunSearch: (query: string) => void
   onRemoveRecent: (query: string) => void
   onClearRecent: () => void
 }
 
 // The autocomplete panel anchored under the NavBar search input. Two modes:
-// - empty query  → recent searches (from localStorage, via the parent)
+// - empty query  → recent searches (from localStorage, via the parent) and, below them, popular ones
+//   (a fixed list, see lib/popularSearches) — so a reader who has searched nothing yet still sees a way in.
 // - typed query  → live matches in three sections: Items, Collections and Creators, from ONE request
 //   (fetchSuggestions → /v3/catalog/suggest). The items are the SAME feed and ranking the /items grid
 //   lands on (the whole catalogue, by relevance — see defaultStatusFor and defaultSortFor in
@@ -84,8 +110,10 @@ type SearchDropdownProps = {
 //   dropdown surfaces creators/collections as jump-to links.
 // One request also means one failure: when it fails, the panel says so and offers to try again, and
 // never reads as "no results" — that is reserved for an answer that came back empty.
-// It is the listbox of the search box's combobox: the input (in NavBar) owns focus and the keys, this
-// renders every row as an option with a stable id and reports the rows back, in order, for the arrows.
+// It is the listbox of the search box's combobox (WAI-ARIA APG): the input (in NavBar) keeps the DOM
+// focus and the keys; every row is an option with a stable id, out of the tab order, reported back in
+// order for the arrows; the controls that are not options — clear the recent searches, remove one,
+// try again — sit outside the listbox and keep their own focus.
 export function SearchDropdown({
   query,
   recent,
@@ -103,15 +131,21 @@ export function SearchDropdown({
   const iap = isIapMode()
 
   const {
-    data: suggestions,
+    data: answer,
     isFetching: itemsFetching,
     isError,
+    isPlaceholderData,
+    isFetchedAfterMount,
     refetch
   } = useQuery({
     queryKey: ['search-suggest', query],
     // The signal drops a request the reader has typed past; the key keeps a slow older answer from ever
-    // replacing a newer one.
-    queryFn: ({ signal }) => fetchSuggestions(query, SUGGEST_SIZES, { signal }),
+    // replacing a newer one. The duration is the whole request, for the exposure event.
+    queryFn: async ({ signal }) => {
+      const started = performance.now()
+      const suggestions = await fetchSuggestions(query, SUGGEST_SIZES, { signal })
+      return { suggestions, fetchMs: performance.now() - started }
+    },
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,
@@ -120,35 +154,46 @@ export function SearchDropdown({
     retry: 1
   })
 
-  const items = enabled ? (suggestions?.items ?? []) : []
-  const collections = enabled ? (suggestions?.collections ?? []) : []
-  const creators = enabled ? (suggestions?.creators ?? []) : []
+  const suggestions = enabled ? answer?.suggestions : undefined
+  const items = suggestions?.items ?? NO_ITEMS
+  const collections = suggestions?.collections ?? NO_COLLECTIONS
+  const creators = suggestions?.creators ?? NO_CREATORS
   const total = suggestions?.total ?? 0
   const showingRecent = !enabled
+  const popular = useMemo(() => (showingRecent ? popularSearchesFor(recent) : NO_TERMS), [showingRecent, recent])
 
   const rows = useMemo<SuggestionRow[]>(() => {
+    if (isError) return []
     if (showingRecent) {
-      return recent.map(term => ({
-        id: suggestionRowId('recent', term),
-        kind: 'recent',
-        activate: () => onRunSearch(term)
-      }))
+      return [
+        ...recent.map(term => ({
+          id: suggestionRowId('recent', term),
+          kind: 'recent' as const,
+          activate: () => onRunSearch(term)
+        })),
+        ...popular.map(term => ({
+          id: suggestionRowId('popular', term),
+          kind: 'popular' as const,
+          activate: () => onRunSearch(term)
+        }))
+      ]
     }
     const list: SuggestionRow[] = [
-      ...items.map(item => ({
+      ...items.map((item, position) => ({
         id: suggestionRowId('item', item.id),
         kind: 'item' as const,
-        activate: () => onSelectItem(item)
+        activate: (via: SuggestionActivation) => onSelectItem(item, { section: 'items', position, via })
       })),
-      ...collections.map(collection => ({
+      ...collections.map((collection, position) => ({
         id: suggestionRowId('collection', collection.contractAddress),
         kind: 'collection' as const,
-        activate: () => onSelectCollection(collection)
+        activate: (via: SuggestionActivation) =>
+          onSelectCollection(collection, { section: 'collections', position, via })
       })),
-      ...creators.map(creator => ({
+      ...creators.map((creator, position) => ({
         id: suggestionRowId('creator', creator.address),
         kind: 'creator' as const,
-        activate: () => onSelectCreator(creator)
+        activate: (via: SuggestionActivation) => onSelectCreator(creator, { section: 'creators', position, via })
       }))
     ]
     if (total > 0)
@@ -157,72 +202,130 @@ export function SearchDropdown({
     // The handlers are stable enough for a listbox; re-deriving on every parent render would reset the
     // keyboard position on each keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showingRecent, recent, items, collections, creators, total, query])
+  }, [isError, showingRecent, recent, popular, items, collections, creators, total, query])
 
-  useEffect(() => {
+  // Told only when the LIST changes — the same ids in the same order are the same list — so a rerender
+  // of the parent never turns into another report, another render, another report. Before the paint, so
+  // the input never announces (aria-activedescendant) a row that is no longer there.
+  const reported = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const signature = rows.map(row => row.id).join('\n')
+    if (reported.current === signature) return
+    reported.current = signature
     onRows?.(rows)
   }, [rows, onRows])
 
   // The keyboard moved: keep the active row in view inside the scrolling panel.
   useEffect(() => {
-    if (activeId) document.getElementById(activeId)?.scrollIntoView({ block: 'nearest' })
+    if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: 'nearest' })
   }, [activeId])
 
+  // One exposure event per query while the panel is open, and only for an answer that is really this
+  // query's: not the previous one kept as a placeholder, not an error, not a request still in flight.
+  const exposed = useRef(new Set<string>())
+  const settled = enabled && !isError && !isPlaceholderData && !itemsFetching && suggestions !== undefined
+  useEffect(() => {
+    if (!settled || !suggestions) return
+    const key = exposureKey(query)
+    if (exposed.current.has(key)) return
+    exposed.current.add(key)
+    if (hasNoResults(suggestions)) {
+      track('Shop Search No Results', noResultsProps(query))
+    } else {
+      track(
+        'Shop Viewed Search Suggestions',
+        suggestionsViewedProps(query, suggestions, { fetchMs: answer?.fetchMs ?? null, cacheHit: !isFetchedAfterMount })
+      )
+    }
+  }, [settled, query, suggestions, answer, isFetchedAfterMount])
+
+  // Every option: out of the tab order (the input keeps the focus), marked when the keyboard is on it.
   const option = (id: string) => ({
     id,
     role: 'option' as const,
+    tabIndex: -1,
     'aria-selected': activeId === id,
     'data-active': activeId === id || undefined
   })
 
+  const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
+  const count = items.length + collections.length + creators.length
+
   if (showingRecent) {
-    if (recent.length === 0) return null
+    if (recent.length === 0 && popular.length === 0) return null
     return (
-      <S.Pop
-        id={SUGGESTIONS_LISTBOX_ID}
-        data-iap={iap || undefined}
-        data-testid="search-pop"
-        role="listbox"
-        aria-label={t('search.suggestions')}
-      >
-        <S.SectionHead>
-          <span>{t('search.recent')}</span>
-          <S.Clear type="button" onClick={onClearRecent}>
-            {t('search.clearRecent')}
-          </S.Clear>
-        </S.SectionHead>
-        <S.List>
-          {recent.map(term => (
-            <S.Recent key={term}>
-              <S.RecentBtn type="button" {...option(suggestionRowId('recent', term))} onClick={() => onRunSearch(term)}>
-                <Icon name="search" size={16} color={theme.colors.muted} />
-                <S.RecentText>{term}</S.RecentText>
-              </S.RecentBtn>
-              <S.RecentRemove
-                type="button"
-                aria-label={t('search.removeRecent', { query: term })}
-                onClick={() => onRemoveRecent(term)}
-              >
-                <Icon name="close" size={14} />
-              </S.RecentRemove>
-            </S.Recent>
-          ))}
-        </S.List>
+      <S.Pop data-iap={iap || undefined} data-testid="search-pop">
+        {recent.length > 0 ? (
+          <S.SectionHead>
+            <span>{t('search.recent')}</span>
+            <S.Clear type="button" data-testid="search-clear-recent" onClick={onClearRecent}>
+              {t('search.clearRecent')}
+            </S.Clear>
+          </S.SectionHead>
+        ) : null}
+        <S.RecentArea>
+          <S.Listbox id={SUGGESTIONS_LISTBOX_ID} role="listbox" aria-label={t('search.suggestions')}>
+            {recent.length > 0 ? (
+              <S.Group role="group" aria-label={t('search.recent')}>
+                {recent.map(term => (
+                  <S.RecentBtn
+                    key={term}
+                    type="button"
+                    data-testid="search-recent-row"
+                    {...option(suggestionRowId('recent', term))}
+                    onClick={() => onRunSearch(term)}
+                  >
+                    <Icon name="search" size={16} color={theme.colors.muted} />
+                    <S.RecentText>{term}</S.RecentText>
+                  </S.RecentBtn>
+                ))}
+              </S.Group>
+            ) : null}
+            {popular.length > 0 ? (
+              <S.Group role="group" aria-label={t('search.popular')}>
+                <S.SectionHead role="presentation">
+                  <span>{t('search.popular')}</span>
+                </S.SectionHead>
+                <S.Chips role="none">
+                  {popular.map(term => (
+                    <S.Chip
+                      key={term}
+                      type="button"
+                      data-testid="search-popular-row"
+                      {...option(suggestionRowId('popular', term))}
+                      onClick={() => onRunSearch(term)}
+                    >
+                      {term}
+                    </S.Chip>
+                  ))}
+                </S.Chips>
+              </S.Group>
+            ) : null}
+          </S.Listbox>
+          {/* The removals are controls, not options: beside the listbox, one per recent row, in the tab order. */}
+          {recent.length > 0 ? (
+            <S.RemoveList aria-label={t('search.recent')}>
+              {recent.map(term => (
+                <li key={term}>
+                  <S.RecentRemove
+                    type="button"
+                    data-testid="search-recent-remove"
+                    aria-label={t('search.removeRecent', { query: term })}
+                    onClick={() => onRemoveRecent(term)}
+                  >
+                    <Icon name="close" size={14} />
+                  </S.RecentRemove>
+                </li>
+              ))}
+            </S.RemoveList>
+          ) : null}
+        </S.RecentArea>
       </S.Pop>
     )
   }
 
-  const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
-  const count = items.length + collections.length + creators.length
-
   return (
-    <S.Pop
-      id={SUGGESTIONS_LISTBOX_ID}
-      data-iap={iap || undefined}
-      data-testid="search-pop"
-      role="listbox"
-      aria-label={t('search.suggestions')}
-    >
+    <S.Pop data-iap={iap || undefined} data-testid="search-pop">
       {/* Read out once per answer, not per keystroke: the query is already debounced. */}
       <S.Live aria-live="polite" data-testid="search-live">
         {isError
@@ -243,52 +346,50 @@ export function SearchDropdown({
       ) : nothing ? (
         <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
       ) : (
-        <>
+        <S.Listbox id={SUGGESTIONS_LISTBOX_ID} role="listbox" aria-label={t('search.suggestions')}>
           {items.length > 0 ? (
-            <>
-              <S.SectionHead>
+            <S.Group role="group" aria-labelledby="search-group-items">
+              <S.SectionHead id="search-group-items" role="presentation">
                 <span>{t('search.items')}</span>
               </S.SectionHead>
-              <S.List>
-                {items.map(item => {
-                  return (
-                    <li key={item.id}>
-                      <S.Row
-                        type="button"
-                        data-testid="search-pop-row"
-                        data-kind="item"
-                        {...option(suggestionRowId('item', item.id))}
-                        onClick={() => onSelectItem(item)}
-                      >
-                        <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
-                        <S.Text>
-                          <S.Name title={item.name}>
-                            <Highlighted text={item.name} query={query} />
-                          </S.Name>
-                          {item.creator ? <CreatorName address={item.creator} name={item.creatorName} /> : null}
-                        </S.Text>
-                      </S.Row>
-                    </li>
-                  )
-                })}
+              <S.List role="none">
+                {items.map((item, position) => (
+                  <li key={item.id} role="none">
+                    <S.Row
+                      type="button"
+                      data-testid="search-pop-row"
+                      data-kind="item"
+                      {...option(suggestionRowId('item', item.id))}
+                      onClick={() => onSelectItem(item, { section: 'items', position, via: 'click' })}
+                    >
+                      <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+                      <S.Text>
+                        <S.Name title={item.name}>
+                          <Highlighted text={item.name} query={query} />
+                        </S.Name>
+                        {item.creator ? <CreatorName address={item.creator} name={item.creatorName} /> : null}
+                      </S.Text>
+                    </S.Row>
+                  </li>
+                ))}
               </S.List>
-            </>
+            </S.Group>
           ) : null}
 
           {collections.length > 0 ? (
-            <>
-              <S.SectionHead>
+            <S.Group role="group" aria-labelledby="search-group-collections">
+              <S.SectionHead id="search-group-collections" role="presentation">
                 <span>{t('search.collections')}</span>
               </S.SectionHead>
-              <S.List>
-                {collections.map(collection => (
-                  <li key={collection.contractAddress}>
+              <S.List role="none">
+                {collections.map((collection, position) => (
+                  <li key={collection.contractAddress} role="none">
                     <S.Row
                       type="button"
                       data-testid="search-pop-row"
                       data-kind="collection"
                       {...option(suggestionRowId('collection', collection.contractAddress))}
-                      onClick={() => onSelectCollection(collection)}
+                      onClick={() => onSelectCollection(collection, { section: 'collections', position, via: 'click' })}
                     >
                       <CollectionRowThumb contractAddress={collection.contractAddress} />
                       <S.Text>
@@ -303,23 +404,23 @@ export function SearchDropdown({
                   </li>
                 ))}
               </S.List>
-            </>
+            </S.Group>
           ) : null}
 
           {creators.length > 0 ? (
-            <>
-              <S.SectionHead>
+            <S.Group role="group" aria-labelledby="search-group-creators">
+              <S.SectionHead id="search-group-creators" role="presentation">
                 <span>{t('search.creators')}</span>
               </S.SectionHead>
-              <S.List>
-                {creators.map(creator => (
-                  <li key={creator.address}>
+              <S.List role="none">
+                {creators.map((creator, position) => (
+                  <li key={creator.address} role="none">
                     <S.Row
                       type="button"
                       data-testid="search-pop-row"
                       data-kind="creator"
                       {...option(suggestionRowId('creator', creator.address))}
-                      onClick={() => onSelectCreator(creator)}
+                      onClick={() => onSelectCreator(creator, { section: 'creators', position, via: 'click' })}
                     >
                       <S.Thumb data-variant="round">{creator.face ? <img src={creator.face} alt="" /> : null}</S.Thumb>
                       <S.Text>
@@ -331,7 +432,7 @@ export function SearchDropdown({
                   </li>
                 ))}
               </S.List>
-            </>
+            </S.Group>
           ) : null}
 
           {total > 0 ? (
@@ -344,7 +445,7 @@ export function SearchDropdown({
               {t('search.seeAll', { count: total.toLocaleString() })}
             </S.SeeAll>
           ) : null}
-        </>
+        </S.Listbox>
       )}
     </S.Pop>
   )

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -15,13 +15,17 @@ vi.mock('~/lib/search', () => ({
 }))
 const useManaRate = vi.fn(() => ({ data: undefined }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => useManaRate() }))
+vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
 
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { fetchSuggestions } from '~/lib/search'
+import { track } from '~/lib/analytics'
+import type { SuggestionRow } from '~/lib/suggestionNavigation'
 
-function renderDropdown(query: string) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+type Handlers = Partial<React.ComponentProps<typeof SearchDropdown>>
+
+function dropdownIn(qc: QueryClient, query: string, handlers: Handlers = {}) {
+  return (
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <SearchDropdown
@@ -33,11 +37,41 @@ function renderDropdown(query: string) {
           onRunSearch={vi.fn()}
           onRemoveRecent={vi.fn()}
           onClearRecent={vi.fn()}
+          {...handlers}
         />
       </MemoryRouter>
     </QueryClientProvider>
   )
 }
+
+function renderDropdown(query: string, handlers: Handlers = {}) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const view = render(dropdownIn(qc, query, handlers))
+  return {
+    ...view,
+    rerenderWith: (next: string, more: Handlers = {}) => view.rerender(dropdownIn(qc, next, { ...handlers, ...more }))
+  }
+}
+
+const galaxyHat = {
+  id: 'a',
+  name: 'Galaxy Hat',
+  creator: '0x1111111111111111111111111111111111111111',
+  creatorName: 'Galaxy Studio',
+  contractAddress: '0xabc',
+  itemId: '0',
+  thumbnail: ''
+}
+const galaxyCollection = {
+  contractAddress: '0xc0ffee',
+  name: 'Galaxy Wear',
+  creator: '0x1111111111111111111111111111111111111111',
+  creatorName: 'Galaxy Studio',
+  items: 3,
+  sales: 1
+}
+const galaxyStudio = { address: '0x1111111111111111111111111111111111111111', name: 'Galaxy Studio', face: '' }
+const galaxy = { items: [galaxyHat], total: 12, collections: [galaxyCollection], creators: [galaxyStudio] }
 
 async function lastSuggestCall() {
   await waitFor(() => expect(fetchSuggestions).toHaveBeenCalled())
@@ -64,10 +98,11 @@ describe('SearchDropdown suggestions', () => {
     expect(fetchSuggestions).not.toHaveBeenCalled()
   })
 
-  it('should show recent searches instead of results for an empty query', () => {
+  it('should show recent and popular searches instead of results for an empty query', () => {
     renderDropdown('')
     expect(fetchSuggestions).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('search-pop')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('search-pop-row')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('search-popular-row').length).toBeGreaterThan(0)
   })
 
   it('should offer to see all results with the total the grid will then report', async () => {
@@ -174,29 +209,12 @@ describe('SearchDropdown failures', () => {
   it('should hand the request its abort signal and never let a slow older answer replace a newer one', async () => {
     let resolveOld: (value: unknown) => void = () => undefined
     vi.mocked(fetchSuggestions).mockImplementationOnce(() => new Promise(resolve => (resolveOld = resolve)) as never)
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const dropdown = (query: string) => (
-      <QueryClientProvider client={qc}>
-        <MemoryRouter>
-          <SearchDropdown
-            query={query}
-            recent={[]}
-            onSelectItem={vi.fn()}
-            onSelectCollection={vi.fn()}
-            onSelectCreator={vi.fn()}
-            onRunSearch={vi.fn()}
-            onRemoveRecent={vi.fn()}
-            onClearRecent={vi.fn()}
-          />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-    const { rerender } = render(dropdown('gal'))
+    const { rerenderWith } = renderDropdown('gal')
     await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(1))
     expect(vi.mocked(fetchSuggestions).mock.calls[0][2]?.signal).toBeInstanceOf(AbortSignal)
 
     vi.mocked(fetchSuggestions).mockResolvedValueOnce({ ...EMPTY, items: [visor], total: 1 } as never)
-    rerender(dropdown('galaxy'))
+    rerenderWith('galaxy')
     expect(await screen.findByTitle('Galaxy Visor')).toBeInTheDocument()
 
     // the older answer arrives late: the newer query's rows stay
@@ -252,5 +270,208 @@ describe('SearchDropdown pricing', () => {
 
     await waitFor(() => expect(fetchSuggestions).toHaveBeenCalled())
     expect(useManaRate).not.toHaveBeenCalled()
+  })
+})
+
+describe('SearchDropdown as the listbox of the search combobox', () => {
+  beforeEach(() => {
+    vi.mocked(fetchSuggestions).mockResolvedValue(galaxy as never)
+  })
+
+  it('should keep every row an option, out of the tab order, in a group per section', async () => {
+    renderDropdown('galaxy')
+
+    const listbox = await screen.findByRole('listbox')
+    expect(listbox).toHaveAttribute('id', 'search-suggestions')
+    const options = screen.getAllByRole('option')
+    // item, collection, creator and "See all"
+    expect(options).toHaveLength(4)
+    for (const option of options) {
+      expect(listbox).toContainElement(option)
+      expect(option).toHaveAttribute('tabindex', '-1')
+      expect(option).toHaveAttribute('aria-selected', 'false')
+    }
+    expect(screen.getAllByRole('group').map(group => group.getAttribute('aria-labelledby'))).toEqual([
+      'search-group-items',
+      'search-group-collections',
+      'search-group-creators'
+    ])
+  })
+
+  it('should mark the row the keyboard is on, and only that one', async () => {
+    const { rerenderWith } = renderDropdown('galaxy')
+    await screen.findByRole('listbox')
+    const creatorId = screen.getByRole('option', { name: 'Galaxy Studio' }).id
+
+    rerenderWith('galaxy', { activeId: creatorId })
+
+    const marked = screen.getAllByRole('option').filter(option => option.getAttribute('aria-selected') === 'true')
+    expect(marked.map(option => option.id)).toEqual([creatorId])
+    expect(marked[0]).toHaveAttribute('data-active', 'true')
+  })
+
+  it('should report the rows once, in visual order, and not again on a rerender', async () => {
+    const onRows = vi.fn()
+    const { rerenderWith } = renderDropdown('galaxy', { onRows })
+
+    await screen.findByRole('listbox')
+    await waitFor(() =>
+      expect(onRows).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ kind: 'see-all' })]))
+    )
+    const reports = onRows.mock.calls.length
+    const rows: SuggestionRow[] = onRows.mock.calls.at(-1)![0]
+    expect(rows.map(row => row.kind)).toEqual(['item', 'collection', 'creator', 'see-all'])
+
+    // the parent rerenders for its own reasons: the same list is not news
+    rerenderWith('galaxy', { activeId: rows[1].id })
+    rerenderWith('galaxy', { activeId: rows[2].id })
+    expect(onRows).toHaveBeenCalledTimes(reports)
+  })
+
+  it('should tell the parent when the list empties on an error, and keep quiet across a pending answer', async () => {
+    const onRows = vi.fn()
+    vi.mocked(fetchSuggestions).mockRejectedValue(new Error('fetchSuggestions 500'))
+    renderDropdown('galaxy', { onRows })
+
+    await screen.findByTestId('search-error')
+    // the pending state and the error both hold no rows: reported once, as the same empty list
+    expect(onRows).toHaveBeenCalledTimes(1)
+    expect(onRows).toHaveBeenLastCalledWith([])
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByTestId('search-retry')).not.toHaveAttribute('role', 'option')
+  })
+
+  it('should hand a chosen row back with its section and position, chosen by click', async () => {
+    const onSelectCollection = vi.fn()
+    const onRows = vi.fn()
+    renderDropdown('galaxy', { onSelectCollection, onRows })
+
+    fireEvent.click(await screen.findByRole('option', { name: /Galaxy Wear/ }))
+    expect(onSelectCollection).toHaveBeenCalledWith(galaxyCollection, {
+      section: 'collections',
+      position: 0,
+      via: 'click'
+    })
+
+    // and the same row, activated from the keyboard through the reported list
+    const rows: SuggestionRow[] = onRows.mock.calls.at(-1)![0]
+    rows[1].activate('keyboard')
+    expect(onSelectCollection).toHaveBeenLastCalledWith(galaxyCollection, {
+      section: 'collections',
+      position: 0,
+      via: 'keyboard'
+    })
+  })
+})
+
+describe('SearchDropdown with nothing typed', () => {
+  it('should list the recent searches, then the popular ones, without repeating a recent one', () => {
+    const onRunSearch = vi.fn()
+    const onRemoveRecent = vi.fn()
+    renderDropdown('', { recent: ['Duck', 'nebula'], onRunSearch, onRemoveRecent })
+
+    expect(fetchSuggestions).not.toHaveBeenCalled()
+    const recentRows = screen.getAllByTestId('search-recent-row')
+    expect(recentRows.map(row => row.textContent)).toEqual(['Duck', 'nebula'])
+    const popular = screen.getAllByTestId('search-popular-row').map(chip => chip.textContent)
+    expect(popular).not.toContain('duck')
+    expect(popular).toContain('sword')
+
+    // every one of them is an option of the listbox, out of the tab order
+    const listbox = screen.getByRole('listbox')
+    for (const option of [...recentRows, ...screen.getAllByTestId('search-popular-row')]) {
+      expect(listbox).toContainElement(option)
+      expect(option).toHaveAttribute('role', 'option')
+      expect(option).toHaveAttribute('tabindex', '-1')
+    }
+
+    fireEvent.click(screen.getAllByTestId('search-popular-row')[0])
+    expect(onRunSearch).toHaveBeenCalledWith('sword')
+  })
+
+  it('should keep the removal and clear controls outside the listbox, focusable on their own', () => {
+    const onRemoveRecent = vi.fn()
+    const onClearRecent = vi.fn()
+    renderDropdown('', { recent: ['Duck'], onRemoveRecent, onClearRecent })
+
+    const listbox = screen.getByRole('listbox')
+    const remove = screen.getByTestId('search-recent-remove')
+    const clear = screen.getByTestId('search-clear-recent')
+    expect(listbox).not.toContainElement(remove)
+    expect(listbox).not.toContainElement(clear)
+    expect(remove).not.toHaveAttribute('tabindex')
+    expect(clear).not.toHaveAttribute('tabindex')
+
+    fireEvent.click(remove)
+    expect(onRemoveRecent).toHaveBeenCalledWith('Duck')
+    fireEvent.click(clear)
+    expect(onClearRecent).toHaveBeenCalled()
+  })
+
+  it('should show the popular searches to a reader who has searched nothing yet', () => {
+    renderDropdown('')
+    expect(screen.getByTestId('search-pop')).toBeInTheDocument()
+    expect(screen.queryByTestId('search-recent-row')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('search-popular-row').length).toBeGreaterThan(0)
+  })
+})
+
+describe('SearchDropdown exposure events', () => {
+  it('should report a viewed exposure once per query, with the counts and the request time', async () => {
+    vi.mocked(fetchSuggestions).mockResolvedValue(galaxy as never)
+    const { rerenderWith } = renderDropdown('galaxy')
+
+    await screen.findByRole('listbox')
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Viewed Search Suggestions', expect.anything()))
+    expect(vi.mocked(track).mock.calls).toHaveLength(1)
+    expect(vi.mocked(track).mock.calls[0][1]).toEqual({
+      query: 'galaxy',
+      item_count: 1,
+      collection_count: 1,
+      creator_count: 1,
+      total: 12,
+      fetch_ms: expect.any(Number),
+      cache_hit: false
+    })
+
+    // a rerender, and the same query typed with a different case, are the same exposure
+    rerenderWith('galaxy', { activeId: 'x' })
+    rerenderWith('Galaxy ')
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(track).toHaveBeenCalledTimes(1)
+  })
+
+  it('should report no results only when the three sections are empty, and nothing on an error', async () => {
+    // the request retries once on its own, so the failure has to hold for two calls
+    vi.mocked(fetchSuggestions).mockResolvedValueOnce(EMPTY).mockRejectedValue(new Error('fetchSuggestions 500'))
+    const { rerenderWith } = renderDropdown('zzz')
+
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Search No Results', { query: 'zzz' }))
+    expect(track).toHaveBeenCalledTimes(1)
+
+    rerenderWith('zzzz')
+    await screen.findByTestId('search-error', {}, { timeout: 4000 })
+    expect(track).toHaveBeenCalledTimes(1)
+  })
+
+  it('should not count the previous answer kept on screen while the next one loads', async () => {
+    let resolveNext: (value: unknown) => void = () => undefined
+    vi.mocked(fetchSuggestions)
+      .mockResolvedValueOnce(galaxy as never)
+      .mockImplementationOnce(() => new Promise(resolve => (resolveNext = resolve)) as never)
+    const { rerenderWith } = renderDropdown('galaxy')
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(1))
+
+    rerenderWith('galaxy hat')
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(2))
+    // the panel still shows the "galaxy" rows as a placeholder: no exposure for "galaxy hat" yet
+    expect(track).toHaveBeenCalledTimes(1)
+
+    resolveNext({ ...galaxy, total: 3 })
+    await waitFor(() => expect(track).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(track).mock.calls[1]).toEqual([
+      'Shop Viewed Search Suggestions',
+      expect.objectContaining({ query: 'galaxy hat', total: 3 })
+    ])
   })
 })

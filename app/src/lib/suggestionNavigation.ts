@@ -1,15 +1,18 @@
-// Keyboard navigation over the search dropdown's rows: the rows are one flat list in visual order
-// (recent searches, or items, collections, creators and "See all"), and the active one is an index into
-// it. Kept pure so the arrow-key semantics are testable without a DOM.
+// Keyboard handling for the search box's combobox: which key does what, given whether the panel is open
+// and whether a row is active, and how the active index moves. The rows are one flat list in visual
+// order (recent searches, or items, collections, creators and "See all"); the active one is an index into
+// it. Kept pure so the semantics are testable without a DOM.
 
-export type SuggestionRowKind = 'item' | 'collection' | 'creator' | 'see-all' | 'recent'
+export type SuggestionRowKind = 'item' | 'collection' | 'creator' | 'see-all' | 'recent' | 'popular'
+
+export type SuggestionActivation = 'click' | 'keyboard'
 
 export type SuggestionRow = {
   // The DOM id of the row, referenced by the input's aria-activedescendant.
   id: string
   kind: SuggestionRowKind
   // What choosing the row does, whether by click or by Enter.
-  activate: () => void
+  activate: (via: SuggestionActivation) => void
 }
 
 export const NO_ACTIVE_ROW = -1
@@ -26,7 +29,7 @@ export function nextActiveIndex(current: number, count: number, key: string): nu
   if (count <= 0) return NO_ACTIVE_ROW
   switch (key) {
     case 'ArrowDown':
-      return current >= count - 1 || current < 0 ? (current < 0 ? 0 : 0) : current + 1
+      return current < 0 || current >= count - 1 ? 0 : current + 1
     case 'ArrowUp':
       return current <= 0 ? count - 1 : current - 1
     case 'Home':
@@ -36,7 +39,46 @@ export function nextActiveIndex(current: number, count: number, key: string): nu
   }
 }
 
-/** A DOM id for a row, safe whatever the key holds (a query with spaces, an address). */
+export type SearchKey = {
+  key: string
+  altKey?: boolean
+  ctrlKey?: boolean
+  metaKey?: boolean
+  shiftKey?: boolean
+  // The key is part of an IME composition (or reported as 'Process'): it belongs to the text, not to us.
+  isComposing?: boolean
+}
+
+export type SearchKeyState = { open: boolean; activeIndex: number; count: number }
+
+export type SearchKeyAction =
+  { type: 'move'; index: number } | { type: 'activate' } | { type: 'submit' } | { type: 'close' } | { type: 'clear' }
+
+/**
+ * What a key pressed in the search box should do, or null to leave it to the field.
+ *
+ * Text editing wins whenever it could be meant: a modifier, an IME composition, or Home/End while no row
+ * is active (they move the caret until the arrows have entered the list). Escape puts an open panel
+ * away and, pressed again, clears the box through the same path the clear button takes. Enter activates
+ * the active row, or submits the search when none is.
+ */
+export function searchKeyAction(key: SearchKey, state: SearchKeyState): SearchKeyAction | null {
+  if (key.isComposing || key.key === 'Process') return null
+  if (key.altKey || key.ctrlKey || key.metaKey) return null
+  if (key.key === 'Escape') return state.open ? { type: 'close' } : { type: 'clear' }
+  if (key.shiftKey) return null
+  if (key.key === 'Enter') return state.open && state.activeIndex >= 0 ? { type: 'activate' } : { type: 'submit' }
+  if (!state.open) return null
+  if ((key.key === 'Home' || key.key === 'End') && state.activeIndex < 0) return null
+  const index = nextActiveIndex(state.activeIndex, state.count, key.key)
+  return index === null ? null : { type: 'move', index }
+}
+
+/**
+ * A DOM id for a row that no other row can share: the key's bytes in hex, so "a b" and "a-b" differ and
+ * any script survives, prefixed by the kind.
+ */
 export function suggestionRowId(kind: SuggestionRowKind, key: string): string {
-  return `search-row-${kind}-${key.replace(/[^a-zA-Z0-9_-]+/g, '-').toLowerCase()}`
+  const hex = Array.from(new TextEncoder().encode(key), b => b.toString(16).padStart(2, '0')).join('')
+  return `search-row-${kind}-${hex}`
 }

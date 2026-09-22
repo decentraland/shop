@@ -55,6 +55,7 @@
     "collections": "Collections",
     "items": "Items",
     "byCreator": "By {name}",
+    "popular": "Popular searches",
     "error": "We couldn’t load suggestions.",
     "retry": "Try again",
     "suggestionCount": "{count, plural, one {# suggestion} other {# suggestions}}"

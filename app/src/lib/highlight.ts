@@ -1,9 +1,15 @@
 // Marks, in a suggestion's name, the word prefixes the query matched — the cosmetic side of the search:
 // the matching itself happens on the server, this only shows the reader why a row is there.
+//
+// The comparison folds case and accents, which is close to the server's normalization but not it: the
+// server also expands ligatures and letters like Æ or ß through PostgreSQL's unaccent, which this does
+// not, so such a match may go unmarked. That is why it decides nothing — not the match, not the order.
 
 export type HighlightSegment = { text: string; match: boolean }
 
-// The same folding the server applies before matching: accents off, case off.
+// Composed first, so a letter and its accent are one character to segment; then the accents are dropped
+// for the comparison only — the text shown keeps every mark it had.
+const compose = (s: string) => s.normalize('NFC')
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 const WORD = /[\p{L}\p{N}]+/gu
@@ -14,10 +20,11 @@ const WORD = /[\p{L}\p{N}]+/gu
  * marks nothing.
  */
 export function highlightMatches(name: string, query: string): HighlightSegment[] {
-  const terms = fold(query)
+  const composed = compose(name)
+  const terms = fold(compose(query))
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
-  if (terms.length === 0 || !name) return [{ text: name, match: false }]
+  if (terms.length === 0 || !composed) return [{ text: composed, match: false }]
 
   const segments: HighlightSegment[] = []
   let cursor = 0
@@ -28,10 +35,10 @@ export function highlightMatches(name: string, query: string): HighlightSegment[
     else segments.push({ text, match })
   }
 
-  for (const found of name.matchAll(WORD)) {
+  for (const found of composed.matchAll(WORD)) {
     const word = found[0]
     const start = found.index ?? 0
-    push(name.slice(cursor, start), false)
+    push(composed.slice(cursor, start), false)
     // Folded per character, so the matched prefix maps back onto the original characters even where
     // folding changes their count.
     const chars = [...word]
@@ -52,6 +59,6 @@ export function highlightMatches(name: string, query: string): HighlightSegment[
     }
     cursor = start + word.length
   }
-  push(name.slice(cursor), false)
+  push(composed.slice(cursor), false)
   return segments
 }
