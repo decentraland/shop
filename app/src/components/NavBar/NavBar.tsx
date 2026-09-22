@@ -49,6 +49,16 @@ import { theme } from '~/styles/theme'
 // (same split either way — just far harder to spot in a bundle report).
 const NotificationsBell = lazy(() => import('~/components/NotificationsBell/NotificationsBell'))
 
+// Two thresholds, not one, for the scrolled state that deepens both bars. A single one flickered: a
+// trackpad settling just past it re-crosses it several times in a few frames, and since each crossing
+// restarts the bars' 250ms background transition, they never reach either end — they pump half-transparent
+// and the page shows through. Measured on a real gesture, scrollY bounced 6-13px around an 8px threshold
+// and flipped the state five times in 270ms. The gap below is wider than that bounce, so the bars change
+// once per real direction change. Entering is the deliberate one (24px = past the first line of content);
+// leaving is nearly at rest, because a bar that stays dark while the page sits at the top looks stuck.
+const SCROLL_ENTER = 24
+const SCROLL_EXIT = 4
+
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const isOutfitCreator = useIsOutfitCreator()
@@ -120,20 +130,29 @@ export function NavBar() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   // The translucent band washes out over light content, so it deepens once the page scrolls.
   const [scrolled, setScrolled] = useState(false)
+  // Read inside the scroll handler, which must not re-subscribe on every change (see the effect below).
+  const scrolledRef = useRef(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout>>()
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const onScroll = () => {
-      const v = window.scrollY > 8
-      setScrolled(v)
+    const apply = (next: boolean) => {
+      scrolledRef.current = next
+      setScrolled(next)
       // Mirrored on <body> so the global ui2 navbar (styled from TopNav via ancestor selectors,
       // outside this component) can deepen in step with the sub-nav.
-      document.body.toggleAttribute('data-scrolled', v)
+      document.body.toggleAttribute('data-scrolled', next)
     }
-    onScroll()
+    const onScroll = () => {
+      const next = scrolledRef.current ? window.scrollY > SCROLL_EXIT : window.scrollY > SCROLL_ENTER
+      if (next !== scrolledRef.current) apply(next)
+    }
+    apply(window.scrollY > SCROLL_ENTER)
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      document.body.removeAttribute('data-scrolled')
+    }
   }, [])
 
   // Re-establish the previous session on load (silent, no popup) — handles the return from /auth.
