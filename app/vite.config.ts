@@ -1,10 +1,10 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig } from 'vite'
+import { preloadHero } from './vite-plugins/preloadHero'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { HOME_PATHS } from './src/lib/homePath'
 
 // Build/dev config. Points at a LOCAL marketplace-server by default (see .env / config.ts).
 // DCL libs (connect/dapps/crypto) need Node globals (Buffer/global/process) in the browser.
@@ -33,61 +33,6 @@ const sentryUpload = Boolean(process.env.SENTRY_AUTH_TOKEN)
  * Deriving both from this single const is what makes the two unable to drift again.
  */
 const sentryRelease = process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}`
-
-// The home hero is the LCP element of the Shop's most visited page, and the preload scanner cannot see
-// it: the <img> exists only once the entry chunk has run, so on production the request left at 264ms
-// (desktop) / 350ms (mobile), of which 244 / 331 was pure discovery delay. This puts the preload in the
-// HTML instead.
-//
-// Emitted as a script rather than two <link> tags because ONE index.html serves every route. Static links
-// preload the home hero on /items, /cart and /credits too — 55 KB of image those pages never render,
-// at high priority, competing with the content they do. The script runs at parse time, before the entry
-// module, so a Home entry still gets the early discovery; every other route gets nothing. (It is inline,
-// which the served CSP allows via 'unsafe-inline' in script-src — the same way the site's own edge worker
-// injects script there.)
-//
-// `matchMedia` rather than a `media` attribute per link, because it is the SAME query the <picture> in
-// Overview.tsx switches on: one expression, evaluated once, so the two cannot describe different
-// breakpoints or leave a fractional viewport matching neither. The path test comes from `lib/homePath`,
-// shared with nothing else today but unit-tested there — a list spelled out here would be free to drift
-// from the router without anything failing.
-//
-// A running CAMPAIGN replaces the hero art from the CMS, and this still preloads the bundled default.
-// That is correct rather than wasteful: the campaign is resolved by two chained async reads (a feature
-// flag, then Contentful), so the default is what the page renders first in every case, campaign or not.
-const PRELOADED_HERO = {
-  desktop: 'src/assets/overview/hero-credits-outfits.webp',
-  mobile: 'src/assets/overview/hero-credits-mobile.webp'
-}
-
-function preloadHero(): Plugin {
-  return {
-    name: 'preload-hero',
-    apply: 'build',
-    transformIndexHtml: {
-      order: 'post',
-      handler(_html, ctx) {
-        const href = (source: string) => {
-          const emitted = Object.values(ctx.bundle ?? {}).find(
-            output => output.type === 'asset' && (output.originalFileNames ?? []).some(name => name.endsWith(source))
-          )
-          // Throw rather than skip. A renamed or deleted hero asset would otherwise drop the preload in
-          // silence, and the only symptom would be a slower LCP noticed in some Lighthouse run weeks later.
-          if (!emitted) throw new Error(`preload-hero: ${source} is not in the bundle — was it renamed?`)
-          return `${base}${emitted.fileName}`
-        }
-        const script =
-          `(function(){var p=location.pathname.replace(/\\/+$/,"");` +
-          `if(${JSON.stringify(HOME_PATHS)}.indexOf(p)<0)return;` +
-          `var l=document.createElement("link");l.rel="preload";l.as="image";` +
-          `l.setAttribute("fetchpriority","high");` +
-          `l.href=matchMedia("(max-width: 768px)").matches?${JSON.stringify(href(PRELOADED_HERO.mobile))}:${JSON.stringify(href(PRELOADED_HERO.desktop))};` +
-          `document.head.appendChild(l)})()`
-        return [{ tag: 'script', children: script, injectTo: 'head-prepend' as const }]
-      }
-    }
-  }
-}
 
 // The app package.json is `private` and vite doesn't copy it, so emit a publishable package.json into
 // dist. That's the manifest npm/oddish publishes; the CDN serves this package at <name>/<version>/.
@@ -121,7 +66,7 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({ globals: { Buffer: true, global: true, process: true } }),
-    preloadHero(),
+    preloadHero(base),
     emitPackageJson(),
     ...(sentryUpload
       ? [

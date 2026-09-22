@@ -1,12 +1,13 @@
 /**
  * The paths that render the home page, and therefore its hero.
  *
- * Exists so ONE list answers the question in both places that ask it. The build injects a tiny bootstrap
- * into index.html that preloads the hero (see `preloadHero` in vite.config.ts), and that bootstrap runs
- * before the router exists — one `index.html` serves every route, so without a path test it preloads a
- * 55 KB image onto `/items`, `/cart` and `/credits`, at high priority, competing with the content those
- * pages actually render. Spelling the list out twice would let the bootstrap drift from the router in
- * silence: the symptom is a slower LCP on a home entry nobody thought to re-test.
+ * Read by the build, not by the router: `vite-plugins/preloadHero.ts` injects a bootstrap into index.html that
+ * preloads the hero, and that bootstrap runs before the router exists. One `index.html` serves every
+ * route, so without a path test it preloads a 55 KB image onto `/items`, `/cart` and `/credits`, at high
+ * priority, competing with the content those pages do render.
+ *
+ * The list MIRRORS the routes declared in App.tsx — nothing enforces that, which is why it lives in one
+ * tested module rather than inline in the build config. Add a home route there and add it here.
  *
  * `''` is `/` with its trailing slash stripped. It belongs here because `/` renders through the same
  * document and redirects to `/overview` client-side, so the hero is what it paints. `/shop` and
