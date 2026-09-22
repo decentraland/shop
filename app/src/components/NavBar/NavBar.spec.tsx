@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 
 /**
@@ -46,7 +46,14 @@ vi.mock('~/hooks/useManaBalance', () => ({
 }))
 vi.mock('~/store/cart', () => ({ useCart: () => 0 }))
 vi.mock('~/components/CartPopover', () => ({ CartPopover: () => null }))
-vi.mock('~/components/SearchDropdown', () => ({ SearchDropdown: () => null }))
+// The dropdown stands in as a prop recorder: what query it is handed is what the keys and the timers leave.
+const dropdownProps = vi.fn()
+vi.mock('~/components/SearchDropdown', () => ({
+  SearchDropdown: (props: Record<string, unknown>) => {
+    dropdownProps(props)
+    return null
+  }
+}))
 vi.mock('~/components/NotificationsBell', () => ({ NotificationsBell: () => null }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
 
@@ -288,8 +295,18 @@ describe('the seasonal event tab', () => {
 function Probe() {
   const location = useLocation()
   const type = useNavigationType()
-  return <output data-testid="probe">{`${type} ${location.pathname}${location.search}`}</output>
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="probe">{`${type} ${location.pathname}${location.search}`}</output>
+      {/* stands in for the browser's Back: a URL change the box did not make */}
+      <button type="button" data-testid="probe-go" onClick={() => navigate('/items?q=Galaxy')} />
+    </>
+  )
 }
+
+// The query the dropdown was last handed, or null while it is not mounted.
+const lastDropdownQuery = () => (dropdownProps.mock.calls.at(-1)?.[0] as { query: string } | undefined)?.query ?? null
 
 function renderSearch(route = '/overview') {
   render(
@@ -305,6 +322,76 @@ describe('the search box', () => {
   beforeEach(() => {
     iap.on = false
     vi.mocked(track).mockClear()
+    dropdownProps.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('names its listbox only while the panel is open, and no active row without one', () => {
+    const box = renderSearch('/overview')
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).not.toHaveAttribute('aria-controls')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.focus(box)
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    expect(box).toHaveAttribute('aria-controls', 'search-suggestions')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).not.toHaveAttribute('aria-controls')
+  })
+
+  it('drops a pending debounce when the box is cleared, so the panel never gets what was just erased', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.click(screen.getByTestId('subnav-search-clear'))
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    fireEvent.focus(box)
+
+    expect(box).toHaveValue('')
+    expect(lastDropdownQuery()).toBe('')
+    expect(dropdownProps.mock.calls.some(call => (call[0] as { query: string }).query === 'Nebula')).toBe(false)
+  })
+
+  it('drops it on a double Escape too', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    fireEvent.keyDown(box, { key: 'Escape' })
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    fireEvent.focus(box)
+
+    expect(box).toHaveValue('')
+    expect(lastDropdownQuery()).toBe('')
+  })
+
+  it('lets a URL change win over a keystroke still waiting on its debounce', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Neb' } })
+
+    fireEvent.click(screen.getByTestId('probe-go'))
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(box).toHaveValue('Galaxy')
+    expect(lastDropdownQuery()).toBe('Galaxy')
   })
 
   it('puts the panel away on Escape and, pressed again, clears the box and says so', () => {

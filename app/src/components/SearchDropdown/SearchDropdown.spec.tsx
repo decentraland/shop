@@ -49,6 +49,7 @@ function renderDropdown(query: string, handlers: Handlers = {}) {
   const view = render(dropdownIn(qc, query, handlers))
   return {
     ...view,
+    qc,
     rerenderWith: (next: string, more: Handlers = {}) => view.rerender(dropdownIn(qc, next, { ...handlers, ...more }))
   }
 }
@@ -281,9 +282,9 @@ describe('SearchDropdown as the listbox of the search combobox', () => {
   it('should keep every row an option, out of the tab order, in a group per section', async () => {
     renderDropdown('galaxy')
 
-    const listbox = await screen.findByRole('listbox')
+    const options = await screen.findAllByRole('option')
+    const listbox = screen.getByRole('listbox')
     expect(listbox).toHaveAttribute('id', 'search-suggestions')
-    const options = screen.getAllByRole('option')
     // item, collection, creator and "See all"
     expect(options).toHaveLength(4)
     for (const option of options) {
@@ -300,8 +301,7 @@ describe('SearchDropdown as the listbox of the search combobox', () => {
 
   it('should mark the row the keyboard is on, and only that one', async () => {
     const { rerenderWith } = renderDropdown('galaxy')
-    await screen.findByRole('listbox')
-    const creatorId = screen.getByRole('option', { name: 'Galaxy Studio' }).id
+    const creatorId = (await screen.findByRole('option', { name: 'Galaxy Studio' })).id
 
     rerenderWith('galaxy', { activeId: creatorId })
 
@@ -337,7 +337,8 @@ describe('SearchDropdown as the listbox of the search combobox', () => {
     // the pending state and the error both hold no rows: reported once, as the same empty list
     expect(onRows).toHaveBeenCalledTimes(1)
     expect(onRows).toHaveBeenLastCalledWith([])
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    // the listbox stays, empty, so the box's aria-controls keeps pointing at something real
+    expect(screen.getByRole('listbox')).toBeEmptyDOMElement()
     expect(screen.getByTestId('search-retry')).not.toHaveAttribute('role', 'option')
   })
 
@@ -473,5 +474,85 @@ describe('SearchDropdown exposure events', () => {
       'Shop Viewed Search Suggestions',
       expect.objectContaining({ query: 'galaxy hat', total: 3 })
     ])
+  })
+})
+
+describe('SearchDropdown rows the parent keeps', () => {
+  beforeEach(() => {
+    vi.mocked(fetchSuggestions).mockResolvedValue(galaxy as never)
+  })
+
+  it('should run the handler in force when a kept row is activated after the handler changed', async () => {
+    const before = vi.fn()
+    const after = vi.fn()
+    const onRows = vi.fn()
+    const { rerenderWith } = renderDropdown('galaxy', { onSelectCollection: before, onRows })
+    await screen.findByRole('listbox')
+    await waitFor(() =>
+      expect(onRows).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ kind: 'see-all' })]))
+    )
+    const rows: SuggestionRow[] = onRows.mock.calls.at(-1)![0]
+    const reports = onRows.mock.calls.length
+
+    rerenderWith('galaxy', { onSelectCollection: after })
+    // the same ids: nothing new to report, and the parent still holds the rows from before
+    expect(onRows).toHaveBeenCalledTimes(reports)
+
+    rows[1].activate('keyboard')
+    expect(after).toHaveBeenCalledWith(galaxyCollection, { section: 'collections', position: 0, via: 'keyboard' })
+    expect(before).not.toHaveBeenCalled()
+  })
+
+  it('should hand a kept row the data in force after a refetch that kept the ids', async () => {
+    const onSelectCollection = vi.fn()
+    const onRows = vi.fn()
+    const { qc } = renderDropdown('galaxy', { onSelectCollection, onRows })
+    await screen.findByRole('listbox')
+    await waitFor(() =>
+      expect(onRows).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ kind: 'see-all' })]))
+    )
+    const rows: SuggestionRow[] = onRows.mock.calls.at(-1)![0]
+    const reports = onRows.mock.calls.length
+
+    const grown = { ...galaxyCollection, items: 9 }
+    vi.mocked(fetchSuggestions).mockResolvedValue({ ...galaxy, collections: [grown] } as never)
+    await qc.refetchQueries()
+    await waitFor(() => expect(fetchSuggestions).toHaveBeenCalledTimes(2))
+    await screen.findByRole('listbox')
+    expect(onRows).toHaveBeenCalledTimes(reports)
+
+    rows[1].activate('keyboard')
+    expect(onSelectCollection).toHaveBeenCalledWith(grown, { section: 'collections', position: 0, via: 'keyboard' })
+  })
+
+  it('should keep its listbox mounted while loading, when empty, on an error and after recovery', async () => {
+    let resolveFirst: (value: unknown) => void = () => undefined
+    vi.mocked(fetchSuggestions)
+      .mockImplementationOnce(() => new Promise(resolve => (resolveFirst = resolve)) as never)
+      .mockRejectedValueOnce(new Error('fetchSuggestions 500'))
+      .mockRejectedValueOnce(new Error('fetchSuggestions 500'))
+      .mockResolvedValueOnce(galaxy as never)
+    const { rerenderWith } = renderDropdown('galaxy')
+
+    // loading
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'search-suggestions')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+
+    // a valid empty answer
+    resolveFirst(EMPTY)
+    await screen.findAllByText(/No results/)
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'search-suggestions')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+
+    // an error (the request retries once on its own)
+    rerenderWith('galaxy hat')
+    await screen.findByTestId('search-error', {}, { timeout: 4000 })
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'search-suggestions')
+    expect(screen.getByTestId('search-retry').closest('[role="listbox"]')).toBeNull()
+
+    // recovery
+    fireEvent.click(screen.getByTestId('search-retry'))
+    await screen.findByRole('option', { name: 'Galaxy Studio' })
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'search-suggestions')
   })
 })

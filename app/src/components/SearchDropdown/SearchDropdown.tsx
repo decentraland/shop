@@ -17,7 +17,8 @@ import {
   SUGGESTIONS_LISTBOX_ID,
   suggestionRowId,
   type SuggestionActivation,
-  type SuggestionRow
+  type SuggestionRow,
+  type SuggestionRowKind
 } from '~/lib/suggestionNavigation'
 import { isIapMode } from '~/lib/iap'
 import { t } from '~/intl/i18n'
@@ -162,46 +163,53 @@ export function SearchDropdown({
   const showingRecent = !enabled
   const popular = useMemo(() => (showingRecent ? popularSearchesFor(recent) : NO_TERMS), [showingRecent, recent])
 
-  const rows = useMemo<SuggestionRow[]>(() => {
-    if (isError) return []
+  // What each row DOES, rebuilt on every render from the props and data in force and read through a ref
+  // at activation time: a row the parent kept from an earlier report still runs today's handler on
+  // today's data, by click and by keyboard alike.
+  const actions = new Map<string, (via: SuggestionActivation) => void>()
+  if (!isError) {
     if (showingRecent) {
-      return [
-        ...recent.map(term => ({
-          id: suggestionRowId('recent', term),
-          kind: 'recent' as const,
-          activate: () => onRunSearch(term)
-        })),
-        ...popular.map(term => ({
-          id: suggestionRowId('popular', term),
-          kind: 'popular' as const,
-          activate: () => onRunSearch(term)
-        }))
-      ]
-    }
-    const list: SuggestionRow[] = [
-      ...items.map((item, position) => ({
-        id: suggestionRowId('item', item.id),
-        kind: 'item' as const,
-        activate: (via: SuggestionActivation) => onSelectItem(item, { section: 'items', position, via })
-      })),
-      ...collections.map((collection, position) => ({
-        id: suggestionRowId('collection', collection.contractAddress),
-        kind: 'collection' as const,
-        activate: (via: SuggestionActivation) =>
+      for (const term of recent) actions.set(suggestionRowId('recent', term), () => onRunSearch(term))
+      for (const term of popular) actions.set(suggestionRowId('popular', term), () => onRunSearch(term))
+    } else {
+      items.forEach((item, position) =>
+        actions.set(suggestionRowId('item', item.id), via => onSelectItem(item, { section: 'items', position, via }))
+      )
+      collections.forEach((collection, position) =>
+        actions.set(suggestionRowId('collection', collection.contractAddress), via =>
           onSelectCollection(collection, { section: 'collections', position, via })
-      })),
-      ...creators.map((creator, position) => ({
-        id: suggestionRowId('creator', creator.address),
-        kind: 'creator' as const,
-        activate: (via: SuggestionActivation) => onSelectCreator(creator, { section: 'creators', position, via })
-      }))
+        )
+      )
+      creators.forEach((creator, position) =>
+        actions.set(suggestionRowId('creator', creator.address), via =>
+          onSelectCreator(creator, { section: 'creators', position, via })
+        )
+      )
+      if (total > 0) actions.set(suggestionRowId('see-all', query), () => onRunSearch(query))
+    }
+  }
+  const latest = useRef(actions)
+  useLayoutEffect(() => {
+    latest.current = actions
+  })
+  const activate = (id: string, via: SuggestionActivation) => latest.current.get(id)?.(via)
+
+  // What is on offer, as ids in visual order. Derived from the data alone, so a rerender of the parent
+  // keeps the same list, and the keyboard its position on it.
+  const rows = useMemo<SuggestionRow[]>(() => {
+    const row = (kind: SuggestionRowKind, key: string): SuggestionRow => {
+      const id = suggestionRowId(kind, key)
+      return { id, kind, activate: via => latest.current.get(id)?.(via) }
+    }
+    if (isError) return []
+    if (showingRecent) return [...recent.map(term => row('recent', term)), ...popular.map(term => row('popular', term))]
+    const list = [
+      ...items.map(item => row('item', item.id)),
+      ...collections.map(collection => row('collection', collection.contractAddress)),
+      ...creators.map(creator => row('creator', creator.address))
     ]
-    if (total > 0)
-      list.push({ id: suggestionRowId('see-all', query), kind: 'see-all', activate: () => onRunSearch(query) })
+    if (total > 0) list.push(row('see-all', query))
     return list
-    // The handlers are stable enough for a listbox; re-deriving on every parent render would reset the
-    // keyboard position on each keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isError, showingRecent, recent, popular, items, collections, creators, total, query])
 
   // Told only when the LIST changes — the same ids in the same order are the same list — so a rerender
@@ -252,7 +260,6 @@ export function SearchDropdown({
   const count = items.length + collections.length + creators.length
 
   if (showingRecent) {
-    if (recent.length === 0 && popular.length === 0) return null
     return (
       <S.Pop data-iap={iap || undefined} data-testid="search-pop">
         {recent.length > 0 ? (
@@ -273,7 +280,7 @@ export function SearchDropdown({
                     type="button"
                     data-testid="search-recent-row"
                     {...option(suggestionRowId('recent', term))}
-                    onClick={() => onRunSearch(term)}
+                    onClick={() => activate(suggestionRowId('recent', term), 'click')}
                   >
                     <Icon name="search" size={16} color={theme.colors.muted} />
                     <S.RecentText>{term}</S.RecentText>
@@ -293,7 +300,7 @@ export function SearchDropdown({
                       type="button"
                       data-testid="search-popular-row"
                       {...option(suggestionRowId('popular', term))}
-                      onClick={() => onRunSearch(term)}
+                      onClick={() => activate(suggestionRowId('popular', term), 'click')}
                     >
                       {term}
                     </S.Chip>
@@ -345,108 +352,108 @@ export function SearchDropdown({
         </S.Empty>
       ) : nothing ? (
         <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
-      ) : (
-        <S.Listbox id={SUGGESTIONS_LISTBOX_ID} role="listbox" aria-label={t('search.suggestions')}>
-          {items.length > 0 ? (
-            <S.Group role="group" aria-labelledby="search-group-items">
-              <S.SectionHead id="search-group-items" role="presentation">
-                <span>{t('search.items')}</span>
-              </S.SectionHead>
-              <S.List role="none">
-                {items.map((item, position) => (
-                  <li key={item.id} role="none">
-                    <S.Row
-                      type="button"
-                      data-testid="search-pop-row"
-                      data-kind="item"
-                      {...option(suggestionRowId('item', item.id))}
-                      onClick={() => onSelectItem(item, { section: 'items', position, via: 'click' })}
-                    >
-                      <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
-                      <S.Text>
-                        <S.Name title={item.name}>
-                          <Highlighted text={item.name} query={query} />
-                        </S.Name>
-                        {item.creator ? <CreatorName address={item.creator} name={item.creatorName} /> : null}
-                      </S.Text>
-                    </S.Row>
-                  </li>
-                ))}
-              </S.List>
-            </S.Group>
-          ) : null}
+      ) : null}
+      {/* Mounted in every state, empty or not: the box names it as its listbox as long as the panel is open. */}
+      <S.Listbox id={SUGGESTIONS_LISTBOX_ID} role="listbox" aria-label={t('search.suggestions')}>
+        {items.length > 0 ? (
+          <S.Group role="group" aria-labelledby="search-group-items">
+            <S.SectionHead id="search-group-items" role="presentation">
+              <span>{t('search.items')}</span>
+            </S.SectionHead>
+            <S.List role="none">
+              {items.map(item => (
+                <li key={item.id} role="none">
+                  <S.Row
+                    type="button"
+                    data-testid="search-pop-row"
+                    data-kind="item"
+                    {...option(suggestionRowId('item', item.id))}
+                    onClick={() => activate(suggestionRowId('item', item.id), 'click')}
+                  >
+                    <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+                    <S.Text>
+                      <S.Name title={item.name}>
+                        <Highlighted text={item.name} query={query} />
+                      </S.Name>
+                      {item.creator ? <CreatorName address={item.creator} name={item.creatorName} /> : null}
+                    </S.Text>
+                  </S.Row>
+                </li>
+              ))}
+            </S.List>
+          </S.Group>
+        ) : null}
 
-          {collections.length > 0 ? (
-            <S.Group role="group" aria-labelledby="search-group-collections">
-              <S.SectionHead id="search-group-collections" role="presentation">
-                <span>{t('search.collections')}</span>
-              </S.SectionHead>
-              <S.List role="none">
-                {collections.map((collection, position) => (
-                  <li key={collection.contractAddress} role="none">
-                    <S.Row
-                      type="button"
-                      data-testid="search-pop-row"
-                      data-kind="collection"
-                      {...option(suggestionRowId('collection', collection.contractAddress))}
-                      onClick={() => onSelectCollection(collection, { section: 'collections', position, via: 'click' })}
-                    >
-                      <CollectionRowThumb contractAddress={collection.contractAddress} />
-                      <S.Text>
-                        <S.Name title={collection.name}>
-                          <Highlighted text={collection.name} query={query} />
-                        </S.Name>
-                        {collection.creator ? (
-                          <CreatorName address={collection.creator} name={collection.creatorName} />
-                        ) : null}
-                      </S.Text>
-                    </S.Row>
-                  </li>
-                ))}
-              </S.List>
-            </S.Group>
-          ) : null}
+        {collections.length > 0 ? (
+          <S.Group role="group" aria-labelledby="search-group-collections">
+            <S.SectionHead id="search-group-collections" role="presentation">
+              <span>{t('search.collections')}</span>
+            </S.SectionHead>
+            <S.List role="none">
+              {collections.map(collection => (
+                <li key={collection.contractAddress} role="none">
+                  <S.Row
+                    type="button"
+                    data-testid="search-pop-row"
+                    data-kind="collection"
+                    {...option(suggestionRowId('collection', collection.contractAddress))}
+                    onClick={() => activate(suggestionRowId('collection', collection.contractAddress), 'click')}
+                  >
+                    <CollectionRowThumb contractAddress={collection.contractAddress} />
+                    <S.Text>
+                      <S.Name title={collection.name}>
+                        <Highlighted text={collection.name} query={query} />
+                      </S.Name>
+                      {collection.creator ? (
+                        <CreatorName address={collection.creator} name={collection.creatorName} />
+                      ) : null}
+                    </S.Text>
+                  </S.Row>
+                </li>
+              ))}
+            </S.List>
+          </S.Group>
+        ) : null}
 
-          {creators.length > 0 ? (
-            <S.Group role="group" aria-labelledby="search-group-creators">
-              <S.SectionHead id="search-group-creators" role="presentation">
-                <span>{t('search.creators')}</span>
-              </S.SectionHead>
-              <S.List role="none">
-                {creators.map((creator, position) => (
-                  <li key={creator.address} role="none">
-                    <S.Row
-                      type="button"
-                      data-testid="search-pop-row"
-                      data-kind="creator"
-                      {...option(suggestionRowId('creator', creator.address))}
-                      onClick={() => onSelectCreator(creator, { section: 'creators', position, via: 'click' })}
-                    >
-                      <S.Thumb data-variant="round">{creator.face ? <img src={creator.face} alt="" /> : null}</S.Thumb>
-                      <S.Text>
-                        <S.Name title={creator.name}>
-                          <Highlighted text={creator.name} query={query} />
-                        </S.Name>
-                      </S.Text>
-                    </S.Row>
-                  </li>
-                ))}
-              </S.List>
-            </S.Group>
-          ) : null}
+        {creators.length > 0 ? (
+          <S.Group role="group" aria-labelledby="search-group-creators">
+            <S.SectionHead id="search-group-creators" role="presentation">
+              <span>{t('search.creators')}</span>
+            </S.SectionHead>
+            <S.List role="none">
+              {creators.map(creator => (
+                <li key={creator.address} role="none">
+                  <S.Row
+                    type="button"
+                    data-testid="search-pop-row"
+                    data-kind="creator"
+                    {...option(suggestionRowId('creator', creator.address))}
+                    onClick={() => activate(suggestionRowId('creator', creator.address), 'click')}
+                  >
+                    <S.Thumb data-variant="round">{creator.face ? <img src={creator.face} alt="" /> : null}</S.Thumb>
+                    <S.Text>
+                      <S.Name title={creator.name}>
+                        <Highlighted text={creator.name} query={query} />
+                      </S.Name>
+                    </S.Text>
+                  </S.Row>
+                </li>
+              ))}
+            </S.List>
+          </S.Group>
+        ) : null}
 
-          {total > 0 ? (
-            <S.SeeAll
-              type="button"
-              data-testid="search-see-all"
-              {...option(suggestionRowId('see-all', query))}
-              onClick={() => onRunSearch(query)}
-            >
-              {t('search.seeAll', { count: total.toLocaleString() })}
-            </S.SeeAll>
-          ) : null}
-        </S.Listbox>
-      )}
+        {total > 0 ? (
+          <S.SeeAll
+            type="button"
+            data-testid="search-see-all"
+            {...option(suggestionRowId('see-all', query))}
+            onClick={() => activate(suggestionRowId('see-all', query), 'click')}
+          >
+            {t('search.seeAll', { count: total.toLocaleString() })}
+          </S.SeeAll>
+        ) : null}
+      </S.Listbox>
     </S.Pop>
   )
 }

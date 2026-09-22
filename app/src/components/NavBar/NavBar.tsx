@@ -139,9 +139,14 @@ export function NavBar() {
   // Keep the input in sync with the URL so deep-links, refresh, and back/forward all reflect the
   // active query in the box (the previous local-only state left it blank on /items?q=…).
   useEffect(() => {
+    cancelDebounce()
     setQ(urlQuery)
     setDebounced(urlQuery)
   }, [urlQuery])
+
+  // A keystroke's pending debounce must never outlive what the box shows: the timer is dropped by
+  // clearing, by a search, by a URL change, and on unmount.
+  useEffect(() => cancelDebounce, [])
 
   // Close the dropdown on outside-click or Escape (same pattern as CartPopover).
   useEffect(() => {
@@ -170,6 +175,7 @@ export function NavBar() {
   // current destination replaces it (see lib/searchHistory). Enter, "See all", a recent and a popular
   // search all come through here.
   function runSearch(value: string) {
+    cancelDebounce()
     const trimmed = value.trim()
     setOpen(false)
     if (trimmed) recordSearch(trimmed)
@@ -210,11 +216,16 @@ export function NavBar() {
     navigate(`/items/creator/${creator.address}`)
   }
 
+  function cancelDebounce() {
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = undefined
+  }
+
   function onSearchChange(value: string) {
     setQ(value)
     setOpen(true)
     setActiveIndex(NO_ACTIVE_ROW)
-    if (searchTimer.current) clearTimeout(searchTimer.current)
+    cancelDebounce()
     searchTimer.current = setTimeout(() => setDebounced(value.trim()), 300)
   }
 
@@ -223,6 +234,7 @@ export function NavBar() {
   // showing that query. It used to send everyone to /items, wherever they were. Only ever a reader's
   // action — the button or Escape — and reported as such when there was text to clear.
   function clearSearch() {
+    cancelDebounce()
     if (q.trim()) track('Shop Cleared Search', clearedSearchProps(pathname))
     setQ('')
     setDebounced('')
@@ -270,7 +282,6 @@ export function NavBar() {
         rows[activeIndex]?.activate('keyboard')
         return
       case 'submit':
-        if (searchTimer.current) clearTimeout(searchTimer.current)
         runSearch(q)
         return
       case 'close':
@@ -382,7 +393,8 @@ export function NavBar() {
                 enterKeyHint="search"
                 role="combobox"
                 aria-expanded={open}
-                aria-controls={SUGGESTIONS_LISTBOX_ID}
+                // Only while the listbox exists: a reference to a node that is not there is worse than none.
+                aria-controls={open ? SUGGESTIONS_LISTBOX_ID : undefined}
                 aria-autocomplete="list"
                 aria-activedescendant={activeRowId ?? undefined}
                 value={q}
