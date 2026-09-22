@@ -367,10 +367,16 @@ export async function endSale(
   await requireChain(signer.provider as ethers.providers.Web3Provider, sale.chainId)
   const contracts = findCouponContracts(sale.chainId, sale.couponManager)
   if (!contracts) {
-    throw new Error(`The sale's coupon manager ${sale.couponManager} is not one this build knows on chain ${sale.chainId}`)
+    throw new Error(
+      `The sale's coupon manager ${sale.couponManager} is not one this build knows on chain ${sale.chainId}`
+    )
   }
 
-  const manager = (deps.connect ?? connectCouponManager)(contracts.couponManager.address, contracts.couponManager.abi, signer)
+  const manager = (deps.connect ?? connectCouponManager)(
+    contracts.couponManager.address,
+    contracts.couponManager.abi,
+    signer
+  )
   const onChainCoupon = {
     signature: sale.signature,
     checks: {
