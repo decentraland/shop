@@ -1,3 +1,4 @@
+import { launchDesktopApp } from 'decentraland-ui2/dist/modules/jumpIn'
 import { config } from '~/config'
 import type { CatalogItem } from '~/lib/api'
 
@@ -27,4 +28,45 @@ export const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/ju
 export function backpackDeepLink(items: Array<Pick<CatalogItem, 'urn'>>): string {
   const urn = items.find(i => i.urn)?.urn
   return `decentraland://open?iap_enabled=true${urn ? `&urn=${encodeURIComponent(urn)}` : ''}`
+}
+
+/** A spot in world: "x,y" in Genesis City, and a `<name>.dcl.eth` realm for a World. */
+export type JumpTarget = { position?: string; realm?: string }
+
+// Only what the explorer can use: a parcel pair, and a World name. "main" or a catalyst name is Genesis
+// City, which is already where the explorer lands without one.
+function cleanTarget({ position, realm }: JumpTarget): JumpTarget {
+  return {
+    position: position && /^-?\d+,-?\d+$/.test(position) ? position : undefined,
+    realm: realm?.endsWith('.dcl.eth') ? realm : undefined
+  }
+}
+
+/** The web jump page for a spot, which handles the download and the mobile app itself. */
+export function jumpUrl(target: JumpTarget): string {
+  const { position, realm } = cleanTarget(target)
+  const params = new URLSearchParams()
+  if (position) params.set('position', position)
+  if (realm) params.set('realm', realm)
+  const qs = params.toString()
+  return qs ? `${JUMP_URL}?${qs}` : JUMP_URL
+}
+
+/**
+ * Opens the desktop client at a spot when it is installed, the same way decentraland.org does: fire the
+ * `decentraland://` link and watch whether the page loses focus. Otherwise (no client, or a touch device)
+ * it falls back to the jump page. Must run inside the click handler, since browsers only allow the
+ * protocol hand-off and the new tab from a user gesture.
+ */
+export async function jumpIn(target: JumpTarget): Promise<void> {
+  const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+  if (!touch) {
+    const opened = await launchDesktopApp({
+      ...cleanTarget(target),
+      ...(config.chainId === 80002 ? { dclenv: 'zone' } : {})
+    }).catch(() => false)
+    if (opened) return
+  }
+  // A popup blocker can refuse the tab once the launch attempt has used up the gesture; then go there here.
+  if (!window.open(jumpUrl(target), '_blank', 'noopener')) window.location.assign(jumpUrl(target))
 }

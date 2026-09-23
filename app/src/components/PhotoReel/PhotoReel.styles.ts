@@ -279,6 +279,11 @@ export const Big = styled.div`
   border-radius: ${radius.card};
   overflow: hidden;
   background: ${colors.text2};
+
+  /* Focused on open so the keyboard starts inside the dialog; the panel itself is not a control, so no ring. */
+  &:focus {
+    outline: none;
+  }
 `
 
 export const BigStage = styled.div`
@@ -392,21 +397,40 @@ export const BigMeta = styled.div`
   color: ${colors.muted2};
 `
 
-export const PlaceLink = styled.a`
+export const Place = styled.span`
+  min-width: 0;
+  color: ${colors.softWhite};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+// The same red Jump in the rest of Decentraland uses, with the glyph on its own plate at the end.
+export const JumpIn = styled.button`
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
+  height: 36px;
+  margin-left: 6px;
+  padding: 0 6px 0 14px;
+  border: 0;
+  border-radius: ${radius.btn};
+  background: ${colors.dclRed};
   color: ${colors.softWhite};
-  text-decoration: none;
-  border-radius: ${radius.pill};
-  padding: 3px 8px;
-  background: rgba(255, 255, 255, 0.08);
-  transition: background 0.15s ease;
-  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.15s ease;
 
+  & svg {
+    width: 24px;
+    height: 24px;
+  }
   &:hover {
-    background: rgba(255, 255, 255, 0.18);
-    text-decoration: underline;
+    filter: brightness(0.92);
   }
 `
 
