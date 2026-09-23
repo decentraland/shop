@@ -7,7 +7,8 @@ import { t } from '~/intl/i18n'
 import { capitalizeFirst } from '~/lib/text'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { formatPhotoDate } from '~/lib/dates'
-import { JUMP_URL } from '~/lib/jump'
+import { jumpIn } from '~/lib/jump'
+import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import { fetchLiveScenes, sceneKey } from '~/lib/places'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import type { CatalogItem } from '~/lib/api'
@@ -66,13 +67,6 @@ function creditsFor(photo: ReelPhoto): { wearer: Person; photographer: Person | 
   const photographer: Person = { address: photo.userAddress, name: photo.userName }
   if (!photo.wearerName) return { wearer: photographer, photographer: null }
   return { wearer: { address: photo.wearerAddress, name: photo.wearerName }, photographer }
-}
-
-function jumpUrl(photo: ReelPhoto): string {
-  const params = new URLSearchParams()
-  if (/^-?\d+,-?\d+$/.test(photo.position)) params.set('position', photo.position)
-  if (photo.realm.endsWith('.eth')) params.set('realm', photo.realm)
-  return `${JUMP_URL}?${params.toString()}`
 }
 
 /**
@@ -342,24 +336,22 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
               </S.Credit>
 
               <S.BigMeta>
-                {currentLive ? (
-                  <S.PlaceLink
-                    href={jumpUrl(current)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="photo-reel-jump"
-                    title={t('photoReel.jumpIn')}
-                  >
-                    {current.place}
-                    <Icon name="link-out" size={12} aria-hidden />
-                  </S.PlaceLink>
-                ) : (
-                  <S.Where>{current.place}</S.Where>
-                )}
+                <S.Place>{current.place}</S.Place>
                 <S.When>{formatPhotoDate(current.dateTime)}</S.When>
                 <S.Counter>
                   {(open ?? 0) + 1}/{photos.length}
                 </S.Counter>
+                {currentLive ? (
+                  <S.JumpIn
+                    type="button"
+                    onClick={() => void jumpIn({ position: current.position, realm: current.realm })}
+                    aria-label={t('photoReel.jumpIn')}
+                    data-testid="photo-reel-jump"
+                  >
+                    {t('photoReel.jumpInCta')}
+                    <JumpInIcon aria-hidden />
+                  </S.JumpIn>
+                ) : null}
               </S.BigMeta>
             </S.BigBar>
           </S.Big>
