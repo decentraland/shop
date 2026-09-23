@@ -128,7 +128,9 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: url("../images/background/DCL_LogoPattern.png") 0 0 repeat;
+  /* Lossy WebP is safe here and only here: the tile is painted at 3% opacity, so its worst compression
+     error lands under half a level on screen. The animated background uses a lossless copy instead. */
+  background: url("../images/background/DCL_LogoPattern.webp") 0 0 repeat;
   background-size: 610px 610px;
   opacity: 0.03;
   animation: symbol-drift 150s linear infinite;

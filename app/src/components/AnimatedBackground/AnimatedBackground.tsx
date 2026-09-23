@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import fallbackBackgroundUrl from '~/images/background/custom-welcome-background.webp'
-import overlayTextureUrl from '~/images/background/DCL_LogoPattern.png'
+// Lossless, unlike the page background's copy: the shader lays this over the colour field at 57% alpha
+// and scrolls it, so an edge artefact the page background hides at 3% would show here.
+import overlayTextureUrl from '~/images/background/DCL_LogoPattern-texture.webp'
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './AnimatedBackground.shaders'
 import { createProgram, createShader, loadTexture } from './AnimatedBackground.utils'
 import * as S from './AnimatedBackground.styles'

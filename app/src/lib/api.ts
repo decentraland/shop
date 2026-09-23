@@ -1,4 +1,3 @@
-import { ethers } from 'ethers'
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
@@ -149,10 +148,23 @@ type RawCatalogItem = {
 // USD-pegged price (USD wei) → whole credits (1 credit = $0.10), rounded UP so the shown price
 // matches what the buyer is charged (the server rounds the charge up to a whole credit too — see
 // design/DECISIONS.md "Model B"). Credits are always whole.
+// `ethers.utils.formatEther` without ethers, so this module — which the home page imports eagerly — does
+// not drag a 124 KB library into the first paint for one division. Builds the SAME exact decimal string
+// formatEther would and parses it the same way, so every rounding edge lands where it did before; a
+// float division here would not (the value is ceil'd right after, and double rounding moves boundaries).
+function weiToEther(wei: string): number {
+  const value = BigInt(wei)
+  const negative = value < 0n
+  const abs = negative ? -value : value
+  const whole = abs / 10n ** 18n
+  const fraction = (abs % 10n ** 18n).toString().padStart(18, '0').replace(/0+$/, '')
+  return Number(`${negative ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`)
+}
+
 function toCredits(price?: string | null): number {
   if (!price) return 0
   try {
-    return Math.ceil(Number(ethers.utils.formatEther(price)) * 10)
+    return Math.ceil(weiToEther(price) * 10)
   } catch {
     return 0
   }

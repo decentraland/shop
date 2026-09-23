@@ -32,7 +32,7 @@ vi.mock('decentraland-dapps/dist/modules/trades/TradeService', () => ({
   }
 }))
 
-// ethers stays REAL — toCredits() uses formatEther and usdWeiToCents() uses BigInt.
+// No ethers mock needed: toCredits() and usdWeiToCents() both do their arithmetic in BigInt.
 
 import {
   usdWeiToCents,
