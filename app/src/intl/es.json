@@ -427,7 +427,7 @@
     "zoomOut": "Clic para alejar",
     "jumpIn": "Ir a este lugar",
     "title": "Visto en Decentraland",
-    "subtitle": "{count, plural, one {# foto de alguien usándolo} other {# fotos de gente usándolo}}",
+    "subtitle": "Mira cómo lo lleva la comunidad.",
     "openAria": "Abrir la foto de {name} en {place}",
     "prev": "Fotos anteriores",
     "next": "Más fotos",

@@ -220,7 +220,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
     <S.Root data-testid="photo-reel">
       <S.Head>
         <S.Title>{t('photoReel.title')}</S.Title>
-        <S.Sub>{t('photoReel.subtitle', { count: photos.length })}</S.Sub>
+        <S.Sub>{t('photoReel.subtitle')}</S.Sub>
       </S.Head>
 
       <S.Strip data-photo-strip>

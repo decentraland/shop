@@ -20,18 +20,14 @@ export const Title = styled.h2`
 export const Sub = styled.p`
   margin-top: 4px;
   font-size: 13px;
-  color: ${colors.muted2};
+  color: rgba(252, 252, 252, 0.62);
 `
 
-/**
- * Full bleed: the strip cancels the page gutter and runs to both screen edges, so it reads as a band of
- * photographs rather than as another row of cards inside the column. No transform here — that would make
- * this the containing block for the nav buttons.
- */
+/** The column's width, like the carousels above it; the band itself is one rounded block of photographs. */
 export const Strip = styled.div`
   position: relative;
-  width: 100vw;
-  margin-left: calc(-50vw + 50%);
+  border-radius: ${radius.card};
+  overflow: hidden;
 `
 
 export const Track = styled.div`
@@ -207,8 +203,7 @@ export const Where = styled.span`
   white-space: nowrap;
 `
 
-// Floating over the band's own edges, since full bleed leaves no gutter to sit in. They fade in with
-// the band so the resting state is only photographs.
+// Floating over the band's own edges. They fade in with the band so the resting state is only photographs.
 export const Nav = styled.button`
   position: absolute;
   top: 50%;
