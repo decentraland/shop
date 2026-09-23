@@ -6,6 +6,7 @@ import {
   assetUrl,
   fetchCampaign,
   parseCollectionIds,
+  parseItemIds,
   isContentfulConfigured,
   localized,
   optimizeAssetUrl,
@@ -216,6 +217,56 @@ describe('contentful', () => {
       expect(parseCollectionIds(undefined)).toEqual([])
       expect(parseCollectionIds('')).toEqual([])
       expect(parseCollectionIds('   ')).toEqual([])
+    })
+  })
+
+  describe('when reading the individual items a campaign names', () => {
+    const A = '0x81a377fd28e619e4d794aefccc96acc232d17147'
+    const B = '0x9d40038a6272bd86c3b85fd0798a963278cb815d'
+
+    it('should split the composite ids an editor typed', () => {
+      expect(parseItemIds(`${A}-0,${B}-6`)).toEqual([`${A}-0`, `${B}-6`])
+    })
+
+    it('should tolerate the spaces and newlines the CMS editor inserts when it wraps', () => {
+      // Contentful's long-text editor reflows what you paste, so the saved value really does carry
+      // newlines and doubled spaces mid-list — measured on the live entry.
+      expect(parseItemIds(`${A}-0,\n  ${B}-6 , `)).toEqual([`${A}-0`, `${B}-6`])
+    })
+
+    it('should accept a marketplace URL, which is the shape marketing actually has to hand', () => {
+      expect(parseItemIds(`https://decentraland.org/marketplace/contracts/${A}/items/0`)).toEqual([`${A}-0`])
+    })
+
+    it('should accept URLs and bare ids in the same list', () => {
+      expect(parseItemIds(`https://decentraland.org/marketplace/contracts/${A}/items/0, ${B}-6`)).toEqual([
+        `${A}-0`,
+        `${B}-6`
+      ])
+    })
+
+    it('should lowercase the contract half, since every catalogue feed stores it that way', () => {
+      expect(parseItemIds(`${A.toUpperCase().replace('0X', '0x')}-0`)).toEqual([`${A}-0`])
+    })
+
+    it('should strip leading zeros, which would validate and then match nothing', () => {
+      // The server compares against a numeric column rendered without them, so `-007` is the malformed
+      // shape that looks right to whoever typed it.
+      expect(parseItemIds(`${A}-007`)).toEqual([`${A}-7`])
+    })
+
+    it('should drop anything that is not an item, keeping the rest', () => {
+      expect(parseItemIds(`${A}-0,oops,${B},${B}-x`)).toEqual([`${A}-0`])
+    })
+
+    it('should de-duplicate, since a URL and its bare id are the same item', () => {
+      expect(parseItemIds(`${A}-0,https://decentraland.org/marketplace/contracts/${A}/items/0`)).toEqual([`${A}-0`])
+    })
+
+    it('should return nothing for an empty or absent field', () => {
+      expect(parseItemIds(undefined)).toEqual([])
+      expect(parseItemIds('')).toEqual([])
+      expect(parseItemIds('   ')).toEqual([])
     })
   })
 

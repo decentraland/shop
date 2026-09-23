@@ -21,7 +21,16 @@ vi.mock('@tanstack/react-query', () => ({ useQuery }))
 import { useCampaignTheme, useCampaignThemeAttribute } from './useCampaignTheme'
 
 function aCampaign(mainTag: string | null): Campaign {
-  return { name: 'Halloween 2026', tabName: null, mainTag, tags: [], collections: [], banners: {}, assets: {} }
+  return {
+    name: 'Halloween 2026',
+    tabName: null,
+    mainTag,
+    tags: [],
+    collections: [],
+    items: [],
+    banners: {},
+    assets: {}
+  }
 }
 
 /** Arranges the three inputs the hook reads: the flag, the variant payload and the CMS campaign. */

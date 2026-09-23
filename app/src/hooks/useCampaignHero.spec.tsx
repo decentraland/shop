@@ -35,6 +35,7 @@ function aCampaign(bannerOverrides: Record<string, unknown> = {}, assets?: Recor
     mainTag: 'halloween',
     tags: ['halloween'],
     collections: [],
+    items: [],
     banners: {
       [SLOT]: {
         id: 'banner-1',

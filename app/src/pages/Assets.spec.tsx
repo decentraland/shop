@@ -423,6 +423,30 @@ describe('Assets — pinned to a set of collections', () => {
     expect((await lastShopItemsCall())!.contractAddresses).toBeUndefined()
   })
 
+  it('asks the on-sale feed for the individual items too', async () => {
+    renderAssets('/items', { itemIds: [`${A}-3`, `${B}-7`] })
+
+    expect((await lastShopItemsCall())!.itemIds).toEqual([`${A}-3`, `${B}-7`])
+  })
+
+  it('still queries when the collections resolved to none but items were named', async () => {
+    // The half of the rule that is easy to get wrong. `contracts: []` alone must not query, but alongside
+    // named items it means only that the collection lookup found nothing — and the items still stand.
+    renderAssets('/items', { contracts: [], itemIds: [`${A}-3`] })
+
+    const call = (await lastShopItemsCall())!
+    expect(call.itemIds).toEqual([`${A}-3`])
+    expect(call.contractAddresses).toBeUndefined()
+  })
+
+  it('asks for nothing at all when every set resolved to none', async () => {
+    renderAssets('/items', { contracts: [], itemIds: [] })
+
+    await screen.findByTestId('browse-empty')
+    expect(fetchShopItems).not.toHaveBeenCalled()
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+
   it('keeps the buyable grid when the reader searches', async () => {
     // Unpinned, a search flips Status to "everything", which swaps the unified feed for the full
     // catalogue one and its view-only cards.

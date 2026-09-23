@@ -57,6 +57,13 @@ export type AssetsProps = {
    */
   contracts?: string[]
   /**
+   * Individual items the grid is pinned to, as `<contract>-<itemId>`, UNIONED with `contracts`.
+   *
+   * Only the on-sale grid honours it: the full-catalogue endpoint has no equivalent filter, and the one
+   * caller that passes this (the event) pins Status to on-sale for unrelated reasons anyway.
+   */
+  itemIds?: string[]
+  /**
    * Drops the NAMEs destination from the filter panel — and, with it, from the categories the URL may
    * select. A NAME is a separate purchase, not part of a curated set of collections.
    */
@@ -67,7 +74,7 @@ export type AssetsProps = {
   lockStatus?: FilterStatus
 }
 
-export function Assets({ contracts, hideNames = false, seo, lockStatus }: AssetsProps = {}) {
+export function Assets({ contracts, itemIds, hideNames = false, seo, lockStatus }: AssetsProps = {}) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
@@ -157,7 +164,9 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
   //    passes isOnSale:false; 'all' leaves it unset (both).
   // Told apart from "no filter" deliberately: `undefined` is the whole catalogue, `[]` is a caller whose
   // set resolved to nothing.
-  const selectsNothing = contracts !== undefined && contracts.length === 0
+  // The selection is empty only when EVERY set the caller named is, so a campaign whose collection lookup
+  // came back empty still renders the loose items it named — which is how the server reads it too.
+  const selectsNothing = (contracts !== undefined || itemIds !== undefined) && !contracts?.length && !itemIds?.length
   const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
@@ -185,7 +194,8 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
     // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
     // they are not purchasable in the Shop.
     listingType: secondarySales ? undefined : ('primary' as const),
-    contractAddresses: contracts?.length ? contracts : undefined
+    contractAddresses: contracts?.length ? contracts : undefined,
+    itemIds: itemIds?.length ? itemIds : undefined
   }
   // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
   // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).
