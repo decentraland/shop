@@ -57,8 +57,10 @@ export type Fixtures = {
   importable: unknown
   shopListings: unknown
   collections: unknown
-  creatorNames: unknown
-  accounts: unknown
+  /** Ranked creators for the search dropdown (/v3/catalog/creators/search). */
+  creators: unknown
+  /** How many times `/v3/catalog/suggest` answers 500 before it answers at all — the dropdown's error path. */
+  suggestFailures?: number
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
@@ -96,8 +98,7 @@ function defaults(): Fixtures {
     importable: fx.importable,
     shopListings: fx.shopListings,
     collections: fx.collections,
-    creatorNames: fx.creatorNames,
-    accounts: fx.accounts,
+    creators: fx.creators,
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
@@ -743,6 +744,42 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
     // contractAddress / creator query param.
+    // The dropdown's one request (lib/search.ts → fetchSuggestions): items by the same name rule as the
+    // items feed, collections and creators from their fixtures, each row naming its creator the way the
+    // server does from the creator profiles (the fixture creator has a name; nobody else does).
+    if (path === '/v3/catalog/suggest') {
+      // Counted down on the run's own copy of the fixtures, so each launch starts afresh.
+      if ((F.suggestFailures ?? 0) > 0) {
+        F.suggestFailures = (F.suggestFailures ?? 0) - 1
+        return json(req, { ok: false, message: 'suggestions unavailable' }, 500)
+      }
+      const search = (u.searchParams.get('search') ?? '').trim().toLowerCase()
+      const size = (key: string, fallback: number) => Number(u.searchParams.get(key) ?? fallback)
+      const creatorName = (address: unknown) =>
+        String(address ?? '').toLowerCase() === fx.CREATOR_ADDRESS.toLowerCase() ? 'Galaxy Studio' : null
+      const matching = search
+        ? ((F.shopListings as { data: any[] }).data ?? [])
+            .map(toCatalogRow)
+            .filter(r => String(r.name).toLowerCase().includes(search))
+        : []
+      const items = matching.slice(0, size('items', 5)).map(r => ({ ...r, creatorName: creatorName(r.creator) }))
+      const collections = search
+        ? ((F.collections as { data: any[] }).data ?? [])
+            .filter(c => String(c.name).toLowerCase().includes(search))
+            .slice(0, size('collections', 4))
+            .map(c => ({ ...c, creatorName: creatorName(c.creator), items: 2, sales: 0 }))
+        : []
+      const creators = search
+        ? ((F.creators as { data: any[] }).data ?? [])
+            .filter(c => String(c.name).toLowerCase().includes(search))
+            .slice(0, size('creators', 4))
+        : []
+      return json(req, {
+        items: { data: items, total: matching.length },
+        collections: { data: collections },
+        creators: { data: creators }
+      })
+    }
     if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
@@ -771,13 +808,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       return json(req, { data: rows, total: rows.length })
     }
     if (path === '/v1/nfts') {
-      // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
-      if (u.searchParams.get('category') === 'ens') {
-        let names = (F.creatorNames as { data: any[] }).data ?? []
-        const search = u.searchParams.get('search')?.toLowerCase()
-        if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
-        return json(req, { data: names, total: names.length })
-      }
       // Owner-scoped (?owner=) vs PUBLIC token lookup (?contractAddress=&tokenId=) are different
       // questions: a buyer owns nothing yet the token still exists. Answering both from one fixture made
       // the non-owner path untestable — the viewer always looked like the owner.
@@ -788,13 +818,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         return json(req, { data: match, total: match.length })
       }
       return json(req, F.ownedNfts)
-    }
-    // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
-    if (path === '/v1/accounts') {
-      const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
-      let rows = (F.accounts as { data: any[] }).data ?? []
-      if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
-      return json(req, { data: rows, total: rows.length })
     }
     // Creator sales (lib/coupons). The POST answers the way marketplace-server does — the stored coupon with
     // its id, status and initial on-chain state — and the GET returns everything this run has stored.
@@ -869,6 +892,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
     // i.e. the section rendered its skeletons and then removed itself.
     if (path === '/v3/catalog/creators') return json(req, F.rankings)
+    // Creator suggestions (lib/search.ts → fetchCreatorSuggestions): the fixture creators whose name
+    // contains the query, the way the server's ranked search would answer.
+    if (path === '/v3/catalog/creators/search') {
+      const search = u.searchParams.get('search')?.toLowerCase() ?? ''
+      const rows = ((F.creators as { data: any[] }).data ?? []).filter(c =>
+        String(c.name).toLowerCase().includes(search)
+      )
+      return json(req, { data: rows })
+    }
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     // Save counts, read in bulk for everything on screen. They move with the run's accumulator, so
     // hearting an item raises its number.

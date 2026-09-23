@@ -333,12 +333,12 @@ describe('featureFlags', () => {
         json: () =>
           Promise.resolve({
             flags: {},
-            variants: { 'dapps-shop-prelaunch': { enabled: true, payload: { value: ADDR_B } } }
+            variants: { 'dapps-shop-names': { enabled: true, payload: { value: ADDR_B } } }
           })
       })
       vi.stubGlobal('fetch', fetchMock)
 
-      await expect(getAddressListVariant(FeatureFlag.SHOP_PRELAUNCH)).resolves.toEqual([ADDR_B])
+      await expect(getAddressListVariant(FeatureFlag.SHOP_NAMES)).resolves.toEqual([ADDR_B])
       expect(fetchMock).toHaveBeenCalled()
     })
   })

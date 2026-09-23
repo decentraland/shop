@@ -53,7 +53,13 @@
     "creators": "Creadores",
     "collections": "Colecciones",
     "items": "Artículos",
-    "byCreator": "Por {name}"
+    "byCreator": "Por {name}",
+    "popular": "Búsquedas populares",
+    "explore": "Explorar",
+    "noEntities": "Sin ítems, colecciones ni creadores para “{query}”",
+    "error": "No pudimos cargar las sugerencias.",
+    "retry": "Probar de nuevo",
+    "suggestionCount": "{count, plural, one {# sugerencia} other {# sugerencias}}"
   },
   "common": {
     "copy": "Copiar",
@@ -166,12 +172,6 @@
     "title": "Página no encontrada",
     "body": "La página que buscas no está aquí. Volvamos a la tienda.",
     "cta": "Ver coleccionables"
-  },
-  "prelaunch": {
-    "title": "Estamos preparando la tienda",
-    "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — vuelve muy pronto.",
-    "connected": "Las cuentas con acceso anticipado verán la tienda aquí.",
-    "signIn": "Iniciar sesión"
   },
   "cart": {
     "empty": {
@@ -893,6 +893,7 @@
     "continueShopping": "Seguir comprando"
   },
   "filterBar": {
+    "sortRelevance": "Relevancia",
     "sortNewest": "Más recientes",
     "sortCheapest": "Más baratos",
     "sortMostExpensive": "Más caros",

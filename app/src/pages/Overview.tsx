@@ -300,7 +300,10 @@ export function Overview() {
             wide banner — the mobile frame is a different composition, not a resize. */}
         <picture>
           <source media="(max-width: 768px)" srcSet={campaignHero?.mobileImage ?? heroBannerMobile} />
-          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden />
+          {/* This is the page's LCP element, and the build-time preload in vite.config.ts switches on the
+              SAME `(max-width: 768px)` query this <source> does. Change the breakpoint here and change it
+              there, or a phone preloads an image it never shows. */}
+          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden fetchpriority="high" />
         </picture>
         {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second

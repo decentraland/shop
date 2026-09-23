@@ -576,8 +576,9 @@ function shopListingToItem(raw: ShopListingRaw): CatalogItem {
 }
 
 // `discount` orders by the sale's percentage off (largest first), then by soonest-ending; rows without a
-// live sale trail. Only meaningful together with `discounted: true`.
-export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name' | 'discount'
+// live sale trail. Only meaningful together with `discounted: true`. `relevance` ranks a search by how well
+// each item matches the query; without a search the server treats it as `newest`.
+export type ShopSort = 'newest' | 'cheapest' | 'most_expensive' | 'name' | 'discount' | 'relevance'
 
 export type ShopListingFilters = {
   category?: string

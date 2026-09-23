@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { t } from '~/intl/i18n'
-import { type IconName } from '~/components/Icon'
+import { CATEGORIES, type Sub, type Top } from '~/lib/categories'
 import { Chevron } from '~/components/Chevron'
 import * as S from './CategoryFilter.styles'
 import { theme } from '~/styles/theme'
@@ -11,77 +11,13 @@ import { theme } from '~/styles/theme'
 // are globally unique so they map cleanly to Assets' SUBCAT_MAP (which resolves both wearable and
 // emote on-chain categories — the server filters on a coalesced wearable/emote category column).
 
-// `key` drives filter state + SUBCAT_MAP lookups (Assets/Creator) and must NOT change; `labelKey`
-// is the i18n key resolved with t() at render (never at module load — that would freeze the locale).
-// Head and Accessories nest one level deeper (Figma 2212:99919): they are selectable rows in their own
-// right AND expand into the on-chain categories beneath them. A third level needs no new filter state —
-// sub keys are globally unique, so a level-three key resolves through the same SUBCAT_MAP lookup and the
-// same `subCategory` value as a level-two one.
-type SubSub = { key: string; labelKey: string; icon: IconName }
-type Sub = { key: string; labelKey: string; icon: IconName; expandable?: boolean; subs?: SubSub[] }
-type Top = { key: string; labelKey: string; expandable?: boolean; subs?: Sub[] }
+export { CATEGORIES } from '~/lib/categories'
 
-export const CATEGORIES: Top[] = [
-  { key: 'all', labelKey: 'categories.shopAll' },
-  {
-    key: 'wearable',
-    labelKey: 'categories.wearables',
-    expandable: true,
-    subs: [
-      {
-        key: 'Head',
-        labelKey: 'categories.head',
-        icon: 'cat-head',
-        expandable: true,
-        subs: [
-          { key: 'Facial Hair', labelKey: 'categories.facialHair', icon: 'cat-facial-hair' },
-          { key: 'Hair', labelKey: 'categories.hair', icon: 'cat-hair' },
-          { key: 'Eyes', labelKey: 'categories.eyes', icon: 'cat-eyes' },
-          { key: 'Eyebrows', labelKey: 'categories.eyebrows', icon: 'cat-eyebrows' },
-          { key: 'Mouth', labelKey: 'categories.mouth', icon: 'cat-mouth' }
-        ]
-      },
-      { key: 'Upper Body', labelKey: 'categories.upperBody', icon: 'cat-upper' },
-      { key: 'Handwear', labelKey: 'categories.handwear', icon: 'cat-handwear' },
-      { key: 'Lower Body', labelKey: 'categories.lowerBody', icon: 'cat-lower' },
-      { key: 'Feet', labelKey: 'categories.feet', icon: 'cat-feet' },
-      {
-        key: 'Accessories',
-        labelKey: 'categories.accessories',
-        icon: 'cat-accessories',
-        expandable: true,
-        subs: [
-          { key: 'Earring', labelKey: 'categories.earring', icon: 'cat-earring' },
-          { key: 'Eyewear', labelKey: 'categories.eyewear', icon: 'cat-eyewear' },
-          { key: 'Hat', labelKey: 'categories.hat', icon: 'cat-hat' },
-          { key: 'Helmet', labelKey: 'categories.helmet', icon: 'cat-helmet' },
-          { key: 'Mask', labelKey: 'categories.mask', icon: 'cat-mask' },
-          { key: 'Tiara', labelKey: 'categories.tiara', icon: 'cat-tiara' },
-          { key: 'Top Head', labelKey: 'categories.topHead', icon: 'cat-top-head' }
-        ]
-      },
-      { key: 'Skins', labelKey: 'categories.skins', icon: 'cat-skins' }
-    ]
-  },
-  {
-    key: 'emote',
-    labelKey: 'categories.emotes',
-    expandable: true,
-    subs: [
-      { key: 'Dance', labelKey: 'categories.dance', icon: 'emote-dance' },
-      { key: 'Stunt', labelKey: 'categories.stunt', icon: 'emote-stunt' },
-      { key: 'Greetings', labelKey: 'categories.greetings', icon: 'emote-greetings' },
-      { key: 'Fun', labelKey: 'categories.fun', icon: 'emote-fun' },
-      { key: 'Poses', labelKey: 'categories.poses', icon: 'emote-poses' },
-      { key: 'Reactions', labelKey: 'categories.reactions', icon: 'emote-reactions' },
-      { key: 'Horror', labelKey: 'categories.horror', icon: 'emote-horror' },
-      { key: 'Miscellaneous', labelKey: 'categories.miscellaneous', icon: 'emote-misc' }
-    ]
-  },
-  // NAMEs is a distinct destination (not a collectibles filter): selecting it swaps the grid for the
-  // NAMEs purchase page (see Assets.tsx). No sub-categories.
-  { key: 'names', labelKey: 'categories.names' }
-]
+function parentOfLeaf(key: string | null): string | null {
+  for (const top of CATEGORIES)
+    for (const sub of top.subs ?? []) if (sub.subs?.some(leaf => leaf.key === key)) return sub.key
+  return null
+}
 
 export function CategoryFilter({
   category,
@@ -118,11 +54,24 @@ export function CategoryFilter({
 }) {
   // Accordion state is separate from the active category so clicking an open header collapses it
   // (the old derive-from-category approach couldn't close). Wearables starts open when it's active.
-  const [expandedKey, setExpandedKey] = useState<string | null>(() => (category === 'wearable' ? 'wearable' : null))
+  const [expandedKey, setExpandedKey] = useState<string | null>(() =>
+    CATEGORIES.some(top => top.key === category && top.subs) ? category : null
+  )
   // Second accordion, for the level-two rows that nest (Head, Accessories). Kept separate from
   // `expandedKey` rather than folded into one value: the two levels are open at the same time, since a
   // level-three row can only be reached through its already-open parent.
-  const [expandedSubKey, setExpandedSubKey] = useState<string | null>(null)
+  // A level-three key reached by URL (a shared link, a search facet) starts with its parent open, or the
+  // selected row would be folded out of sight.
+  const [expandedSubKey, setExpandedSubKey] = useState<string | null>(() => parentOfLeaf(subCategory))
+
+  // The accordion follows the filter whenever the filter changes from OUTSIDE — a search facet, a URL, Back
+  // — with the sidebar already mounted: the sections holding the active row open. Keyed on the filter
+  // values, not on renders, so a section folded by hand stays folded until the filter next changes.
+  useEffect(() => {
+    if (CATEGORIES.some(top => top.key === category && top.subs)) setExpandedKey(category)
+    const parent = parentOfLeaf(subCategory)
+    if (parent) setExpandedSubKey(parent)
+  }, [category, subCategory])
 
   // Clicking a nesting row both selects it and toggles its children — same bargain `clickTop` strikes,
   // so Head stays a usable filter on its own instead of becoming a folder you cannot pick.
@@ -166,7 +115,7 @@ export function CategoryFilter({
             </S.Cat>
 
             {top.subs ? (
-              <S.Subs data-open={open || undefined}>
+              <S.Subs data-subs data-open={open || undefined}>
                 <S.SubsInner>
                   {top.subs.map(sub => {
                     const subOpen = expandedSubKey === sub.key && !!sub.subs
@@ -188,7 +137,7 @@ export function CategoryFilter({
                         </S.Sub>
 
                         {sub.subs ? (
-                          <S.Subs data-open={subOpen || undefined}>
+                          <S.Subs data-subs data-open={subOpen || undefined}>
                             <S.SubsInner>
                               {sub.subs.map(leaf => (
                                 <S.SubSub

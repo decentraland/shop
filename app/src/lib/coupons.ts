@@ -2,12 +2,13 @@ import { ethers } from 'ethers'
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { ChainId, Network, type TradeChecks } from '@dcl/schemas'
-import { ContractName, getContract } from 'decentraland-transactions'
+import { ContractName, getContract, getContractName, getCouponManager } from 'decentraland-transactions'
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree'
 import { config } from '~/config'
 import { readProvider } from '~/lib/authorizations'
 import { requireChain } from '~/lib/network'
 import { amoyGasOverrides } from '~/lib/trade-encoding'
+import { getLatestOffChainMarketplaceContract, OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES } from '~/lib/marketplace'
 import { OFFCHAIN_MARKETPLACE_TYPES } from '~/lib/trades'
 
 // A creator sale is a signed discount coupon over the creator's collections: the marketplace applies it to
@@ -65,34 +66,63 @@ export type CouponContracts = {
   collectionDiscountCoupon: string
 }
 
-// Polygon mainnet is wired on-chain and listed in the public contracts registry, but the transactions library
-// version this app pins predates its entry. Remove this map, and the catch branch that reads it, once
-// `decentraland-transactions` is bumped to a release that includes `CouponManager` and `CollectionDiscountCoupon`
-// for `ChainId.MATIC_MAINNET` (added in decentraland/decentraland-transactions#136): from then on `getContract`
-// answers for mainnet and the fallback is dead code.
-const MAINNET_FALLBACK = {
-  couponManager: '0x3fd3056ee72a2a85e9392fab3a450e7736536081',
-  collectionDiscountCoupon: '0xc914507fe297b2dddd1232ac3a8903f1c125e794'
-}
-
-/** The coupon deployments for a chain, or null where collections (and so coupons) do not exist. */
+/**
+ * The coupon deployments for a chain, or null where collections (and so coupons) do not exist.
+ *
+ * The manager comes from the marketplace a listing is signed against, not from the chain. Each version
+ * trusts its own manager and a coupon is only redeemable on the marketplace wired to the one that
+ * signed it, so while two versions are live the question "the coupon manager here" has two answers.
+ * Taking the manager of the version the shop actually lists on is what keeps a creator's sale
+ * redeemable against the listings it is meant to discount.
+ *
+ * `ContractName.CouponManager` would answer for the chain, and on Polygon mainnet it still names the
+ * manager of the version before the current one, which is exactly the wrong one.
+ *
+ * This is for signing a NEW sale. A persisted sale belongs to whichever manager signed it, which is what
+ * `findCouponContracts` answers.
+ */
 export function getCouponContracts(chainId: ChainId): CouponContracts | null {
   try {
-    const manager = getContract(ContractName.CouponManager, chainId)
+    const marketplace = getLatestOffChainMarketplaceContract(chainId)
+    const manager = getCouponManager(getContractName(marketplace.address), chainId)
     const coupon = getContract(ContractName.CollectionDiscountCoupon, chainId)
     return {
       couponManager: { address: manager.address, name: manager.name, version: manager.version, abi: manager.abi },
       collectionDiscountCoupon: coupon.address
     }
   } catch {
-    if (chainId !== ChainId.MATIC_MAINNET) return null
-    // The ABI is the same bytecode on every chain; the Amoy entry is the one the library ships.
-    const { abi } = getContract(ContractName.CouponManager, ChainId.MATIC_AMOY)
-    return {
-      couponManager: { address: MAINNET_FALLBACK.couponManager, name: 'CouponManager', version: '1.0.0', abi },
-      collectionDiscountCoupon: MAINNET_FALLBACK.collectionDiscountCoupon
+    return null
+  }
+}
+
+/**
+ * The coupon deployment of `chainId` whose manager is `address`, or null when this build's registry pairs no
+ * marketplace version with it. A sale's row names the manager it was signed against; this is what says the
+ * registry vouches for that address before a transaction is sent to it.
+ */
+export function findCouponContracts(chainId: ChainId, address: string): CouponContracts | null {
+  const wanted = address.toLowerCase()
+  let coupon: string
+  try {
+    coupon = getContract(ContractName.CollectionDiscountCoupon, chainId).address
+  } catch {
+    return null
+  }
+  for (const marketplace of OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES) {
+    try {
+      const manager = getCouponManager(marketplace, chainId)
+      if (manager.address.toLowerCase() === wanted) {
+        return {
+          couponManager: { address: manager.address, name: manager.name, version: manager.version, abi: manager.abi },
+          collectionDiscountCoupon: coupon
+        }
+      }
+    } catch {
+      // This version has no manager on the chain, so it cannot be the one.
+      continue
     }
   }
+  return null
 }
 
 /** Lower-cased, de-duplicated, so the same set of collections always hashes to the same root. */
@@ -314,24 +344,39 @@ type CouponManagerContract = ethers.Contract & {
   cancelSignature(coupons: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
 }
 
+/** Connects the manager the wallet is about to send `cancelSignature` to. Injectable so a spec can watch which one. */
+const connectCouponManager = (address: string, abi: ethers.ContractInterface, signer: ethers.Signer) =>
+  new ethers.Contract(address, abi, signer) as CouponManagerContract
+
 /**
  * End a sale early: `CouponManager.cancelSignature` from the creator's wallet. The wallet broadcasts it, so
  * it has to be on the sale's chain already; like ending a listing, this only checks and never switches.
  * The catalogue stops applying the coupon as soon as the server's next state read sees the cancellation.
+ *
+ * Cancelled on the manager the sale was SIGNED against, not the one new sales sign against today. Each
+ * marketplace version keeps its own manager and `cancelSignature` only writes to the one it is sent to, so
+ * cancelling a sale on another manager succeeds and changes nothing where the coupon redeems: the sale
+ * would stay live. The sale's row names its manager; the registry has to vouch for that address before the
+ * wallet sends anything to it.
  */
-export async function endSale(opts: { sale: CreatorSale; signer: ethers.Signer }): Promise<string> {
+export async function endSale(
+  opts: { sale: CreatorSale; signer: ethers.Signer },
+  deps: { connect?: typeof connectCouponManager } = {}
+): Promise<string> {
   const { sale, signer } = opts
   await requireChain(signer.provider as ethers.providers.Web3Provider, sale.chainId)
-  const contracts = getCouponContracts(sale.chainId)
-  if (!contracts) throw new Error(`Coupons are not available on chain ${sale.chainId}`)
+  const contracts = findCouponContracts(sale.chainId, sale.couponManager)
+  if (!contracts) {
+    throw new Error(
+      `The sale's coupon manager ${sale.couponManager} is not one this build knows on chain ${sale.chainId}`
+    )
+  }
 
-  // The manager address comes from this build's contract registry, never from the API row: the wallet is about to
-  // send a transaction to it, and the server's copy is only there to describe the sale.
-  const manager = new ethers.Contract(
+  const manager = (deps.connect ?? connectCouponManager)(
     contracts.couponManager.address,
     contracts.couponManager.abi,
     signer
-  ) as CouponManagerContract
+  )
   const onChainCoupon = {
     signature: sale.signature,
     checks: {
