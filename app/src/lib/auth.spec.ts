@@ -199,6 +199,95 @@ describe('when logging in', () => {
   })
 })
 
+/**
+ * A restore after a thirdweb managed-wallet sign-in whose auth token is gone cannot succeed, but trying still
+ * builds thirdweb's whole embedded-wallet iframe. These pin that the check skips ONLY that case.
+ */
+describe('when the last sign-in was a thirdweb managed wallet', () => {
+  const CONNECTION_KEY = 'decentraland-connect-storage-key'
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  describe('and no thirdweb auth token is left', () => {
+    beforeEach(() => {
+      localStorage.setItem(CONNECTION_KEY, JSON.stringify({ providerType: ProviderType.THIRDWEB, chainId: 137 }))
+    })
+
+    it('should resolve signed out without trying to reconnect', async () => {
+      await expect(restoreSession()).resolves.toBeNull()
+      expect(tryPreviousConnection).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and a thirdweb auth token is still stored', () => {
+    beforeEach(() => {
+      localStorage.setItem(CONNECTION_KEY, JSON.stringify({ providerType: ProviderType.THIRDWEB, chainId: 137 }))
+      localStorage.setItem('walletToken-someclient', 'token')
+      tryPreviousConnection.mockResolvedValue({
+        account: '0xDEAD0000000000000000000000000000000000AA',
+        provider: {},
+        chainId: 137,
+        providerType: ProviderType.THIRDWEB
+      })
+      localStorageGetIdentity.mockReturnValue(STORED_IDENTITY)
+    })
+
+    it('should restore the session as before', async () => {
+      const session = await restoreSession()
+
+      expect(tryPreviousConnection).toHaveBeenCalled()
+      expect(session?.providerType).toBe(ProviderType.THIRDWEB)
+    })
+  })
+
+  describe('and the stored connection data is unreadable', () => {
+    beforeEach(() => {
+      localStorage.setItem(CONNECTION_KEY, '{not json')
+      tryPreviousConnection.mockResolvedValue({
+        account: null,
+        provider: {},
+        chainId: 137,
+        providerType: ProviderType.INJECTED
+      })
+    })
+
+    // Not our call to make: the connection library has always decided what a malformed entry means.
+    it('should leave the decision to the connection library', async () => {
+      await restoreSession()
+
+      expect(tryPreviousConnection).toHaveBeenCalled()
+    })
+  })
+})
+
+describe('when the last sign-in was any other wallet', () => {
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  beforeEach(() => {
+    localStorage.setItem(
+      'decentraland-connect-storage-key',
+      JSON.stringify({ providerType: ProviderType.INJECTED, chainId: 137 })
+    )
+    tryPreviousConnection.mockResolvedValue({
+      account: null,
+      provider: {},
+      chainId: 137,
+      providerType: ProviderType.INJECTED
+    })
+  })
+
+  // No thirdweb token is expected for these, so its absence must not be read as anything.
+  it('should try to reconnect even with no thirdweb token stored', async () => {
+    await restoreSession()
+
+    expect(tryPreviousConnection).toHaveBeenCalled()
+  })
+})
+
 describe('when restoring a previous session', () => {
   it('should rebuild the session from a prior connection with a stored identity', async () => {
     tryPreviousConnection.mockResolvedValue({
