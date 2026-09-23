@@ -1,9 +1,10 @@
 import { useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
+import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { useProfile } from '~/hooks/useProfile'
 import { useSuggestedForYouEnabled } from '~/hooks/useSuggestedForYouEnabled'
-import { fetchSuggestedItems, type SuggestedItemsResult } from '~/lib/api'
+import { fetchSuggestedItems, type SuggestedItem, type SuggestedItemsResult } from '~/lib/api'
 import { avatarShape } from '~/lib/bodyShape'
 import { getRecentlyViewed } from '~/lib/recently-viewed'
 import { buildSuggestionSeeds, seedsKey } from '~/lib/suggestionSeeds'
@@ -12,6 +13,9 @@ import { useWallet } from '~/store/wallet'
 
 /** Equipped wearables and emote slots the Catalyst profile reports, capped the way the server caps them. */
 const MAX_EQUIPPED = 30
+
+// A stable empty list: an inline `[]` while loading would hand the re-pricer a new array every render.
+const NO_ITEMS: SuggestedItem[] = []
 
 export type SuggestedForYou = {
   result?: SuggestedItemsResult
@@ -109,8 +113,13 @@ export function useSuggestedForYou(first = 12, options: { exclude?: string[] } =
     }
   })
 
+  // Re-priced here rather than in the rail so every consumer of this hook gets it: the server's credit figure
+  // for a MANA-denominated row is a snapshot, and the rails beside this one all show the live conversion.
+  const pricedItems = useLivePricedItems(data?.data ?? NO_ITEMS)
+  const result = useMemo(() => (data ? { ...data, data: pricedItems } : undefined), [data, pricedItems])
+
   return {
-    result: data,
+    result,
     isLoading: enabled && hasSignal && isLoading,
     isError,
     enabled,
