@@ -1,17 +1,21 @@
-/**
- * `ethers`, loaded on first use instead of in the entry chunk.
- *
- * Six modules the home page imports eagerly used to import it statically, which put 124 KB of it on the
- * critical path of a first paint that needs none of it — every runtime use is inside something async that
- * runs later (a balance read, an oracle read, restoring a session). Type imports stay static and cost
- * nothing at runtime.
- *
- * One shared promise rather than an `import()` per call site: concurrent callers wait on the same load,
- * and it also stops vitest from handing one of two racing imports the un-mocked module.
- */
-let loading: Promise<typeof import('ethers')> | undefined
+type EthersModule = typeof import('ethers')
 
-export async function loadEthers(): Promise<(typeof import('ethers'))['ethers']> {
-  loading ??= import('ethers')
-  return (await loading).ethers
+/**
+ * A loader for `ethers` that shares one in-flight import between concurrent callers and forgets a failed
+ * one, so a later call retries. Exported for its spec; the app uses `loadEthers`.
+ */
+export function createEthersLoader(importer: () => Promise<EthersModule> = () => import('ethers')) {
+  let loading: Promise<EthersModule> | undefined
+  return async function load(): Promise<EthersModule['ethers']> {
+    loading ??= importer().catch((error: unknown) => {
+      // A chunk that fails once (a blip, or a hash invalidated by a deploy) must not break every later
+      // balance read and sign-in until the page is reloaded.
+      loading = undefined
+      throw error
+    })
+    return (await loading).ethers
+  }
 }
+
+/** `ethers`, loaded on first use rather than in the entry chunk — every runtime use is already async. */
+export const loadEthers = createEthersLoader()
