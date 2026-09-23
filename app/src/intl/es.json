@@ -420,6 +420,19 @@
       "generic": "No pudimos completar la compra. Inténtalo de nuevo."
     }
   },
+  "photoReel": {
+    "wornBy": "Lo lleva",
+    "photoBy": "Foto de",
+    "zoomIn": "Clic para ampliar",
+    "zoomOut": "Clic para alejar",
+    "jumpIn": "Ir a este lugar",
+    "title": "Visto en Decentraland",
+    "subtitle": "{count, plural, one {# foto de alguien usándolo} other {# fotos de gente usándolo}}",
+    "openAria": "Abrir la foto de {name} en {place}",
+    "prev": "Fotos anteriores",
+    "next": "Más fotos",
+    "close": "Cerrar"
+  },
   "itemDetail": {
     "genderMale": "Masculino",
     "genderFemale": "Femenino",

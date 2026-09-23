@@ -57,6 +57,7 @@ import { t } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { PhotoReel } from '~/components/PhotoReel'
 import { ResellersModal } from '~/components/ResellersModal'
 import { MarketplaceRedirectModal } from '~/components/MarketplaceRedirectModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
@@ -1936,6 +1937,9 @@ export function ItemDetail() {
           }
         />
       )}
+
+      {/* Photos of people wearing it, in world. Renders nothing when there are none. */}
+      <PhotoReel item={current} />
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout

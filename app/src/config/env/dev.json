@@ -2,6 +2,8 @@
   "ENVIRONMENT": "development",
   "CHAIN_ID": "80002",
   "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.zone",
+  "CAMERA_REEL_URL": "https://camera-reel-service.decentraland.zone",
+  "PLACES_API_URL": "https://places.decentraland.zone/api",
   "AUTH_URL": "/auth",
   "RPC_URL": "https://rpc.decentraland.org/amoy",
   "ETHEREUM_CHAIN_ID": "11155111",
