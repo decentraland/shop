@@ -1476,6 +1476,18 @@ export const ManaMark = styled.img`
   margin-right: 3px;
 `
 
+/** The development preview's own strip, on the purple field rather than on a white panel. */
+export const Preview = styled.p`
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px dashed rgba(252, 252, 252, 0.32);
+  border-radius: ${theme.radius.btn};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: rgba(252, 252, 252, 0.72);
+  word-break: break-all;
+`
+
 export const More = styled.button`
   display: block;
   width: 100%;

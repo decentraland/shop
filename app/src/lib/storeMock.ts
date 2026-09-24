@@ -5,8 +5,8 @@ import type { Buyer, Collectors } from '~/lib/storeMetrics'
 /**
  * A store invented for looking at, reachable at `/my-store?mock=1`.
  *
- * Off on production and on staging, on every other deployment — see `previewHost` in src/config for why
- * that check is a runtime one.
+ * Off on production and on staging, on every other deployment, gated the same way `?viewAs=` is — see
+ * `previewHost` in src/config for why that check is a runtime one.
  *
  * It exists because the states this page has to get right are the ones no real store shows at once. A
  * creator either has a discount running or does not; a real account cannot be sold out, discounted, quiet

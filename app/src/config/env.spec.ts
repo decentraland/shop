@@ -72,8 +72,8 @@ describe('per-env config JSONs', () => {
 })
 
 /**
- * The host check behind `config.previewHost`, which decides whether `?mock=1`, `?ff=` and `?ffv=` are
- * honoured. A wrong answer opens those overrides on the live Shop, so the cases below are the
+ * The host check behind `config.previewHost`, which decides whether `?viewAs=`, `?mock=1`, `?ff=` and
+ * `?ffv=` are honoured. A wrong answer opens those overrides on the live Shop, so the cases below are the
  * gate's contract rather than illustrations of it.
  */
 describe('isPreviewHost', () => {

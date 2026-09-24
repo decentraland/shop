@@ -4,6 +4,7 @@ import { countSales, fetchSalesSummary, fetchSellerSales, weiOf } from '~/lib/sa
 import { collectorsOf, daysSinceLastSale, deltaOf, deltaOfWei, topBuyers } from '~/lib/storeMetrics'
 import { fetchFavoriteStats } from '~/lib/favorites'
 import { fetchPublishableItems } from '~/lib/builder'
+import { fetchPublicCatalogue } from '~/lib/storePreview'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
 import { toSaleableCollections } from '~/lib/saleableCollections'
@@ -30,8 +31,8 @@ const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: nu
  * is why they run unconditionally rather than behind it: a degraded page that reports the most recent
  * sales is worth more than one that reports nothing.
  */
-export function useStoreStats(session: Session | null, period: StorePeriod) {
-  const address = session?.address
+export function useStoreStats(session: Session | null, period: StorePeriod, viewAs?: string | null) {
+  const address = viewAs ?? session?.address
   const days = WINDOW[period]
   // Pinned to the day so the key does not change on every render and refetch the window each time.
   const now = useMemo(() => Math.floor(Date.now() / DAY_MS) * DAY_MS + DAY_MS - 1, [])
@@ -80,9 +81,12 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
   })
 
   const catalogue = useQuery({
-    queryKey: ['store-catalogue', address],
-    enabled: !!address && !!session,
-    queryFn: () => fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
+    queryKey: ['store-catalogue', address, !!viewAs],
+    enabled: !!address && (!!viewAs || !!session),
+    queryFn: () =>
+      viewAs
+        ? fetchPublicCatalogue(viewAs)
+        : fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
   })
 
   const addresses = useMemo(
