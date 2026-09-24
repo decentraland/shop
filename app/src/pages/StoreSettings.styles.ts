@@ -16,12 +16,9 @@ export const Loading = styled(Spinner)`
 // The store editor page. Uses the shared Field primitive (~/styles/field.styles); the label/textarea
 // tweaks below target its descendants.
 export const Root = styled.section`
-  max-width: 640px;
-  margin: 0 auto;
   padding: 8px 0 48px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
   color: ${colors.softWhite};
 
   & .field__label {
@@ -37,6 +34,41 @@ export const Root = styled.section`
     font: inherit;
     resize: vertical;
     min-height: 88px;
+  }
+`
+
+/**
+ * The surface the whole page rests on, title included.
+ *
+ * LIGHTER than the page, not darker. Sampled either side of its edge in the design, the card is up to
+ * (+24, +16, +35) against the background at every height — the panels on the dashboard darken their
+ * surface, this one lifts it, and getting that backwards is what made the first attempt read wrong.
+ */
+export const Card = styled.div`
+  padding: 32px 0;
+  border-radius: ${radius.banner};
+  background: ${colors.cardLift};
+
+  ${media.maxWidth('mobile')} {
+    padding: 20px 0;
+  }
+`
+
+/**
+ * The column the form actually occupies: about 70% of the card, which is where the design puts it.
+ *
+ * The card is page-wide but a full-width text input is not a form, it is a ruler.
+ */
+export const Inner = styled.div`
+  max-width: 950px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  ${media.maxWidth('mobile')} {
+    padding: 0 16px;
   }
 `
 

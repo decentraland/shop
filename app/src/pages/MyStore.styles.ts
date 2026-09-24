@@ -31,16 +31,30 @@ export const Root = styled.div`
 
 export const Masthead = styled.header`
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
+  /* The rule that closes the identity block off from the figures under it. */
+  padding-bottom: 24px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.3);
 `
 
 export const Identity = styled.div`
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
+`
+
+/** The three lines beside the avatar: who you are, whose store this is, and what is in it. */
+export const IdentityText = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  padding-bottom: 8px;
   min-width: 0;
 `
 
@@ -48,8 +62,8 @@ export const Identity = styled.div`
 export const Avatar = styled.span`
   flex: none;
   display: block;
-  width: 64px;
-  height: 64px;
+  width: 84px;
+  height: 84px;
   border-radius: 50%;
   background-color: rgba(0, 0, 0, 0.22);
   background-size: cover;
@@ -57,30 +71,23 @@ export const Avatar = styled.span`
   border: 2px solid rgba(252, 252, 252, 0.22);
 
   ${theme.media.maxWidth('mobile')} {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
   }
 `
 
-export const Who = styled.span`
-  color: ${theme.colors.softWhite};
-  letter-spacing: 0.04em;
-
-  &::before {
-    content: '·';
-    margin: 0 7px;
-    color: rgba(252, 252, 252, 0.4);
-  }
-`
-
+/** Who is signed in, above the store's own name. */
 export const Eyebrow = styled.p`
-  margin: 0 0 6px;
+  margin: 0;
   font-family: ${theme.font.sans};
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(252, 252, 252, 0.62);
+  line-height: 1.6;
+  color: ${theme.colors.softWhite};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 `
 
 export const Title = styled.h1`
@@ -88,19 +95,159 @@ export const Title = styled.h1`
   font-family: ${theme.font.sans};
   font-size: 32px;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  color: ${theme.colors.softWhite};
+  line-height: 1.2;
+  letter-spacing: 0.46px;
+  color: ${theme.colors.white};
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 26px;
   }
 `
 
+/** The title and the line under it, which the design keeps 8px apart. */
+export const TitleBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+`
+
 export const Sub = styled.p`
-  margin: 6px 0 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   font-family: ${theme.font.sans};
-  font-size: 14px;
-  color: rgba(252, 252, 252, 0.62);
+  font-size: 12px;
+  line-height: 1;
+  color: ${theme.colors.softWhite};
+`
+
+export const StoreActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+
+  ${theme.media.maxWidth('mobile')} {
+    justify-content: space-between;
+  }
+`
+
+/** The way out to the page a shopper sees, which is the only view a creator cannot get to from here. */
+export const ViewPublic = styled.a`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: ${theme.radius.card};
+  color: ${theme.colors.white};
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${theme.colors.navViolet};
+  }
+  .ico {
+    width: 22px;
+    height: 22px;
+  }
+`
+
+export const EditStore = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 24px;
+  border-radius: ${theme.radius.card};
+  background: ${theme.colors.overlay};
+  color: ${theme.colors.white};
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: ${theme.colors.overlayHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
+  .ico {
+    width: 20px;
+    height: 20px;
+  }
+`
+
+/**
+ * The creator's own social links, appended to the summary line.
+ *
+ * The rule on the left is the design's divider: the row is a continuation of the line it follows, not a
+ * block of its own, so it only makes sense with something before it.
+ */
+export const Socials = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+`
+
+export const Social = styled.a`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${theme.colors.softWhite};
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: ${theme.colors.navViolet};
+  }
+  .ico {
+    width: 15px;
+    height: 15px;
+  }
+`
+
+/**
+ * The band that names the figures below it and carries the window they are measured over.
+ *
+ * The period selector used to sit up in the masthead beside the store's own actions, which put a control
+ * that changes every number on the page in the same row as two links that change nothing.
+ */
+export const PerfHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+`
+
+export const PerfTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: ${theme.colors.white};
 `
 
 export const Periods = styled.div`
@@ -158,16 +305,13 @@ export const Tiles = styled.section`
 `
 
 export const Tile = styled.div`
-  /* A wash over the page rather than a card on top of it, so the field reads through. The border is what
-     gives the shape an edge once the fill stopped providing one. */
   background: ${theme.colors.overlay};
-  border: 1px solid ${theme.colors.cardLine};
   color: ${theme.colors.softWhite};
-  border-radius: ${theme.radius.card};
-  padding: 16px 18px;
+  border-radius: ${theme.radius.modal};
+  padding: 12px 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
   /* The credits mark is pinned near-black globally (Icon.css) so a coloured total never tints it. That
      was chosen for a white card and disappears into this one. */
@@ -180,21 +324,25 @@ export const Tile = styled.div`
 export const TileKey = styled.span`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   /* The tiles carrying a tooltip button stand 3px taller than the rest, and in a grid that is 3px of dead
      space under every other card. Held to the taller of the two. */
   min-height: 18px;
   font-family: ${theme.font.sans};
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 1px;
   text-transform: uppercase;
   color: ${theme.colors.gray4};
 `
 
 export const TileMark = styled.span`
-  font-size: 13px;
+  /* Ahead of the label, as the design has it. Ordered rather than moved in the markup, because the mark is
+     the last child of five tiles and the delta between them relies on being last. */
+  order: -1;
+  font-size: 16px;
   line-height: 1;
   filter: saturate(0.9);
 `
@@ -217,8 +365,9 @@ export const TileValue = styled.span`
     vertical-align: baseline;
   }
   font-family: ${theme.font.sans};
-  font-size: 30px;
-  font-weight: 700;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.235;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 `
@@ -246,6 +395,10 @@ export const TileUnit = styled.span`
  * fit one line at the tile's own width, which fixes it without spending the pixels.
  */
 export const TileFoot = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1.35;
@@ -727,7 +880,10 @@ export const CollStats = styled.div`
 
 export const ItemRow = styled.div`
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 72px 64px 96px 140px;
+  /* The stock track is fixed rather than max-content: each row is its own grid, so a content-sized last
+     track let every row measure itself and none of them lined up. 124px clears the widest figure the page
+     renders (105px) with room to spare, without leaving a hand's width between the bar and the number. */
+  grid-template-columns: 40px minmax(0, 1fr) 72px 64px 152px 124px;
   align-items: center;
   gap: 22px;
   padding: 13px 0;
@@ -740,8 +896,26 @@ export const ItemRow = styled.div`
     border-top: 1px solid ${theme.colors.cardLine};
   }
 
+  /*
+   * Two lines on a phone: the item, then its figures under the name.
+   *
+   * Placed explicitly. With three tracks and six cells the browser auto-flowed the stock figure into the
+   * 40px thumbnail track on the second row, where justify-self: end right-aligned 105px of text inside
+   * 40px of column and pushed its left edge a pixel off the card.
+   */
   ${theme.media.maxWidth('mobile')} {
     grid-template-columns: 40px minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 8px;
+
+    > *:nth-child(3) {
+      grid-area: 2 / 2;
+      justify-self: start;
+    }
+    > *:last-child {
+      grid-area: 2 / 3;
+      justify-self: end;
+    }
   }
 `
 
@@ -823,7 +997,7 @@ export const ItemNum = styled.span`
   }
 
   ${theme.media.maxWidth('mobile')} {
-    display: none;
+    text-align: left;
   }
 `
 
@@ -839,8 +1013,13 @@ export const Run = styled.span`
   width: 96px;
   height: 6px;
   border-radius: 100px;
-  background: rgba(22, 21, 24, 0.1);
+  /* White, not the near-black this started as: the track was a 10% dark fill chosen for a white card, and
+     on the row's own dark surface it was the same colour as the row. */
+  background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
+  /* Pushed to the end of its track, so it sits with the stock figure it measures rather than crowding the
+     saves count next to it. */
+  margin-left: auto;
 
   i {
     display: block;
@@ -1424,26 +1603,38 @@ export const ChevronIcon = styled(Icon)`
  * Colour alone would carry the whole meaning, so the arrow carries it too: a reader who cannot separate
  * the green from the red still sees which way it points.
  */
+/**
+ * The movement, on the tile's bottom line: an arrow, the percentage in its colour, and what it is measured
+ * against in grey. The window is spelled out rather than left in a tooltip, because a bare "50%" on a
+ * dashboard invites the reader to supply their own period.
+ */
 export const Delta = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  /* Rides at the right of the title row, beside the mark, rather than after the figure. Next to a number
-     set at 30px it had nowhere to go and wrapped, and one wrapped tile set the height of all six. */
-  margin-left: auto;
-  margin-right: 8px;
+  gap: 4px;
+  font-family: ${theme.font.sans};
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
-  vertical-align: middle;
   color: ${theme.colors.gray4};
 
   &[data-dir='up'] {
-    color: #2ecc71;
+    color: ${theme.colors.successBorder};
   }
   &[data-dir='down'] {
     color: #ff6b6b;
+  }
+
+  /* Grey whichever way the figure went: it is the label, not the reading. */
+  .delta__against {
+    font-size: 10px;
+    font-weight: 400;
+    color: ${theme.colors.gray4};
+  }
+  .delta__arrow {
+    font-size: 10px;
+    line-height: 1;
   }
 `
 

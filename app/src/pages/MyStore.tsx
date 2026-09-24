@@ -11,9 +11,10 @@ import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSaleModal } from '~/components/CreatorSaleModal'
 import { CurrencyMark } from '~/components/CurrencyMark'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
+import { track } from '~/lib/analytics'
 import { Price } from '~/components/Price'
 import { Tooltip } from '~/components/Tooltip'
-import { Icon } from '~/components/Icon'
+import { Icon, type IconName } from '~/components/Icon'
 import { Button } from '~/components/Button'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { useQuery } from '@tanstack/react-query'
@@ -27,6 +28,8 @@ import { config } from '~/config'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
 import { mockBuyers, mockCollectors, mockSaleRows, mockSales, mockSaves, mockStats } from '~/lib/storeMock'
+import { useStore } from '~/hooks/useStore'
+import { LINK_TYPES, type LinkType } from '~/lib/store'
 import { theme } from '~/styles/theme'
 import { t, tNode } from '~/intl/i18n'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
@@ -113,6 +116,14 @@ function issued(item: StoreItem, lifetimeSold: number | null | undefined): numbe
   if (lifetimeSold == null) return null
   const gap = item.minted - lifetimeSold
   return gap > 0 ? gap : null
+}
+
+/** The social links a store can carry, and the glyph each one wears. Same set the creator page shows. */
+const LINK_ICON: Record<LinkType, IconName> = {
+  website: 'website',
+  twitter: 'x-twitter',
+  discord: 'discord',
+  facebook: 'facebook'
 }
 
 /**
@@ -341,6 +352,7 @@ function CollectionRow({
   savesByKey,
   open,
   onToggle,
+  onManage,
   env
 }: {
   collection: StoreCollection
@@ -349,6 +361,7 @@ function CollectionRow({
   savesByKey: Map<string, number>
   open: boolean
   onToggle: () => void
+  onManage: () => void
   env: string | null
 }) {
   const panelId = `store-items-${collection.contractAddress}`
@@ -425,6 +438,7 @@ function CollectionRow({
           href={`${config.builderUrl}/collections/${collection.collectionId}`}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={onManage}
           data-testid="store-manage"
         >
           {t('myStore.manage')}
@@ -571,21 +585,28 @@ function CollectionRow({
  * "flat", it is quiet, and a row of grey zeroes reading "no change" is noise on a page whose whole job is
  * to point at what changed.
  */
+/** Whether {@link DeltaTag} will draw anything, so a tile's bottom row knows if it is already spoken for. */
+function hasDelta(delta: Delta | null): boolean {
+  return !!delta && !(delta.current === 0 && delta.previous === 0)
+}
+
 function DeltaTag({ delta, period }: { delta: Delta | null; period: StorePeriod }) {
   if (!delta || (delta.current === 0 && delta.previous === 0)) return null
   const against = period === 'all' ? '' : t(`myStore.vs${period}`)
   if (delta.pct === null) {
     return (
-      <S.Delta data-dir="new" data-testid="store-delta" title={against}>
+      <S.Delta data-dir="new" data-testid="store-delta">
         {t('myStore.deltaNew')}
+        {against ? <span className="delta__against">{against}</span> : null}
       </S.Delta>
     )
   }
   const rounded = Math.round(delta.pct)
   if (rounded === 0) {
     return (
-      <S.Delta data-dir="flat" data-testid="store-delta" title={against}>
+      <S.Delta data-dir="flat" data-testid="store-delta">
         {t('myStore.deltaFlat')}
+        {against ? <span className="delta__against">{against}</span> : null}
       </S.Delta>
     )
   }
@@ -606,11 +627,13 @@ function DeltaTag({ delta, period }: { delta: Delta | null; period: StorePeriod 
     <S.Delta
       data-dir={up ? 'up' : 'down'}
       data-testid="store-delta"
-      title={against}
       aria-label={t(up ? 'myStore.deltaUpAria' : 'myStore.deltaDownAria', { pct: amount, against })}
     >
-      <span aria-hidden>{up ? '\u25b2' : '\u25bc'}</span>
+      <span className="delta__arrow" aria-hidden>
+        {up ? '\u25b2' : '\u25bc'}
+      </span>
       {amount}
+      {against ? <span className="delta__against">{against}</span> : null}
     </S.Delta>
   )
 }
@@ -738,7 +761,20 @@ export function MyStore() {
   const mock = previewMock(params.get('mock'))
   const viewAs = previewViewAs(params.get('viewAs'))
   const env = params.get('env')
+  /**
+   * A preview is not a creator using their store: it is a designer reading someone else's, or an invented
+   * one. Recording it would put a reviewer's clicks into a creator's funnel, attributed to the reviewer.
+   */
+  const preview = mock || !!viewAs
+  function trackStore(event: string, props: Record<string, unknown> = {}) {
+    if (!preview) track(event, props)
+  }
   const { data: profile } = useProfile(viewAs ?? session?.address)
+  /** Whose store is on screen: the signed-in creator, or the one a preview link is pointed at. */
+  const storeAddress = viewAs ?? session?.address
+  const { data: storeProfile } = useStore(storeAddress)
+  /** Only the links the creator actually filled in, in the order the public page shows them. */
+  const storeLinks = LINK_TYPES.filter(type => storeProfile?.links[type])
   const face = profile?.avatar?.snapshots?.face256
   const creatorName = profile?.name ? capitalizeFirst(profile.name) : null
   const {
@@ -850,7 +886,13 @@ export function MyStore() {
       <A.Main>
         <S.Root data-testid="my-store">
           {saleOpen && session ? (
-            <CreatorSaleModal session={session} collections={saleable} onClose={() => setSaleOpen(false)} />
+            <CreatorSaleModal
+              session={session}
+              collections={saleable}
+              onClose={() => setSaleOpen(false)}
+              source="my_store"
+              silent={preview}
+            />
           ) : null}
 
           <S.Masthead>
@@ -860,23 +902,72 @@ export function MyStore() {
                 data-testid="store-avatar"
                 aria-hidden
               />
-              <div>
-                <S.Eyebrow>
-                  {t('myStore.eyebrow')}
-                  {creatorName ? <S.Who>{creatorName}</S.Who> : null}
-                </S.Eyebrow>
-                <S.Title>{t('myStore.title')}</S.Title>
-                {/* The line holds its place while the figures load, so the masthead does not grow a row under
+              <S.IdentityText>
+                {creatorName ? <S.Eyebrow>{creatorName}</S.Eyebrow> : null}
+                <S.TitleBlock>
+                  <S.Title>{t('myStore.title')}</S.Title>
+                  {/* The line holds its place while the figures load, so the masthead does not grow a row under
                   the reader. */}
-                {stats ? (
-                  <S.Sub>{t('myStore.summary', { collections: stats.collections.length, items })}</S.Sub>
-                ) : (
-                  <S.Sub>
-                    <S.Bar style={{ width: 170, background: 'rgba(252, 252, 252, 0.18)', animation: 'none' }} />
-                  </S.Sub>
-                )}
-              </div>
+                  {stats ? (
+                    <S.Sub>
+                      {t('myStore.summary', { collections: stats.collections.length, items })}
+                      {storeLinks.length > 0 ? (
+                        <S.Socials data-testid="store-socials">
+                          {storeLinks.map(type => (
+                            <S.Social
+                              key={type}
+                              href={storeProfile?.links[type] ?? ''}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() =>
+                                trackStore('Shop Clicked Store Action', { action: 'social_link', link_type: type })
+                              }
+                              title={t(`creator.link.${type}`)}
+                              aria-label={t(`creator.link.${type}`)}
+                            >
+                              <Icon name={LINK_ICON[type]} className="ico" aria-hidden />
+                            </S.Social>
+                          ))}
+                        </S.Socials>
+                      ) : null}
+                    </S.Sub>
+                  ) : (
+                    <S.Sub>
+                      <S.Bar style={{ width: 170, background: 'rgba(252, 252, 252, 0.18)', animation: 'none' }} />
+                    </S.Sub>
+                  )}
+                </S.TitleBlock>
+              </S.IdentityText>
             </S.Identity>
+            <S.StoreActions>
+              {storeAddress ? (
+                <S.ViewPublic
+                  href={withEnv(`/items/creator/${storeAddress}`, env)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackStore('Shop Clicked Store Action', { action: 'view_public_store' })}
+                  data-testid="store-view-public"
+                >
+                  {t('myStore.viewPublicStore')}
+                  <Icon name="external-link" className="ico" aria-hidden />
+                </S.ViewPublic>
+              ) : null}
+              {/* Carries where it came from, so the settings page's back arrow returns HERE rather than
+                    to the public page it was reached from before. */}
+              <S.EditStore
+                to={withEnv('/store-settings', env)}
+                state={{ from: '/my-store' }}
+                onClick={() => trackStore('Shop Clicked Store Action', { action: 'edit_store' })}
+                data-testid="store-edit"
+              >
+                <Icon name="pen" className="ico" aria-hidden />
+                {t('myStore.editStore')}
+              </S.EditStore>
+            </S.StoreActions>
+          </S.Masthead>
+
+          <S.PerfHead>
+            <S.PerfTitle>{t('myStore.performance')}</S.PerfTitle>
             <S.Periods role="group" aria-label={t('myStore.period')}>
               {PERIODS.map(key => (
                 <S.Period
@@ -884,6 +975,8 @@ export function MyStore() {
                   type="button"
                   aria-pressed={period === key}
                   onClick={() => {
+                    if (key !== period)
+                      trackStore('Shop Changed Store Period', { period: key, previous_period: period })
                     setPeriod(key)
                     setPage(0)
                   }}
@@ -893,7 +986,7 @@ export function MyStore() {
                 </S.Period>
               ))}
             </S.Periods>
-          </S.Masthead>
+          </S.PerfHead>
 
           {viewAs ? (
             <S.Preview data-testid="store-view-as">{t('myStore.viewingAs', { address: viewAs })}</S.Preview>
@@ -909,26 +1002,28 @@ export function MyStore() {
                 <S.Tile>
                   <S.TileKey>
                     {t('myStore.tileSold')}
-                    <DeltaTag delta={trend.sold} period={period} />
                     <S.TileMark aria-hidden>🛍️</S.TileMark>
                   </S.TileKey>
                   <S.TileValue>
                     <span data-testid="store-sold">{stats.sold.toLocaleString()}</span>
                   </S.TileValue>
+                  {/* The bottom line is the movement where there is one. A store with nothing to compare
+                      against keeps the breakdown there instead, so the tile never ends on its figure. */}
                   <S.TileFoot>
-                    {stats.sold === 0
-                      ? t('myStore.tileSoldNone')
-                      : stats.resales === 0
-                        ? // "0 resold by you" is a fact about nothing. Most stores never resell, so for most
-                          // of them that clause was half the line and all of it noise.
-                          t('myStore.tileSoldFootMintsOnly', { mints: stats.mints })
-                        : t('myStore.tileSoldFoot', { mints: stats.mints, resales: stats.resales })}
+                    <DeltaTag delta={trend.sold} period={period} />
+                    {!hasDelta(trend.sold) &&
+                      (stats.sold === 0
+                        ? t('myStore.tileSoldNone')
+                        : stats.resales === 0
+                          ? // "0 resold by you" is a fact about nothing. Most stores never resell, so for
+                            // most of them that clause was half the line and all of it noise.
+                            t('myStore.tileSoldFootMintsOnly', { mints: stats.mints })
+                          : t('myStore.tileSoldFoot', { mints: stats.mints, resales: stats.resales }))}
                   </S.TileFoot>
                 </S.Tile>
                 <S.Tile>
                   <S.TileKey>
                     {t('myStore.tileEarnings')}
-                    <DeltaTag delta={trend.earnings} period={period} />
                     <S.TileMark aria-hidden>💰</S.TileMark>
                   </S.TileKey>
                   <S.TileValue>
@@ -937,11 +1032,12 @@ export function MyStore() {
                     <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>
                   </S.TileValue>
                   <S.TileFoot>
+                    <DeltaTag delta={trend.earnings} period={period} />
                     {stats.partial ? (
                       <>
                         <S.Estimate>{t('myStore.estimate')}</S.Estimate> {t('myStore.tileEarningsPartial')}
                       </>
-                    ) : (
+                    ) : hasDelta(trend.earnings) ? null : (
                       t('myStore.tileEarningsFoot')
                     )}
                   </S.TileFoot>
@@ -981,7 +1077,16 @@ export function MyStore() {
                   count={stats.classic}
                   reason="discounts"
                   to={withEnv('/activity?section=listings', env)}
-                  onDismiss={() => setPricingDismissed(true)}
+                  onDismiss={() => {
+                    trackStore('Shop Clicked Store Action', {
+                      action: 'dismiss_pricing_banner',
+                      classic_items: stats.classic
+                    })
+                    setPricingDismissed(true)
+                  }}
+                  onCta={() =>
+                    trackStore('Shop Clicked Store Action', { action: 'update_prices', classic_items: stats.classic })
+                  }
                 />
               ) : null}
 
@@ -1003,6 +1108,7 @@ export function MyStore() {
                         ]}
                         value={sortInForce}
                         onChange={value => {
+                          trackStore('Shop Sorted Store Collections', { sort: value })
                           setSort(value as Sort)
                           rememberSort(value as Sort)
                         }}
@@ -1053,11 +1159,26 @@ export function MyStore() {
                           savesByKey={savesByKey}
                           env={env}
                           open={open.has(collection.contractAddress)}
-                          onToggle={() =>
+                          onToggle={() => {
+                            // Opening only: a collapse says nothing about what the creator went looking for.
+                            if (!open.has(collection.contractAddress)) {
+                              trackStore('Shop Expanded Store Collection', {
+                                contract_address: collection.contractAddress,
+                                items: collection.items.length,
+                                exhausted: collection.exhausted,
+                                has_discount: discountByCollection.has(collection.contractAddress)
+                              })
+                            }
                             setOpen(current => {
                               const next = new Set(current)
                               if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
                               return next
+                            })
+                          }}
+                          onManage={() =>
+                            trackStore('Shop Clicked Store Action', {
+                              action: 'manage_collection',
+                              contract_address: collection.contractAddress
                             })
                           }
                         />
@@ -1082,7 +1203,10 @@ export function MyStore() {
                     <Pager
                       page={collectionPageShown}
                       pages={collectionPages}
-                      onChange={setCollectionPage}
+                      onChange={next => {
+                        trackStore('Shop Paged Store Table', { table: 'collections', page: next + 1 })
+                        setCollectionPage(next)
+                      }}
                       name="collections"
                     />
                   </S.ListFoot>
@@ -1139,6 +1263,12 @@ export function MyStore() {
                                       href: itemHref(entry.contractAddress, entry.itemId, env),
                                       target: '_blank',
                                       rel: 'noopener noreferrer',
+                                      onClick: () =>
+                                        trackStore('Shop Clicked Store Action', {
+                                          action: 'open_item',
+                                          table: 'best_sellers',
+                                          rank: index + 1
+                                        }),
                                       'data-testid': 'store-best-item'
                                     }}
                                   >
@@ -1173,7 +1303,10 @@ export function MyStore() {
                       <S.PanelTitle id="store-feed-h">{t('myStore.recentSales')}</S.PanelTitle>
                       <S.PanelSub>{t('myStore.recentSalesSub')}</S.PanelSub>
                     </div>
-                    <S.ViewAll to="/activity">
+                    <S.ViewAll
+                      to="/activity"
+                      onClick={() => trackStore('Shop Clicked Store Action', { action: 'view_all_sales' })}
+                    >
                       {t('myStore.viewAll')}
                       <Icon name="arrow-up-right" size={14} aria-hidden />
                     </S.ViewAll>
@@ -1212,6 +1345,11 @@ export function MyStore() {
                                           href: itemHref(row.contractAddress, row.itemId, env),
                                           target: '_blank',
                                           rel: 'noopener noreferrer',
+                                          onClick: () =>
+                                            trackStore('Shop Clicked Store Action', {
+                                              action: 'open_item',
+                                              table: 'recent_sales'
+                                            }),
                                           'data-testid': 'store-sale-item'
                                         }
                                       : {})}
@@ -1254,6 +1392,12 @@ export function MyStore() {
                                       href={`${config.profileUrl}/${row.buyer}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={() =>
+                                        trackStore('Shop Clicked Store Action', {
+                                          action: 'open_buyer',
+                                          table: 'recent_sales'
+                                        })
+                                      }
                                       data-testid="store-sale-buyer"
                                     >
                                       <S.Face
@@ -1275,7 +1419,15 @@ export function MyStore() {
                   {sales.pages > 1 ? (
                     <S.ListFoot>
                       <span />
-                      <Pager page={page} pages={sales.pages} onChange={setPage} name="sales" />
+                      <Pager
+                        page={page}
+                        pages={sales.pages}
+                        onChange={next => {
+                          trackStore('Shop Paged Store Table', { table: 'recent_sales', page: next + 1 })
+                          setPage(next)
+                        }}
+                        name="sales"
+                      />
                     </S.ListFoot>
                   ) : null}
                 </S.Panel>
@@ -1343,7 +1495,6 @@ export function MyStore() {
                           </S.Info>
                         </Tooltip>
                       </span>
-                      <DeltaTag delta={trend.royalties} period={period} />
                       <S.TileMark aria-hidden>🔁</S.TileMark>
                     </S.TileKey>
                     <S.TileValue data-testid="store-royalties">
@@ -1352,16 +1503,19 @@ export function MyStore() {
                       {mana(royaltyOf(stats.royalties.volumeWei))}
                     </S.TileValue>
                     <S.TileFoot>
-                      {tNode('myStore.tileRoyaltiesFoot', {
-                        m: (c: ReactNode) => (
-                          <>
-                            <CurrencyMark kind="mana" />
-                            {c}
-                          </>
-                        ),
-                        count: stats.royalties.resales,
-                        volume: mana(stats.royalties.volumeWei)
-                      })}
+                      <DeltaTag delta={trend.royalties} period={period} />
+                      {hasDelta(trend.royalties)
+                        ? null
+                        : tNode('myStore.tileRoyaltiesFoot', {
+                            m: (c: ReactNode) => (
+                              <>
+                                <CurrencyMark kind="mana" />
+                                {c}
+                              </>
+                            ),
+                            count: stats.royalties.resales,
+                            volume: mana(stats.royalties.volumeWei)
+                          })}
                     </S.TileFoot>
                   </S.Tile>
                 ) : null}
@@ -1398,6 +1552,9 @@ export function MyStore() {
                                   href={`${config.profileUrl}/${buyer.address}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
+                                  onClick={() =>
+                                    trackStore('Shop Clicked Store Action', { action: 'open_buyer', table: 'buyers' })
+                                  }
                                   data-testid="store-buyer-name"
                                 >
                                   <S.Face style={face ? { backgroundImage: `url(${face})` } : undefined} aria-hidden />
@@ -1426,7 +1583,15 @@ export function MyStore() {
                 {buyerPages > 1 ? (
                   <S.ListFoot>
                     <span />
-                    <Pager page={buyerPageShown} pages={buyerPages} onChange={setBuyerPage} name="buyers" />
+                    <Pager
+                      page={buyerPageShown}
+                      pages={buyerPages}
+                      onChange={next => {
+                        trackStore('Shop Paged Store Table', { table: 'buyers', page: next + 1 })
+                        setBuyerPage(next)
+                      }}
+                      name="buyers"
+                    />
                   </S.ListFoot>
                 ) : null}
               </S.Panel>

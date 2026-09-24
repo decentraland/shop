@@ -154,11 +154,10 @@ describe('when a creator opens their store', () => {
     expect(await text(app, 'store-sold')).toBe('15')
     // 15 against the 6 of the month before it, which the harness now windows properly.
     expect(await text(app, 'store-delta')).toContain('150%')
+    // The tile's bottom line names the window it compares against rather than leaving it to a tooltip.
+    expect(await text(app, 'store-delta')).toContain('30 days')
     expect(await text(app, 'store-discounts')).toBe('1')
     const body = await bodyText(page)
-    // Counted by the server's own aggregate, not derived from the page of rows the table happens to hold,
-    // and named by who did the selling: a resale is the creator's, a royalty is somebody else's.
-    expect(body).toContain('14 first sales · 1 resold')
 
     // What is selling across the whole store, which no single collection's breakdown can answer.
     await page.waitForSelector('[data-testid="store-best"]')

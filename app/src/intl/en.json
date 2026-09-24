@@ -605,7 +605,6 @@
   },
   "myStore": {
     "title": "My Store",
-    "eyebrow": "Creator",
     "signInTitle": "Sign in to view your store",
     "signInBody": "See how your collections are selling, what needs attention, and the discounts you have running.",
     "viewingAs": "Viewing {address} — a read-only preview of someone else’s store.",
@@ -722,7 +721,10 @@
     "colSold": "Sold",
     "colPrice": "Price",
     "colDate": "Date",
-    "colClaimed": "Claimed"
+    "colClaimed": "Claimed",
+    "viewPublicStore": "View public store",
+    "editStore": "Edit store",
+    "performance": "Store performance"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",

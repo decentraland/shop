@@ -753,6 +753,7 @@ export function MyAssets() {
                 session={session}
                 collection={saleModalCollection}
                 onClose={() => setSaleModalOpen(false)}
+                source="my_assets"
               />
             ) : null}
             {creationsLoading ? (

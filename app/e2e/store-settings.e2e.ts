@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { hashV1 } from '@dcl/hashing'
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
+import { storeFixtures } from './my-store.e2e'
 import { waitForText } from './helpers/dom'
 import { ElementHandle } from 'puppeteer'
 
@@ -141,6 +142,32 @@ describe('store settings', () => {
         timeout: 5000
       }
     )
+  })
+
+  /**
+   * The round trip a creator actually makes. Both halves are client-side route changes, which is the
+   * point: a marker set on the document before the first click has to survive both, or the "page" is a
+   * reload wearing a transition.
+   */
+  it('opens settings from My Store and comes back to it, without reloading', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1000 })
+    await page.waitForSelector('[data-testid="store-edit"]')
+    await page.evaluate(() => ((window as unknown as { __spa?: boolean }).__spa = true))
+
+    await page.click('[data-testid="store-edit"]')
+    await page.waitForFunction(() => window.location.pathname === '/store-settings', { timeout: 20000 })
+    await page.waitForSelector('[data-testid="store-settings-back"]')
+    expect(await page.evaluate(() => (window as unknown as { __spa?: boolean }).__spa)).toBe(true)
+
+    // The arrow goes back to where the creator came from, not to the public page it used to point at.
+    expect(await page.$eval('[data-testid="store-settings-back"]', el => el.getAttribute('href'))).toBe('/my-store')
+
+    await page.click('[data-testid="store-settings-back"]')
+    await page.waitForFunction(() => window.location.pathname === '/my-store', { timeout: 20000 })
+    await page.waitForSelector('[data-testid="store-collection"]')
+    expect(await page.evaluate(() => (window as unknown as { __spa?: boolean }).__spa)).toBe(true)
   })
 
   it('shows a sign-in prompt when signed out', async () => {

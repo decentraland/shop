@@ -9,6 +9,7 @@ export function ManaPricingBanner({
   to = '/import',
   reason = 'stability',
   onDismiss,
+  onCta,
   className
 }: {
   count: number
@@ -21,6 +22,7 @@ export function ManaPricingBanner({
   reason?: 'stability' | 'discounts'
   /** Given, the strip gains a close button. Dismissal is the caller's to hold — and is not persisted. */
   onDismiss?: () => void
+  onCta?: () => void
   className?: string
 }) {
   return (
@@ -50,7 +52,7 @@ export function ManaPricingBanner({
         </S.Text>
       </S.Body>
       <S.Actions>
-        <S.Cta to={to} data-testid="mana-pricing-banner-cta">
+        <S.Cta to={to} onClick={onCta} data-testid="mana-pricing-banner-cta">
           {t('manaPricingBanner.cta')}
         </S.Cta>
         {onDismiss ? (

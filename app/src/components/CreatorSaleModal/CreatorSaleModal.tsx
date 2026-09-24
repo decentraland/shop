@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Session } from '~/lib/auth'
@@ -61,6 +61,9 @@ const DURATION_PRESETS = [
 ] as const
 type DurationKey = (typeof DURATION_PRESETS)[number]['key'] | 'custom'
 const HOUR_MS = 60 * 60 * 1000
+
+/** Where the create-a-discount flow was opened from — the one prop every event in the funnel carries. */
+export type SaleSource = 'my_store' | 'my_assets'
 
 // <input type="datetime-local"> speaks local wall-clock time without a zone; these convert to and from epoch ms.
 function toLocalInput(ms: number): string {
@@ -149,11 +152,16 @@ export function CreatorSaleModal({
   collection,
   collections,
   onCreated,
-  onClose
+  onClose: closeModal,
+  source,
+  silent = false
 }: {
   session: Session
   onCreated?: (sale: CreatorSale) => void
   onClose: () => void
+  source: SaleSource
+  /** A preview of someone else's store, or an invented one: nothing it does is a creator's behaviour. */
+  silent?: boolean
 } & CollectionSource) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -183,6 +191,10 @@ export function CreatorSaleModal({
   const [created, setCreated] = useState<CreatorSale | null>(null)
 
   const isManaged = isManagedWallet(session)
+
+  function trackSale(event: string, props: Record<string, unknown> = {}) {
+    if (!silent) track(event, { source, ...props })
+  }
   const pct = pctPreset === 'custom' ? Number(customPct) : pctPreset
 
   // The terms as they stand, validated the way the submit will validate them, so the button and the inline
@@ -202,6 +214,29 @@ export function CreatorSaleModal({
     }
     return { ...candidate, problem }
   }, [selected, pct, duration, customEnd, startMode, startAt, capOn, cap])
+
+  /**
+   * Opening the flow is the top of the funnel. Guarded by a ref rather than an empty dependency list so it
+   * fires once per opening: StrictMode re-runs effects in development, and refs survive that re-run.
+   */
+  const started = useRef(false)
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    trackSale('Shop Started Sale', {
+      collections_available: collection ? 1 : choices.length,
+      preselected: !!collection
+    })
+  })
+
+  /**
+   * Leaving without a sale, from any step. Every way out of this modal already goes through `onClose` — the
+   * scrim, the close button, the cancel — so wrapping it once catches all of them.
+   */
+  function onClose() {
+    if (!created) trackSale('Shop Abandoned Sale', { last_step: step })
+    closeModal()
+  }
 
   const example = useMemo(() => {
     const price = current.examplePriceCredits ?? 100
@@ -243,7 +278,7 @@ export function CreatorSaleModal({
       setStatus(null)
       setCreated(sale)
       const scheduled = sale.status === 'scheduled'
-      track('Shop Created Sale', {
+      trackSale('Shop Created Sale', {
         sale_id: sale.id,
         collections: sale.collections.length,
         discount_pct: terms.discountPct,
@@ -265,7 +300,7 @@ export function CreatorSaleModal({
         setError(problemCopy(e.problem))
       } else {
         captureError(e, { flow: 'creator_sale' })
-        track('Shop Sale Failed', { error_code: errorCode(e) })
+        trackSale('Shop Sale Failed', { error_code: errorCode(e), step: 'create' })
         setError(friendlyError(e, t('creatorSale.errorGeneric')))
       }
       setStatus(null)
@@ -862,6 +897,12 @@ export function CreatorSaleModal({
             else {
               setError(null)
               setStep('review')
+              trackSale('Shop Reviewed Sale', {
+                discount_pct: terms.discountPct,
+                duration_h: Math.round((terms.endsAtMs - (terms.startsAtMs ?? Date.now())) / HOUR_MS),
+                scheduled: terms.startsAtMs !== undefined,
+                capped: terms.uses !== undefined
+              })
             }
           }}
           disabled={busy || (touched && !!terms.problem)}
