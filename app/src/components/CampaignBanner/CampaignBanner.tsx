@@ -15,7 +15,12 @@ export function CampaignBanner({ slot }: { slot: string }) {
   if (!banner) return null
 
   return (
-    <S.Banner data-testid="campaign-banner">
+    <S.Banner
+      data-testid="campaign-banner"
+      // The blurred filler behind the artwork reads its URL from here; see the styles for why it exists.
+      // Desktop only — the mobile asset is square and fills its box, so nothing needs filling there.
+      style={{ ['--banner-art' as string]: `url(${banner.desktopImage})` }}
+    >
       <picture>
         <source media="(max-width: 768px)" srcSet={banner.mobileImage} />
         <S.Bg src={banner.desktopImage} alt="" aria-hidden />

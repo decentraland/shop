@@ -295,7 +295,10 @@ export function Overview() {
 
   return (
     <S.Overview className="overview">
-      <S.Hero>
+      <S.Hero
+        // The blurred filler beside the artwork reads its URL from here; see Overview.styles.ts.
+        style={{ ['--banner-art' as string]: `url(${campaignHero?.desktopImage ?? heroBanner})` }}
+      >
         {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
             wide banner — the mobile frame is a different composition, not a resize. */}
         <picture>

@@ -130,12 +130,19 @@ export const Overview = styled.div`
 
 // Full-bleed banner (Figma dark theme): breaks out of the centred page container to run edge to edge,
 // flush under the sub-nav. The art is a single background image, title + CTA overlaid on the left.
+/** The desktop artwork's own width: the CMS validates that asset at exactly 1920x300. */
+const ART_WIDTH = '1920px'
+
 export const Hero = styled.section`
   position: relative;
   display: flex;
   align-items: center;
-  aspect-ratio: 1920 / 340;
-  max-height: 340px;
+  /* The SAME ratio the CMS validates its desktop asset at (1920x300), not the 340 the original mock drew.
+     Matching it is what makes the artwork pixel-exact: object-fit cover then scales by 1.0 and crops
+     nothing. At 340 it would scale 1.133x and shave 256px off the LEFT — where a campaign's wordmark
+     sits — because object-position anchors right. */
+  aspect-ratio: 1920 / 300;
+  max-height: 300px;
   margin-bottom: 50px;
   overflow: hidden;
   background: #14161b;
@@ -152,6 +159,49 @@ export const Hero = styled.section`
   margin-inline: calc(50% - 50vw);
   border-radius: 0;
 
+  /**
+   * PAST THE ARTWORK'S OWN WIDTH, the strip is FILLED rather than stretched — the same treatment the
+   * Marketplace gives the same artwork, and for the same measured reason.
+   *
+   * Stretching a 1920px image across a 3440px window drew it at 2.7x native and, once the box's ratio ran
+   * away from the art's, cropped 466px of a 300px-tall source: soft, and cut off at the bottom.
+   *
+   * So the artwork below stops at its native width and centres, and these layers fill what is left on
+   * either side with a blurred copy of the same image. 600% 100% is what keeps that from
+   * reading as a ghost of the art: it samples only the empty left sixth of the frame and stretches THAT
+   * across, carrying the art's own light and none of its subject. The horizontal distortion is free, the
+   * layer being blurred past recognition; the vertical scale stays 100%, so nothing is cropped.
+   */
+  @media (min-width: ${ART_WIDTH}) {
+    /* One filler per side, each sampling the edge of the artwork nearest it, so the left of the strip
+       carries the art's left-hand light and the right its right-hand light. A single filler would wash
+       one side in the other's colour, which on this artwork means a dark purple bleeding into the bright
+       side. Their shared boundary sits at the strip's midpoint, which the centred artwork always covers. */
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      /* Overscanned top and bottom, or the blur fades into transparency at the edges of the strip. */
+      top: -6%;
+      bottom: -6%;
+      z-index: 0;
+      background-image: var(--banner-art);
+      background-size: 600% 100%;
+      filter: blur(32px);
+      pointer-events: none;
+    }
+    &::before {
+      left: -6%;
+      right: 50%;
+      background-position: left center;
+    }
+    &::after {
+      left: 50%;
+      right: -6%;
+      background-position: right center;
+    }
+  }
+
   /* …and then put the CONTENT back where the page's content is. The mirror image of the margin above: it
      pulled the box out to the window edges, this pushes the copy back in by exactly the same distance, so
      the headline starts on the same vertical line as every section title below it.
@@ -164,7 +214,8 @@ export const Hero = styled.section`
   /* The mobile frame (Figma 1016:89483) is a different composition, not a squeeze of the wide one:
      a square collage with the copy CENTERED near its bottom edge (title block ends 43px above it). */
   ${media.maxWidth('mobile')} {
-    aspect-ratio: 390 / 389;
+    /* Square, like the 400x400 the CMS validates the mobile asset at. */
+    aspect-ratio: 1 / 1;
     max-height: none;
     margin-top: -16px;
     align-items: flex-end;
@@ -183,6 +234,19 @@ export const HeroBg = styled.img<{ fetchpriority?: 'high' | 'low' | 'auto' }>`
   height: 100%;
   object-fit: cover;
   object-position: center right;
+
+  /* Never drawn above its native width, and centred. Below the cap this is inert: the image already is
+     the strip. */
+  @media (min-width: ${ART_WIDTH}) {
+    left: 0;
+    right: 0;
+    width: ${ART_WIDTH};
+    margin-inline: auto;
+    z-index: 1;
+    /* BOTH edges faded into the fillers, since the artwork is centred rather than pinned to one side. */
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 140px, #000 calc(100% - 140px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 140px, #000 calc(100% - 140px), transparent);
+  }
 `
 
 // No side padding of its own: the Hero's padding-inline already lands this on the page's content edge, and
