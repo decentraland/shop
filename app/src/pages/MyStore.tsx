@@ -245,27 +245,16 @@ function buyerName(address: string, profiles?: Map<string, ProfileAvatar>): stri
 }
 
 /**
- * `?mock=1` — the invented store, for looking at states no real account shows at once.
+ * `?mock=1` — the invented store, for looking at states no real account shows at once. Gated on
+ * {@link config.previewHost}: on everywhere but the live Shop and staging. The data is invented, so it
+ * shows nobody's store.
  *
- * Gated on {@link config.previewHost} together with `?viewAs=` below: on everywhere but the live Shop and
- * staging. Neither override reaches anything private — the public catalogue is the same feed the
- * marketplace serves to anybody, and the invented store is invented.
+ * There is deliberately no way to open ANOTHER creator's store here. Everything on this page can be
+ * rebuilt from public feeds, but the page is what makes that effortless — and it includes who bought
+ * from the creator and how much each of them spent. A store is its owner's to read.
  */
 function previewMock(raw: string | null): boolean {
   return config.previewHost && raw === '1'
-}
-
-/**
- * `?viewAs=0x…` — read another creator's store from the public feeds.
- *
- * It exists because the page cannot otherwise be judged: the only store a signed-in creator can open is
- * their own, and a test account with no sales is the one shape this design must not be tuned for. It is
- * also how a preview link shows a real store to somebody who does not own it, which is what review needs.
- */
-function previewViewAs(raw: string | null): string | null {
-  if (!config.previewHost || !raw) return null
-  const address = raw.trim().toLowerCase()
-  return /^0x[0-9a-f]{40}$/.test(address) ? address : null
 }
 
 /**
@@ -759,7 +748,6 @@ export function MyStore() {
   const creatorSalesEnabled = useCreatorSalesEnabled()
   const access = useMyStoreAccess()
   const mock = previewMock(params.get('mock'))
-  const viewAs = previewViewAs(params.get('viewAs'))
   const env = params.get('env')
   /**
    * The router's own root, so a plain anchor into the app keeps the basename.
@@ -770,17 +758,13 @@ export function MyStore() {
    */
   const routerRoot = useHref('/').replace(/\/$/, '')
   const appHref = (path: string) => `${routerRoot}${path}`
-  /**
-   * A preview is not a creator using their store: it is a designer reading someone else's, or an invented
-   * one. Recording it would put a reviewer's clicks into a creator's funnel, attributed to the reviewer.
-   */
-  const preview = mock || !!viewAs
+  /** The invented store is not a creator using theirs; recording it would put fake clicks into the funnel. */
+  const preview = mock
   function trackStore(event: string, props: Record<string, unknown> = {}) {
     if (!preview) track(event, props)
   }
-  const { data: profile } = useProfile(viewAs ?? session?.address)
-  /** Whose store is on screen: the signed-in creator, or the one a preview link is pointed at. */
-  const storeAddress = viewAs ?? session?.address
+  const { data: profile } = useProfile(session?.address)
+  const storeAddress = session?.address
   const { data: storeProfile } = useStore(storeAddress)
   /** Only the links the creator actually filled in, in the order the public page shows them. */
   const storeLinks = LINK_TYPES.filter(type => storeProfile?.links[type])
@@ -793,14 +777,14 @@ export function MyStore() {
     saleable,
     isLoading: liveLoading,
     error: statsError
-  } = useStoreStats(session, period, viewAs)
+  } = useStoreStats(session, period)
   // The invented store replaces what the reads return, not the page that draws them: every state below
   // is exercised by the same code a real creator gets.
   const stats = mock ? mockStats : liveStats
   const trend = mock ? { ...liveTrend, collectors: mockCollectors, buyers: mockBuyers, quietDays: 12 } : liveTrend
   const isLoading = mock ? false : liveLoading
   const savesByKey = mock ? mockSaves : liveSaves
-  const sales = useSalesPage(viewAs ?? session?.address, period, page)
+  const sales = useSalesPage(session?.address, period, page)
   const salesRows = mock ? mockSaleRows : sales.rows
   const saleAddresses = useMemo(() => [...new Set(salesRows.map(row => row.buyer.toLowerCase()))].sort(), [salesRows])
   const { data: buyers, isLoading: buyersLoading } = useBuyerNames(saleAddresses)
@@ -821,10 +805,7 @@ export function MyStore() {
   // profiles to draw a page of five rows.
   const audienceAddresses = useMemo(() => buyersShown.map(b => b.address).sort(), [buyersShown])
   const { data: audience } = useBuyerNames(audienceAddresses)
-  const { data: discounts } = useCreatorSales(
-    viewAs ?? session?.address,
-    creatorSalesEnabled && (!!session || !!viewAs)
-  )
+  const { data: discounts } = useCreatorSales(session?.address, creatorSalesEnabled && !!session)
 
   // The flag closes the page, not just the nav entry — otherwise the link is off and the URL is still live.
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
@@ -856,7 +837,7 @@ export function MyStore() {
 
   if (access === 'off') return <Navigate to="/" replace />
 
-  if (!session && !viewAs && !mock) {
+  if (!session && !mock) {
     return (
       <EmptyStateCentered>
         <EmptyState
@@ -962,19 +943,16 @@ export function MyStore() {
                 </S.ViewPublic>
               ) : null}
               {/* Carries where it came from, so the settings page's back arrow returns HERE rather than
-                    to the public page it was reached from before. Absent when previewing someone else's
-                    store: the settings page edits the SIGNED-IN account's store, not the one on screen. */}
-              {viewAs ? null : (
-                <S.EditStore
-                  to={withEnv('/store-settings', env)}
-                  state={{ from: '/my-store' }}
-                  onClick={() => trackStore('Shop Clicked Store Action', { action: 'edit_store' })}
-                  data-testid="store-edit"
-                >
-                  <Icon name="pen" className="ico" aria-hidden />
-                  {t('myStore.editStore')}
-                </S.EditStore>
-              )}
+                    to the public page it was reached from before. */}
+              <S.EditStore
+                to={withEnv('/store-settings', env)}
+                state={{ from: '/my-store' }}
+                onClick={() => trackStore('Shop Clicked Store Action', { action: 'edit_store' })}
+                data-testid="store-edit"
+              >
+                <Icon name="pen" className="ico" aria-hidden />
+                {t('myStore.editStore')}
+              </S.EditStore>
             </S.StoreActions>
           </S.Masthead>
 
@@ -999,10 +977,6 @@ export function MyStore() {
               ))}
             </S.Periods>
           </S.PerfHead>
-
-          {viewAs ? (
-            <S.Preview data-testid="store-view-as">{t('myStore.viewingAs', { address: viewAs })}</S.Preview>
-          ) : null}
 
           <ErrorNotice message={statsError ? t('myStore.error') : null} testId="my-store-error" />
 
@@ -1131,7 +1105,7 @@ export function MyStore() {
                     ) : null}
                     {/* The list's own call to action, where the design puts it: a creator who has just
                         read how their collections are doing is the one deciding to discount one. */}
-                    {mock || (creatorSalesEnabled && !viewAs && session && saleable.length > 0) ? (
+                    {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
                       <Button
                         variant="red"
                         size="sm"
