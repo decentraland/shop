@@ -137,7 +137,31 @@ describe('when a creator opens their store', () => {
     await page.click('[data-testid="store-collection-toggle"]')
     await page.waitForSelector('[data-testid="store-item"]')
 
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    // Same verdict as a bare scrollWidth check, but a failure names what spilled: that check alone fails
+    // with "expected false to be true", which says the page overflows and nothing about where.
+    const report = await page.evaluate(() => {
+      const vw = window.innerWidth
+      // Inside a horizontal scroller is contained by design (the collections run, the feed tables).
+      const inScroller = (el: Element) => {
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          if (getComputedStyle(p).overflowX !== 'visible') return true
+        }
+        return false
+      }
+      const offenders = [...document.querySelectorAll('body *')]
+        .filter(el => {
+          const r = el.getBoundingClientRect()
+          return r.width > 0 && r.right > vw + 1 && !inScroller(el)
+        })
+        .slice(0, 6)
+        .map(el => {
+          const r = el.getBoundingClientRect()
+          const id = el.getAttribute('data-testid') ?? ''
+          return `${el.tagName.toLowerCase()}[${id}] right=${Math.round(r.right)} "${(el.textContent ?? '').trim().slice(0, 40)}"`
+        })
+      return { fits: document.documentElement.scrollWidth <= vw + 1, offenders }
+    })
+    expect(report.fits, `overflowing: ${report.offenders.join(' | ')}`).toBe(true)
   })
 })
 
