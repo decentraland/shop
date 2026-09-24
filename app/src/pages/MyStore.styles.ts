@@ -128,10 +128,15 @@ export const StoreActions = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 12px;
 
+  /* Two uppercase buttons that cannot shrink below their labels. On a phone they fit side by side in
+     Inter with a few pixels to spare, and in any wider fallback font they did not: the second one ran
+     15px off a 390px screen. Wrapping puts it on its own line instead. */
   ${theme.media.maxWidth('mobile')} {
-    justify-content: space-between;
+    justify-content: flex-start;
+    width: 100%;
   }
 `
 
@@ -160,6 +165,10 @@ export const ViewPublic = styled.a`
   .ico {
     width: 22px;
     height: 22px;
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    padding: 0 8px;
   }
 `
 
@@ -193,6 +202,10 @@ export const EditStore = styled(Link)`
   .ico {
     width: 20px;
     height: 20px;
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    padding: 0 16px;
   }
 `
 
