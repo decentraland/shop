@@ -7,13 +7,22 @@ import * as S from './ManaPricingBanner.styles'
 export function ManaPricingBanner({
   count,
   to = '/import',
+  reason = 'stability',
   onDismiss,
+  onCta,
   className
 }: {
   count: number
   to?: string
+  /**
+   * What the creator gets by switching. The default is the standing reason a seller should care; the
+   * store dashboard asks for `discounts`, where the nudge appears because a discount cannot re-price a
+   * listing quoted in MANA.
+   */
+  reason?: 'stability' | 'discounts'
   /** Given, the strip gains a close button. Dismissal is the caller's to hold — and is not persisted. */
   onDismiss?: () => void
+  onCta?: () => void
   className?: string
 }) {
   return (
@@ -38,11 +47,12 @@ export function ManaPricingBanner({
               </>
             )
           })}{' '}
-          <S.Accent>{t('manaPricingBanner.accent')}</S.Accent> {t('manaPricingBanner.trail')}
+          <S.Accent>{t('manaPricingBanner.accent')}</S.Accent>{' '}
+          {t(reason === 'discounts' ? 'manaPricingBanner.trailDiscounts' : 'manaPricingBanner.trail')}
         </S.Text>
       </S.Body>
       <S.Actions>
-        <S.Cta to={to} data-testid="mana-pricing-banner-cta">
+        <S.Cta to={to} onClick={onCta} data-testid="mana-pricing-banner-cta">
           {t('manaPricingBanner.cta')}
         </S.Cta>
         {onDismiss ? (

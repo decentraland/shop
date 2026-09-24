@@ -294,3 +294,61 @@ describe('featureFlags', () => {
     })
   })
 })
+
+/**
+ * The query overrides exist so a preview deploy can be shown to somebody: the build-time `VITE_*` vars are
+ * baked in by `npm run build` and a Vercel preview has none, so a flag-gated page is otherwise unreachable
+ * there. The case that matters most is the last one — no query string may move a flag on the live Shop.
+ */
+describe('preview query overrides', () => {
+  const ADDRESS = '0xAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaa'
+
+  const previewHost = config.previewHost
+
+  beforeEach(() => {
+    resetFeatureFlagsCache()
+  })
+  afterEach(() => {
+    window.history.replaceState({}, '', '/')
+    config.previewHost = previewHost
+    vi.unstubAllGlobals()
+  })
+
+  it('turns a flag on from the query string', async () => {
+    mockFlags({})
+    window.history.replaceState({}, '', '/?ff=shop-my-store:true')
+
+    expect(await getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)).toBe(true)
+  })
+
+  it('turns one off, and leaves every other flag to the service', async () => {
+    mockFlags({ 'dapps-shop-my-store': true, 'dapps-shop-creator-sales': true })
+    window.history.replaceState({}, '', '/?ff=shop-my-store:false')
+
+    expect(await getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)).toBe(false)
+    expect(await getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)).toBe(true)
+  })
+
+  it('reads a variant payload the same way', async () => {
+    mockFlags({})
+    window.history.replaceState({}, '', `/?ffv=shop-my-store:${ADDRESS}`)
+
+    expect(await getAddressListVariant(FeatureFlag.SHOP_MY_STORE)).toEqual([ADDRESS.toLowerCase()])
+  })
+
+  it('falls through to the real flag when the value is neither true nor false', async () => {
+    mockFlags({ 'dapps-shop-my-store': true })
+    window.history.replaceState({}, '', '/?ff=shop-my-store:ture')
+
+    expect(await getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)).toBe(true)
+  })
+
+  it('ignores the query string entirely on the live Shop', async () => {
+    mockFlags({})
+    config.previewHost = false
+    window.history.replaceState({}, '', `/?ff=shop-my-store:true&ffv=shop-my-store:${ADDRESS}`)
+
+    expect(await getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)).toBe(false)
+    expect(await getAddressListVariant(FeatureFlag.SHOP_MY_STORE)).toEqual([])
+  })
+})

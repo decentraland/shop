@@ -388,7 +388,6 @@ export function NavBar() {
             {/* The app has the buyer's items in its own backpack, so the shop's copy is a second front door
                to somewhere they are already standing. */}
             {iap ? null : <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>}
-            {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
             {/* The creator's own dashboard. Behind its flag AND behind having published something: to a
                buyer the page is an empty room, and a nav entry that leads to one is worse than none. */}
             {session && myStoreEnabled && isCreator ? (
@@ -478,6 +477,13 @@ export function NavBar() {
               <S.FavFill name="heart-solid" size={28} aria-hidden />
             </S.FavIcons>
           </S.Fav>
+          {/* Activity moved out of the tabs and in beside the heart: it is a place you check, not a section
+             you browse, and the tab row is for the latter. */}
+          {session ? (
+            <S.Activity to="/activity" aria-label={t('nav.activity')} data-testid="subnav-activity">
+              <Icon name="history" size={28} aria-hidden />
+            </S.Activity>
+          ) : null}
           <S.CartWrap>
             {/* Cart icon opens the cart drawer (open-on-icon) — including on an empty cart, which shows the
                drawer's own empty state rather than navigating the shopper off the page they're browsing. */}

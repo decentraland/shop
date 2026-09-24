@@ -71,7 +71,7 @@ describe('cart-availability', () => {
       let result: ReturnType<typeof classifyTrade>
 
       beforeEach(() => {
-        result = classifyTrade(primary, { ...trade(2), contract: MARKETPLACE_V3_POLYGON } as Trade)
+        result = classifyTrade(primary, { ...trade(2), contract: MARKETPLACE_V3_POLYGON })
       })
 
       it('should be unavailable, as checkout would refuse to settle it', () => {

@@ -28,6 +28,38 @@ const base = createConfig(
 // client bundle, so never put secrets here.
 const env = import.meta.env
 
+/**
+ * The hostnames that may use the preview overrides. An ALLOWLIST, so an unknown host fails closed.
+ *
+ * A denylist of the live TLDs would hand the overrides to every hostname nobody thought of — a vanity
+ * domain, a raw CDN or bucket origin, an alias added next quarter — and since `?env=prod` aims the same
+ * bundle at the production feeds, an unlisted host would be a live Shop with the flag overrides open. The
+ * two directions are not symmetric: being wrong here costs one line in this list and a redeploy, being
+ * wrong the other way costs a feature flag anybody can flip.
+ *
+ * The Shop serves from `decentraland.{zone,today,org}/shop`, so `.zone` is the dev site and production and
+ * staging are excluded by not appearing. `*.vercel.app` is the per-PR deploy preview.
+ */
+const PREVIEW_HOSTS = [
+  /^localhost$/,
+  /^127\.0\.0\.1$/,
+  /^\[?::1\]?$/,
+  /(^|\.)vercel\.app$/,
+  /(^|\.)decentraland\.zone$/
+]
+
+/**
+ * The trailing dot is stripped first and it is not a nicety: a fully qualified name may carry one, the URL
+ * parser keeps it, and DNS resolves it identically. Under a denylist that was an outright bypass
+ * (`decentraland.org.` matched nothing); under this allowlist it would instead lock a legitimate preview
+ * out, which is the safe direction but still wrong. Lowercasing is belt and braces — the parser already
+ * normalises case.
+ */
+export function isPreviewHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  return PREVIEW_HOSTS.some(pattern => pattern.test(host))
+}
+
 export const config = {
   /**
    * Whether this is the production deployment, resolved from the hostname at runtime by @dcl/ui-env.
@@ -46,6 +78,21 @@ export const config = {
    * therefore has to apply here too, or the rehearsal is missing the thing being rehearsed.
    */
   isStaging: base.is(Env.STAGING),
+  /**
+   * Whether this deployment may be driven by the preview overrides: `?viewAs=`, `?mock=1`, `?ff=`, `?ffv=`.
+   *
+   * Read off the HOSTNAME, not off the resolved environment, and those are deliberately different things.
+   * A Vercel preview resolves to DEVELOPMENT, so a store worth reviewing does not exist in it; the way to
+   * show one is `?env=prod`, which points the same bundle at the production feeds — and gating on the
+   * resolved env would switch the overrides off in exactly the case they exist for. Reading the host closes
+   * the other direction too: `?env=dev` on the live Shop cannot turn them on, because the hostname does not
+   * move with the query string.
+   *
+   * See {@link PREVIEW_HOSTS} for who qualifies: `localhost` and the e2e harness, the per-PR deploy
+   * previews, and `decentraland.zone`. Production and staging are not on that list, and neither is any
+   * host nobody has thought of yet.
+   */
+  previewHost: import.meta.env.DEV || (typeof window !== 'undefined' && isPreviewHost(window.location.hostname)),
   marketplaceServerUrl: env.VITE_MARKETPLACE_SERVER_URL ?? base.get('MARKETPLACE_SERVER_URL'),
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),

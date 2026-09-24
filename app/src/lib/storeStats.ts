@@ -16,6 +16,13 @@ export type StoreItem = {
   /** Copies minted, from the item's own supply — not from the sales feed, which only covers the window. */
   minted: number
   sold: number
+  /**
+   * What those first sales brought in over the window, in MANA wei.
+   *
+   * Summed from the rows the feed returned, so it carries the same caveat as `sold` and moves with
+   * `breakdownPartial` — the server's exact aggregate answers per collection, never per item.
+   */
+  earnedWei: bigint
   /** First sales over the item's whole life, when the server can say — not the window's count. */
   lifetimeSold: number | null
   priceCredits: number | null
@@ -42,6 +49,15 @@ export type StoreCollection = {
   createdAt: number | null
   /** Sales across the window, oldest first — the sparkline's series. */
   trend: number[]
+  /**
+   * Copies of the whole collection claimed, and the size of the run they came out of.
+   *
+   * Both are lifetime figures read from supply, not from the window: "80 of 250 claimed" answers how much
+   * of a run is gone, which does not change because the period selector moved. The window's story is the
+   * trend beside it.
+   */
+  claimed: number
+  runTotal: number
   /**
    * Every item in it has no copies left.
    *
@@ -158,6 +174,7 @@ export function buildStoreStats({
   now: number
 }): StoreStats {
   const soldByItem = new Map<string, number>()
+  const earnedByItem = new Map<string, bigint>()
   const rowsByCollection = new Map<string, SaleRow[]>()
   for (const row of rows) {
     // Only first sales are counted against an item, because that is what these figures measure: how much
@@ -171,6 +188,7 @@ export function buildStoreStats({
     const ca = row.contractAddress.toLowerCase()
     const key = `${ca}-${row.itemId}`
     soldByItem.set(key, (soldByItem.get(key) ?? 0) + 1)
+    earnedByItem.set(key, (earnedByItem.get(key) ?? 0n) + weiOf(row.price))
     const list = rowsByCollection.get(ca) ?? []
     list.push(row)
     rowsByCollection.set(ca, list)
@@ -235,6 +253,8 @@ export function buildStoreStats({
       earningsWei: 0n,
       createdAt: null,
       trend: [],
+      claimed: 0,
+      runTotal: 0,
       exhausted: false
     }
     const sold = soldByItem.get(`${ca}-${item.blockchainItemId}`) ?? 0
@@ -247,6 +267,7 @@ export function buildStoreStats({
       left: item.remainingSupply,
       minted: item.totalSupply,
       sold,
+      earnedWei: earnedByItem.get(`${ca}-${item.blockchainItemId}`) ?? 0n,
       lifetimeSold: lifetimeByItem.get(`${ca}-${item.blockchainItemId}`) ?? null,
       priceCredits: sale?.priceCredits ?? null,
       manaWei: sale?.manaWei ?? null,
@@ -254,6 +275,8 @@ export function buildStoreStats({
       state
     })
     entry.sold += sold
+    entry.claimed += item.totalSupply
+    entry.runTotal += item.totalSupply + item.remainingSupply
     attributedRows += sold
     if (item.createdAt && (entry.createdAt == null || item.createdAt > entry.createdAt)) {
       entry.createdAt = item.createdAt

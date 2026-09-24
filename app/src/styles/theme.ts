@@ -87,6 +87,14 @@ const colors = {
   // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).
   glass: 'rgba(255, 255, 255, 0.2)',
   glassFaint: 'rgba(255, 255, 255, 0.1)',
+  /**
+   * A panel that LIFTS the purple field instead of darkening it — the store editor's card.
+   *
+   * Violet rather than white: sampled either side of the card's edge in the design, the fill raises blue
+   * about twice as much as green (+20, +13, +29 against the background at mid height), which a neutral
+   * white wash cannot do — it lifts all three equally and comes out grey.
+   */
+  cardLift: 'rgba(165, 93, 244, 0.2)',
   glassHover: 'rgba(255, 255, 255, 0.3)'
 } as const
 

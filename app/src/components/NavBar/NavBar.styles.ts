@@ -471,6 +471,36 @@ export const FavFill = styled(Icon)`
 `
 
 // position:relative anchors CartPopover's absolutely-positioned `.cart-pop`.
+/**
+ * Activity, as an icon beside the heart rather than a tab.
+ *
+ * Same 40px target and hover as the heart it sits next to, so the three controls on the right read as one
+ * group. Shares the cart's stacked order: with both at 4 the DOM decides, which puts it before the cart
+ * without renumbering anything else in the row.
+ */
+export const Activity = styled(NavLink)`
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: ${radius.btn};
+  color: #ecebed;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  &.active {
+    color: ${theme.colors.softWhite};
+  }
+
+  ${stacked} {
+    order: 4;
+  }
+`
+
 export const CartWrap = styled.div`
   position: relative;
 

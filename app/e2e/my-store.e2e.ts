@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { bodyText, waitForText } from './helpers/dom'
-import { COLLECTION, TEST_ADDRESS } from './fixtures'
+import { TEST_ADDRESS } from './fixtures'
 import { storeShowcaseFixtures } from './storeShowcase.fixtures'
 
 let app: App | undefined
@@ -10,134 +10,7 @@ afterEach(async () => {
   app = undefined
 })
 
-const DAY = 86_400_000
-const HOUR = 3_600_000
-
-// The creator's catalogue, as the builder serves it. `total_supply` against the rarity's cap is what says
-// how much of a run is left — Galaxy Crown is a unique with its one copy minted, so it is sold out.
-const builderItem = (itemId: number, name: string, minted: number, rarity = 'epic') => ({
-  id: `item-${itemId}`,
-  collection_id: 'col-1',
-  contract_address: COLLECTION,
-  blockchain_item_id: String(itemId),
-  name,
-  thumbnail: 'thumbnail.png',
-  contents: { 'thumbnail.png': 'bafyfake' },
-  is_published: true,
-  is_approved: true,
-  total_supply: minted,
-  rarity,
-  type: 'wearable',
-  data: { wearable: { category: 'hat' } }
-})
-
-const listing = (itemId: string, name: string, priceCredits: number) => ({
-  tradeId: `trade-${itemId}`,
-  listingType: 'primary',
-  contractAddress: COLLECTION,
-  itemId,
-  tokenId: null,
-  name,
-  thumbnail: '',
-  rarity: 'epic',
-  category: 'wearable',
-  wearableCategory: 'hat',
-  creator: TEST_ADDRESS,
-  priceCredits,
-  available: 10,
-  network: 'MATIC',
-  chainId: 80002
-})
-
-/** Four buyers, one of whom takes most of the store: enough for the collectors figures to mean something. */
-const BUYERS = [
-  '0xaca5bc79b0cd51b726d2eadfc747f7ad4dfe7efb',
-  '0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1',
-  '0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2',
-  '0xd3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3'
-]
-
-const sale = (n: number, itemId: string, daysAgo: number, price: string, type = 'mint', buyer = BUYERS[0]) => ({
-  id: `sale-${n}`,
-  itemId,
-  contractAddress: COLLECTION,
-  buyer,
-  seller: TEST_ADDRESS,
-  price,
-  timestamp: Date.now() - daysAgo * DAY,
-  type,
-  network: 'MATIC',
-  tokenId: null,
-  chainId: 80002
-})
-
-const runningSale = {
-  id: 'coupon-live',
-  signer: TEST_ADDRESS,
-  chainId: 80002,
-  network: 'MATIC',
-  checks: {
-    uses: 5,
-    expiration: Date.now() + 40 * HOUR,
-    // Live for two days, with sales on either side of that line: long enough for the panel to say whether
-    // it moved anything, which an hour-old discount cannot.
-    effective: Date.now() - 2 * DAY,
-    salt: '0x' + '22'.repeat(32),
-    contractSignatureIndex: 0,
-    signerSignatureIndex: 0,
-    allowedRoot: '0x',
-    externalChecks: [],
-    allowedProof: []
-  },
-  couponManager: '0x6c956587d9fe70032781edcdc626310648575382',
-  couponAddress: '0x4ee8f6b87f4917a3bbc7c8bb3a06db8555f83db9',
-  discountType: 1,
-  discount: 300_000,
-  root: '0x' + '11'.repeat(32),
-  collections: [COLLECTION],
-  signature: '0x' + 'ab'.repeat(65),
-  createdAt: Date.now() - HOUR,
-  state: { uses: 0, cancelled: false, revoked: false, checkedAt: Date.now() },
-  status: 'active'
-}
-
-// Four items, three of which have sold: 4 first sales of the hat, 10 of the boots, one RESALE of the cape.
-// Fifteen in all, which is more than one page of the table — the pager only exists past that.
-const sales = [
-  sale(1, '0', 0, '5000000000000000000'),
-  sale(2, '0', 1, '5000000000000000000'),
-  sale(3, '0', 3, '5000000000000000000'),
-  sale(4, '1', 2, '370908000000000000'),
-  sale(5, '1', 5, '370908000000000000'),
-  sale(6, '1', 9, '370908000000000000'),
-  sale(7, '2', 12, '8160000000000000000', 'order', BUYERS[1]),
-  sale(8, '0', 15, '5000000000000000000', 'mint', BUYERS[1]),
-  ...Array.from({ length: 7 }, (_, i) =>
-    sale(9 + i, '1', 4 + i, '370908000000000000', 'mint', BUYERS[[0, 0, 0, 1, 1, 2, 3][i]])
-  ),
-  // Older than the 30-day window and inside the one before it, so the period-over-period figures have a
-  // month to compare against instead of reading every store as brand new.
-  ...Array.from({ length: 6 }, (_, i) => sale(20 + i, '0', 35 + i * 2, '5000000000000000000'))
-]
-
-const listed = [listing('0', 'Galaxy Hat', 30), listing('1', 'Galaxy Boots', 10)]
-
-export const storeFixtures = {
-  importable: { data: [] },
-  unifiedListings: { data: [] },
-  shopListings: { data: listed },
-  builderItems: {
-    data: [
-      builderItem(0, 'Galaxy Hat', 12),
-      builderItem(1, 'Galaxy Boots', 40),
-      builderItem(2, 'Galaxy Cape', 3),
-      builderItem(3, 'Galaxy Crown', 1, 'unique')
-    ]
-  },
-  collectionSaleState: { data: listed, total: listed.length },
-  coupons: { data: [runningSale] },
-  sales: { data: sales, total: sales.length }
-}
+import { storeFixtures } from './myStore.fixtures'
 
 const text = (app: App, testId: string) =>
   app.page.$eval(`[data-testid="${testId}"]`, el => (el as HTMLElement).innerText.trim())
@@ -154,17 +27,13 @@ describe('when a creator opens their store', () => {
     expect(await text(app, 'store-sold')).toBe('15')
     // 15 against the 6 of the month before it, which the harness now windows properly.
     expect(await text(app, 'store-delta')).toContain('150%')
+    // The tile's bottom line names the window it compares against rather than leaving it to a tooltip.
+    expect(await text(app, 'store-delta')).toContain('30 days')
     expect(await text(app, 'store-discounts')).toBe('1')
     const body = await bodyText(page)
-    // Counted by the server's own aggregate, not derived from the page of rows the table happens to hold,
-    // and named by who did the selling: a resale is the creator's, a royalty is somebody else's.
-    expect(body).toContain('14 first sales · 1 resold')
 
-    // Only what the creator can act on: nothing is priced in MANA here, so that row is absent rather than
-    // sitting at zero.
-    expect(await page.$('[data-testid="store-attn-classic"]')).toBeNull()
-    expect(await text(app, 'store-attn-soldout')).toBe('1')
-    expect(await text(app, 'store-attn-unlisted')).toBe('1')
+    // What is selling across the whole store, which no single collection's breakdown can answer.
+    await page.waitForSelector('[data-testid="store-best"]')
 
     // The collection wears the discount that is running on it.
     expect(await text(app, 'store-collection-name')).toBe('Galaxy Drip')
@@ -211,7 +80,7 @@ describe('when a creator opens their store', () => {
     await page.waitForSelector('[data-testid="store-sale"]')
 
     // A page of the feed, not a handful kept from the aggregate: the rest is a click away.
-    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(12)
+    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(5)
     const buyer = await page.$eval('[data-testid="store-sale-buyer"]', el => ({
       href: el.getAttribute('href'),
       target: el.getAttribute('target'),
@@ -229,10 +98,35 @@ describe('when a creator opens their store', () => {
     expect(saleItem.href).toMatch(/^\/item\/0x[0-9a-f]+\/\d+$/i)
     expect(saleItem.target).toBe('_blank')
 
-    // Numbered pages: the second one holds the remaining three sales, and the page you are on is marked.
-    await page.click('[data-testid="store-sales-page-2"]')
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="store-sale"]').length === 3)
-    expect(await page.$eval('[data-testid="store-sales-page-2"]', el => el.getAttribute('aria-current'))).toBe('page')
+    // Numbered pages: fifteen sales across three, and the page you are on is marked. The count is asserted
+    // before the click so a changed page size fails saying so, rather than timing out on a missing button.
+    expect(await page.$$eval('[data-testid^="store-sales-page-"]', pages => pages.length)).toBe(3)
+    await page.click('[data-testid="store-sales-page-3"]')
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="store-sales-page-3"]')?.getAttribute('aria-current') === 'page'
+    )
+    expect(await page.$$eval('[data-testid="store-sale"]', rows => rows.length)).toBe(5)
+  })
+
+  it('should rank what is selling across the store, leaving out what is not', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+    await page.waitForSelector('[data-testid="store-best"]')
+
+    // Ten first sales of the boots against four of the hat. The cape only ever changed hands as a resale
+    // and the crown never sold at all, so neither belongs in a ranking of what this store is selling.
+    const rows = await page.$$eval('[data-testid="store-best"]', found =>
+      found.map(row => (row as HTMLElement).innerText.replace(/\s+/g, ' ').trim())
+    )
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatch(/^1 Galaxy Boots/)
+    expect(rows[1]).toMatch(/^2 Galaxy Hat/)
+
+    const sold = await page.$$eval('[data-testid="store-best-sold"]', cells =>
+      cells.map(cell => (cell as HTMLElement).innerText.trim())
+    )
+    expect(sold).toEqual(['10', '4'])
   })
 
   it('should fit a phone without scrolling sideways', async () => {
@@ -243,7 +137,31 @@ describe('when a creator opens their store', () => {
     await page.click('[data-testid="store-collection-toggle"]')
     await page.waitForSelector('[data-testid="store-item"]')
 
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    // Same verdict as a bare scrollWidth check, but a failure names what spilled: that check alone fails
+    // with "expected false to be true", which says the page overflows and nothing about where.
+    const report = await page.evaluate(() => {
+      const vw = window.innerWidth
+      // Inside a horizontal scroller is contained by design (the collections run, the feed tables).
+      const inScroller = (el: Element) => {
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          if (getComputedStyle(p).overflowX !== 'visible') return true
+        }
+        return false
+      }
+      const offenders = [...document.querySelectorAll('body *')]
+        .filter(el => {
+          const r = el.getBoundingClientRect()
+          return r.width > 0 && r.right > vw + 1 && !inScroller(el)
+        })
+        .slice(0, 6)
+        .map(el => {
+          const r = el.getBoundingClientRect()
+          const id = el.getAttribute('data-testid') ?? ''
+          return `${el.tagName.toLowerCase()}[${id}] right=${Math.round(r.right)} "${(el.textContent ?? '').trim().slice(0, 40)}"`
+        })
+      return { fits: document.documentElement.scrollWidth <= vw + 1, offenders }
+    })
+    expect(report.fits, `overflowing: ${report.offenders.join(' | ')}`).toBe(true)
   })
 })
 
@@ -252,7 +170,7 @@ describe('when a creator opens their store', () => {
  * than against itself, because the failure they guard is a plausible-looking number, not a missing one.
  */
 describe('when a creator reads how their store is doing', () => {
-  it('should say which way each figure moved, who is buying, and what is going unsold', async () => {
+  it('should say which way each figure moved, who is buying, and what is selling', async () => {
     app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
     const { page } = app
     await page.setViewport({ width: 1440, height: 1300 })
@@ -264,20 +182,12 @@ describe('when a creator reads how their store is doing', () => {
     // Four buyers, one of whom took more than half, which is the fact that reframes the rest.
     expect(await text(app, 'store-collectors')).toBe('4')
     // Nine of the fifteen went to one of them, which is the reading the bare count cannot give.
-    expect(body).toContain('1 buyer is 60% of sales')
-    // The discount has been live two days, with sales before it to compare against.
-    await page.waitForSelector('[data-testid="creator-sale-lift"]')
-    expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)
-    await page.screenshot({ path: '/tmp/lift.png', clip: { x: 860, y: 150, width: 560, height: 760 } })
-  })
-
-  it("should count what nobody bought against the item's whole life, not against this month", async () => {
-    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
-    await app.page.waitForSelector('[data-testid="store-collection"]')
-    const body = await bodyText(app.page)
-
-    // The crown has sold its only copy, so it is sold out rather than unwanted however quiet the month was.
-    expect(body).toContain('Saved, never bought')
+    // Nine of the fourteen FIRST sales went to one of them. The resale in the fixture is left out: a token
+    // the creator flipped is not a customer of their store.
+    expect(body).toContain('1 buyer is 64% of sales')
+    // The discount is reported on the row it applies to, with how much of it has been taken.
+    expect(body).toContain('-30%')
+    expect(body).toMatch(/of \d+ sold at this price/)
   })
 })
 
@@ -300,7 +210,7 @@ describe('when every figure on the dashboard has something to report', () => {
     const { page } = app
     await page.setViewport({ width: 1440, height: 1250 })
     await page.waitForSelector('[data-testid="store-collection"]')
-    await page.waitForSelector('[data-testid="creator-sale-lift"]')
+    await page.waitForSelector('[data-testid="store-best"]')
     const body = await bodyText(page)
 
     // Twenty-four this month against six the month before, all four buyers counted, one of them most of it.
@@ -310,11 +220,8 @@ describe('when every figure on the dashboard has something to report', () => {
     expect(await text(app, 'store-delta')).toContain('%')
     expect(await text(app, 'store-collectors')).toBe('4')
     expect(body).toContain('% of sales')
-    // The discount has been live two days with sales on either side of that line.
-    expect(await text(app, 'creator-sale-lift')).toMatch(/faster|slower|same pace/)
-    // A collection with nothing left wears the chip, and the capsule nobody has bought is called out.
+    // A collection with nothing left wears the chip.
     expect(await page.$('[data-testid="store-collection-soldout"]')).not.toBeNull()
-    expect(body).toContain('Saved, never bought')
 
     // The tiles are grid cells, so one of them running to a second line grows every card beside it. They
     // are measured rather than eyeballed: equal heights are the whole reason the copy is kept short.

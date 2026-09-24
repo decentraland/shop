@@ -12,8 +12,6 @@ import { Button } from '~/components/Button'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { SaleTag } from '~/components/SaleTag'
 import { SaleTimer } from '~/components/SaleTimer'
-import { Tooltip } from '~/components/Tooltip'
-import type { SaleLift } from '~/lib/storeMetrics'
 import * as S from './CreatorSales.styles'
 
 function statusCopy(status: CreatorSaleStatus): string {
@@ -33,45 +31,14 @@ function statusCopy(status: CreatorSaleStatus): string {
   }
 }
 
-/** Which way a discount moved the store, for the chip's colour. */
-function liftDirection(lift: SaleLift): 'up' | 'down' | 'flat' {
-  if (lift.liftPct === null || Math.round(lift.liftPct) === 0) return 'flat'
-  return lift.liftPct > 0 ? 'up' : 'down'
-}
-
-/**
- * How the discount is doing, in words.
- *
- * Past 1000% a percentage stops being a reading and starts being a number nobody can picture, so a big
- * jump is stated as a multiple instead.
- */
-function liftCopy(lift: SaleLift): string {
-  if (lift.liftPct === null) return t('creatorSale.liftNoBaseline')
-  const rounded = Math.round(lift.liftPct)
-  if (rounded === 0) return t('creatorSale.liftFlat')
-  const amount =
-    rounded >= 1000
-      ? `${Math.round(lift.duringPerDay / lift.beforePerDay).toLocaleString()}\u00d7`
-      : `${Math.abs(rounded)}%`
-  return t(rounded > 0 ? 'creatorSale.liftUp' : 'creatorSale.liftDown', { amount })
-}
-
 /** A creator's sales, newest first, with the one action a running sale has: ending it early. */
 export function CreatorSales({
   sales,
   session,
-  names,
-  lift
+  names
 }: {
   sales: CreatorSale[]
   session: Session
-  /**
-   * How each sale is doing against the days before it started, keyed by sale id.
-   *
-   * Optional, and null per sale where the answer would not be honest: the caller owns the rows the figure
-   * is measured from, and only it can tell whether they reach back far enough to compare against.
-   */
-  lift?: Record<string, SaleLift | null>
   /** Collection names by lowercased address, so a row can say WHICH collection rather than "1 collection". */
   names?: Record<string, string>
 }) {
@@ -141,13 +108,6 @@ export function CreatorSales({
                 ) : null}
                 {isSaleCapped(sale) ? (
                   <span>{t('creatorSale.used', { used: sale.state?.uses ?? 0, total: sale.checks.uses })}</span>
-                ) : null}
-                {lift?.[sale.id] ? (
-                  <Tooltip content={t('creatorSale.liftHint')}>
-                    <S.Lift data-dir={liftDirection(lift[sale.id] as SaleLift)} data-testid="creator-sale-lift">
-                      {liftCopy(lift[sale.id] as SaleLift)}
-                    </S.Lift>
-                  </Tooltip>
                 ) : null}
               </S.Meta>
             </S.Info>

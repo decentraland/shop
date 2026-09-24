@@ -1,15 +1,7 @@
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { countSales, fetchSalesSummary, fetchSellerSales, weiOf } from '~/lib/sales'
-import {
-  collectorsOf,
-  daysSinceLastSale,
-  deltaOf,
-  deltaOfWei,
-  saleLift,
-  topBuyers,
-  wantedButUnsold
-} from '~/lib/storeMetrics'
+import { collectorsOf, daysSinceLastSale, deltaOf, deltaOfWei, topBuyers } from '~/lib/storeMetrics'
 import { fetchFavoriteStats } from '~/lib/favorites'
 import { fetchPublishableItems } from '~/lib/builder'
 import { fetchPublicCatalogue } from '~/lib/storePreview'
@@ -17,6 +9,9 @@ import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collec
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
 import { toSaleableCollections } from '~/lib/saleableCollections'
 import type { Session } from '~/lib/auth'
+
+/** Stable empty map, so a render before the saves land does not hand consumers a new object. */
+const EMPTY_SAVES = new Map<string, number>()
 
 export type StorePeriod = '7d' | '30d' | 'all'
 export type { StoreItem, StoreCollection, StoreStats } from '~/lib/storeStats'
@@ -183,6 +178,8 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
    */
   const trend = useMemo(() => {
     const collectors = collectorsOf(sales.data?.rows ?? [])
+    // Everyone, not a top five: the table pages through them, and a store with hundreds of customers is
+    // exactly the one whose owner wants to scroll past the first screen.
     const buyers = topBuyers(sales.data?.rows ?? [])
     const quietDays = daysSinceLastSale(sales.data?.rows ?? [], now)
     const against = previous.data
@@ -196,53 +193,13 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
     }
   }, [sales.data, summary.data, previous.data, now])
 
-  /**
-   * Whether a discount moved anything, measured from the rows this hook already holds.
-   *
-   * Handed out as a function rather than a map because the discounts are fetched elsewhere: the page knows
-   * which sales are running, this knows what sold and when, and neither has a reason to learn the other.
-   */
-  const liftFor = useCallback(
-    (sale: { checks: { effective: number; expiration: number }; collections: string[] }) => {
-      const rows = sales.data?.rows ?? []
-      // Measured against the collections the discount actually covers. A creator running one sale on a
-      // quiet capsule and another on their best seller wants two different answers, and the store's whole
-      // feed gives them the same one twice.
-      const scope = new Set(sale.collections.map(address => address.toLowerCase()))
-      const covered = rows.reduce((min, row) => (row.timestamp < min ? row.timestamp : min), now)
-      return saleLift(
-        rows.filter(row => scope.has(row.contractAddress.toLowerCase())),
-        sale.checks,
-        now,
-        covered
-      )
-    },
-    [sales.data, now]
-  )
-
-  /**
-   * Items people saved and nobody ever bought. Empty until the saves land, which is the honest reading.
-   *
-   * Against the item's LIFETIME sales, not the window's. A run that sold out last year has not gone
-   * unwanted because this month was quiet, and counting it here told one creator that 57 of their 63
-   * items had never sold while 37 of them had no copies left.
-   */
-  const wanted = useMemo(
-    () =>
-      wantedButUnsold(
-        (stats?.collections ?? [])
-          .flatMap(c => c.items)
-          .map(item => ({ ...item, sold: item.lifetimeSold ?? item.sold })),
-        saves.data ?? new Map<string, number>()
-      ),
-    [stats, saves.data]
-  )
+  /** How many people saved each item, by `<contract>-<itemId>`. Empty until the reads land. */
+  const savesByKey = saves.data ?? EMPTY_SAVES
 
   return {
     stats,
     trend,
-    wanted,
-    liftFor,
+    savesByKey,
     saleable,
     // The summary counts, because the tiles read from it the moment it lands: leaving it out let the page
     // declare itself ready on the row-derived fallback and then rewrite every headline figure under the

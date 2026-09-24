@@ -13,7 +13,7 @@ import * as S from './CreatorHero.styles'
 
 const LINK_ICON: Record<LinkType, IconName> = {
   website: 'website',
-  twitter: 'twitter',
+  twitter: 'x-twitter',
   discord: 'discord',
   facebook: 'facebook'
 }
