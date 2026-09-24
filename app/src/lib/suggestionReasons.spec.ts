@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import en from '~/intl/en.json'
 import es from '~/intl/es.json'
-import { reasonCategory, reasonCopyKey, type ReasonCategory } from './suggestionReasons'
+import { explainedRows, reasonCategory, reasonCopyKey, type ReasonCategory } from './suggestionReasons'
 import type { SuggestionReasonKind } from '~/lib/api'
 
 const CATEGORIES: ReasonCategory[] = ['owned', 'favorites', 'creator', 'activity']
@@ -44,5 +44,14 @@ describe('reasonCopyKey', () => {
   it('gives every category its own copy', () => {
     const copy = CATEGORIES.map(category => lookup(en as Record<string, unknown>, reasonCopyKey(category)))
     expect(new Set(copy).size).toBe(CATEGORIES.length)
+  })
+})
+
+describe('explainedRows', () => {
+  const row = (kind: SuggestionReasonKind) => ({ reason: { kind } })
+
+  it('keeps the rows the rail can explain, in order, and drops the trending ones', () => {
+    const rows = [row('co_owned'), row('trending'), row('seed_similar'), row('trending'), row('creator_affinity')]
+    expect(explainedRows(rows).map(r => r.reason.kind)).toEqual(['co_owned', 'seed_similar', 'creator_affinity'])
   })
 })

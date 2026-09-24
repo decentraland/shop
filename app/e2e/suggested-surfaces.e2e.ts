@@ -117,6 +117,16 @@ describe('the space the cart rail occupies', () => {
     expect(await page.$('[data-testid="cart-personal-upsell"]')).toBeNull()
   })
 
+  it('falls back to its own row when leaving the trending rows out leaves too few to show', async () => {
+    // Five rows, two of them trending: three are left, under the minimum, so the personal rail hides. The
+    // page has to see the same three and bring back its upsell, or the cart is left with neither.
+    app = await openCart({ suggestedForYou: true, suggested: { count: 5, trending: 2 } })
+    const { page } = app
+    await waitForText(page, 'You might also like')
+
+    expect(await page.$('[data-testid="cart-personal-upsell"]')).toBeNull()
+  })
+
   it('keeps the space while the answer is still coming, so the rail does not push the page down', async () => {
     app = await launchApp({ suggestedForYou: true, delays: { '/v3/catalog/suggested': 4000 }, path: '/' })
     const { page } = app

@@ -711,9 +711,10 @@ describe('AssetCard note', () => {
     expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
   })
 
-  it('does not show the note on a card that is not for browsing', () => {
+  it('does not accept or show a note on a card that is not for browsing', () => {
     render(
       <MemoryRouter>
+        {/* @ts-expect-error a note only belongs on a shop card */}
         <AssetCard item={makeItem()} mode="view" note="Based on your favorites" />
       </MemoryRouter>
     )

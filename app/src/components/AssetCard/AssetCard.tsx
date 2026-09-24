@@ -50,13 +50,14 @@ const HOVER_DELAY_MS = 120
 // is why Trending's CTR was unmeasurable. `position` is 0-based and only meaningful inside an ordered row.
 type AssetCardProvenance = { source?: AddToCartSource; position?: number }
 
-/** A line of context between the price and the action, e.g. why a rail picked this item. Shop cards only. */
-type AssetCardNote = { note?: ReactNode }
-
 type AssetCardProps = AssetCardProvenance &
-  AssetCardNote &
   (
-    | { item: CatalogItem; mode?: 'shop' }
+    | {
+        item: CatalogItem
+        mode?: 'shop'
+        /** A line of context between the price and the action, e.g. why a rail picked this item. */
+        note?: ReactNode
+      }
     | { item: CatalogItem; mode: 'view' }
     | {
         item: CatalogItem
@@ -70,7 +71,8 @@ type AssetCardProps = AssetCardProvenance &
   )
 
 export function AssetCard(props: AssetCardProps) {
-  const { item, source = 'grid', position, note } = props
+  const { item, source = 'grid', position } = props
+  const note = 'note' in props ? props.note : undefined
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
   const isManageLink = props.mode === 'manage-link'

@@ -13,7 +13,7 @@ import {
   type SuggestionSurface
 } from '~/lib/suggestionEvents'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
-import { reasonCategory, reasonCopyKey, type ReasonCategory } from '~/lib/suggestionReasons'
+import { explainedRows, reasonCategory, reasonCopyKey, type ReasonCategory } from '~/lib/suggestionReasons'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import creatorIcon from '~/assets/suggested/creator.svg'
@@ -65,7 +65,7 @@ export function SuggestedForYouRow({
   const { result, isLoading, isError, enabled, hasSignal, hasAddress, seedCount, fetchMs } = useSuggestedForYou(first, {
     exclude
   })
-  const items = useMemo(() => (result?.data ?? []).filter(item => reasonCategory(item.reason.kind)), [result])
+  const items = useMemo(() => explainedRows(result?.data ?? []), [result])
 
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -204,7 +204,7 @@ export function SuggestedForYouRow({
   // a click on one would report a `paged_suggestions` for a rail the reader cannot see yet.
   const showControls = !isLoading && pageCount > 1
 
-  const onClick = (item: SuggestedItem, rank: number, target: ClickTarget = 'card') => {
+  const onClick = (item: SuggestedItem, rank: number) => {
     track('clicked_suggestion', {
       contract_address: item.contractAddress,
       item_id: item.itemId,
@@ -213,7 +213,7 @@ export function SuggestedForYouRow({
       algorithm: result?.algorithm,
       has_address: hasAddress,
       surface,
-      target
+      target: 'card' satisfies ClickTarget
     })
   }
 

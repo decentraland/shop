@@ -23,6 +23,14 @@ export function reasonCategory(kind: SuggestionReasonKind): ReasonCategory | und
   return CATEGORY_BY_KIND[kind] ?? undefined
 }
 
+/**
+ * The rows the rail actually shows. The pages that decide whether to show their own row in its place read
+ * this too: counting the raw answer instead would have them stand down for a rail that then hides itself.
+ */
+export function explainedRows<T extends { reason: { kind: SuggestionReasonKind } }>(rows: T[]): T[] {
+  return rows.filter(row => reasonCategory(row.reason.kind))
+}
+
 export function reasonCopyKey(category: ReasonCategory): string {
   return `overview.suggested.reason.${category}`
 }
