@@ -165,12 +165,12 @@ export function App() {
               : path.startsWith('/outfits/')
                 ? 'outfit_studio'
                 : 'other')
-    // The invented store is a reviewer reading it, not a visit. Only honoured where the override itself
-    // is (config.previewHost), so the live Shop always counts.
+    // A preview of someone else's store, or an invented one, is a reviewer reading it, not a visit. Only
+    // honoured where the overrides themselves are (config.previewHost), so the live Shop always counts.
     // Read off window rather than added as a dependency: a page view is per ROUTE, and depending on the
     // query string would count every filter change on the grids as a visit.
     const params = new URLSearchParams(window.location.search)
-    if (config.previewHost && params.get('mock') === '1') return
+    if (config.previewHost && (params.has('viewAs') || params.get('mock') === '1')) return
     trackPage(page)
   }, [location.pathname])
 

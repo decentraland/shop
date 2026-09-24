@@ -79,16 +79,14 @@ export const config = {
    */
   isStaging: base.is(Env.STAGING),
   /**
-   * Whether this deployment may be driven by the preview overrides: `?mock=1`, `?ff=`, `?ffv=`.
+   * Whether this deployment may be driven by the preview overrides: `?viewAs=`, `?mock=1`, `?ff=`, `?ffv=`.
    *
    * Read off the HOSTNAME, not off the resolved environment, and those are deliberately different things.
-   * `?env=prod` points a preview at the production feeds, and gating on the resolved env would switch the
-   * overrides off exactly when a preview is being tried against real data. Reading the host closes the
-   * other direction too: `?env=dev` on the live Shop cannot turn them on, because the hostname does not
+   * A Vercel preview resolves to DEVELOPMENT, so a store worth reviewing does not exist in it; the way to
+   * show one is `?env=prod`, which points the same bundle at the production feeds — and gating on the
+   * resolved env would switch the overrides off in exactly the case they exist for. Reading the host closes
+   * the other direction too: `?env=dev` on the live Shop cannot turn them on, because the hostname does not
    * move with the query string.
-   *
-   * None of them reads another account's data. There used to be a `?viewAs=` here that opened any
-   * creator's dashboard, and on a public preview host that meant anyone's, to anyone.
    *
    * See {@link PREVIEW_HOSTS} for who qualifies: `localhost` and the e2e harness, the per-PR deploy
    * previews, and `decentraland.zone`. Production and staging are not on that list, and neither is any
