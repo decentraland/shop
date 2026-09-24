@@ -233,9 +233,18 @@ export function CreatorSaleModal({
    * Leaving without a sale, from any step. Every way out of this modal already goes through `onClose` — the
    * scrim, the close button, the cancel — so wrapping it once catches all of them.
    */
-  function onClose() {
-    if (!created) trackSale('Shop Abandoned Sale', { last_step: step })
+  function leave(reason: 'closed' | 'update_prices') {
+    if (!created) {
+      // A collection priced entirely in MANA never shows the form at all, so "form" would be a step the
+      // creator did not see. And following the button there is the path we recommend, not a drop-off, which
+      // is what `reason` is for: one closing event per opening, with how it closed.
+      const blocked = review.listed.length === 0 && review.classic.length > 0
+      trackSale('Shop Abandoned Sale', { last_step: blocked ? 'blocked' : step, reason })
+    }
     closeModal()
+  }
+  function onClose() {
+    leave('closed')
   }
 
   const example = useMemo(() => {
@@ -616,7 +625,7 @@ export function CreatorSaleModal({
             <S.OutlineBtn onClick={onClose}>{t('creatorSale.cancel')}</S.OutlineBtn>
             <S.PurpleBtn
               onClick={() => {
-                onClose()
+                leave('update_prices')
                 navigate('/activity?section=listings')
               }}
             >

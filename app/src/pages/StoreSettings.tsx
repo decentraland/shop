@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useHref, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { useWallet } from '~/store/wallet'
@@ -55,6 +55,8 @@ export function StoreSettings() {
    * — `state` survives a same-tab navigation and is not worth trusting with an arbitrary destination.
    */
   const location = useLocation()
+  // The guest link is an anchor (it opens a new tab), so it has to carry the router's basename itself.
+  const guestHref = useHref(address ? `/items/creator/${address}` : '/')
   const cameFrom = (location.state as { from?: unknown } | null)?.from
   const backTo =
     typeof cameFrom === 'string' && cameFrom.startsWith('/') && !cameFrom.startsWith('//')
@@ -242,7 +244,7 @@ export function StoreSettings() {
               <S.Title>{t('storeSettings.title')}</S.Title>
             </S.Heading>
             {address ? (
-              <S.Guest href={`/items/creator/${address}`} target="_blank" rel="noopener noreferrer">
+              <S.Guest href={guestHref} target="_blank" rel="noopener noreferrer">
                 {t('storeSettings.seeAsGuest')}
                 <Icon name="external-link" />
               </S.Guest>

@@ -340,7 +340,7 @@ export const TileKey = styled.span`
 
 export const TileMark = styled.span`
   /* Ahead of the label, as the design has it. Ordered rather than moved in the markup, because the mark is
-     the last child of five tiles and the delta between them relies on being last. */
+     the last child in every tile and reordering five sets of markup would buy nothing. */
   order: -1;
   font-size: 16px;
   line-height: 1;
@@ -397,7 +397,9 @@ export const TileUnit = styled.span`
 export const TileFoot = styled.span`
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
   min-height: 16px;
   font-family: ${theme.font.sans};
   font-size: 12px;
@@ -1615,8 +1617,8 @@ export const Delta = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
   font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.3;
+  flex-wrap: wrap;
   color: ${theme.colors.gray4};
 
   &[data-dir='up'] {

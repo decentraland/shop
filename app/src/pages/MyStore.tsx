@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from 'react'
-import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
 import { useStoreStats, type StoreCollection, type StoreItem, type StorePeriod } from '~/hooks/useStoreStats'
@@ -762,6 +762,15 @@ export function MyStore() {
   const viewAs = previewViewAs(params.get('viewAs'))
   const env = params.get('env')
   /**
+   * The router's own root, so a plain anchor into the app keeps the basename.
+   *
+   * Deployed, the Shop lives at <domain>/shop and the router is mounted there; a raw href of "/items/…"
+   * skips that and lands on the domain's own 404. Links rendered by <Link> get it for free — these are
+   * anchors because they open a new tab, so they have to be given it.
+   */
+  const routerRoot = useHref('/').replace(/\/$/, '')
+  const appHref = (path: string) => `${routerRoot}${path}`
+  /**
    * A preview is not a creator using their store: it is a designer reading someone else's, or an invented
    * one. Recording it would put a reviewer's clicks into a creator's funnel, attributed to the reviewer.
    */
@@ -942,7 +951,7 @@ export function MyStore() {
             <S.StoreActions>
               {storeAddress ? (
                 <S.ViewPublic
-                  href={withEnv(`/items/creator/${storeAddress}`, env)}
+                  href={appHref(withEnv(`/items/creator/${storeAddress}`, env))}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => trackStore('Shop Clicked Store Action', { action: 'view_public_store' })}
@@ -953,16 +962,19 @@ export function MyStore() {
                 </S.ViewPublic>
               ) : null}
               {/* Carries where it came from, so the settings page's back arrow returns HERE rather than
-                    to the public page it was reached from before. */}
-              <S.EditStore
-                to={withEnv('/store-settings', env)}
-                state={{ from: '/my-store' }}
-                onClick={() => trackStore('Shop Clicked Store Action', { action: 'edit_store' })}
-                data-testid="store-edit"
-              >
-                <Icon name="pen" className="ico" aria-hidden />
-                {t('myStore.editStore')}
-              </S.EditStore>
+                    to the public page it was reached from before. Absent when previewing someone else's
+                    store: the settings page edits the SIGNED-IN account's store, not the one on screen. */}
+              {viewAs ? null : (
+                <S.EditStore
+                  to={withEnv('/store-settings', env)}
+                  state={{ from: '/my-store' }}
+                  onClick={() => trackStore('Shop Clicked Store Action', { action: 'edit_store' })}
+                  data-testid="store-edit"
+                >
+                  <Icon name="pen" className="ico" aria-hidden />
+                  {t('myStore.editStore')}
+                </S.EditStore>
+              )}
             </S.StoreActions>
           </S.Masthead>
 
@@ -1260,7 +1272,7 @@ export function MyStore() {
                                   <S.SaleItem
                                     as="a"
                                     {...{
-                                      href: itemHref(entry.contractAddress, entry.itemId, env),
+                                      href: appHref(itemHref(entry.contractAddress, entry.itemId, env)),
                                       target: '_blank',
                                       rel: 'noopener noreferrer',
                                       onClick: () =>
@@ -1342,7 +1354,7 @@ export function MyStore() {
                                     as={row.itemId ? 'a' : 'span'}
                                     {...(row.itemId
                                       ? {
-                                          href: itemHref(row.contractAddress, row.itemId, env),
+                                          href: appHref(itemHref(row.contractAddress, row.itemId, env)),
                                           target: '_blank',
                                           rel: 'noopener noreferrer',
                                           onClick: () =>
@@ -1504,9 +1516,9 @@ export function MyStore() {
                     </S.TileValue>
                     <S.TileFoot>
                       <DeltaTag delta={trend.royalties} period={period} />
-                      {hasDelta(trend.royalties)
-                        ? null
-                        : tNode('myStore.tileRoyaltiesFoot', {
+                      {hasDelta(trend.royalties) ? null : (
+                        <span>
+                          {tNode('myStore.tileRoyaltiesFoot', {
                             m: (c: ReactNode) => (
                               <>
                                 <CurrencyMark kind="mana" />
@@ -1516,6 +1528,8 @@ export function MyStore() {
                             count: stats.royalties.resales,
                             volume: mana(stats.royalties.volumeWei)
                           })}
+                        </span>
+                      )}
                     </S.TileFoot>
                   </S.Tile>
                 ) : null}

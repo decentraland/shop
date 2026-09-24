@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 import { hashV1 } from '@dcl/hashing'
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { storeFixtures } from './my-store.e2e'
+import { storeFixtures } from './myStore.fixtures'
 import { waitForText } from './helpers/dom'
 import { ElementHandle } from 'puppeteer'
 
