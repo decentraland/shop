@@ -262,7 +262,7 @@ let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
 let suggestedForYouFlag = false
-let suggestedConfig: { personalized?: boolean; count?: number } = {}
+let suggestedConfig: { personalized?: boolean; count?: number; trending?: number } = {}
 let myStoreFlag = false
 /** The My Store flag's address-list variant. Undefined means no list, which is 'everyone'. */
 let myStoreAllowed: string | undefined
@@ -673,12 +673,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         return i < rows.length ? row : { ...row, tradeId: `${row.tradeId}-s${i}`, itemId: `${100 + i}` }
       })
       const kinds = ['co_owned', 'creator_affinity', 'favorite_similar', 'equipped_similar', 'seed_similar']
+      const trending = suggestedConfig.trending ?? 0
       const data = padded.map((row, i) => ({
         ...row,
         reason:
-          kinds[i % kinds.length] === 'creator_affinity'
-            ? { kind: 'creator_affinity', creator: row.creator }
-            : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
+          i < trending
+            ? { kind: 'trending' }
+            : kinds[i % kinds.length] === 'creator_affinity'
+              ? { kind: 'creator_affinity', creator: row.creator }
+              : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
         score: 1 - i / 100
       }))
       return json(req, {
@@ -1184,7 +1187,8 @@ export async function launchApp(
      * What `/v3/catalog/suggested` answers. Omit for the default: the unified fixture rows, personalised.
      * A spec passes `{ personalized: false }` to exercise the row hiding itself.
      */
-    suggested?: { personalized?: boolean; count?: number }
+    /** `trending`: how many of the rows, from the top, arrive as trending (which the rail leaves out). */
+    suggested?: { personalized?: boolean; count?: number; trending?: number }
     /**
      * Whether the mocked flag file reports the creator's store dashboard as available. Defaults to FALSE,
      * the shipped state; the my-store spec passes true.
