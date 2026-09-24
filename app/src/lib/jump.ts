@@ -56,17 +56,18 @@ export function jumpUrl(target: JumpTarget): string {
  * Opens the desktop client at a spot when it is installed, the same way decentraland.org does: fire the
  * `decentraland://` link and watch whether the page loses focus. Otherwise (no client, or a touch device)
  * it falls back to the jump page. Must run inside the click handler, since browsers only allow the
- * protocol hand-off and the new tab from a user gesture.
+ * protocol hand-off and the new tab from a user gesture. Resolves to where the visitor ended up.
  */
-export async function jumpIn(target: JumpTarget): Promise<void> {
+export async function jumpIn(target: JumpTarget): Promise<'client' | 'jump_page'> {
   const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
   if (!touch) {
     const opened = await launchDesktopApp({
       ...cleanTarget(target),
       ...(config.chainId === 80002 ? { dclenv: 'zone' } : {})
     }).catch(() => false)
-    if (opened) return
+    if (opened) return 'client'
   }
   // A popup blocker can refuse the tab once the launch attempt has used up the gesture; then go there here.
   if (!window.open(jumpUrl(target), '_blank', 'noopener')) window.location.assign(jumpUrl(target))
+  return 'jump_page'
 }

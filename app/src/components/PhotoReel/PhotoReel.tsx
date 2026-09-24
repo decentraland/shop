@@ -7,6 +7,7 @@ import { t } from '~/intl/i18n'
 import { capitalizeFirst } from '~/lib/text'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { formatPhotoDate } from '~/lib/dates'
+import { track } from '~/lib/analytics'
 import { jumpIn } from '~/lib/jump'
 import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import { fetchLiveScenes, sceneKey } from '~/lib/places'
@@ -59,6 +60,14 @@ function PersonName({ person }: { person: Person }) {
   return <>{data?.name ? capitalizeFirst(data.name) : person.name}</>
 }
 
+// A single photo reads as a stray image rather than a strip, so the section waits for a second one.
+const MIN_PHOTOS = 2
+
+/** The item every reel event is about, in the same keys the rest of the funnel uses. */
+function reelProps(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>) {
+  return { contract_address: item.contractAddress, item_id: item.itemId ?? null }
+}
+
 /**
  * Who is wearing the item, and who took the photo. Most of the time they are the same person — the
  * shopper is looking at someone's own picture of their own outfit — and the bar says so once.
@@ -92,6 +101,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
     // A refetch reorders the set, and doing that under an open photo would swap it for another one.
     refetchOnWindowFocus: false
   })
+  const rootRef = useRef<HTMLElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState<number | null>(null)
@@ -191,7 +201,52 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
     return () => window.removeEventListener('keydown', onKey)
   }, [open, step])
 
-  if (photos.length === 0) return null
+  // Counted once per item, when the strip is actually on screen: it sits below the fold, so a render
+  // alone would count every visit to the page.
+  const shown = photos.length >= MIN_PHOTOS
+  const viewedFor = useRef<string | null>(null)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!shown || !el || !key || viewedFor.current === key || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(
+      entries => {
+        if (!entries.some(entry => entry.isIntersecting)) return
+        io.disconnect()
+        viewedFor.current = key
+        track('Shop Viewed Photo Reel', { ...reelProps(item), photo_count: photos.length })
+      },
+      { threshold: 0.5 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [shown, key, item, photos.length])
+
+  if (!shown) return null
+
+  function openPhoto(index: number) {
+    const photo = photos[index]
+    const scene = sceneKey(photo)
+    setOpen(index)
+    track('Shop Opened Reel Photo', {
+      ...reelProps(item),
+      photo_id: photo.id,
+      photo_index: index,
+      people: photo.people,
+      can_jump_in: !!scene && !!live?.has(scene)
+    })
+  }
+
+  async function jumpFrom(photo: ReelPhoto, index: number) {
+    const outcome = await jumpIn({ position: photo.position, realm: photo.realm })
+    track('Shop Jumped In From Reel', {
+      ...reelProps(item),
+      photo_id: photo.id,
+      photo_index: index,
+      position: photo.position || null,
+      realm: photo.realm || null,
+      outcome
+    })
+  }
 
   function closeLightbox() {
     setZoom(false)
@@ -211,7 +266,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
   const currentLive = !!currentKey && !!live?.has(currentKey)
 
   return (
-    <S.Root data-testid="photo-reel">
+    <S.Root ref={rootRef} data-testid="photo-reel">
       <S.Head>
         <S.Title>{t('photoReel.title')}</S.Title>
         <S.Sub>{t('photoReel.subtitle')}</S.Sub>
@@ -228,7 +283,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
             <S.Tile
               key={photo.id}
               data-testid="photo-reel-shot"
-              onClick={() => setOpen(i)}
+              onClick={() => openPhoto(i)}
               aria-label={t('photoReel.openAria', { name: creditsFor(photo).wearer.name, place: photo.place })}
             >
               <S.Thumb src={photo.thumbnailUrl} alt="" loading="lazy" />
@@ -344,7 +399,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
                 {currentLive ? (
                   <S.JumpIn
                     type="button"
-                    onClick={() => void jumpIn({ position: current.position, realm: current.realm })}
+                    onClick={() => void jumpFrom(current, open ?? 0)}
                     aria-label={t('photoReel.jumpIn')}
                     data-testid="photo-reel-jump"
                   >

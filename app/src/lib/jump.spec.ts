@@ -40,7 +40,7 @@ describe('when jumping into a spot', () => {
   it('and the desktop client opens it should not open the jump page too', async () => {
     launchDesktopApp.mockResolvedValue(true)
 
-    await jumpIn({ position: '4,5', realm: 'main' })
+    await expect(jumpIn({ position: '4,5', realm: 'main' })).resolves.toBe('client')
 
     expect(launchDesktopApp).toHaveBeenCalledWith({ position: '4,5', realm: undefined })
     expect(open).not.toHaveBeenCalled()
@@ -49,7 +49,7 @@ describe('when jumping into a spot', () => {
   it('and the client is not installed it should fall back to the jump page', async () => {
     launchDesktopApp.mockResolvedValue(false)
 
-    await jumpIn({ position: '4,5' })
+    await expect(jumpIn({ position: '4,5' })).resolves.toBe('jump_page')
 
     expect(open).toHaveBeenCalledWith('https://decentraland.org/jump?position=4%2C5', '_blank', 'noopener')
   })
