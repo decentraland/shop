@@ -55,9 +55,16 @@ vi.mock('~/lib/names', () => {
     NameRouteCostTooHighError,
     NameNotRegisteredError,
     NameSettlementUnknownError,
-    registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a)
+    registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a),
+    // The fixed on-chain price the MANA rails are sized against.
+    NAME_PRICE_IN_WEI: '100000000000000000000'
   }
 })
+
+// The buyer's own MANA, per chain. Zero by default so the existing cases keep exercising the credits-only
+// flow they were written for; the MANA cases raise it.
+const manaBalances = { data: { matic: 0n, ethereum: 0n } }
+vi.mock('~/hooks/useManaBalance', () => ({ useManaBalances: () => manaBalances }))
 
 const track = vi.fn()
 vi.mock('~/lib/analytics', () => ({
@@ -141,6 +148,7 @@ describe('NameBuyModal', () => {
     iap.on = false
     sessionStorage.clear()
     balance = { balanceCents: 5000, credits: 500 }
+    manaBalances.data = { matic: 0n, ethereum: 0n }
     // Restored per test: the progress cases below switch it to cover both wallet kinds, and leaking that
     // would silently change which copy every later case is asserting.
     session.providerType = 'magic'
@@ -234,17 +242,21 @@ describe('NameBuyModal', () => {
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
 
-    // The long stretch. It has to say the wait is expected, or a buyer concludes it broke and tries again.
-    // Carried BESIDE the step name rather than replacing it: the step is still "completing transaction".
-    it('should say the bridge takes minutes, without renaming the step it is part of', async () => {
+    /**
+     * The long stretch, and the one the buyer waits through. It used to run under "Completing
+     * transaction…" with the minutes-long wait explained only in the note below, which put the headline
+     * and the truth in opposite places: the panel announced an ending while its longest phase was still
+     * running. The step name now says what is happening and the note keeps the duration.
+     */
+    it('should name the minting as the step, not report the transaction as completing', async () => {
       const advance = renderAtStage('registering')
 
       await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
       act(() => advance())
 
-      expect(screen.getByText(/registering your NAME/i)).toBeTruthy()
+      expect(screen.getByText(/registering your NAME…/i)).toBeTruthy()
       expect(screen.getByText(/few minutes/i)).toBeTruthy()
-      expect(screen.getByText(/completing transaction/i)).toBeTruthy()
+      expect(screen.queryByText(/completing transaction/i)).toBeNull()
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
 
@@ -511,6 +523,64 @@ describe('NameBuyModal', () => {
   })
 
   /**
+   * Choosing HOW to pay, before the NAME is confirmed.
+   *
+   * A NAME costs a fixed 100 MANA, so a buyer holding MANA can cover part (Polygon, mixed with credits) or
+   * all of it (Ethereum, spending no credits at all). The question is only asked when there is something to
+   * choose — a credits-only buyer goes straight to the re-entry gate, as before.
+   */
+  describe('and the buyer holds MANA of their own', () => {
+    const MANA = (n: number) => BigInt(n) * 10n ** 18n
+
+    it('should not ask anything of a buyer whose only rail is credits', () => {
+      renderModal(67)
+
+      expect(screen.queryByTestId('pay-with-credits')).toBeNull()
+      expect(screen.getByLabelText(/re-?enter|confirm/i)).toBeTruthy()
+    })
+
+    it('should offer the mixed rail when Polygon MANA can cover what credits cannot', () => {
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      renderModal(67)
+
+      expect(screen.getByTestId('pay-with-credits')).toBeTruthy()
+      expect(screen.getByTestId('pay-with-mana')).toBeTruthy()
+      // Nothing to pay the whole thing on L1 with, so no third row at all.
+      expect(screen.queryByTestId('pay-with-alt')).toBeNull()
+    })
+
+    /**
+     * Short on credits but holding MANA is NOT being stuck, so the pack picker — which exists for a buyer
+     * with no way to pay — must give way to the choice they actually have.
+     */
+    it('should offer the rails instead of selling credit packs to a buyer who holds MANA', () => {
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      creditPacks.packs = [{ id: 'p100', credits: 100, usd: 11.99 }]
+      renderModal(67)
+
+      expect(screen.queryByTestId('credit-packs')).toBeNull()
+      expect(screen.getByTestId('pay-with-mana')).toBeTruthy()
+    })
+
+    it('should reserve only the credits leg when the mixed rail is confirmed', async () => {
+      balance = { balanceCents: 300, credits: 30 }
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      registerNameWithUsdCredits.mockResolvedValue({ status: 'registered', originTxHash: '0x1' })
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('confirm-payment'))
+      reenter()
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalledTimes(1))
+      // 30 credits floored to whole credits = 300 cents; the rest rides on MANA.
+      expect(registerNameWithUsdCredits.mock.calls[0][0].creditsCents).toBe(300)
+    })
+  })
+
+  /**
    * The no-funds screen (Figma 2996-434120).
    *
    * What it replaces is the point: a named shortfall above a disabled BUY NAME, which told the buyer what
@@ -652,6 +722,35 @@ describe('NameBuyModal', () => {
       expect(sessionStorage.getItem(RESUME_NAME_KEY)).toBe('hodor')
       expect(sessionStorage.getItem(RESUME_CART_KEY)).toBeNull()
       expect(sessionStorage.getItem(RESUME_BUY_KEY)).toBeNull()
+    })
+
+    /**
+     * Leaving for the hosted checkout and coming back with the browser's own back button.
+     *
+     * The busy flag is deliberately never released once the redirect is under way — releasing it there
+     * re-enables BUY for the moment before the browser leaves, and a second click opens a second Checkout
+     * Session. But a bfcache restore brings the component back with its state intact, so the modal
+     * reappeared with every way out disabled: the ✕, CANCEL and BUY all read the same flag.
+     */
+    it('should come back usable when the browser restores the page', async () => {
+      // Never settles: the redirect is under way and the flag stays set, as it does in production.
+      createPackCheckout.mockReturnValue(new Promise(() => {}))
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+      await waitFor(() => expect(createPackCheckout).toHaveBeenCalledTimes(1))
+      expect(screen.getByTestId<HTMLButtonElement>('name-buy-credits').disabled).toBe(true)
+
+      // The bfcache restore, which is exactly what `persisted` distinguishes from a fresh load.
+      act(() => {
+        const e = new Event('pageshow') as Event & { persisted: boolean }
+        Object.defineProperty(e, 'persisted', { value: true })
+        window.dispatchEvent(e)
+      })
+
+      expect(screen.getByTestId<HTMLButtonElement>('name-buy-credits').disabled).toBe(false)
+      expect(screen.getByTestId<HTMLButtonElement>('name-topup-cancel').disabled).toBe(false)
+      expect(screen.getByRole('button', { name: /close/i })).toBeEnabled()
     })
 
     // Closing does not cancel the checkout already in flight, so it must not be offered: the request

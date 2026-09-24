@@ -75,7 +75,9 @@ export function MyFavorites() {
         {/* An empty page with a button is the one place the rail costs nothing to show: there is no
             content for it to compete with, and someone with no favourites still has a cart, a history and
             a wallet to be read from. It hides itself when even that comes up empty. */}
-        <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" />
+        <S.Suggested>
+          <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" />
+        </S.Suggested>
       </S.Empty>
     )
   }
@@ -103,7 +105,9 @@ export function MyFavorites() {
       {/* Under the list rather than over it: what the reader came for is their own saved items, and the
           rail is what to do next. */}
       {!loading ? (
-        <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" exclude={exclude} />
+        <S.Suggested>
+          <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" exclude={exclude} />
+        </S.Suggested>
       ) : null}
     </section>
   )

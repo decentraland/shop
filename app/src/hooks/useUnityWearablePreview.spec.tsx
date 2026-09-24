@@ -45,7 +45,7 @@ describe('useUnityWearablePreview', () => {
 
   it('should be disabled when the flag is absent from the file', async () => {
     resetFeatureFlagsCache()
-    vi.stubGlobal('fetch', flagResponse({ 'dapps-shop-prelaunch': true }))
+    vi.stubGlobal('fetch', flagResponse({ 'dapps-shop-names': true }))
 
     const { result } = renderHook(() => useUnityWearablePreview(), { wrapper })
 

@@ -11,7 +11,7 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
 import { CATEGORIES } from '~/components/CategoryFilter'
-import { FilterBar, DEALS_SORTS, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
+import { FilterBar, DEALS_SORTS, type FilterChip, RARITIES, RELEVANCE_SORT, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
@@ -47,6 +47,16 @@ const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
  * tell that choice apart from the untouched default, and On Sale would be unpickable while searching.
  */
 const defaultStatusFor = (searching: boolean): FilterStatus => (searching ? 'all' : 'on_sale')
+
+/**
+ * A search opens ranked by relevance, the Deals grid by discount, everything else by newest — in that
+ * order of precedence, a query being the stronger signal of what the reader is after. A DEFAULT, like the
+ * status above: a sort picked by hand differs from it and so lands in the URL. `sort=relevance` left in a
+ * URL whose query was cleared is not among the options offered, so it falls back to this default rather
+ * than reach the server.
+ */
+const defaultSortFor = (searching: boolean, deals: boolean): string =>
+  searching ? 'relevance' : deals ? 'discount' : 'newest'
 
 export type AssetsProps = {
   /**
@@ -104,12 +114,9 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
       priceMax: '',
       smart: false,
       deals: false,
-      // Ranking by discount is the useful default once the grid IS the deals, and only there — see
-      // DEALS_SORTS. A sort the buyer picks by hand differs from this default, so it lands in the URL
-      // and survives, exactly as an explicitly chosen status does.
-      sort: dealsRequested ? 'discount' : 'newest'
+      sort: defaultSortFor(!!q, dealsRequested)
     }),
-    [defaultStatus, dealsRequested]
+    [defaultStatus, dealsRequested, q]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
@@ -163,8 +170,13 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const secondarySales = useSecondarySales()
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
-  const sortOptions = deals ? DEALS_SORTS : SORTS
-  const sortBy = (sortOptions.find(s => s.key === sort) ?? sortOptions[0]).server
+  // Relevance is offered only while a query runs; a stale `sort=relevance` without one is not among these
+  // and falls back to the first option, which is the default in force.
+  const sortOptions = [...(q ? [RELEVANCE_SORT] : []), ...(deals ? DEALS_SORTS : SORTS)]
+  // The option in force, which is also what the menu marks as selected: a stale key in the URL must not
+  // leave the menu with nothing selected while the grid sorts by the fallback.
+  const sortOption = sortOptions.find(s => s.key === sort) ?? sortOptions[0]
+  const sortBy = sortOption.server
   // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
   // + search, one card per item.
   const filters = {
@@ -326,7 +338,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
     chips.push({
       key: 'deals',
       label: t('filter.deals'),
-      onRemove: () => setFilters({ deals: false, sort: 'newest' })
+      onRemove: () => setFilters({ deals: false, sort: defaultSortFor(!!q, false) })
     })
   // Against the default in force, not against the literal On Sale: while searching, All IS the default,
   // and offering to "remove" the state the page is already in reads as a filter the reader never applied.
@@ -374,11 +386,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
                 smart={smart}
                 onSmart={v => setFilters({ smart: v })}
                 deals={deals}
-                onDeals={
-                  creatorSalesEnabled
-                    ? v => setFilters(v ? { deals: true, sort: 'discount' } : { deals: false, sort: 'newest' })
-                    : undefined
-                }
+                onDeals={creatorSalesEnabled ? v => setFilters({ deals: v, sort: defaultSortFor(!!q, v) }) : undefined}
               />
             </S.SidebarScroll>
 
@@ -400,7 +408,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
         ) : (
           <>
             <FilterBar
-              sort={sort}
+              sort={sortOption.key}
               sortOptions={sortOptions}
               onSort={v => setFilters({ sort: v })}
               total={total}

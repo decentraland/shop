@@ -53,7 +53,13 @@
     "creators": "Creadores",
     "collections": "Colecciones",
     "items": "Artículos",
-    "byCreator": "Por {name}"
+    "byCreator": "Por {name}",
+    "popular": "Búsquedas populares",
+    "explore": "Explorar",
+    "noEntities": "Sin ítems, colecciones ni creadores para “{query}”",
+    "error": "No pudimos cargar las sugerencias.",
+    "retry": "Probar de nuevo",
+    "suggestionCount": "{count, plural, one {# sugerencia} other {# sugerencias}}"
   },
   "common": {
     "copy": "Copiar",
@@ -166,12 +172,6 @@
     "title": "Página no encontrada",
     "body": "La página que buscas no está aquí. Volvamos a la tienda.",
     "cta": "Ver coleccionables"
-  },
-  "prelaunch": {
-    "title": "Estamos preparando la tienda",
-    "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — vuelve muy pronto.",
-    "connected": "Las cuentas con acceso anticipado verán la tienda aquí.",
-    "signIn": "Iniciar sesión"
   },
   "cart": {
     "empty": {
@@ -362,7 +362,7 @@
     "buy": "Comprar",
     "choosePayment": "Elige tu método de pago",
     "methodCredits": "Créditos",
-    "methodMana": "MANA",
+    "methodMana": "Polygon MANA",
     "methodCombined": "Créditos + MANA",
     "buyWithMana": "Comprar con MANA",
     "buyWith": "Comprar con",
@@ -879,6 +879,7 @@
     "continueShopping": "Seguir comprando"
   },
   "filterBar": {
+    "sortRelevance": "Relevancia",
     "sortNewest": "Más recientes",
     "sortCheapest": "Más baratos",
     "sortMostExpensive": "Más caros",
@@ -1291,6 +1292,7 @@
     "reenterAria": "Vuelve a escribir el NAME para confirmar",
     "buyCta": "Comprar NAME",
     "completing": "Completando la transacción…",
+    "registering": "Registrando tu NAME…",
     "processingRegistering": "Registrando tu NAME en Ethereum: esto puede tardar unos minutos.",
     "confirming": "Confirma para continuar…",
     "successHeaderTitle": "¡Compra completada!",

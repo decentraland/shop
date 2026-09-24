@@ -1,24 +1,51 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** Stands in for a chain that has not received the newest version. Every real one now has V3. */
+const CHAIN_WITHOUT_V3 = 137
+
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
+    OffChainMarketplace: 'OffChainMarketplace',
     OffChainMarketplaceV2: 'OffChainMarketplaceV2',
     OffChainMarketplaceV3: 'OffChainMarketplaceV3'
   },
   // Mirrors the real getContract: it THROWS for a version a chain does not have.
   getContract: (name: string, chainId: number) => {
     const deployments: Record<string, number[]> = {
-      OffChainMarketplaceV2: [1, 11155111],
-      OffChainMarketplaceV3: [11155111]
+      OffChainMarketplace: [1, 11155111, CHAIN_WITHOUT_V3],
+      OffChainMarketplaceV2: [1, 11155111, CHAIN_WITHOUT_V3],
+      OffChainMarketplaceV3: [1, 11155111],
+      // Stands in for every registry entry that is not a marketplace: a real address the lookup answers for.
+      CreditsManager: [1, 11155111, CHAIN_WITHOUT_V3]
     }
     if (!deployments[name]?.includes(chainId)) {
       throw new Error(`Could not get a valid contract for ${name} using chain ${chainId}`)
     }
     return { address: `0x${name.toLowerCase()}`, name, version: '1.0.0', abi: [] }
-  }
+  },
+  // Mirrors the real one: the address is the only input and an unknown one THROWS.
+  getContractName: (address: string) => {
+    const names: Record<string, string> = {
+      '0xoffchainmarketplace': 'OffChainMarketplace',
+      '0xoffchainmarketplacev2': 'OffChainMarketplaceV2',
+      '0xoffchainmarketplacev3': 'OffChainMarketplaceV3',
+      '0xcreditsmanager': 'CreditsManager'
+    }
+    const name = names[address.toLowerCase()]
+    if (!name) throw new Error(`Could not get a valid contract name for address ${address}`)
+    return name
+  },
+  // One manager per marketplace version, as the real registry pairs them.
+  getCouponManager: (marketplace: string, chainId: number) => ({
+    address: `0xManagerOf${marketplace}On${chainId}`,
+    name: 'CouponManager',
+    version: '1.0.0',
+    abi: []
+  })
 }))
 
-const { getLatestOffChainMarketplaceContract } = await import('./marketplace')
+const { getCouponManagerForTrade, getLatestOffChainMarketplaceContract, getMarketplaceForTrade } =
+  await import('./marketplace')
 
 describe('when getting the latest off-chain marketplace contract', () => {
   describe('and the chain has a V3 deployment', () => {
@@ -37,7 +64,7 @@ describe('when getting the latest off-chain marketplace contract', () => {
     let chainId: number
 
     beforeEach(() => {
-      chainId = 1
+      chainId = CHAIN_WITHOUT_V3
     })
 
     it('should fall back to V2 rather than throw', () => {
@@ -56,6 +83,114 @@ describe('when getting the latest off-chain marketplace contract', () => {
       expect(() => getLatestOffChainMarketplaceContract(chainId)).toThrowError(
         'No off-chain marketplace contract exists on chain 42161'
       )
+    })
+  })
+})
+
+describe('when resolving the coupon manager a trade settles through', () => {
+  let result: string | null
+
+  describe('and the trade names the newest marketplace version', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV3', chainId: 11155111 })
+    })
+
+    it("should return that version's manager on the trade's chain, lowercased", () => {
+      expect(result).toBe('0xmanagerofoffchainmarketplacev3on11155111')
+    })
+  })
+
+  describe('and the trade names the previous marketplace version', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV2', chainId: 11155111 })
+    })
+
+    it("should return the previous version's manager rather than the newest one", () => {
+      expect(result).toBe('0xmanagerofoffchainmarketplacev2on11155111')
+    })
+  })
+
+  describe('and the trade pairs a known address with a chain that version is not deployed on', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xOffChainMarketplaceV3', chainId: CHAIN_WITHOUT_V3 })
+    })
+
+    it("should return null rather than lend that chain's manager to a trade that settles elsewhere", () => {
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('and the trade names a contract the registry does not know', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0x0000000000000000000000000000000000000001', chainId: 11155111 })
+    })
+
+    it('should return null instead of throwing into the checkout review', () => {
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('and the trade names a Decentraland contract that is not a marketplace', () => {
+    beforeEach(() => {
+      result = getCouponManagerForTrade({ contract: '0xCreditsManager', chainId: 11155111 })
+    })
+
+    it('should return null rather than a manager for a contract that redeems nothing', () => {
+      expect(result).toBeNull()
+    })
+  })
+})
+
+describe('when resolving the marketplace a trade names', () => {
+  let result: { name: string } | null
+
+  describe("and the address is that version's deployment on the trade's chain, in another casing", () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xOFFCHAINMARKETPLACEV3', chainId: 11155111 })
+    })
+
+    it('should return the registry entry', () => {
+      expect(result?.name).toBe('OffChainMarketplaceV3')
+    })
+  })
+
+  describe("and the version is not deployed on the trade's chain", () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xOffChainMarketplaceV3', chainId: CHAIN_WITHOUT_V3 })
+    })
+
+    it('should return null, since nothing on that chain signed the trade', () => {
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('and the address is not a marketplace the registry knows', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0x0000000000000000000000000000000000000001', chainId: 11155111 })
+    })
+
+    it('should return null', () => {
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('and the address is the first marketplace version, which new listings no longer go to', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xOffChainMarketplace', chainId: 11155111 })
+    })
+
+    it('should return it, since a listing signed against it still settles there', () => {
+      expect(result?.name).toBe('OffChainMarketplace')
+    })
+  })
+
+  describe('and the address is a Decentraland contract that is not a marketplace', () => {
+    beforeEach(() => {
+      result = getMarketplaceForTrade({ contract: '0xCreditsManager', chainId: 11155111 })
+    })
+
+    it('should return null, since the registry answering for an address does not make it a marketplace', () => {
+      expect(result).toBeNull()
     })
   })
 })
