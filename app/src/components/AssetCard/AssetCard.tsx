@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart, type AddToCartSource } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
@@ -50,7 +50,11 @@ const HOVER_DELAY_MS = 120
 // is why Trending's CTR was unmeasurable. `position` is 0-based and only meaningful inside an ordered row.
 type AssetCardProvenance = { source?: AddToCartSource; position?: number }
 
+/** A line of context between the price and the action, e.g. why a rail picked this item. Shop cards only. */
+type AssetCardNote = { note?: ReactNode }
+
 type AssetCardProps = AssetCardProvenance &
+  AssetCardNote &
   (
     | { item: CatalogItem; mode?: 'shop' }
     | { item: CatalogItem; mode: 'view' }
@@ -66,13 +70,14 @@ type AssetCardProps = AssetCardProvenance &
   )
 
 export function AssetCard(props: AssetCardProps) {
-  const { item, source = 'grid', position } = props
+  const { item, source = 'grid', position, note } = props
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
   const isManageLink = props.mode === 'manage-link'
   // A Decentraland NAME (My Assets → Names): no thumbnail — the media is the typographic "@name" tile.
   // Uses the same card shell + hover as every other card.
   const isNameItem = item.category === 'ens'
+  const showsNote = note != null && !isView && !isManage && !isManageLink && !isNameItem
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
@@ -343,6 +348,7 @@ export function AssetCard(props: AssetCardProps) {
     <S.Card
       data-testid="card"
       data-sale={onSale || undefined}
+      data-note={showsNote || undefined}
       style={canOpen && !isNameItem ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -627,7 +633,7 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : (
-        <S.Body data-sale={onSale || undefined}>
+        <S.Body data-sale={onSale || undefined} data-note={showsNote || undefined}>
           {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
               (min-width:0 so a long name ellipses instead of shoving the price out); the price never
               shrinks. */}
@@ -647,6 +653,12 @@ export function AssetCard(props: AssetCardProps) {
             </S.Desc>
             {notForSale ? nfs : browsePrice}
           </S.Top>
+
+          {showsNote ? (
+            <S.Note data-testid="card-note" data-reveal>
+              {note}
+            </S.Note>
+          ) : null}
 
           {/* Chips row and the primary action share one fixed-height slot so the card doesn't change size
               when the action is revealed on hover/focus — the button replaces the chips in place. Chips

@@ -681,3 +681,44 @@ describe('AssetCard save count', () => {
     expect(screen.queryByTestId('card-fav')).toBeNull()
   })
 })
+
+describe('AssetCard note', () => {
+  it('shows the note between the price and the action on a shop card', () => {
+    render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} note="Based on your favorites" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('card-note').textContent).toBe('Based on your favorites')
+    expect(screen.getByTestId('card').getAttribute('data-note')).toBe('true')
+  })
+
+  it('marks the note as part of the hover reveal, so it waits for hover where hover exists', () => {
+    render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} note="Based on your favorites" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('card-note').hasAttribute('data-reveal')).toBe(true)
+  })
+
+  it('leaves a shop card without a note at its usual size', () => {
+    renderCard(makeItem())
+
+    expect(screen.queryByTestId('card-note')).toBeNull()
+    expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
+  })
+
+  it('does not show the note on a card that is not for browsing', () => {
+    render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} mode="view" note="Based on your favorites" />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByTestId('card-note')).toBeNull()
+    expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
+  })
+})

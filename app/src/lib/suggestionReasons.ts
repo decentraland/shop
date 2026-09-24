@@ -1,53 +1,28 @@
 import type { SuggestionReasonKind } from '~/lib/api'
 
 /**
- * The copy key for each reason. One key per kind, so a kind the server adds later renders nothing
- * rather than a missing-translation string.
- */
-const REASON_KEYS: Record<SuggestionReasonKind, string> = {
-  co_owned: 'overview.suggested.reason.coOwned',
-  creator_affinity: 'overview.suggested.reason.creatorAffinity',
-  favorite_similar: 'overview.suggested.reason.favoriteSimilar',
-  equipped_similar: 'overview.suggested.reason.equippedSimilar',
-  seed_similar: 'overview.suggested.reason.seedSimilar',
-  trending: 'overview.suggested.reason.trending'
-}
-
-export function reasonKey(kind: SuggestionReasonKind): string | undefined {
-  return REASON_KEYS[kind]
-}
-
-/**
- * Whether the copy for this kind has a name in it.
+ * The four explanations a suggested card can carry.
  *
- * Only "Because you have {item}" does. The others describe a relationship — to your favorites, to
- * what you are wearing, to what you looked at — and naming the specific item would be both longer
- * and less clear, so their copy is complete on its own. This is what decides whether a name has to
- * be RESOLVED, which is a network request; it is not the same question as whether the line links
- * somewhere.
+ * The server's reasons are finer than a reader needs, so several share one: an item worn is also an
+ * item owned. `trending` has none on purpose: a rail that is personal says why of every card, and
+ * "popular right now" is not a why.
  */
-export function reasonInterpolatesItemName(kind: SuggestionReasonKind): boolean {
-  return kind === 'co_owned'
+export type ReasonCategory = 'owned' | 'favorites' | 'creator' | 'activity'
+
+const CATEGORY_BY_KIND: Record<SuggestionReasonKind, ReasonCategory | null> = {
+  co_owned: 'owned',
+  equipped_similar: 'owned',
+  favorite_similar: 'favorites',
+  creator_affinity: 'creator',
+  seed_similar: 'activity',
+  trending: null
 }
 
-/**
- * Whether the line should link to the item that triggered it.
- *
- * True of every kind the server attaches an item to, including the three whose copy does not name
- * it: "Similar to your favorites" still has a specific favorite behind it, and being able to go and
- * look at it is the point. The link needs only the id the reason already carries, so unlike the name
- * it costs nothing.
- */
-export function reasonLinksToItem(kind: SuggestionReasonKind): boolean {
-  return kind !== 'creator_affinity' && kind !== 'trending'
+/** The category a row is explained by, or undefined when it has none and so does not belong in the rail. */
+export function reasonCategory(kind: SuggestionReasonKind): ReasonCategory | undefined {
+  return CATEGORY_BY_KIND[kind] ?? undefined
 }
 
-/** `contract-itemId` → the PDP path, or null when the id is not one the Shop can route to. */
-export function triggerItemPath(triggerId: string): string | null {
-  const split = triggerId.lastIndexOf('-')
-  if (split <= 0) return null
-  const contractAddress = triggerId.slice(0, split)
-  const itemId = triggerId.slice(split + 1)
-  if (!contractAddress.startsWith('0x') || !/^\d+$/.test(itemId)) return null
-  return `/item/${contractAddress}/${itemId}`
+export function reasonCopyKey(category: ReasonCategory): string {
+  return `overview.suggested.reason.${category}`
 }

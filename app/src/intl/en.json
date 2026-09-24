@@ -844,13 +844,10 @@
     "suggested": {
       "title": "Suggested for you",
       "reason": {
-        "coOwned": "Because you have {item}",
-        "generic": "Picked for you",
-        "creatorAffinity": "More from a creator you collect",
-        "favoriteSimilar": "Similar to your favorites",
-        "equippedSimilar": "Goes with what you're wearing",
-        "seedSimilar": "Similar to items you've looked at",
-        "trending": "Trending"
+        "owned": "Based on items you own",
+        "favorites": "Based on your favorites",
+        "creator": "Because you like this creator",
+        "activity": "Based on your activity"
       }
     }
   },

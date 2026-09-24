@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AssetCard } from '~/components/AssetCard'
+import { Icon } from '~/components/Icon'
 import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
-import { fetchCatalogByIds, type SuggestedItem } from '~/lib/api'
+import type { SuggestedItem } from '~/lib/api'
 import { track } from '~/lib/analytics'
 import {
   reasonCounts,
@@ -12,10 +13,12 @@ import {
   type SuggestionSurface
 } from '~/lib/suggestionEvents'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
-import { reasonInterpolatesItemName, reasonKey, reasonLinksToItem, triggerItemPath } from '~/lib/suggestionReasons'
+import { reasonCategory, reasonCopyKey, type ReasonCategory } from '~/lib/suggestionReasons'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
-import { useQuery } from '@tanstack/react-query'
+import creatorIcon from '~/assets/suggested/creator.svg'
+import favoritesIcon from '~/assets/suggested/favorites.svg'
+import ownedIcon from '~/assets/suggested/owned.svg'
 import * as Row from '~/styles/row.styles'
 import * as S from './SuggestedForYouRow.styles'
 
@@ -38,9 +41,8 @@ const SKELETON_COUNT = 6
  * under this title showing generic bestsellers is worse than no rail, because it makes a promise
  * about knowing the visitor that the contents do not keep.
  *
- * Each card carries one line saying why it is there. When the reason names an item the visitor
- * already has, the name is resolved for the whole rail in a single catalog request, never one per
- * card, and the line degrades to the generic copy if that request fails.
+ * Each card says, inside the card, which of four things it was picked from. A row the server could
+ * only explain as trending is left out: every card in a personal rail says why.
  */
 /**
  * @param exclude items the rail must not offer — the PDP's own anchor, which it would otherwise
@@ -63,34 +65,7 @@ export function SuggestedForYouRow({
   const { result, isLoading, isError, enabled, hasSignal, hasAddress, seedCount, fetchMs } = useSuggestedForYou(first, {
     exclude
   })
-  const items = useMemo(() => result?.data ?? [], [result])
-
-  // Names are needed only by the one kind whose copy has a name in it; the rest link to their
-  // trigger using the id they already carry. So a rail with no "because you have X" rows makes no
-  // request at all, and one that has them makes exactly one.
-  const triggerIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const item of items) {
-      if (item.reason.itemId && reasonInterpolatesItemName(item.reason.kind)) ids.add(item.reason.itemId)
-    }
-    return [...ids]
-  }, [items])
-
-  const { data: triggers } = useQuery({
-    queryKey: ['suggested-triggers', triggerIds.join(',')],
-    enabled: triggerIds.length > 0,
-    staleTime: 5 * 60_000,
-    queryFn: () => fetchCatalogByIds(triggerIds)
-  })
-
-  const triggerNameById = useMemo(() => {
-    const byId = new Map<string, string>()
-    for (const item of triggers ?? []) {
-      if (!item.contractAddress || !item.itemId) continue
-      byId.set(`${item.contractAddress.toLowerCase()}-${item.itemId}`, item.name)
-    }
-    return byId
-  }, [triggers])
+  const items = useMemo(() => (result?.data ?? []).filter(item => reasonCategory(item.reason.kind)), [result])
 
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -158,13 +133,13 @@ export function SuggestedForYouRow({
     reported.current = true
     track('hidden_suggestions', {
       reason: hiddenReason,
-      count: result?.data.length,
+      count: items.length,
       has_address: hasAddress,
       seed_count: seedCount,
       algorithm: result?.algorithm,
       surface
     })
-  }, [isLoading, hiddenReason, result, hasAddress, seedCount, surface])
+  }, [isLoading, hiddenReason, result, items.length, hasAddress, seedCount, surface])
 
   // The impression, fired when half the rail is actually ON SCREEN rather than when it mounts. The
   // row lives below the fold, so mounting says almost nothing about being seen, and a click-through
@@ -229,7 +204,7 @@ export function SuggestedForYouRow({
   // a click on one would report a `paged_suggestions` for a rail the reader cannot see yet.
   const showControls = !isLoading && pageCount > 1
 
-  const onClick = (item: SuggestedItem, rank: number, target: ClickTarget) => {
+  const onClick = (item: SuggestedItem, rank: number, target: ClickTarget = 'card') => {
     track('clicked_suggestion', {
       contract_address: item.contractAddress,
       item_id: item.itemId,
@@ -279,18 +254,8 @@ export function SuggestedForYouRow({
           {isLoading && skeletonCells}
           {!isLoading &&
             items.map((item, i) => (
-              <S.Cell key={item.id} onClick={() => onClick(item, i, 'card')}>
-                <AssetCard item={item} source="suggested" position={i} />
-                <ReasonLine
-                  item={item}
-                  triggerNameById={triggerNameById}
-                  // The line sits inside the cell's click area, so its own click has to stop there:
-                  // otherwise every reason click would also be counted as interest in the card.
-                  onReasonClick={event => {
-                    event.stopPropagation()
-                    onClick(item, i, 'reason')
-                  }}
-                />
+              <S.Cell key={item.id} onClick={() => onClick(item, i)}>
+                <AssetCard item={item} source="suggested" position={i} note={noteFor(item)} />
               </S.Cell>
             ))}
         </S.Track>
@@ -325,78 +290,28 @@ export function SuggestedForYouRow({
   )
 }
 
-/**
- * The one line under a card.
- *
- * Two independent questions decide what it renders: whether the copy needs a NAME (only "Because you
- * have X" does, and a name has to be fetched, so it may not have arrived), and whether the line
- * LINKS anywhere (every kind the server attached an item to, using the id it already carries). A
- * name that never arrives falls back to the generic copy rather than showing a gap or a raw id.
- */
-function ReasonLine({
-  item,
-  triggerNameById,
-  onReasonClick
-}: {
-  item: SuggestedItem
-  triggerNameById: Map<string, string>
-  onReasonClick: (event: MouseEvent<HTMLElement>) => void
-}) {
-  const { kind, itemId, creator } = item.reason
-  const key = reasonKey(kind)
-  if (!key) return null
-
-  if (reasonInterpolatesItemName(kind)) {
-    const name = itemId ? triggerNameById.get(itemId) : undefined
-    if (!name) {
-      // The name is the only part that failed; the row is still personal. Saying "Trending" here would
-      // be a claim about the item that is simply untrue, so the fallback is the one line that is true
-      // of every row in this rail and specific to none.
-      return (
-        <S.Reason data-testid="suggested-reason" data-kind="generic">
-          {t('overview.suggested.reason.generic')}
-        </S.Reason>
-      )
-    }
-    return (
-      <Line
-        kind={kind}
-        text={t(key, { item: name })}
-        to={itemId ? triggerItemPath(itemId) : null}
-        onReasonClick={onReasonClick}
-      />
-    )
-  }
-
-  // `creator` is passed though none of the current copy interpolates it (suggestionReasons.spec pins
-  // that). It is here for the revision that names the creator, which would also need the resolution
-  // path co_owned uses — the value alone is not enough to render a name.
-  const to = reasonLinksToItem(kind) && itemId ? triggerItemPath(itemId) : null
-  return <Line kind={kind} text={t(key, { creator: creator ?? '' })} to={to} onReasonClick={onReasonClick} />
+const REASON_ICONS: Record<Exclude<ReasonCategory, 'activity'>, string> = {
+  owned: ownedIcon,
+  favorites: favoritesIcon,
+  creator: creatorIcon
 }
 
-/** The whole line is the link rather than a word inside it: the copy is one translated string, and
- * carving a component out of its middle would need every locale to place the name identically. */
-function Line({
-  kind,
-  text,
-  to,
-  onReasonClick
-}: {
-  kind: string
-  text: string
-  to: string | null
-  onReasonClick: (event: MouseEvent<HTMLElement>) => void
-}) {
+/** The card's note: its category's icon and copy, or nothing for a row with no category. */
+function noteFor(item: SuggestedItem) {
+  const category = reasonCategory(item.reason.kind)
+  return category ? <ReasonNote category={category} /> : undefined
+}
+
+function ReasonNote({ category }: { category: ReasonCategory }) {
+  const text = t(reasonCopyKey(category))
   return (
-    <S.Reason data-testid="suggested-reason" data-kind={kind} title={text}>
-      {to ? (
-        <S.ReasonLink to={to} onClick={onReasonClick}>
-          {text}
-        </S.ReasonLink>
-      ) : (
-        text
-      )}
-    </S.Reason>
+    <>
+      <S.ReasonIcon data-category={category} aria-hidden>
+        {category === 'activity' ? <Icon name="eye" size={16} /> : <img src={REASON_ICONS[category]} alt="" />}
+      </S.ReasonIcon>
+      <S.ReasonText data-testid="suggested-reason" data-kind={category} title={text}>
+        {text}
+      </S.ReasonText>
+    </>
   )
 }

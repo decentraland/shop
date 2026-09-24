@@ -54,6 +54,30 @@ export const Card = styled.article`
       min-height: 250px;
     }
   }
+  /* A note is one more line in the footer, shown on hover (Figma 2090:401815: the card grows from 300 to
+     325). Without hover there is no way to reveal it, so there the card carries it at all times. */
+  &[data-note] {
+    height: 325px;
+  }
+  ${media.maxWidth('sm')} {
+    &[data-note] {
+      height: auto;
+      min-height: 250px;
+    }
+  }
+  @media (hover: hover) and (min-width: 721px) {
+    &[data-note] {
+      height: 300px;
+      transition:
+        box-shadow 0.15s ease,
+        transform 0.15s ease,
+        height 0.15s ease;
+    }
+    &[data-note]:hover,
+    &[data-note]:has(:focus-visible) {
+      height: 325px;
+    }
+  }
   border-radius: ${radius.card};
   position: relative;
   isolation: isolate;
@@ -412,6 +436,28 @@ export const Body = styled.div`
     }
   }
 
+  &[data-note] {
+    flex: 0 0 137px;
+    height: 137px;
+    padding-bottom: 12px;
+  }
+  @media (hover: hover) and (min-width: 721px) {
+    &[data-note] {
+      flex-basis: 112px;
+      height: 112px;
+      padding-bottom: 16px;
+      transition:
+        flex-basis 0.15s ease,
+        height 0.15s ease;
+    }
+    [data-testid='card']:hover &[data-note],
+    &[data-note]:has(:focus-visible) {
+      flex-basis: 137px;
+      height: 137px;
+      padding-bottom: 12px;
+    }
+  }
+
   // data-name = a NAME card's footer: it hugs its single row (name + NOT FOR SALE), and the name tile
   // above keeps the height it gives back. The 16px inset already supplies the breathing room this used
   // to add on top of the old 8px base.
@@ -440,6 +486,14 @@ export const Body = styled.div`
       min-height: 114px;
     }
 
+    &[data-note] {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 114px;
+      padding-bottom: 16px;
+      grid-template-areas: 'desc desc' 'note note' 'price add';
+    }
+
     // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
     // stacked column so the mobile layout stays tidy.
     &[data-name] {
@@ -448,6 +502,34 @@ export const Body = styled.div`
     &[data-name] > * {
       display: flex;
     }
+  }
+`
+
+// Hidden at rest where the card can be hovered; the card's own hover and focus rules reveal every
+// [data-reveal] child, this one included.
+export const Note = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.43;
+  color: ${colors.softWhite};
+  white-space: nowrap;
+
+  @media (hover: hover) and (min-width: 721px) {
+    &[data-reveal] {
+      display: none;
+    }
+  }
+
+  /* Two cards share a phone's width and a note does not fit on one line there, so it gets two, at a fixed
+     height so every card in a row stays the same size whatever its note says. */
+  ${media.maxWidth('sm')} {
+    grid-area: note;
+    align-items: flex-start;
+    height: calc(2 * 1.43em);
+    white-space: normal;
   }
 `
 
