@@ -2,6 +2,8 @@
   "ENVIRONMENT": "staging",
   "CHAIN_ID": "137",
   "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.org",
+  "CAMERA_REEL_URL": "https://camera-reel-service.decentraland.org",
+  "PLACES_API_URL": "https://places.decentraland.org/api",
   "AUTH_URL": "/auth",
   "RPC_URL": "https://rpc.decentraland.org/polygon",
   "ETHEREUM_CHAIN_ID": "1",

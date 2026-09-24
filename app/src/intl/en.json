@@ -420,6 +420,20 @@
       "generic": "Couldn't complete checkout — please try again."
     }
   },
+  "photoReel": {
+    "wornBy": "Worn by",
+    "photoBy": "Photo by",
+    "zoomIn": "Click to zoom",
+    "zoomOut": "Click to zoom out",
+    "jumpIn": "Jump into this place",
+    "jumpInCta": "Jump in",
+    "title": "Spotted in Decentraland",
+    "subtitle": "See how the community styles it",
+    "openAria": "Open the photo of {name} in {place}",
+    "prev": "Previous photos",
+    "next": "More photos",
+    "close": "Close"
+  },
   "itemDetail": {
     "genderMale": "Male",
     "genderFemale": "Female",
