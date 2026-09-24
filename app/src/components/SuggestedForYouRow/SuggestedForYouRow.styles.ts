@@ -53,6 +53,6 @@ export const ReasonPlaceholder = styled.div`
   height: 25px;
 
   ${theme.media.maxWidth('sm')} {
-    height: 37px;
+    height: 40px;
   }
 `

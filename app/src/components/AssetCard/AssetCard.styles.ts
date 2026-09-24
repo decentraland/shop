@@ -605,7 +605,7 @@ export const Creator = styled(CreatorBadge)`
 // Reserves the creator line's height when an item has no creator. data-issued styles it as the owned
 // copy's mint index (e.g. "#5013") — tabular figures so digits align across otherwise-identical copies.
 export const CreatorEmpty = styled.div`
-  font-size: 10px;
+  font-size: 12px;
   margin-bottom: 2px;
 
   &[data-issued] {
@@ -615,11 +615,11 @@ export const CreatorEmpty = styled.div`
   }
 `
 
-// "by {creator}" subtitle under the title on the browse card (Figma 619:5722 — Gray 3 at 10px, quieter
+// "by {creator}" subtitle under the title on the browse card (Figma 2090:401815 — Gray 3 at 12px, quieter
 // than the name above it). Single line, ellipsised so a long name never pushes the body out of shape.
 export const Author = styled(CreatorName)`
   color: ${colors.muted2};
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.43;
   white-space: nowrap;
   overflow: hidden;
