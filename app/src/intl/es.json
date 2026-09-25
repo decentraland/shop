@@ -689,7 +689,6 @@
     "tileCollectorsConcentrated": "1 comprador es el {pct}%",
     "tileSoldFootMintsOnly": "{mints, plural, one {# primera venta} other {# primeras ventas}}",
     "tileSoldNone": "No se vendió nada en este período",
-    "sortSelling": "Primero las que venden",
     "collExhausted": "agotada",
     "audience": "Tu público",
     "audienceSub": "Quién compra, y cuánto vale para ti.",

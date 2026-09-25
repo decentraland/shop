@@ -55,14 +55,16 @@ const COLLECTIONS_SHOWN = 8
 /** Rows of the buyers table per page. Five fills the band beside the two figures without dwarfing them. */
 const BUYERS_PER_PAGE = 5
 
-type Sort = 'sold' | 'earned' | 'selling' | 'newest' | 'name'
+const BEST_PER_PAGE = 5
+
+type Sort = 'sold' | 'earned' | 'newest' | 'name'
 type CollectionColumn = 'name' | 'claimed' | 'earnings' | 'sold'
 type BestColumn = 'name' | 'collection' | 'sold' | 'earnings'
 type BuyerColumn = 'items' | 'collections' | 'last' | 'spent'
 type StoreBuyer = ReturnType<typeof useStoreStats>['trend']['buyers'][number]
 
 const SORT_KEY = 'shop.my-store.sort'
-const SORTS: Sort[] = ['sold', 'earned', 'selling', 'newest', 'name']
+const SORTS: Sort[] = ['sold', 'earned', 'newest', 'name']
 
 /**
  * The order the creator last chose, remembered per browser.
@@ -101,13 +103,6 @@ function sortCollections(collections: StoreCollection[], by: Sort): StoreCollect
   if (by === 'name') return sorted.sort((a, b) => a.name.localeCompare(b.name))
   if (by === 'earned') return sortRows(sorted, c => c.earningsWei, 'desc')
   if (by === 'newest') return sorted.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-  // Collections with nothing left to sell go last whatever they once sold: they are the rows a creator
-  // has no move left on, and at the top they push down the ones they do.
-  if (by === 'selling') {
-    return sorted.sort(
-      (a, b) => Number(a.exhausted) - Number(b.exhausted) || b.sold - a.sold || a.name.localeCompare(b.name)
-    )
-  }
   return sorted.sort((a, b) => b.sold - a.sold || a.name.localeCompare(b.name))
 }
 
@@ -767,6 +762,7 @@ export function MyStore() {
   // look at the table, not a preference.
   const [collectionSort, setCollectionSort] = useState<ColumnSort<CollectionColumn> | null>(null)
   const [bestSort, setBestSort] = useState<ColumnSort<BestColumn> | null>(null)
+  const [bestPage, setBestPage] = useState(0)
   const [buyerSort, setBuyerSort] = useState<ColumnSort<BuyerColumn> | null>(null)
   const [issuing, setIssuing] = useState<{ item: StoreItem; contractAddress: string } | null>(null)
   const queryClient = useQueryClient()
@@ -852,15 +848,7 @@ export function MyStore() {
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
   // every visitor home before the flag file arrives, or before the wallet an allowlist is checked against
   // has been read back.
-  /**
-   * The order actually in force, which is not always the one that was remembered.
-   *
-   * "Still selling first" is only offered while some collection is finished, and the choice outlives the
-   * store it was made in: a creator who picks it, then opens a store where everything still sells, would
-   * otherwise leave the dropdown pointing at an option no longer in its own list.
-   */
-  const hasExhausted = (stats?.collections ?? []).some(c => c.exhausted)
-  const sortInForce: Sort = sort === 'selling' && !hasExhausted ? 'sold' : sort
+  const sortInForce: Sort = sort
   /** Sorted once per change rather than on every render; a store can carry a few dozen collections. */
   const collectionPages = Math.max(1, Math.ceil((stats?.collections.length ?? 0) / COLLECTIONS_SHOWN))
   const sortedCollections = useMemo(() => {
@@ -878,7 +866,10 @@ export function MyStore() {
   /** What is selling across the whole store, which the per-collection ordering cannot answer. */
   const best = useMemo(() => {
     // The rank is the best-seller position, so it is taken before any re-sort and travels with the row.
-    const ranked = bestSellers(stats?.collections ?? []).map((entry, index) => ({ ...entry, rank: index + 1 }))
+    const ranked = bestSellers(stats?.collections ?? [], Infinity).map((entry, index) => ({
+      ...entry,
+      rank: index + 1
+    }))
     if (!bestSort) return ranked
     const value = {
       name: (e: (typeof ranked)[number]) => e.name,
@@ -892,7 +883,12 @@ export function MyStore() {
     const next = nextSort(bestSort, key, first)
     trackStore('Shop Sorted Store Table', { table: 'best_sellers', column: next.key, direction: next.dir })
     setBestSort(next)
+    setBestPage(0)
   }
+  const bestPages = Math.max(1, Math.ceil(best.length / BEST_PER_PAGE))
+  // Clamped on read, like the buyers: a shorter period can leave the kept page past the end.
+  const bestPageShown = Math.min(bestPage, bestPages - 1)
+  const bestShown = best.slice(bestPageShown * BEST_PER_PAGE, (bestPageShown + 1) * BEST_PER_PAGE)
 
   /** One page of that order, so a store with fifty collections opens on eight rather than on all of them. */
   const collectionPageShown = Math.min(collectionPage, collectionPages - 1)
@@ -1172,7 +1168,6 @@ export function MyStore() {
                         options={[
                           { value: 'sold', label: t('myStore.sortSold') },
                           { value: 'earned', label: t('myStore.sortEarned') },
-                          ...(hasExhausted ? [{ value: 'selling', label: t('myStore.sortSelling') }] : []),
                           ...(stats.collections.some(c => c.createdAt)
                             ? [{ value: 'newest', label: t('myStore.sortNewest') }]
                             : []),
@@ -1397,7 +1392,7 @@ export function MyStore() {
                           </tr>
                         </thead>
                         <tbody>
-                          {best.map(entry => (
+                          {bestShown.map(entry => (
                             <tr key={entry.key} data-testid="store-best">
                               <td>
                                 <S.RankCell>
@@ -1440,6 +1435,20 @@ export function MyStore() {
                       </S.BestFeed>
                     </S.FeedWrap>
                   )}
+                  {bestPages > 1 ? (
+                    <S.ListFoot>
+                      <span />
+                      <Pager
+                        page={bestPageShown}
+                        pages={bestPages}
+                        onChange={next => {
+                          trackStore('Shop Paged Store Table', { table: 'best_sellers', page: next + 1 })
+                          setBestPage(next)
+                        }}
+                        name="best"
+                      />
+                    </S.ListFoot>
+                  ) : null}
                 </S.Panel>
 
                 <S.Panel aria-labelledby="store-feed-h">
