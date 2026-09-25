@@ -728,7 +728,15 @@
     "performance": "Store performance",
     "sortCustom": "Sorted by column",
     "issueCopies": "Issue copies",
-    "sortEarned": "Most earned"
+    "sortEarned": "Most earned",
+    "owners": "Top owners",
+    "ownersHint": "Who holds your items today, however they got them. Not tied to the period above.",
+    "ownersUnavailable": "Your store is too big to rank its owners right now. Try again in a few minutes.",
+    "noOwners": "Nobody holds your items yet.",
+    "colOwner": "Owner",
+    "colOwned": "Held",
+    "colAcquired": "Latest",
+    "ownersCount": "{count} owners"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",

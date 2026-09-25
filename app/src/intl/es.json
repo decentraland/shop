@@ -728,7 +728,15 @@
     "performance": "Rendimiento de la tienda",
     "sortCustom": "Orden por columna",
     "issueCopies": "Emitir copias",
-    "sortEarned": "Más ganancias"
+    "sortEarned": "Más ganancias",
+    "owners": "Principales dueños",
+    "ownersHint": "Quién tiene tus artículos hoy, sin importar cómo los consiguió. No depende del período de arriba.",
+    "ownersUnavailable": "Tu tienda es demasiado grande para ordenar a sus dueños ahora. Prueba de nuevo en unos minutos.",
+    "noOwners": "Todavía nadie tiene tus artículos.",
+    "colOwner": "Dueño",
+    "colOwned": "Tiene",
+    "colAcquired": "Último",
+    "ownersCount": "{count} dueños"
   },
   "myAssets": {
     "signInTitle": "Inicia sesión para ver tus artículos",
