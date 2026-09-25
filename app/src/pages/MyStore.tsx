@@ -848,12 +848,11 @@ export function MyStore() {
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
   // every visitor home before the flag file arrives, or before the wallet an allowlist is checked against
   // has been read back.
-  const sortInForce: Sort = sort
   /** Sorted once per change rather than on every render; a store can carry a few dozen collections. */
   const collectionPages = Math.max(1, Math.ceil((stats?.collections.length ?? 0) / COLLECTIONS_SHOWN))
   const sortedCollections = useMemo(() => {
     const collections = stats?.collections ?? []
-    if (!collectionSort) return sortCollections(collections, sortInForce)
+    if (!collectionSort) return sortCollections(collections, sort)
     const value = {
       name: (c: StoreCollection) => c.name,
       claimed: (c: StoreCollection) => c.claimed,
@@ -861,7 +860,7 @@ export function MyStore() {
       sold: (c: StoreCollection) => c.sold
     }[collectionSort.key]
     return sortRows(collections, value, collectionSort.dir)
-  }, [stats, sortInForce, collectionSort])
+  }, [stats, sort, collectionSort])
 
   /** What is selling across the whole store, which the per-collection ordering cannot answer. */
   const best = useMemo(() => {
@@ -888,7 +887,10 @@ export function MyStore() {
   const bestPages = Math.max(1, Math.ceil(best.length / BEST_PER_PAGE))
   // Clamped on read, like the buyers: a shorter period can leave the kept page past the end.
   const bestPageShown = Math.min(bestPage, bestPages - 1)
-  const bestShown = best.slice(bestPageShown * BEST_PER_PAGE, (bestPageShown + 1) * BEST_PER_PAGE)
+  const bestShown = useMemo(
+    () => best.slice(bestPageShown * BEST_PER_PAGE, (bestPageShown + 1) * BEST_PER_PAGE),
+    [best, bestPageShown]
+  )
 
   /** One page of that order, so a store with fifty collections opens on eight rather than on all of them. */
   const collectionPageShown = Math.min(collectionPage, collectionPages - 1)
@@ -1173,7 +1175,7 @@ export function MyStore() {
                             : []),
                           { value: 'name', label: t('myStore.sortName') }
                         ]}
-                        value={collectionSort ? undefined : sortInForce}
+                        value={collectionSort ? undefined : sort}
                         placeholder={t('myStore.sortCustom')}
                         onChange={value => {
                           trackStore('Shop Sorted Store Collections', { sort: value })
