@@ -104,9 +104,13 @@ export function localized<T>(field: LocalizedField<T> | undefined | null, locale
 /**
  * A linked asset's URL, ready to put in an `src`.
  *
- * Assets are stored under `en-US` whatever the reader's language — the artwork is the same file in every
- * locale — which is the same key `decentraland-ui2` reads them under. Returns `''` for an absent link or an
- * asset that failed to load, so a caller can treat "no artwork" as one case.
+ * The LINK is what carries the reader's language: a localized reference field points at a different asset
+ * per locale, so a translated banner is a different file and the caller resolves the link before getting
+ * here. The asset's own `file` is still read under `en-US`, because one asset is one file whatever the
+ * language — which is also the key `decentraland-ui2` reads it under.
+ *
+ * Returns `''` for an absent link or an asset that failed to load, so a caller can treat "no artwork" as
+ * one case.
  */
 export function assetUrl(assets: Record<string, ContentfulAsset>, link: SysLink<'Asset'> | undefined): string {
   if (!link) return ''
