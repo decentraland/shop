@@ -736,7 +736,7 @@
     "colOwner": "Dueño",
     "colOwned": "Tiene",
     "colAcquired": "Último",
-    "ownersCount": "{count} dueños"
+    "ownersCount": "{count, plural, one {# dueño} other {# dueños}}"
   },
   "myAssets": {
     "signInTitle": "Inicia sesión para ver tus artículos",

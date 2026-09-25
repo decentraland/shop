@@ -869,6 +869,8 @@ export function MyStore() {
   const ownersRead = useQuery({
     queryKey: ['store-top-owners', session?.address, ownerSort.key, ownerSort.dir, ownerPage],
     enabled: !mock && !!session,
+    // Holders change slowly, and the server caches them for ten minutes anyway.
+    staleTime: 5 * 60_000,
     placeholderData: previous => previous,
     retry: (count, error) => !(error instanceof TopOwnersUnavailableError) && count < 1,
     queryFn: () =>
@@ -882,12 +884,16 @@ export function MyStore() {
   // A server error is reported; a 404 is the endpoint not deployed yet, and a 503 is a store too large to rank.
   useEffect(() => {
     const error = ownersRead.error
-    if (error instanceof TopOwnersReadError && error.status >= 500) {
-      captureError(error, { flow: 'my_store', step: 'top_owners' })
-    }
+    if (!error || error instanceof TopOwnersUnavailableError) return
+    if (error instanceof TopOwnersReadError && error.status < 500) return
+    captureError(error, { flow: 'my_store', step: 'top_owners' })
   }, [ownersRead.error])
   const owners = mock ? mockTopOwners(ownerSort, ownerPage, OWNERS_PER_PAGE) : ownersRead.data
   const ownerPages = Math.max(1, Math.ceil((owners?.total ?? 0) / OWNERS_PER_PAGE))
+  // The total can shrink between reads (an owner sells everything); a page past the end steps back.
+  useEffect(() => {
+    if (ownerPage > ownerPages - 1) setOwnerPage(ownerPages - 1)
+  }, [ownerPage, ownerPages])
   const ownerAddresses = useMemo(() => (owners?.data ?? []).map(o => o.address).sort(), [owners])
   const { data: ownerProfiles } = useBuyerNames(ownerAddresses)
   const { data: discounts } = useCreatorSales(session?.address, creatorSalesEnabled && !!session)
@@ -1914,9 +1920,9 @@ export function MyStore() {
                   )}
                   {owners && ownerPages > 1 ? (
                     <S.ListFoot>
-                      <span>{t('myStore.ownersCount', { count: owners.total.toLocaleString() })}</span>
+                      <span>{t('myStore.ownersCount', { count: owners.total })}</span>
                       <Pager
-                        page={Math.min(ownerPage, ownerPages - 1)}
+                        page={ownerPage}
                         pages={ownerPages}
                         onChange={next => {
                           trackStore('Shop Paged Store Table', { table: 'owners', page: next + 1 })

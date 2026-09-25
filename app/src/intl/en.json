@@ -736,7 +736,7 @@
     "colOwner": "Owner",
     "colOwned": "Held",
     "colAcquired": "Latest",
-    "ownersCount": "{count} owners"
+    "ownersCount": "{count, plural, one {# owner} other {# owners}}"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",
