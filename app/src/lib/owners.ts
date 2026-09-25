@@ -18,6 +18,15 @@ export type TopOwnersSort = 'nfts' | 'items' | 'collections' | 'recent' | 'spent
 export class TopOwnersUnavailableError extends Error {
   constructor() {
     super('fetchTopOwners 503')
+    this.name = 'TopOwnersUnavailableError'
+  }
+}
+
+/** The server answered, but with a failure worth knowing about: not the 404 of a server that has not shipped the endpoint. */
+export class TopOwnersReadError extends Error {
+  constructor(public status: number) {
+    super(`fetchTopOwners ${status}`)
+    this.name = 'TopOwnersReadError'
   }
 }
 
@@ -43,7 +52,7 @@ export async function fetchTopOwners(
   if (!res.ok) {
     await res.body?.cancel()
     if (res.status === 503) throw new TopOwnersUnavailableError()
-    throw new Error(`fetchTopOwners ${res.status}`)
+    throw new TopOwnersReadError(res.status)
   }
   const json = (await res.json()) as { data?: TopOwner[]; total?: number }
   return { data: json.data ?? [], total: json.total ?? 0 }

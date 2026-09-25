@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
@@ -21,7 +21,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
 import { SortHeader } from '~/components/SortHeader'
 import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
-import { fetchTopOwners, TopOwnersUnavailableError, type TopOwnersSort } from '~/lib/owners'
+import { fetchTopOwners, TopOwnersReadError, TopOwnersUnavailableError, type TopOwnersSort } from '~/lib/owners'
+import { captureError } from '~/lib/monitoring'
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
 import { useProfile } from '~/hooks/useProfile'
@@ -67,6 +68,14 @@ const BUYERS_PER_PAGE = 5
 const BEST_PER_PAGE = 5
 
 const OWNERS_PER_PAGE = 5
+
+const OWNER_COLUMNS: { key: TopOwnersSort; label: string; first: SortDir }[] = [
+  { key: 'nfts', label: 'myStore.colOwned', first: 'desc' },
+  { key: 'items', label: 'myStore.colItems', first: 'desc' },
+  { key: 'collections', label: 'myStore.colCollections', first: 'desc' },
+  { key: 'recent', label: 'myStore.colAcquired', first: 'desc' },
+  { key: 'spent', label: 'myStore.colSpent', first: 'desc' }
+]
 
 type Sort = 'sold' | 'earned' | 'newest' | 'name'
 type CollectionColumn = 'name' | 'claimed' | 'earnings' | 'sold'
@@ -870,6 +879,13 @@ export function MyStore() {
         skip: ownerPage * OWNERS_PER_PAGE
       })
   })
+  // A server error is reported; a 404 is the endpoint not deployed yet, and a 503 is a store too large to rank.
+  useEffect(() => {
+    const error = ownersRead.error
+    if (error instanceof TopOwnersReadError && error.status >= 500) {
+      captureError(error, { flow: 'my_store', step: 'top_owners' })
+    }
+  }, [ownersRead.error])
   const owners = mock ? mockTopOwners(ownerSort, ownerPage, OWNERS_PER_PAGE) : ownersRead.data
   const ownerPages = Math.max(1, Math.ceil((owners?.total ?? 0) / OWNERS_PER_PAGE))
   const ownerAddresses = useMemo(() => (owners?.data ?? []).map(o => o.address).sort(), [owners])
@@ -1830,15 +1846,7 @@ export function MyStore() {
                         <thead>
                           <tr>
                             <th scope="col">{t('myStore.colOwner')}</th>
-                            {(
-                              [
-                                ['nfts', t('myStore.colOwned'), 'desc'],
-                                ['items', t('myStore.colItems'), 'desc'],
-                                ['collections', t('myStore.colCollections'), 'desc'],
-                                ['recent', t('myStore.colAcquired'), 'desc'],
-                                ['spent', t('myStore.colSpent'), 'desc']
-                              ] as [TopOwnersSort, string, SortDir][]
-                            ).map(([key, label, first]) => (
+                            {OWNER_COLUMNS.map(({ key, label, first }) => (
                               <th
                                 key={key}
                                 scope="col"
@@ -1846,7 +1854,7 @@ export function MyStore() {
                                 aria-sort={ariaSort(dirOf(ownerSort, key))}
                               >
                                 <SortHeader
-                                  label={label}
+                                  label={t(label)}
                                   dir={dirOf(ownerSort, key)}
                                   align={key === 'spent' ? 'right' : 'left'}
                                   testId={`store-sort-owners-${key}`}

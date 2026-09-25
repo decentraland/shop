@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test' } }))
 
-import { fetchTopOwners, TopOwnersUnavailableError } from '~/lib/owners'
+import { fetchTopOwners, TopOwnersReadError, TopOwnersUnavailableError } from '~/lib/owners'
 
 const CREATOR = '0x1111111111111111111111111111111111111111'
 
@@ -50,8 +50,10 @@ describe('when fetching the top owners of a creator', () => {
       fetchMock.mockResolvedValueOnce(new Response('missing', { status: 404 }))
     })
 
-    it('should throw a plain error', async () => {
-      await expect(fetchTopOwners(CREATOR, { first: 5, skip: 0 })).rejects.toThrow('fetchTopOwners 404')
+    it('should throw a read error carrying the status', async () => {
+      await expect(fetchTopOwners(CREATOR, { first: 5, skip: 0 })).rejects.toMatchObject(
+        Object.assign(new TopOwnersReadError(404), { status: 404 })
+      )
     })
   })
 })
