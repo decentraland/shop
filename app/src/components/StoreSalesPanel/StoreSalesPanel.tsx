@@ -36,15 +36,29 @@ function formatMana(value: number): string {
   return value >= 10 ? Math.round(value).toLocaleString(activeLocale()) : value.toFixed(2)
 }
 
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+/** One formatter per locale and shape: the tooltip formats on every pointer move. */
+function formatter(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const locale = activeLocale()
+  const key = `${locale}|${JSON.stringify(options)}`
+  let format = formatters.get(key)
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, options)
+    formatters.set(key, format)
+  }
+  return format
+}
+
 function formatDay(start: number, unit: BucketUnit, withYear: boolean): string {
   const options: Intl.DateTimeFormatOptions =
     unit === 'month' ? { month: 'short', year: 'numeric' } : { month: 'short', day: 'numeric' }
   if (withYear && unit !== 'month') options.year = 'numeric'
-  return new Intl.DateTimeFormat(activeLocale(), options).format(start)
+  return formatter(options).format(start)
 }
 
 function formatSpan(from: number, to: number): string {
-  const format = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
+  const format = formatter({ month: 'short', day: 'numeric', year: 'numeric' })
   return `${format.format(from)} – ${format.format(to)}`
 }
 

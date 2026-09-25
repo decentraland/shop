@@ -106,8 +106,15 @@ export function seriesOf(rows: SaleRow[], starts: number[], to: number): SeriesP
   if (points.length === 0) return points
   for (const row of rows) {
     if (row.timestamp < starts[0] || row.timestamp > to) continue
-    let index = starts.length - 1
-    while (index > 0 && starts[index] > row.timestamp) index -= 1
+    // The last bucket starting at or before the sale: starts are ascending, so a binary search finds it.
+    let lo = 0
+    let hi = starts.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (starts[mid] <= row.timestamp) lo = mid
+      else hi = mid - 1
+    }
+    const index = lo
     points[index].sales += 1
     points[index].earnedWei += weiOf(row.price)
   }

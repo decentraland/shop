@@ -7,6 +7,9 @@ import * as S from './RangePicker.styles'
 
 const WIDE = `(min-width: ${breakpoints.sm}px)`
 
+/** Before the first sale any store can have, so a stray click decades back cannot ask the chart for thousands of points. */
+const EARLIEST = new Date(2020, 0, 1)
+
 function useWide(): boolean {
   const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia?.(WIDE).matches)
   useEffect(() => {
@@ -118,6 +121,7 @@ export function RangePicker({
           setEnd(nextEnd)
         }}
         maxDate={new Date(max)}
+        minDate={EARLIEST}
         monthsShown={wide ? 2 : 1}
         openToDate={openOn(end ?? start ?? new Date(max), wide)}
         calendarStartDay={1}

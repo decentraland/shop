@@ -76,6 +76,8 @@ export function SalesChart({
   }, [])
 
   const count = current.values.length
+  // A shorter range can leave the kept index past the end; it reads as nothing hovered until the pointer moves.
+  const shown = active != null && active < count ? active : null
   const plotW = Math.max(1, width - PAD.left - PAD.right)
   const plotH = HEIGHT - PAD.top - PAD.bottom
   const peak = Math.max(0, ...current.values, ...(comparison?.values ?? []))
@@ -120,7 +122,7 @@ export function SalesChart({
     setActive(Math.min(count - 1, Math.max(0, from + (event.key === 'ArrowRight' ? 1 : -1))))
   }
 
-  const tipLeft = active != null ? Math.min(Math.max(x(active), 96), width - 96) : 0
+  const tipLeft = shown != null ? Math.min(Math.max(x(shown), 96), width - 96) : 0
 
   return (
     <S.Root>
@@ -196,28 +198,28 @@ export function SalesChart({
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-          {active != null ? (
+          {shown != null ? (
             <g>
               <line
-                x1={x(active)}
-                x2={x(active)}
+                x1={x(shown)}
+                x2={x(shown)}
                 y1={PAD.top}
                 y2={PAD.top + plotH}
                 stroke={theme.colors.softWhite}
                 strokeOpacity="0.5"
               />
-              {comparison && comparison.values[active] != null ? (
+              {comparison && comparison.values[shown] != null ? (
                 <circle
-                  cx={x(active)}
-                  cy={y(comparison.values[active])}
+                  cx={x(shown)}
+                  cy={y(comparison.values[shown])}
                   r="4"
                   fill={theme.colors.chartCompare}
                   className="dot"
                 />
               ) : null}
               <circle
-                cx={x(active)}
-                cy={y(current.values[active] ?? 0)}
+                cx={x(shown)}
+                cy={y(current.values[shown] ?? 0)}
                 r="4"
                 fill={theme.colors.dclRed}
                 className="dot"
@@ -225,18 +227,18 @@ export function SalesChart({
             </g>
           ) : null}
         </svg>
-        {active != null ? (
+        {shown != null ? (
           <S.Tip style={{ left: tipLeft }} data-testid="store-chart-tip">
             <S.TipRow>
               <S.TipLine style={{ background: theme.colors.dclRed }} />
-              <b>{formatValue(current.values[active] ?? 0)}</b>
-              <span>{formatStart(current.starts[active])}</span>
+              <b>{formatValue(current.values[shown] ?? 0)}</b>
+              <span>{formatStart(current.starts[shown])}</span>
             </S.TipRow>
-            {comparison && comparison.starts[active] != null ? (
+            {comparison && comparison.starts[shown] != null ? (
               <S.TipRow>
                 <S.TipLine style={{ background: theme.colors.chartCompare }} />
-                <b>{formatValue(comparison.values[active] ?? 0)}</b>
-                <span>{formatStart(comparison.starts[active])}</span>
+                <b>{formatValue(comparison.values[shown] ?? 0)}</b>
+                <span>{formatStart(comparison.starts[shown])}</span>
               </S.TipRow>
             ) : null}
           </S.Tip>
