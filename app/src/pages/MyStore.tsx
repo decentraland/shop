@@ -424,7 +424,7 @@ function CollectionRow({
         </S.SparkCell>
         <S.ManageBtn
           as="a"
-          href={`${config.builderUrl}/collections/${collection.collectionId}`}
+          href={`${config.builderUrl}/collections${collection.collectionId ? `/${collection.collectionId}` : ''}`}
           target="_blank"
           rel="noopener noreferrer"
           onClick={onManage}

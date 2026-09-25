@@ -4,6 +4,8 @@ import { countSales, fetchSalesSummary, fetchSellerSales, weiOf } from '~/lib/sa
 import { collectorsOf, daysSinceLastSale, deltaOf, deltaOfWei, topBuyers } from '~/lib/storeMetrics'
 import { fetchFavoriteStats } from '~/lib/favorites'
 import { fetchPublishableItems } from '~/lib/builder'
+import { fetchPublicCatalogue, withMissingCollections } from '~/lib/storeCatalogue'
+import { captureError } from '~/lib/monitoring'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
 import { toSaleableCollections } from '~/lib/saleableCollections'
@@ -16,6 +18,7 @@ export type StorePeriod = '7d' | '30d' | 'all'
 export type { StoreItem, StoreCollection, StoreStats } from '~/lib/storeStats'
 
 const DAY_MS = 86_400_000
+const PUBLIC_CATALOGUE_TIMEOUT_MS = 6_000
 const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: null }
 
 /**
@@ -43,8 +46,6 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
     queryFn: () => fetchSellerSales({ seller: address, from })
   })
 
-  // Someone else's store can only be read from the public feeds: the builder answers for the signed-in
-  // creator alone.
   /**
    * The server's aggregate for the window: totals, earnings, per-collection and per-item figures, and the
    * royalties that no client-side grouping can reach. Every number in it is exact whatever the size of the
@@ -79,11 +80,34 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
     queryFn: () => countSales({ seller: address, from, type: 'mint' })
   })
 
-  const catalogue = useQuery({
+  const builderCatalogue = useQuery({
     queryKey: ['store-catalogue', address],
     enabled: !!address && !!session,
     queryFn: () => fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
   })
+
+  // Fail-soft and bounded: the builder's catalogue is enough to run the page, this only fills the collections
+  // it missed, so a slow feed must not hold the page past a few seconds.
+  const publicCatalogue = useQuery({
+    queryKey: ['store-public-catalogue', address],
+    enabled: !!address && !!session,
+    queryFn: () =>
+      Promise.race([
+        fetchPublicCatalogue(address as string),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('public catalogue timed out')), PUBLIC_CATALOGUE_TIMEOUT_MS)
+        )
+      ]).catch((error: unknown) => {
+        captureError(error, { flow: 'my_store', step: 'public_catalogue' })
+        return []
+      })
+  })
+
+  const catalogue = useMemo(() => {
+    if (!builderCatalogue.data) return { data: undefined }
+    if (publicCatalogue.isPending) return { data: undefined }
+    return { data: withMissingCollections(builderCatalogue.data, publicCatalogue.data ?? []) }
+  }, [builderCatalogue.data, publicCatalogue.isPending, publicCatalogue.data])
 
   const addresses = useMemo(
     () => [...new Set((catalogue.data ?? []).map(item => item.contractAddress))],
@@ -159,11 +183,12 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
    * The same collections a discount can run on, from the reads the page already made.
    *
    * Shared with My Creations through `toSaleableCollections` rather than derived twice: which collections
-   * a creator may discount is one rule, and two copies of it would drift.
+   * a creator may discount is one rule, and two copies of it would drift. Only the builder's collections:
+   * one it did not return has none of the builder state a discount needs.
    */
   const saleable = useMemo(
-    () => toSaleableCollections(catalogue.data ?? [], saleState.data?.states),
-    [catalogue.data, saleState.data]
+    () => toSaleableCollections(builderCatalogue.data ?? [], saleState.data?.states),
+    [builderCatalogue.data, saleState.data]
   )
 
   /**
@@ -202,7 +227,7 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
     // creator a beat later. Its ERROR deliberately does not count — a summary that cannot be read leaves a
     // page that still works off the rows, and calling that a failure would replace a good page with a
     // notice.
-    isLoading: catalogue.isLoading || sales.isLoading || summary.isLoading,
-    error: catalogue.error ?? sales.error ?? null
+    isLoading: builderCatalogue.isLoading || publicCatalogue.isLoading || sales.isLoading || summary.isLoading,
+    error: builderCatalogue.error ?? sales.error ?? null
   }
 }
