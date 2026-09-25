@@ -1,8 +1,10 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useId, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
-import { useStoreStats, type StoreCollection, type StoreItem, type StorePeriod } from '~/hooks/useStoreStats'
+import { useStoreStats, type StoreCollection, type StoreItem } from '~/hooks/useStoreStats'
+import { RANGE_KEYS, resolveRange, type RangeKey, type ResolvedRange, type StoreRange } from '~/lib/storeRange'
+import { StoreSalesPanel } from '~/components/StoreSalesPanel'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { isSaleCapped, type CreatorSale } from '~/lib/coupons'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
@@ -20,6 +22,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
 import { SortHeader } from '~/components/SortHeader'
+import { RangePicker } from '~/components/RangePicker'
 import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
@@ -30,17 +33,23 @@ import type { Delta } from '~/lib/storeMetrics'
 import { config } from '~/config'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
-import { mockBuyers, mockCollectors, mockSaleRows, mockSales, mockSaves, mockStats } from '~/lib/storeMock'
+import {
+  mockBuyers,
+  mockChartRows,
+  mockCollectors,
+  mockSaleRows,
+  mockSales,
+  mockSaves,
+  mockStats
+} from '~/lib/storeMock'
 import { useStore } from '~/hooks/useStore'
 import { LINK_TYPES, type LinkType } from '~/lib/store'
 import { theme } from '~/styles/theme'
-import { t, tNode } from '~/intl/i18n'
+import { activeLocale, t, tNode } from '~/intl/i18n'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import signInIllustration from '~/assets/empty/signin-empty.svg'
 import * as A from '~/styles/browseLayout.styles'
 import * as S from './MyStore.styles'
-
-const PERIODS: StorePeriod[] = ['7d', '30d', 'all']
 
 /** A prolific creator has dozens of collections; the list opens on the ones that sold. */
 /**
@@ -87,6 +96,17 @@ function rememberSort(sort: Sort): void {
   } catch {
     // A browser that will not store it is not a reason to refuse the sort.
   }
+}
+
+function rangeLabel(from: number, to: number): string {
+  const sameYear = new Date(from).getFullYear() === new Date(to).getFullYear()
+  const start = new Intl.DateTimeFormat(activeLocale(), {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' })
+  })
+  const end = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
+  return `${start.format(from)} – ${end.format(to)}`
 }
 
 function ariaSort(dir: SortDir | undefined): 'ascending' | 'descending' | undefined {
@@ -225,16 +245,14 @@ function Pager({
 }
 
 /** One page of the seller's sales, and how many there are. */
-function useSalesPage(address: string | undefined, period: StorePeriod, page: number) {
-  const days = { '7d': 7, '30d': 30, all: null }[period]
-  const now = useMemo(() => Math.floor(Date.now() / 86_400_000) * 86_400_000 + 86_400_000 - 1, [])
-  const from = days ? now - days * 86_400_000 : undefined
+function useSalesPage(address: string | undefined, range: ResolvedRange, page: number) {
+  const { from, to } = range
   const query = useQuery({
-    queryKey: ['store-sales-page', address, period, page],
+    queryKey: ['store-sales-page', address, from ?? null, to, page],
     enabled: !!address,
     // Keeps the previous page on screen while the next one loads, so the table does not blink empty.
     placeholderData: previous => previous,
-    queryFn: () => fetchSalesPage({ seller: address, from }, { first: SALES_PER_PAGE, skip: page * SALES_PER_PAGE })
+    queryFn: () => fetchSalesPage({ seller: address, from, to }, { first: SALES_PER_PAGE, skip: page * SALES_PER_PAGE })
   })
   const total = query.data?.total ?? 0
   return { rows: query.data?.rows ?? [], total, pages: Math.ceil(total / SALES_PER_PAGE) }
@@ -598,9 +616,14 @@ function hasDelta(delta: Delta | null): boolean {
   return !!delta && !(delta.current === 0 && delta.previous === 0)
 }
 
-function DeltaTag({ delta, period }: { delta: Delta | null; period: StorePeriod }) {
+function DeltaTag({ delta, period }: { delta: Delta | null; period: RangeKey }) {
   if (!delta || (delta.current === 0 && delta.previous === 0)) return null
-  const against = period === 'all' ? '' : t(`myStore.vs${period}`)
+  const against =
+    period === 'all'
+      ? ''
+      : period === '7d' || period === '30d' || period === '90d'
+        ? t(`myStore.vs${period}`)
+        : t('myStore.vsPrevious')
   if (delta.pct === null) {
     return (
       <S.Delta data-dir="new" data-testid="store-delta">
@@ -750,7 +773,12 @@ export function MyStore() {
   useSeo({ title: t('myStore.title'), noindex: true })
   const { session, error, signIn } = useWallet()
   const [params] = useSearchParams()
-  const [period, setPeriod] = useState<StorePeriod>('30d')
+  const [range, setRange] = useState<StoreRange>({ key: '30d' })
+  const [rangeOpen, setRangeOpen] = useState(false)
+  const closeRange = useCallback(() => setRangeOpen(false), [])
+  const period = range.key
+  // Recomputed with the range, not per render, so the query keys stay put for the whole visit.
+  const resolved = useMemo(() => resolveRange(range, Date.now()), [range])
   // A set, not one id: opening a second collection to compare it with the first should not close the first.
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const [collectionPage, setCollectionPage] = useState(0)
@@ -802,17 +830,19 @@ export function MyStore() {
     trend: liveTrend,
     savesByKey: liveSaves,
     saleable,
+    sales: liveSales,
     isLoading: liveLoading,
     error: statsError
-  } = useStoreStats(session, period)
+  } = useStoreStats(session, resolved)
   // The invented store replaces what the reads return, not the page that draws them: every state below
   // is exercised by the same code a real creator gets.
   const stats = mock ? mockStats : liveStats
   const trend = mock ? { ...liveTrend, collectors: mockCollectors, buyers: mockBuyers, quietDays: 12 } : liveTrend
   const isLoading = mock ? false : liveLoading
   const savesByKey = mock ? mockSaves : liveSaves
-  const sales = useSalesPage(session?.address, period, page)
+  const sales = useSalesPage(session?.address, resolved, page)
   const salesRows = mock ? mockSaleRows : sales.rows
+  const chartRows = mock ? mockChartRows : liveSales.rows
   const saleAddresses = useMemo(() => [...new Set(salesRows.map(row => row.buyer.toLowerCase()))].sort(), [salesRows])
   const { data: buyers, isLoading: buyersLoading } = useBuyerNames(saleAddresses)
   const buyerPages = Math.max(1, Math.ceil(trend.buyers.length / BUYERS_PER_PAGE))
@@ -932,7 +962,7 @@ export function MyStore() {
   const running = (liveDiscounts ?? []).filter(s => s.status === 'active' || s.status === 'scheduled')
 
   /** How long the chosen window is, where it has a length at all. All time does not. */
-  const windowDays = period === '7d' ? 7 : period === '30d' ? 30 : null
+  const windowDays = resolved.days
 
   const items = (stats?.collections ?? []).reduce((n, c) => n + c.items.length, 0)
 
@@ -1041,24 +1071,55 @@ export function MyStore() {
 
           <S.PerfHead>
             <S.PerfTitle>{t('myStore.performance')}</S.PerfTitle>
-            <S.Periods role="group" aria-label={t('myStore.period')}>
-              {PERIODS.map(key => (
-                <S.Period
-                  key={key}
-                  type="button"
-                  aria-pressed={period === key}
-                  onClick={() => {
-                    if (key !== period)
-                      trackStore('Shop Changed Store Period', { period: key, previous_period: period })
-                    setPeriod(key)
+            <S.PeriodsWrap>
+              <S.Periods role="group" aria-label={t('myStore.period')}>
+                {RANGE_KEYS.map(key => (
+                  <S.Period
+                    key={key}
+                    type="button"
+                    aria-pressed={period === key}
+                    {...(key === 'custom'
+                      ? { 'aria-expanded': rangeOpen, 'aria-haspopup': 'dialog' as const, 'data-range-trigger': '' }
+                      : {})}
+                    onClick={() => {
+                      // Custom opens the calendar; the range only changes once one is applied in it.
+                      if (key === 'custom') {
+                        setRangeOpen(open => !open)
+                        return
+                      }
+                      if (key !== period)
+                        trackStore('Shop Changed Store Period', { period: key, previous_period: period })
+                      setRange({ key })
+                      setRangeOpen(false)
+                      setPage(0)
+                    }}
+                    data-testid={`store-period-${key}`}
+                  >
+                    {key === 'custom' && period === 'custom' && resolved.from != null
+                      ? rangeLabel(resolved.from, resolved.to)
+                      : t(`myStore.period${key}`)}
+                  </S.Period>
+                ))}
+              </S.Periods>
+              {rangeOpen ? (
+                <RangePicker
+                  from={resolved.from ?? resolved.to - 29 * 86_400_000}
+                  to={resolved.to}
+                  max={Date.now()}
+                  onClose={closeRange}
+                  onApply={(from, to) => {
+                    trackStore('Shop Changed Store Period', {
+                      period: 'custom',
+                      previous_period: period,
+                      days: Math.round((to - from) / 86_400_000) + 1
+                    })
+                    setRange({ key: 'custom', from, to })
+                    setRangeOpen(false)
                     setPage(0)
                   }}
-                  data-testid={`store-period-${key}`}
-                >
-                  {t(`myStore.period${key}`)}
-                </S.Period>
-              ))}
-            </S.Periods>
+                />
+              ) : null}
+            </S.PeriodsWrap>
           </S.PerfHead>
 
           <ErrorNotice message={statsError ? t('myStore.error') : null} testId="my-store-error" />
@@ -1137,6 +1198,25 @@ export function MyStore() {
                   </S.TileFoot>
                 </S.Tile>
               </S.Tiles>
+
+              <S.Panel aria-labelledby="store-chart-h" data-testid="store-chart-panel">
+                <S.PanelHeadStack>
+                  <div>
+                    <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
+                    <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
+                  </div>
+                </S.PanelHeadStack>
+                <StoreSalesPanel
+                  address={session?.address}
+                  range={resolved}
+                  rows={chartRows}
+                  truncated={liveSales.truncated}
+                  fetching={liveSales.isFetching}
+                  collections={stats.collections}
+                  onTrack={trackStore}
+                  comparisonRows={mock ? mockChartRows : undefined}
+                />
+              </S.Panel>
 
               {/* The standing nudge, above the list it is about. Only the copy differs from the one the
                  migration tool shows: here the reason to switch is that a discount cannot re-price a
