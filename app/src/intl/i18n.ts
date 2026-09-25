@@ -2,15 +2,17 @@ import type { ReactNode } from 'react'
 import { createIntl, createIntlCache, type IntlShape } from 'react-intl'
 import en from './en.json'
 import es from './es.json'
+import pt from './pt.json'
+import de from './de.json'
 
 // react-intl backs our i18n. We expose a plain `t('a.b.c')` (like the marketplace) on top of it so
 // converting strings is a simple wrap — no hook needed at every call site. `t()` reads a module-level
 // "active" intl that <I18nProvider> keeps in sync with the chosen locale; it also works BEFORE/without
 // a provider (defaults to English), which keeps unit tests that assert English strings green.
 
-export const LOCALES = ['en', 'es'] as const
+export const LOCALES = ['en', 'es', 'pt', 'de'] as const
 export type Locale = (typeof LOCALES)[number]
-export const LOCALE_LABELS: Record<Locale, string> = { en: 'English', es: 'Español' }
+export const LOCALE_LABELS: Record<Locale, string> = { en: 'English', es: 'Español', pt: 'Português', de: 'Deutsch' }
 
 // react-intl wants a FLAT { 'a.b.c': 'msg' } map; we author nested JSON for readability and flatten
 // it once at load.
@@ -25,7 +27,9 @@ function flatten(obj: Record<string, unknown>, prefix = '', out: Record<string, 
 
 export const MESSAGES: Record<Locale, Record<string, string>> = {
   en: flatten(en),
-  es: flatten(es)
+  es: flatten(es),
+  pt: flatten(pt),
+  de: flatten(de)
 }
 
 const cache = createIntlCache()
