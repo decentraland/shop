@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
@@ -21,6 +21,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
 import { SortHeader } from '~/components/SortHeader'
 import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
+import { fetchTopOwners, TopOwnersReadError, TopOwnersUnavailableError, type TopOwnersSort } from '~/lib/owners'
+import { captureError } from '~/lib/monitoring'
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
 import { useProfile } from '~/hooks/useProfile'
@@ -30,7 +32,15 @@ import type { Delta } from '~/lib/storeMetrics'
 import { config } from '~/config'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
-import { mockBuyers, mockCollectors, mockSaleRows, mockSales, mockSaves, mockStats } from '~/lib/storeMock'
+import {
+  mockBuyers,
+  mockTopOwners,
+  mockCollectors,
+  mockSaleRows,
+  mockSales,
+  mockSaves,
+  mockStats
+} from '~/lib/storeMock'
 import { useStore } from '~/hooks/useStore'
 import { LINK_TYPES, type LinkType } from '~/lib/store'
 import { theme } from '~/styles/theme'
@@ -56,6 +66,16 @@ const COLLECTIONS_SHOWN = 8
 const BUYERS_PER_PAGE = 5
 
 const BEST_PER_PAGE = 5
+
+const OWNERS_PER_PAGE = 5
+
+const OWNER_COLUMNS: { key: TopOwnersSort; label: string; first: SortDir }[] = [
+  { key: 'nfts', label: 'myStore.colOwned', first: 'desc' },
+  { key: 'items', label: 'myStore.colItems', first: 'desc' },
+  { key: 'collections', label: 'myStore.colCollections', first: 'desc' },
+  { key: 'recent', label: 'myStore.colAcquired', first: 'desc' },
+  { key: 'spent', label: 'myStore.colSpent', first: 'desc' }
+]
 
 type Sort = 'sold' | 'earned' | 'newest' | 'name'
 type CollectionColumn = 'name' | 'claimed' | 'earnings' | 'sold'
@@ -764,6 +784,8 @@ export function MyStore() {
   const [bestSort, setBestSort] = useState<ColumnSort<BestColumn> | null>(null)
   const [bestPage, setBestPage] = useState(0)
   const [buyerSort, setBuyerSort] = useState<ColumnSort<BuyerColumn> | null>(null)
+  const [ownerSort, setOwnerSort] = useState<ColumnSort<TopOwnersSort>>({ key: 'nfts', dir: 'desc' })
+  const [ownerPage, setOwnerPage] = useState(0)
   const [issuing, setIssuing] = useState<{ item: StoreItem; contractAddress: string } | null>(null)
   const queryClient = useQueryClient()
   /**
@@ -842,6 +864,38 @@ export function MyStore() {
   // profiles to draw a page of five rows.
   const audienceAddresses = useMemo(() => buyersShown.map(b => b.address).sort(), [buyersShown])
   const { data: audience } = useBuyerNames(audienceAddresses)
+  // Who holds the store's items now, ranked on the server: the list can run to thousands, so it is sorted
+  // and paged there rather than here.
+  const ownersRead = useQuery({
+    queryKey: ['store-top-owners', session?.address, ownerSort.key, ownerSort.dir, ownerPage],
+    enabled: !mock && !!session,
+    // Holders change slowly, and the server caches them for ten minutes anyway.
+    staleTime: 5 * 60_000,
+    placeholderData: previous => previous,
+    retry: (count, error) => !(error instanceof TopOwnersUnavailableError) && count < 1,
+    queryFn: () =>
+      fetchTopOwners(session!.address, {
+        sortBy: ownerSort.key,
+        orderDirection: ownerSort.dir,
+        first: OWNERS_PER_PAGE,
+        skip: ownerPage * OWNERS_PER_PAGE
+      })
+  })
+  // A server error is reported; a 404 is the endpoint not deployed yet, and a 503 is a store too large to rank.
+  useEffect(() => {
+    const error = ownersRead.error
+    if (!error || error instanceof TopOwnersUnavailableError) return
+    if (error instanceof TopOwnersReadError && error.status < 500) return
+    captureError(error, { flow: 'my_store', step: 'top_owners' })
+  }, [ownersRead.error])
+  const owners = mock ? mockTopOwners(ownerSort, ownerPage, OWNERS_PER_PAGE) : ownersRead.data
+  const ownerPages = Math.max(1, Math.ceil((owners?.total ?? 0) / OWNERS_PER_PAGE))
+  // The total can shrink between reads (an owner sells everything); a page past the end steps back.
+  useEffect(() => {
+    if (ownerPage > ownerPages - 1) setOwnerPage(ownerPages - 1)
+  }, [ownerPage, ownerPages])
+  const ownerAddresses = useMemo(() => (owners?.data ?? []).map(o => o.address).sort(), [owners])
+  const { data: ownerProfiles } = useBuyerNames(ownerAddresses)
   const { data: discounts } = useCreatorSales(session?.address, creatorSalesEnabled && !!session)
 
   // The flag closes the page, not just the nav entry — otherwise the link is off and the URL is still live.
@@ -1779,6 +1833,107 @@ export function MyStore() {
                   </S.ListFoot>
                 ) : null}
               </S.Panel>
+
+              {/* Hidden when the read fails for any reason other than size: before the server ships the
+                  endpoint there is nothing to show, and a panel that only ever says "unavailable" is noise. */}
+              {owners || ownersRead.error instanceof TopOwnersUnavailableError ? (
+                <S.Panel aria-labelledby="store-owners-h" data-testid="store-owners-panel">
+                  <S.PanelHead>
+                    <S.PanelTitle id="store-owners-h">{t('myStore.owners')}</S.PanelTitle>
+                    <S.PanelHint>{t('myStore.ownersHint')}</S.PanelHint>
+                  </S.PanelHead>
+                  {!owners ? (
+                    <S.Empty data-testid="store-owners-unavailable">{t('myStore.ownersUnavailable')}</S.Empty>
+                  ) : owners.total === 0 ? (
+                    <S.Empty data-testid="store-owners-none">{t('myStore.noOwners')}</S.Empty>
+                  ) : (
+                    <S.FeedWrap>
+                      <S.OwnerFeed>
+                        <thead>
+                          <tr>
+                            <th scope="col">{t('myStore.colOwner')}</th>
+                            {OWNER_COLUMNS.map(({ key, label, first }) => (
+                              <th
+                                key={key}
+                                scope="col"
+                                style={key === 'spent' ? { textAlign: 'right' } : undefined}
+                                aria-sort={ariaSort(dirOf(ownerSort, key))}
+                              >
+                                <SortHeader
+                                  label={t(label)}
+                                  dir={dirOf(ownerSort, key)}
+                                  align={key === 'spent' ? 'right' : 'left'}
+                                  testId={`store-sort-owners-${key}`}
+                                  onSort={() => {
+                                    const next = nextSort(ownerSort, key, first)
+                                    trackStore('Shop Sorted Store Table', {
+                                      table: 'owners',
+                                      column: next.key,
+                                      direction: next.dir
+                                    })
+                                    setOwnerSort(next)
+                                    setOwnerPage(0)
+                                  }}
+                                />
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {owners.data.map(owner => {
+                            const face = ownerProfiles?.get(owner.address)?.avatar?.snapshots?.face256
+                            return (
+                              <tr key={owner.address} data-testid="store-owner">
+                                <td>
+                                  <S.Buyer
+                                    href={`${config.profileUrl}/${owner.address}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() =>
+                                      trackStore('Shop Clicked Store Action', { action: 'open_owner', table: 'owners' })
+                                    }
+                                    data-testid="store-owner-name"
+                                  >
+                                    <S.Face
+                                      style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                      aria-hidden
+                                    />
+                                    {buyerName(owner.address, ownerProfiles)}
+                                  </S.Buyer>
+                                </td>
+                                <td data-testid="store-owner-nfts">{owner.nfts.toLocaleString()}</td>
+                                <td data-dim>{t('myStore.buyerItems', { count: owner.items })}</td>
+                                <td data-dim>{t('myStore.buyerCollections', { count: owner.collections })}</td>
+                                <td data-dim>{ago(owner.lastAcquiredAt)}</td>
+                                <td data-money>
+                                  <S.Money>
+                                    <CurrencyMark kind="mana" />
+                                    {mana(weiOf(owner.spentWei))}
+                                  </S.Money>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </S.OwnerFeed>
+                    </S.FeedWrap>
+                  )}
+                  {owners && ownerPages > 1 ? (
+                    <S.ListFoot>
+                      <span>{t('myStore.ownersCount', { count: owners.total })}</span>
+                      <Pager
+                        page={ownerPage}
+                        pages={ownerPages}
+                        onChange={next => {
+                          trackStore('Shop Paged Store Table', { table: 'owners', page: next + 1 })
+                          setOwnerPage(next)
+                        }}
+                        name="owners"
+                      />
+                    </S.ListFoot>
+                  ) : null}
+                </S.Panel>
+              ) : null}
             </>
           )}
         </S.Root>

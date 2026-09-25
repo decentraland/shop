@@ -1738,6 +1738,27 @@ export const BuyerFeed = styled(Feed)`
   }
 `
 
+export const OwnerFeed = styled(Feed)`
+  thead th:nth-of-type(1) {
+    width: 30%;
+  }
+  thead th:nth-of-type(2) {
+    width: 10%;
+  }
+  thead th:nth-of-type(3) {
+    width: 14%;
+  }
+  thead th:nth-of-type(4) {
+    width: 16%;
+  }
+  thead th:nth-of-type(5) {
+    width: 14%;
+  }
+  thead th:nth-of-type(6) {
+    width: 16%;
+  }
+`
+
 /**
  * The long list beside the column of short panels.
  *
