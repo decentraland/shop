@@ -241,3 +241,40 @@ export const mockSaleRows: SaleRow[] = SALE_ITEMS.slice(0, 5).map(([contractAddr
   network: 'MATIC',
   tokenId: i === 3 ? '1042' : null
 }))
+
+/**
+ * Two years of sales for the chart, with a season in them: a summer lull and a spike each autumn, so the
+ * comparison against last year has a shape to show. Deterministic, so a screenshot is the same every time.
+ */
+export const mockChartRows: SaleRow[] = (() => {
+  const rows: SaleRow[] = []
+  let seed = 7
+  const random = () => {
+    seed = (seed * 16807) % 2147483647
+    return seed / 2147483647
+  }
+  for (let day = 0; day < 730; day++) {
+    const at = NOW - day * DAY
+    const month = new Date(at).getMonth()
+    const season = month >= 5 && month <= 7 ? 0.4 : month >= 8 && month <= 10 ? 1.8 : 1
+    const count = Math.round(random() * 4 * season)
+    for (let n = 0; n < count; n++) {
+      const [contractAddress, item] = SALE_ITEMS[Math.floor(random() * SALE_ITEMS.length)]
+      rows.push({
+        id: `mock-chart-${day}-${n}`,
+        itemId: item.itemId,
+        contractAddress,
+        buyer: `0x${Math.floor(random() * 0xffffff)
+          .toString(16)
+          .padStart(40, '0')}`,
+        seller: '0xmockcreator0000000000000000000000000001',
+        price: String(BigInt(5 + Math.floor(random() * 60)) * 10n ** 18n),
+        timestamp: at - Math.floor(random() * DAY),
+        type: 'mint',
+        network: 'MATIC',
+        tokenId: null
+      })
+    }
+  }
+  return rows
+})()

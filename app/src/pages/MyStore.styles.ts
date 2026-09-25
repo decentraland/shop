@@ -266,12 +266,28 @@ export const PerfTitle = styled.h2`
 export const Periods = styled.div`
   display: flex;
   gap: 4px;
+  max-width: 100%;
   padding: 4px;
   border-radius: ${theme.radius.pill};
   background: rgba(0, 0, 0, 0.22);
+  /* Six presets outgrow a phone: the row scrolls rather than wrapping into a second pill. */
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
+/** Anchors the range picker under the period row, outside its scroller so the popup is not clipped. */
+export const PeriodsWrap = styled.div`
+  position: relative;
+  max-width: 100%;
 `
 
 export const Period = styled.button`
+  flex: none;
+  white-space: nowrap;
   border: 0;
   cursor: pointer;
   font-family: ${theme.font.sans};
