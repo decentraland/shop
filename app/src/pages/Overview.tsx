@@ -217,6 +217,8 @@ export function Overview() {
   // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
   // which is the normal state — the Shop's own art, headline and credits CTA below are what render.
   const campaignHero = useCampaignHero(CAMPAIGN_HERO_SLOT)
+  // Empty on purpose when a campaign ships artwork that carries its own headline; see the render below.
+  const heroTitle = campaignHero ? campaignHero.title : t('overview.heroTitle')
 
   function renderHeroCta() {
     // Hidden inside the iOS web view, where the Shop may not sell credits at all. That covers a campaign's
@@ -312,7 +314,11 @@ export function Overview() {
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
-          <S.HeroTitle data-testid="hero-title">{campaignHero?.title || t('overview.heroTitle')}</S.HeroTitle>
+          {/* A campaign that ships NO title has its headline in the artwork — seasonal banners carry it as
+              lettering, not as a font we could set — so nothing is drawn over it. The Shop's own default
+              is for when there is no campaign at all, not for one that deliberately left the field blank;
+              falling back to it there stamped "A New Way to Shop" across a campaign's own wordmark. */}
+          {heroTitle ? <S.HeroTitle data-testid="hero-title">{heroTitle}</S.HeroTitle> : null}
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
               sending the click to browse would leave the buyer one step short of what it advertises.
               Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most

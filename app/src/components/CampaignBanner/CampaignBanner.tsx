@@ -26,7 +26,9 @@ export function CampaignBanner({ slot }: { slot: string }) {
         <S.Bg src={banner.desktopImage} alt="" aria-hidden />
       </picture>
       <S.Inner>
-        <S.Title data-testid="campaign-banner-title">{banner.title}</S.Title>
+        {/* Nothing is drawn when the campaign ships no title: its headline is lettering inside the
+            artwork, and an empty heading here would still take up the space above the CTA. */}
+        {banner.title ? <S.Title data-testid="campaign-banner-title">{banner.title}</S.Title> : null}
         {/* Hidden in the iOS web view for the same reason the home hero's is: the destination is free text
             an editor typed, and a drop most often points at buying something. */}
         {!isIapMode() && banner.cta ? (
