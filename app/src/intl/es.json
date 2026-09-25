@@ -63,7 +63,10 @@
   },
   "common": {
     "copy": "Copiar",
-    "copied": "Copiado"
+    "copied": "Copiado",
+    "sortColumn": "Ordenar por {column}",
+    "sortedAsc": "{column}, orden ascendente. Haz clic para ordenar de forma descendente",
+    "sortedDesc": "{column}, orden descendente. Haz clic para ordenar de forma ascendente"
   },
   "collection": {
     "breadcrumb": "Coleccionables",
@@ -723,7 +726,10 @@
     "colClaimed": "Reclamados",
     "viewPublicStore": "Ver tienda pública",
     "editStore": "Editar tienda",
-    "performance": "Rendimiento de la tienda"
+    "performance": "Rendimiento de la tienda",
+    "sortCustom": "Orden por columna",
+    "issueCopies": "Emitir copias",
+    "sortEarned": "Más ganancias"
   },
   "myAssets": {
     "signInTitle": "Inicia sesión para ver tus artículos",

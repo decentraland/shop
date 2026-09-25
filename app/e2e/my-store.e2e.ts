@@ -129,6 +129,27 @@ describe('when a creator opens their store', () => {
     expect(sold).toEqual(['10', '4'])
   })
 
+  it('should re-sort a table from its header, keeping each row its best-seller rank', async () => {
+    app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+    await page.waitForSelector('[data-testid="store-best"]')
+
+    const rowsNow = () =>
+      page.$$eval('[data-testid="store-best"]', found =>
+        found.map(row => (row as HTMLElement).innerText.replace(/\s+/g, ' ').trim())
+      )
+
+    await page.click('[data-testid="store-sort-best-sold"]')
+    expect(await page.$eval('[data-testid="store-sort-best-sold"]', el => (el as HTMLElement).dataset.dir)).toBe('desc')
+    await page.click('[data-testid="store-sort-best-sold"]')
+    expect(await page.$eval('[data-testid="store-sort-best-sold"]', el => (el as HTMLElement).dataset.dir)).toBe('asc')
+
+    const rows = await rowsNow()
+    expect(rows[0]).toMatch(/^2 Galaxy Hat/)
+    expect(rows[1]).toMatch(/^1 Galaxy Boots/)
+  })
+
   it('should fit a phone without scrolling sideways', async () => {
     app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
     const { page } = app

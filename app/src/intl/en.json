@@ -63,7 +63,10 @@
   },
   "common": {
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "sortColumn": "Sort by {column}",
+    "sortedAsc": "{column}, sorted ascending. Click to sort descending",
+    "sortedDesc": "{column}, sorted descending. Click to sort ascending"
   },
   "collection": {
     "breadcrumb": "Collectibles",
@@ -723,7 +726,10 @@
     "colClaimed": "Claimed",
     "viewPublicStore": "View public store",
     "editStore": "Edit store",
-    "performance": "Store performance"
+    "performance": "Store performance",
+    "sortCustom": "Sorted by column",
+    "issueCopies": "Issue copies",
+    "sortEarned": "Most earned"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",

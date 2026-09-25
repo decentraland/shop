@@ -17,7 +17,10 @@ import { Tooltip } from '~/components/Tooltip'
 import { Icon, type IconName } from '~/components/Icon'
 import { Button } from '~/components/Button'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { IssueModal } from '~/components/IssueModal'
+import { SortHeader } from '~/components/SortHeader'
+import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
 import { useProfile } from '~/hooks/useProfile'
@@ -52,10 +55,14 @@ const COLLECTIONS_SHOWN = 8
 /** Rows of the buyers table per page. Five fills the band beside the two figures without dwarfing them. */
 const BUYERS_PER_PAGE = 5
 
-type Sort = 'sold' | 'selling' | 'newest' | 'name'
+type Sort = 'sold' | 'earned' | 'selling' | 'newest' | 'name'
+type CollectionColumn = 'name' | 'claimed' | 'earnings' | 'sold'
+type BestColumn = 'name' | 'collection' | 'sold' | 'earnings'
+type BuyerColumn = 'items' | 'collections' | 'last' | 'spent'
+type StoreBuyer = ReturnType<typeof useStoreStats>['trend']['buyers'][number]
 
 const SORT_KEY = 'shop.my-store.sort'
-const SORTS: Sort[] = ['sold', 'selling', 'newest', 'name']
+const SORTS: Sort[] = ['sold', 'earned', 'selling', 'newest', 'name']
 
 /**
  * The order the creator last chose, remembered per browser.
@@ -80,10 +87,19 @@ function rememberSort(sort: Sort): void {
   }
 }
 
+function ariaSort(dir: SortDir | undefined): 'ascending' | 'descending' | undefined {
+  return dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : undefined
+}
+
+function dirOf<K extends string>(sort: ColumnSort<K> | null, key: K): SortDir | undefined {
+  return sort?.key === key ? sort.dir : undefined
+}
+
 /** How the collections list is ordered. `newest` only appears when the source dates the items. */
 function sortCollections(collections: StoreCollection[], by: Sort): StoreCollection[] {
   const sorted = [...collections]
   if (by === 'name') return sorted.sort((a, b) => a.name.localeCompare(b.name))
+  if (by === 'earned') return sortRows(sorted, c => c.earningsWei, 'desc')
   if (by === 'newest') return sorted.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
   // Collections with nothing left to sell go last whatever they once sold: they are the rows a creator
   // has no move left on, and at the top they push down the ones they do.
@@ -342,6 +358,7 @@ function CollectionRow({
   open,
   onToggle,
   onManage,
+  onIssue,
   env
 }: {
   collection: StoreCollection
@@ -351,6 +368,8 @@ function CollectionRow({
   open: boolean
   onToggle: () => void
   onManage: () => void
+  /** Absent when no one is signed in to issue as. */
+  onIssue?: (item: StoreItem) => void
   env: string | null
 }) {
   const panelId = `store-items-${collection.contractAddress}`
@@ -501,6 +520,11 @@ function CollectionRow({
                         </>
                       )}
                     </S.ItemState>
+                    {onIssue && item.left > 0 ? (
+                      <S.IssueBtn type="button" onClick={() => onIssue(item)} data-testid="store-item-issue">
+                        {t('myStore.issueCopies')}
+                      </S.IssueBtn>
+                    ) : null}
                   </S.ItemMeta>
                 </S.ItemCell>
                 <S.ItemNum>
@@ -739,6 +763,13 @@ export function MyStore() {
   const [saleOpen, setSaleOpen] = useState(false)
   const [sort, setSort] = useState<Sort>(storedSort)
   const [buyerPage, setBuyerPage] = useState(0)
+  // A header click overrides the dropdown until the dropdown is used again. Not remembered: it is a
+  // look at the table, not a preference.
+  const [collectionSort, setCollectionSort] = useState<ColumnSort<CollectionColumn> | null>(null)
+  const [bestSort, setBestSort] = useState<ColumnSort<BestColumn> | null>(null)
+  const [buyerSort, setBuyerSort] = useState<ColumnSort<BuyerColumn> | null>(null)
+  const [issuing, setIssuing] = useState<{ item: StoreItem; contractAddress: string } | null>(null)
+  const queryClient = useQueryClient()
   /**
    * Dismissing the pricing nudge lasts this visit only, deliberately not persisted: the listings it is
    * about are still priced in MANA tomorrow, and a creator who waved it away last week should not be left
@@ -797,9 +828,19 @@ export function MyStore() {
    * not show either, so the panel is a header over nothing with no pager left to click back with.
    */
   const buyerPageShown = Math.min(buyerPage, buyerPages - 1)
+  const buyersSorted = useMemo(() => {
+    if (!buyerSort) return trend.buyers
+    const value = {
+      items: (b: StoreBuyer) => b.items,
+      collections: (b: StoreBuyer) => b.collections,
+      last: (b: StoreBuyer) => b.lastAt,
+      spent: (b: StoreBuyer) => b.spentWei
+    }[buyerSort.key]
+    return sortRows(trend.buyers, value, buyerSort.dir)
+  }, [trend.buyers, buyerSort])
   const buyersShown = useMemo(
-    () => trend.buyers.slice(buyerPageShown * BUYERS_PER_PAGE, (buyerPageShown + 1) * BUYERS_PER_PAGE),
-    [trend.buyers, buyerPageShown]
+    () => buyersSorted.slice(buyerPageShown * BUYERS_PER_PAGE, (buyerPageShown + 1) * BUYERS_PER_PAGE),
+    [buyersSorted, buyerPageShown]
   )
   // Only the faces on screen: a store with hundreds of customers would otherwise ask for hundreds of
   // profiles to draw a page of five rows.
@@ -822,10 +863,36 @@ export function MyStore() {
   const sortInForce: Sort = sort === 'selling' && !hasExhausted ? 'sold' : sort
   /** Sorted once per change rather than on every render; a store can carry a few dozen collections. */
   const collectionPages = Math.max(1, Math.ceil((stats?.collections.length ?? 0) / COLLECTIONS_SHOWN))
-  const sortedCollections = useMemo(() => sortCollections(stats?.collections ?? [], sortInForce), [stats, sortInForce])
+  const sortedCollections = useMemo(() => {
+    const collections = stats?.collections ?? []
+    if (!collectionSort) return sortCollections(collections, sortInForce)
+    const value = {
+      name: (c: StoreCollection) => c.name,
+      claimed: (c: StoreCollection) => c.claimed,
+      earnings: (c: StoreCollection) => c.earningsWei,
+      sold: (c: StoreCollection) => c.sold
+    }[collectionSort.key]
+    return sortRows(collections, value, collectionSort.dir)
+  }, [stats, sortInForce, collectionSort])
 
   /** What is selling across the whole store, which the per-collection ordering cannot answer. */
-  const best = useMemo(() => bestSellers(stats?.collections ?? []), [stats])
+  const best = useMemo(() => {
+    // The rank is the best-seller position, so it is taken before any re-sort and travels with the row.
+    const ranked = bestSellers(stats?.collections ?? []).map((entry, index) => ({ ...entry, rank: index + 1 }))
+    if (!bestSort) return ranked
+    const value = {
+      name: (e: (typeof ranked)[number]) => e.name,
+      collection: (e: (typeof ranked)[number]) => e.collectionName,
+      sold: (e: (typeof ranked)[number]) => e.sold,
+      earnings: (e: (typeof ranked)[number]) => e.earnedWei
+    }[bestSort.key]
+    return sortRows(ranked, value, bestSort.dir)
+  }, [stats, bestSort])
+  function sortBest(key: BestColumn, first: SortDir) {
+    const next = nextSort(bestSort, key, first)
+    trackStore('Shop Sorted Store Table', { table: 'best_sellers', column: next.key, direction: next.dir })
+    setBestSort(next)
+  }
 
   /** One page of that order, so a store with fifty collections opens on eight rather than on all of them. */
   const collectionPageShown = Math.min(collectionPage, collectionPages - 1)
@@ -875,6 +942,24 @@ export function MyStore() {
     <A.Root>
       <A.Main>
         <S.Root data-testid="my-store">
+          {issuing && session ? (
+            <IssueModal
+              item={{
+                contractAddress: issuing.contractAddress,
+                chainId: config.chainId,
+                itemId: issuing.item.itemId,
+                name: issuing.item.name,
+                thumbnail: issuing.item.thumbnail,
+                available: issuing.item.left
+              }}
+              session={session}
+              onClose={() => {
+                setIssuing(null)
+                void queryClient.invalidateQueries({ queryKey: ['store-catalogue'] })
+                void queryClient.invalidateQueries({ queryKey: ['store-public-catalogue'] })
+              }}
+            />
+          ) : null}
           {saleOpen && session ? (
             <CreatorSaleModal
               session={session}
@@ -1086,16 +1171,20 @@ export function MyStore() {
                       <S.Sort
                         options={[
                           { value: 'sold', label: t('myStore.sortSold') },
+                          { value: 'earned', label: t('myStore.sortEarned') },
                           ...(hasExhausted ? [{ value: 'selling', label: t('myStore.sortSelling') }] : []),
                           ...(stats.collections.some(c => c.createdAt)
                             ? [{ value: 'newest', label: t('myStore.sortNewest') }]
                             : []),
                           { value: 'name', label: t('myStore.sortName') }
                         ]}
-                        value={sortInForce}
+                        value={collectionSort ? undefined : sortInForce}
+                        placeholder={t('myStore.sortCustom')}
                         onChange={value => {
                           trackStore('Shop Sorted Store Collections', { sort: value })
                           setSort(value as Sort)
+                          setCollectionSort(null)
+                          setCollectionPage(0)
                           rememberSort(value as Sort)
                         }}
                         align="right"
@@ -1125,16 +1214,44 @@ export function MyStore() {
                 ) : (
                   <>
                     <S.List>
-                      <S.ColHead aria-hidden>
+                      <S.ColHead>
                         <span />
                         <span />
-                        <span>{t('myStore.colCollection')}</span>
-                        <span>{t('myStore.colDiscounts')}</span>
-                        <span>{t('myStore.colClaimed')}</span>
-                        <span>{t('myStore.colEarnings')}</span>
-                        <span>
-                          {windowDays ? t('myStore.colTrend', { days: windowDays }) : t('myStore.colTrendAll')}
-                        </span>
+                        {(
+                          [
+                            ['name', t('myStore.colCollection'), 'asc'],
+                            null,
+                            ['claimed', t('myStore.colClaimed'), 'desc'],
+                            ['earnings', t('myStore.colEarnings'), 'desc'],
+                            [
+                              'sold',
+                              windowDays ? t('myStore.colTrend', { days: windowDays }) : t('myStore.colTrendAll'),
+                              'desc'
+                            ]
+                          ] as ([CollectionColumn, string, SortDir] | null)[]
+                        ).map((column, index) =>
+                          column ? (
+                            <span key={column[0]}>
+                              <SortHeader
+                                label={column[1]}
+                                dir={dirOf(collectionSort, column[0])}
+                                testId={`store-sort-collections-${column[0]}`}
+                                onSort={() => {
+                                  const next = nextSort(collectionSort, column[0], column[2])
+                                  trackStore('Shop Sorted Store Table', {
+                                    table: 'collections',
+                                    column: next.key,
+                                    direction: next.dir
+                                  })
+                                  setCollectionSort(next)
+                                  setCollectionPage(0)
+                                }}
+                              />
+                            </span>
+                          ) : (
+                            <span key={`plain-${index}`}>{t('myStore.colDiscounts')}</span>
+                          )
+                        )}
                         <span>{t('myStore.colActions')}</span>
                       </S.ColHead>
                       {collectionsShown.map(collection => (
@@ -1166,6 +1283,17 @@ export function MyStore() {
                               action: 'manage_collection',
                               contract_address: collection.contractAddress
                             })
+                          }
+                          onIssue={
+                            session
+                              ? item => {
+                                  trackStore('Shop Clicked Store Action', {
+                                    action: 'issue_copies',
+                                    contract_address: collection.contractAddress
+                                  })
+                                  setIssuing({ item, contractAddress: collection.contractAddress })
+                                }
+                              : undefined
                           }
                         />
                       ))}
@@ -1222,27 +1350,58 @@ export function MyStore() {
                       <S.BestFeed>
                         <thead>
                           <tr>
-                            <th scope="col">
+                            <th scope="col" aria-sort={ariaSort(dirOf(bestSort, 'name'))}>
                               <S.RankCell>
                                 <S.Rank aria-hidden>#</S.Rank>
-                                {t('myStore.colItem')}
+                                <SortHeader
+                                  label={t('myStore.colItem')}
+                                  dir={dirOf(bestSort, 'name')}
+                                  testId="store-sort-best-name"
+                                  onSort={() => sortBest('name', 'asc')}
+                                />
                               </S.RankCell>
                             </th>
-                            <th scope="col">{t('myStore.colCollection')}</th>
-                            <th scope="col" style={{ textAlign: 'center' }}>
-                              {t('myStore.colSold')}
+                            <th scope="col" aria-sort={ariaSort(dirOf(bestSort, 'collection'))}>
+                              <SortHeader
+                                label={t('myStore.colCollection')}
+                                dir={dirOf(bestSort, 'collection')}
+                                testId="store-sort-best-collection"
+                                onSort={() => sortBest('collection', 'asc')}
+                              />
                             </th>
-                            <th scope="col" style={{ textAlign: 'right' }}>
-                              {t('myStore.colEarnings')}
+                            <th
+                              scope="col"
+                              style={{ textAlign: 'center' }}
+                              aria-sort={ariaSort(dirOf(bestSort, 'sold'))}
+                            >
+                              <SortHeader
+                                label={t('myStore.colSold')}
+                                dir={dirOf(bestSort, 'sold')}
+                                testId="store-sort-best-sold"
+                                onSort={() => sortBest('sold', 'desc')}
+                              />
+                            </th>
+                            <th
+                              scope="col"
+                              style={{ textAlign: 'right' }}
+                              aria-sort={ariaSort(dirOf(bestSort, 'earnings'))}
+                            >
+                              <SortHeader
+                                label={t('myStore.colEarnings')}
+                                dir={dirOf(bestSort, 'earnings')}
+                                align="right"
+                                testId="store-sort-best-earnings"
+                                onSort={() => sortBest('earnings', 'desc')}
+                              />
                             </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {best.map((entry, index) => (
+                          {best.map(entry => (
                             <tr key={entry.key} data-testid="store-best">
                               <td>
                                 <S.RankCell>
-                                  <S.Rank>{index + 1}</S.Rank>
+                                  <S.Rank>{entry.rank}</S.Rank>
                                   <S.SaleItem
                                     as="a"
                                     {...{
@@ -1253,7 +1412,7 @@ export function MyStore() {
                                         trackStore('Shop Clicked Store Action', {
                                           action: 'open_item',
                                           table: 'best_sellers',
-                                          rank: index + 1
+                                          rank: entry.rank
                                         }),
                                       'data-testid': 'store-best-item'
                                     }}
@@ -1522,12 +1681,38 @@ export function MyStore() {
                       <thead>
                         <tr>
                           <th scope="col">{t('myStore.colBuyer')}</th>
-                          <th scope="col">{t('myStore.colItems')}</th>
-                          <th scope="col">{t('myStore.colCollections')}</th>
-                          <th scope="col">{t('myStore.colLast')}</th>
-                          <th scope="col" style={{ textAlign: 'right' }}>
-                            {t('myStore.colSpent')}
-                          </th>
+                          {(
+                            [
+                              ['items', t('myStore.colItems'), 'desc'],
+                              ['collections', t('myStore.colCollections'), 'desc'],
+                              ['last', t('myStore.colLast'), 'desc'],
+                              ['spent', t('myStore.colSpent'), 'desc']
+                            ] as [BuyerColumn, string, SortDir][]
+                          ).map(([key, label, first]) => (
+                            <th
+                              key={key}
+                              scope="col"
+                              style={key === 'spent' ? { textAlign: 'right' } : undefined}
+                              aria-sort={ariaSort(dirOf(buyerSort, key))}
+                            >
+                              <SortHeader
+                                label={label}
+                                dir={dirOf(buyerSort, key)}
+                                align={key === 'spent' ? 'right' : 'left'}
+                                testId={`store-sort-buyers-${key}`}
+                                onSort={() => {
+                                  const next = nextSort(buyerSort, key, first)
+                                  trackStore('Shop Sorted Store Table', {
+                                    table: 'buyers',
+                                    column: next.key,
+                                    direction: next.dir
+                                  })
+                                  setBuyerSort(next)
+                                  setBuyerPage(0)
+                                }}
+                              />
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>

@@ -961,9 +961,37 @@ export const ItemCell = styled.span`
 
 export const ItemMeta = styled.span`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
+`
+
+/** Padded past its text and pulled back by the same margin, so it is tappable without growing the row. */
+export const IssueBtn = styled.button`
+  flex: none;
+  margin: -8px 0;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: ${theme.colors.white};
+  font-family: ${theme.font.sans};
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: ${theme.colors.navViolet};
+  }
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
 `
 
 /** The item's rarity, stated the way its card states it — same palette, same wording. */
