@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, afterEach } from 'vitest'
-import { t, setActiveLocale, MESSAGES } from './i18n'
+import { parse, TYPE, type MessageFormatElement } from '@formatjs/icu-messageformat-parser'
+import { t, setActiveLocale, MESSAGES, LOCALES } from './i18n'
 
 afterEach(() => setActiveLocale('en')) // don't leak locale between tests
 
@@ -32,15 +33,52 @@ describe('i18n', () => {
 
   // Parity guard: every locale must define exactly the same set of keys, so a string added in one
   // language can never ship missing in another (it would silently fall back to the raw key id).
-  it('has identical key sets across all locales (en/es parity)', () => {
-    const enKeys = Object.keys(MESSAGES.en).sort()
-    const esKeys = Object.keys(MESSAGES.es).sort()
-    const missingInEs = enKeys.filter(k => !(k in MESSAGES.es))
-    const missingInEn = esKeys.filter(k => !(k in MESSAGES.en))
-    expect(missingInEs, `keys missing in es: ${missingInEs.join(', ')}`).toEqual([])
-    expect(missingInEn, `keys missing in en: ${missingInEn.join(', ')}`).toEqual([])
+  it.each(LOCALES.filter(l => l !== 'en'))('has the same key set as en in %s', locale => {
+    const missing = Object.keys(MESSAGES.en).filter(k => !(k in MESSAGES[locale]))
+    const extra = Object.keys(MESSAGES[locale]).filter(k => !(k in MESSAGES.en))
+    expect(missing, `keys missing in ${locale}: ${missing.join(', ')}`).toEqual([])
+    expect(extra, `keys only in ${locale}: ${extra.join(', ')}`).toEqual([])
+  })
+
+  // A translation may leave out a value the sentence reads fine without, but must not ask for one the
+  // code never passes (it renders the raw `{name}`), and must keep every tag: `tNode` hangs an element
+  // on each one, and a dropped tag silently loses it.
+  it.each(LOCALES.filter(l => l !== 'en'))('asks only for values and tags en provides in %s', locale => {
+    const broken = Object.entries(MESSAGES.en)
+      .filter(([k]) => k in MESSAGES[locale])
+      .filter(([k, m]) => {
+        const source = argumentsOf(m)
+        const target = argumentsOf(MESSAGES[locale][k])
+        const tags = (set: Set<string>) =>
+          [...set]
+            .filter(n => n.startsWith('<'))
+            .sort()
+            .join()
+        return [...target].some(n => !source.has(n)) || tags(source) !== tags(target)
+      })
+      .map(([k]) => k)
+    expect(broken).toEqual([])
   })
 })
+
+function argumentsOf(message: string): Set<string> {
+  const names = new Set<string>()
+  const walk = (nodes: MessageFormatElement[]) => {
+    for (const node of nodes) {
+      if (node.type === TYPE.tag) {
+        names.add(`<${node.value}>`)
+        walk(node.children)
+      } else if (node.type !== TYPE.literal && 'value' in node && typeof node.value === 'string') {
+        names.add(node.value)
+      }
+      if (node.type === TYPE.plural || node.type === TYPE.select) {
+        for (const option of Object.values(node.options)) walk(option.value)
+      }
+    }
+  }
+  walk(parse(message))
+  return names
+}
 
 /**
  * The web2-first rule is a HARD one (CONVENTIONS.md), and until now nothing enforced it — which is
@@ -57,9 +95,15 @@ describe('web2-first copy rule', () => {
     ['chain', /\bchains?\b/i],
     ['network', /\bnetworks?\b/i],
     ['red (network)', /\b(la|una|de la) red\b/i],
+    ['rede (network)', /\b(a|uma|da|na) rede\b/i],
+    ['Netzwerk', /\bnetzwerk\w*/i],
     ['wallet', /\bwallets?\b/i],
+    ['carteira', /\bcarteiras?\b/i],
+    ['Geldbörse', /\b(geldbörse|brieftasche)\w*/i],
     ['MetaMask', /\bmetamask\b/i],
     ['gas', /\bgas\b/i],
+    ['gás', /(^|[^\p{L}])gás($|[^\p{L}])/iu],
+    ['Gasgebühr', /\bgas(gebühr|kosten)\w*/i],
     ['MANA', /\bMANA\b/],
     ['token', /\btokens?\b/i],
     ['mint', /\bmint(ed|ing)?\b/i],
@@ -150,7 +194,7 @@ describe('web2-first copy rule', () => {
    */
   const visibleCopy = (message: string) => message.replace(/\{[^}]*\}/g, ' ')
 
-  function offencesIn(locale: 'en' | 'es'): Map<string, string> {
+  function offencesIn(locale: (typeof LOCALES)[number]): Map<string, string> {
     const found = new Map<string, string>()
     for (const [key, message] of Object.entries(MESSAGES[locale])) {
       for (const [label, pattern] of BANNED) {
@@ -160,7 +204,7 @@ describe('web2-first copy rule', () => {
     return found
   }
 
-  it.each(['en', 'es'] as const)('has no NEW banned web3 jargon in %s copy', locale => {
+  it.each(LOCALES)('has no NEW banned web3 jargon in %s copy', locale => {
     const fresh = [...offencesIn(locale)].filter(([key]) => !BASELINE.has(key)).map(([k, v]) => `${k} → ${v}`)
 
     expect(fresh).toEqual([])
@@ -169,7 +213,7 @@ describe('web2-first copy rule', () => {
   // Without this the baseline rots: a string someone cleans up would stay whitelisted forever, and the
   // next violation on that key would sail through.
   it('has no stale baseline entries', () => {
-    const offending = new Set([...offencesIn('en').keys(), ...offencesIn('es').keys()])
+    const offending = new Set(LOCALES.flatMap(locale => [...offencesIn(locale).keys()]))
     const stale = [...BASELINE].filter(key => !offending.has(key))
 
     expect(stale).toEqual([])

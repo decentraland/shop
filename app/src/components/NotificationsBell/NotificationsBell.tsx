@@ -9,9 +9,14 @@ import { shortAddress } from '~/lib/address'
 import { t, type Locale } from '~/intl/i18n'
 import * as S from './NotificationsBell.styles'
 
+// ui2 ships its notification copy in these languages only, and indexes it by locale without a fallback —
+// a Shop locale outside the set would crash the row, so it reads English instead.
+type NotificationLocale = 'en' | 'es'
+const toNotificationLocale = (locale: Locale): NotificationLocale => (locale === 'es' ? 'es' : 'en')
+
 type NotificationRow = FunctionComponent<{
   notification: ShopNotification
-  locale: Locale
+  locale: NotificationLocale
   renderProfile: (address: string) => string
 }>
 
@@ -129,7 +134,7 @@ export function NotificationsBell() {
               if (!Component) return null
               return (
                 <S.Item key={n.id} data-testid="notification-item" data-unread={!n.read}>
-                  <Component notification={n} locale={locale} renderProfile={shortAddress} />
+                  <Component notification={n} locale={toNotificationLocale(locale)} renderProfile={shortAddress} />
                 </S.Item>
               )
             })}
