@@ -22,7 +22,10 @@ export async function fetchManaUsdRates(from: number, to: number): Promise<RateB
     throw new Error(`fetchManaUsdRates ${res.status}`)
   }
   const { data } = (await res.json()) as { data?: { day: string; usd: string }[] }
-  return new Map((data ?? []).map(rate => [rate.day, Number(rate.usd)]))
+  // A rate that is not a positive number is left out, so the day reads as unpriced rather than as $NaN.
+  return new Map(
+    (data ?? []).map(rate => [rate.day, Number(rate.usd)] as const).filter(([, usd]) => Number.isFinite(usd) && usd > 0)
+  )
 }
 
 /** A MANA wei amount in dollars at a given rate. Precise to a millionth of a MANA, which is far below a cent. */

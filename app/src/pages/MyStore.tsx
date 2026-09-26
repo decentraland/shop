@@ -1429,7 +1429,8 @@ export function MyStore() {
                     range={resolved}
                     rows={chartRows}
                     truncated={liveSales.truncated}
-                    fetching={liveSales.isFetching}
+                    // The rates count too: until they land every sale would read as unpriced and the line as zero.
+                    fetching={liveSales.isFetching || (currency === 'usd' && !mock && ratesRead.isFetching)}
                     collections={stats.collections}
                     onTrack={trackStore}
                     comparisonRows={mock ? mockChartRows : undefined}

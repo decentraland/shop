@@ -95,6 +95,26 @@ describe('when reading the daily rates', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://mps.test/v1/rates/mana-usd?from=1000&to=2000')
   })
 
+  it('should leave out a rate that is not a positive number', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: [
+            { day: '2026-09-24', usd: 'oops' },
+            { day: '2026-09-25', usd: '0.09' }
+          ]
+        }),
+        {
+          status: 200
+        }
+      )
+    )
+
+    const book = await fetchManaUsdRates(1000, 2000)
+
+    expect([...book.keys()]).toEqual(['2026-09-25'])
+  })
+
   it('should throw when the server fails', async () => {
     fetchMock.mockResolvedValueOnce(new Response('missing', { status: 404 }))
 

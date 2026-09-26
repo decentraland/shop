@@ -123,9 +123,11 @@ export function StoreSalesPanel({
     placeholderData: previous => previous,
     queryFn: () => fetchSellerSales({ seller: address, from: against!.from, to: against!.to })
   })
-  const comparison = comparisonRows
-    ? { data: { rows: comparisonRows, truncated: false }, isFetching: false }
-    : comparisonRead
+  const mockComparison = useMemo(
+    () => (comparisonRows ? { data: { rows: comparisonRows, truncated: false }, isFetching: false } : null),
+    [comparisonRows]
+  )
+  const comparison = mockComparison ?? comparisonRead
 
   const unit = bucketUnit(from, range.to)
   const current = useMemo(() => {
@@ -301,7 +303,7 @@ export function StoreSalesPanel({
       </S.Frame>
 
       {partial ? <S.Note>{t('myStore.chart.partial')}</S.Note> : null}
-      {unpriced > 0 ? <S.Note>{t('myStore.chart.unpriced', { count: unpriced })}</S.Note> : null}
+      {unpriced > 0 && !fetching ? <S.Note>{t('myStore.chart.unpriced', { count: unpriced })}</S.Note> : null}
       {unit !== 'day' ? <S.Note>{t(unit === 'week' ? 'myStore.chart.byWeek' : 'myStore.chart.byMonth')}</S.Note> : null}
     </>
   )
