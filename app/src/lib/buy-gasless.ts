@@ -213,7 +213,13 @@ async function relay(
   buyer: string,
   functionData: string,
   signer: ethers.Signer,
-  onSigned?: () => void,
+  /**
+   * Fired once the signature exists and before anything is broadcast. Async is part of the contract, not a
+   * tolerated accident: it is AWAITED below so that a caller using this as a last-moment abort gate (the NAME
+   * rail re-checks its cross-chain quote here) cannot have its rejection turn into a floating promise while
+   * the POST goes out anyway.
+   */
+  onSigned?: () => void | Promise<void>,
   /**
    * A nonce already observed on chain, used as a floor for the value this signs against.
    *
@@ -290,7 +296,9 @@ async function relay(
 
   // Signature obtained (the wallet prompt is dismissed) — the purchase now settles on-chain. Callers
   // use this to flip the UI from "confirm in your wallet" to "completing transaction".
-  onSigned?.()
+  // Awaited, not just called: an unawaited rejection would become a floating promise while execution fell
+  // straight through to the POST below, the meta-transaction going out with the gate having "failed".
+  await onSigned?.()
 
   // 4) pack executeMetaTransaction(buyer, functionData, signature) and POST to the relayer
   const txData = encodeExecuteMetaTransaction(cm.abi, buyer, functionSignature, signature)
@@ -361,12 +369,20 @@ export async function sendUseCreditsGasless(opts: {
   buyer: string
   signer: ethers.Signer
   args: unknown
+  /**
+   * Fired between the buyer's signature and the POST to the relayer — the one gap in this flow long enough
+   * to matter, since it contains however long the wallet took. A caller whose call has a deadline (the NAME
+   * rail's Across quote) checks it HERE, where nothing has been broadcast yet, so throwing is still free.
+   * Anything thrown propagates out unwrapped and is NOT a GaslessUnavailableError, so it does not read as
+   * "fall back to the buyer-submitted rail".
+   */
+  onSigned?: () => void | Promise<void>
 }): Promise<string> {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
-  const { chainId, buyer, signer, args } = opts
+  const { chainId, buyer, signer, args, onSigned } = opts
   const cm = getContract(ContractName.CreditsManager, chainId)
   const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-  return (await relay(chainId, buyer, functionData, signer)).txHash
+  return (await relay(chainId, buyer, functionData, signer, onSigned)).txHash
 }
 
 /**

@@ -158,6 +158,25 @@ export type NameCreditRoute = {
   fromChainId: string
   toChainId: string
   provider?: NameRouteProvider
+  /**
+   * The SERVER's clock when it issued this route, in seconds, read from the HTTP `Date` header.
+   *
+   * Not part of the credits-server payload — added by `fetchNameCreditRoute`. It exists so the quote's
+   * remaining life can be measured as `expiresAt - issuedAtServerSeconds`, where BOTH sides come from the
+   * same clock. Subtracting the buyer's `Date.now()` from a server-issued `expiresAt` instead makes the
+   * answer wrong by exactly that browser's skew: half a minute fast reads a 60 second quote as a 30 second
+   * one, on every attempt, forever.
+   *
+   * ⚠️ DORMANT IN PRODUCTION TODAY, and it will stay that way until a one-line change ships elsewhere.
+   * `Date` is not a CORS-safelisted response header, the shop calls credits.decentraland.org cross-origin,
+   * and that server sends no `Access-Control-Expose-Headers` (verified against production, 2026-09-16). So
+   * `headers.get('date')` returns null in every browser and this field is never set. Until the
+   * credits-server adds `Access-Control-Expose-Headers: Date`, the skew defence is the plausibility band
+   * alone, and the band is loose in both directions — see MIN/MAX_PLAUSIBLE_QUOTE_WINDOW_SECONDS for what
+   * each end does and does not catch. Do not read the comments around the guard as saying that hole is
+   * closed; it is not.
+   */
+  issuedAtServerSeconds?: number
 }
 
 // The credits-server withholds the route (HTTP 503 + code ROUTE_COST_TOO_HIGH) when the Across bridge
@@ -169,6 +188,55 @@ export class NameRouteCostTooHighError extends Error {
     this.name = 'NameRouteCostTooHighError'
   }
 }
+
+/**
+ * The signed route died before it could be submitted.
+ *
+ * `externalCall.expiresAt` is bound to Across' quote validity, which is ~60 SECONDS — everything between
+ * fetching the route and the relayer's gas estimation runs against that clock. Past it the CreditsManager
+ * rejects the external call and the relayer reports only "Execution reverted for an unknown reason", which
+ * is indistinguishable from a real failure and is what made this read as random.
+ *
+ * Typed so the buyer is offered an immediate retry: a fresh route is all it takes, and the reservation is
+ * released before this is thrown.
+ */
+export class NameRouteExpiredError extends Error {
+  constructor() {
+    super('The name registration quote expired before it could be submitted')
+    this.name = 'NameRouteExpiredError'
+  }
+}
+
+/**
+ * How much of Across' ~60s quote window must remain when the signed route is handed to the relayer.
+ *
+ * Covers only what is left at that point: the POST itself and the relayer's validation + gas estimation.
+ * The wallet signature is NOT in here — it happens before the check that uses this, which is the whole
+ * reason the check moved there.
+ */
+const ROUTE_EXPIRY_SAFETY_SECONDS = 15
+
+/**
+ * The band a quote window has to land in for the buyer's clock to be believed at all.
+ *
+ * Across issues ~60s quotes, and the credits-server falls back to 600s when Across omits the field — the
+ * ceiling sits ABOVE that on purpose, so a fallback route still arms the guard (it simply never fires, with
+ * `secondsLeft` nowhere near the margin). Outside the band is not a short quote, it is a wrong clock, and
+ * the guard disarms rather than blocking a sale it has no business blocking.
+ *
+ * Neither end is tight, and they fail in opposite directions. A clock running FAST shortens the window, so
+ * the floor only catches it past ~40 seconds and anything under that is believed and can refuse a purchase
+ * that had time. A clock running SLOW inflates it instead, and the ceiling tolerates nearly 14 minutes of
+ * that, so the guard stays armed, logs nothing, and simply never fires for the case it exists for. The slow
+ * side is the wider hole by an order of magnitude; it is also the harmless one, which is why the band sits
+ * where it does. Both close only once `issuedAtServerSeconds` is populated.
+ *
+ * Separately, a legitimately 20s window would leave just 5 seconds of usable margin against
+ * ROUTE_EXPIRY_SAFETY_SECONDS — unreachable with Across' current quotes, but the first thing to break if
+ * they ever shorten them.
+ */
+const MIN_PLAUSIBLE_QUOTE_WINDOW_SECONDS = 20
+const MAX_PLAUSIBLE_QUOTE_WINDOW_SECONDS = 900
 
 /**
  * The credit was consumed on-chain but the NAME was NOT minted: the deposit was refunded or expired, or it
@@ -233,7 +301,12 @@ export async function fetchNameCreditRoute(
     if (code === 'ROUTE_COST_TOO_HIGH') throw new NameRouteCostTooHighError()
     throw new Error(`fetchNameCreditRoute ${res.status}`)
   }
-  return res.json() as Promise<NameCreditRoute>
+  const route = (await res.json()) as NameCreditRoute
+  // Reads as null today — `Date` is not CORS-exposed by the credits-server, see the field's doc. Kept
+  // because it costs nothing and starts working the moment that header is exposed; a stripped or malformed
+  // value parses to NaN, which leaves the field undefined rather than poisoning the window with a number.
+  const serverDate = Date.parse(res.headers?.get?.('date') ?? '')
+  return Number.isFinite(serverDate) ? { ...route, issuedAtServerSeconds: Math.floor(serverDate / 1000) } : route
 }
 
 // Build the CreditsManager.useCredits() args for a NAME: the ephemeral credit pays, and the
@@ -428,8 +501,66 @@ export async function registerNameWithUsdCredits(opts: {
       target: route.externalCall.target,
       selector: route.externalCall.selector,
       provider: route.provider,
-      quoteId: route.quoteId
+      quoteId: route.quoteId,
+      expiresAt: route.externalCall.expiresAt
     })
+
+    /**
+     * The quote's life, captured the moment it arrives and measured from here on.
+     *
+     * `externalCall.expiresAt` is bound to Across' quote validity — ~60 SECONDS — and past it the
+     * CreditsManager rejects the call while the relayer reports only "Execution reverted for an unknown
+     * reason". A buyer lost a NAME to exactly that on 2026-09-09, 38 seconds late, and the message named
+     * nothing they could act on.
+     *
+     * Two things this gets right that an earlier cut did not:
+     *
+     * The window is read HERE rather than after the reservation, so it is the quote's WHOLE life instead of
+     * whatever was left of it. Read later, `authorizeUsdCredit`'s latency folds into the budget invisibly,
+     * and a slow credits-server then pushes the window under the plausibility floor and switches the guard
+     * OFF — in exactly the slow conditions that cause the failure it exists to catch.
+     *
+     * The window comes from the SERVER's clock on both sides when `issuedAtServerSeconds` is available,
+     * which today it never is — see that field's doc for why, and for the one-line server change that turns
+     * it on. So in production the plausibility band below is not a fallback, it is the whole of the skew
+     * defence: it disarms a clock that is wrong enough to be obvious, and a browser 20-40s fast still gets
+     * a window it believes and a signature deadline it may not meet. That hole is open.
+     *
+     * This guard improves an error message; it protects no funds, since the chain enforces the real
+     * deadline against `block.timestamp`. So it FAILS OPEN — a window it cannot believe disables the guard,
+     * never the sale.
+     */
+    const quoteIssuedAt = route.issuedAtServerSeconds ?? Math.floor(Date.now() / 1000)
+    const quoteWindowSeconds = route.externalCall.expiresAt - quoteIssuedAt
+    const windowLooksSane =
+      quoteWindowSeconds >= MIN_PLAUSIBLE_QUOTE_WINDOW_SECONDS &&
+      quoteWindowSeconds <= MAX_PLAUSIBLE_QUOTE_WINDOW_SECONDS
+    if (!windowLooksSane) {
+      console.warn('[names] quote window implausible — expiry guard disabled', {
+        expiresAt: route.externalCall.expiresAt,
+        quoteWindowSeconds,
+        fromServerClock: route.issuedAtServerSeconds != null
+      })
+    }
+    const startedWall = Date.now()
+    const startedMono = performance.now()
+    const assertQuoteStillValid = () => {
+      if (!windowLooksSane) return
+      // Whichever clock reports MORE time gone. `performance.now()` is monotonic, but it stops while the
+      // device is suspended — a phone locked at the wallet prompt reports no time passing at all, and
+      // `Date.now()` is the only one that sees it. A constant skew cancels in that subtraction, so the
+      // wall clock is safe to use here even when it is wrong.
+      //
+      // The one case `max` makes worse is an NTP correction JUMPING FORWARD inside the window: the wall
+      // delta is then real + step, and a good purchase can be refused. Accepted deliberately — it cannot
+      // latch (the next attempt re-bases both clocks), and losing the suspend case is worse.
+      const elapsed = Math.max(Date.now() - startedWall, performance.now() - startedMono) / 1000
+      const secondsLeft = quoteWindowSeconds - elapsed
+      if (secondsLeft < ROUTE_EXPIRY_SAFETY_SECONDS) {
+        console.warn('[names] route quote out of time — refusing to submit', { quoteWindowSeconds, secondsLeft })
+        throw new NameRouteExpiredError()
+      }
+    }
 
     // 3) Reserve the dollars + get the ephemeral credit (PENDING intent keyed by the credit salt).
     // The name is passed so the purchase can be named in the buyer's history: a NAME has no trade and no
@@ -495,10 +626,18 @@ export async function registerNameWithUsdCredits(opts: {
     // 4) Submit useCredits — gasless (relayer pays) first, buyer-submitted fallback. A self-custody wallet
     // prompts here, so this is where the buyer has something to do.
     progress('awaiting-confirmation')
+    // Pre-flight. The reservation round trip above runs inside the quote's window, so this is where a slow
+    // credits-server shows up — and refusing here costs the buyer nothing, since they have not signed yet.
+    assertQuoteStillValid()
     const args = buildNameUseCreditsArgs(authorized.credit, route)
     let originTxHash: string
     try {
-      originTxHash = await sendUseCreditsGasless({ chainId, buyer, signer, args })
+      // The check that matters runs in `onSigned`, which fires between the buyer's signature and the POST to
+      // the relayer — AFTER the one delay long enough to matter. On 2026-09-09 that gap was 90 seconds
+      // against a 60 second quote, and a check any earlier than this reads ~55 seconds left and waves it
+      // through. Throwing from here reaches the catch below with nothing posted anywhere, so the reservation
+      // is released and the buyer is told to try again, which is genuinely the fix.
+      originTxHash = await sendUseCreditsGasless({ chainId, buyer, signer, args, onSigned: assertQuoteStillValid })
     } catch (e) {
       if (!(e instanceof GaslessUnavailableError)) throw e
       /**
@@ -522,6 +661,17 @@ export async function registerNameWithUsdCredits(opts: {
         throw unknown
       }
       // Gasless unavailable (flag off / contract account / relayer down) → buyer submits + pays gas.
+      // Re-checked first. Of the reasons that land here, `relayer-rejected` is the one that matters: the
+      // buyer has already signed AND the POST already round-tripped, so more of the quote is gone than
+      // anywhere else in this function, and handing them a gas-paying transaction against a route the chain
+      // will refuse costs real money for a revert. On the other reasons (`disabled`, `contract-account`)
+      // nothing has been signed yet and this is a no-op, which is why it is unconditional rather than
+      // branched — cheaper than reasoning about which reason spent how much of the window.
+      //
+      // NOT a full fix for this rail: `sendUseCredits`'s own hook fires AFTER broadcast, so the wallet
+      // prompt below — the same gap that caused the 2026-09-09 incident — still has no check behind it.
+      // Closing that needs `sendUseCredits` restructured and is left out of this change deliberately.
+      assertQuoteStillValid()
       originTxHash = await sendUseCredits(chainId, args, signer)
     }
 
@@ -580,6 +730,9 @@ export async function registerNameWithUsdCredits(opts: {
       await cancelUsdIntents(identity, [creditSalt]).catch(() => {})
     }
     if (e instanceof NameRouteCostTooHighError) throw e
+    // Same reason, opposite advice: the quote ran out, the reservation was just released above, and a fresh
+    // route is the whole of the fix — so this one IS the buyer's to retry, immediately.
+    if (e instanceof NameRouteExpiredError) throw e
     // Already specific and already user-safe, and the generic fallback below would replace it with "please
     // try again" — a second credit spent on a failure that is not the buyer's to retry.
     if (e instanceof NameNotRegisteredError || e instanceof NameSettlementUnknownError) throw e

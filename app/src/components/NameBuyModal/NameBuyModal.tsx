@@ -7,6 +7,7 @@ import {
   type NameRegistrationStage,
   NameNotRegisteredError,
   NameRouteCostTooHighError,
+  NameRouteExpiredError,
   NameSettlementUnknownError,
   registerNameWithUsdCredits,
   NAME_PRICE_IN_WEI
@@ -263,11 +264,16 @@ export function NameBuyModal({
       setError(
         e instanceof NameRouteCostTooHighError
           ? t('names.errorRouteCost')
-          : notRegistered
-            ? t('names.errorNotRegistered')
-            : unknown
-              ? t('names.errorSettlementUnknown')
-              : (e as { message?: string })?.message || t('names.errorGeneric')
+          : // The quote ran out before the purchase could be submitted. Nothing was charged and the
+            // reservation is already released, so this is the one failure here that "try again" actually
+            // fixes — and it keeps the retry button below, unlike the two that follow.
+            e instanceof NameRouteExpiredError
+            ? t('names.errorRouteExpired')
+            : notRegistered
+              ? t('names.errorNotRegistered')
+              : unknown
+                ? t('names.errorSettlementUnknown')
+                : (e as { message?: string })?.message || t('names.errorGeneric')
       )
       setRetryUnsafe(notRegistered || unknown)
       setPhase('error')
