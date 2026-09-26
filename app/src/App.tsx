@@ -6,6 +6,7 @@ import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
+import { Intercom } from '~/components/Intercom'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
@@ -187,6 +188,10 @@ export function App() {
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />
+      {/* Support launcher — isolated so a third-party widget can never white-screen the shop. */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <Intercom />
+      </Sentry.ErrorBoundary>
       <NavBar />
       {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
           whose content is genuinely short (the credits packs) look better with the footer visible than
