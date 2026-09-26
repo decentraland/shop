@@ -222,6 +222,8 @@ export function useStoreStats(session: Session | null, range: ResolvedRange) {
     saleable,
     /** The period's own sales rows, for the chart: the same read the tables are built from. */
     sales: { rows: sales.data?.rows ?? EMPTY_ROWS, truncated: !!sales.data?.truncated, isFetching: sales.isFetching },
+    /** The previous window's earnings in dollars, for the delta when the page is written in dollars. */
+    previousEarnedUsd: previous.data?.earnedUsd != null ? Number(previous.data.earnedUsd) : null,
     // The summary counts, because the tiles read from it the moment it lands: leaving it out let the page
     // declare itself ready on the row-derived fallback and then rewrite every headline figure under the
     // creator a beat later. Its ERROR deliberately does not count — a summary that cannot be read leaves a

@@ -1,3 +1,4 @@
+import { usdOfSale, type RateBook } from '~/lib/manaUsd'
 import { weiOf, type SaleRow } from '~/lib/sales'
 
 const DAY_MS = 86_400_000
@@ -98,11 +99,12 @@ export function bucketStarts(from: number, to: number, unit: BucketUnit): number
   return starts
 }
 
-export type SeriesPoint = { start: number; sales: number; earnedWei: bigint }
+/** `earnedUsd` sums the sales whose day has a rate in the book passed in; the rest are counted in `unpriced`. */
+export type SeriesPoint = { start: number; sales: number; earnedWei: bigint; earnedUsd: number; unpriced: number }
 
-/** Sales and earnings per bucket. Rows outside [starts[0], to] are ignored. */
-export function seriesOf(rows: SaleRow[], starts: number[], to: number): SeriesPoint[] {
-  const points = starts.map(start => ({ start, sales: 0, earnedWei: 0n }))
+/** Sales and earnings per bucket, in dollars too when a rate book is given. Rows outside [starts[0], to] are ignored. */
+export function seriesOf(rows: SaleRow[], starts: number[], to: number, book?: RateBook): SeriesPoint[] {
+  const points = starts.map(start => ({ start, sales: 0, earnedWei: 0n, earnedUsd: 0, unpriced: 0 }))
   if (points.length === 0) return points
   for (const row of rows) {
     if (row.timestamp < starts[0] || row.timestamp > to) continue
@@ -117,6 +119,11 @@ export function seriesOf(rows: SaleRow[], starts: number[], to: number): SeriesP
     const index = lo
     points[index].sales += 1
     points[index].earnedWei += weiOf(row.price)
+    if (book) {
+      const usd = usdOfSale(row, book)
+      if (usd === null) points[index].unpriced += 1
+      else points[index].earnedUsd += usd
+    }
   }
   return points
 }

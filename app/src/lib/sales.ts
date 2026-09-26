@@ -64,7 +64,13 @@ export type SalesSummary = {
   resales: number
   /** MANA wei. */
   earnedWei: string
-  byCollection: { contractAddress: string; sold: number; earnedWei: string }[]
+  /**
+   * Earnings in USD at each sale's day rate, as a decimal string, and how many sales had no rate. Absent from
+   * a server that predates the daily rates.
+   */
+  earnedUsd?: string
+  unpricedSales?: number
+  byCollection: { contractAddress: string; sold: number; earnedWei: string; earnedUsd?: string }[]
   /** First sales per item over its WHOLE life, not the window — what says how many copies were issued. */
   byItem: { contractAddress: string; itemId: string; soldLifetime: number }[]
   /** Resales of items this address CREATED, by anyone. Traded, not paid out. */

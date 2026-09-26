@@ -193,6 +193,7 @@ describe('bestSellers', () => {
       contractAddress: `0x${name}`,
       collectionId: name,
       name,
+      earningsUsd: null,
       items,
       listed: items.length,
       classic: 0,
