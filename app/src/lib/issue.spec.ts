@@ -13,7 +13,15 @@ vi.mock('decentraland-transactions', () => ({
 }))
 vi.mock('~/config', () => ({ config: { chainId: 80002, rpcUrl: 'http://localhost' } }))
 
-import { buildIssueArgs, isIssueValid, isValidIssueAddress, totalToIssue, type IssueEntry } from '~/lib/issue'
+import {
+  buildIssueArgs,
+  issueCap,
+  isIssueValid,
+  isValidIssueAddress,
+  MAX_COPIES_PER_ISSUE,
+  totalToIssue,
+  type IssueEntry
+} from '~/lib/issue'
 
 const A = '0x1111111111111111111111111111111111111111'
 const B = '0x2222222222222222222222222222222222222222'
@@ -95,6 +103,10 @@ describe('lib/issue', () => {
         )
       ).toBe(false)
     })
+    it('should reject more copies than one issue may create, even with supply to spare', () => {
+      expect(isIssueValid([{ address: A, amount: MAX_COPIES_PER_ISSUE }], 1000)).toBe(true)
+      expect(isIssueValid([{ address: A, amount: MAX_COPIES_PER_ISSUE + 1 }], 1000)).toBe(false)
+    })
     it('should reject an invalid address in any non-empty row', () => {
       expect(isIssueValid([{ address: '0xbad', amount: 1 }], 5)).toBe(false)
     })
@@ -113,5 +125,15 @@ describe('lib/issue', () => {
       ]
       expect(isIssueValid(rows, 5)).toBe(true)
     })
+  })
+})
+
+describe('when capping one issue', () => {
+  it('should be the supply left when that is smaller than the batch limit', () => {
+    expect(issueCap(7)).toBe(7)
+  })
+
+  it('should be the batch limit when more supply is left', () => {
+    expect(issueCap(5000)).toBe(MAX_COPIES_PER_ISSUE)
   })
 })

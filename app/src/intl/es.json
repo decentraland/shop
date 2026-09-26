@@ -514,7 +514,8 @@
     "issuing": "Emitiendo…",
     "toastSuccess": "Se {count, plural, one {emitió} other {emitieron}} {count} {count, plural, one {copia} other {copias}} de «{name}».",
     "successBody": "Se {count, plural, one {emitió} other {emitieron}} {count} {count, plural, one {copia} other {copias}} de «{name}».",
-    "errorGeneric": "No se pudieron emitir tus copias. Inténtalo de nuevo."
+    "errorGeneric": "No se pudieron emitir tus copias. Inténtalo de nuevo.",
+    "overBatch": "Puedes emitir hasta {max} copias a la vez."
   },
   "resales": {
     "modalTitle": "Otros revendedores",
@@ -736,7 +737,8 @@
     "colOwner": "Dueño",
     "colOwned": "Tiene",
     "colAcquired": "Último",
-    "ownersCount": "{count, plural, one {# dueño} other {# dueños}}"
+    "ownersCount": "{count, plural, one {# dueño} other {# dueños}}",
+    "rewardOwners": "Premiar dueños"
   },
   "myAssets": {
     "signInTitle": "Inicia sesión para ver tus artículos",
@@ -1466,5 +1468,25 @@
   "removeListing": {
     "title": "¿Quitar de la venta?",
     "body": "«{name}» dejará de estar disponible en la Tienda. Puedes volver a ponerlo en venta cuando quieras."
+  },
+  "reward": {
+    "title": "Premia a tus principales dueños",
+    "subtitle": "Envía una copia nueva de un artículo a cada una de las personas que más tienen de tu trabajo.",
+    "howMany": "Cuántos",
+    "topN": "Top {count}",
+    "rankedBy": "Ordenados por",
+    "ranking": {
+      "nfts": "Más tienen",
+      "spent": "Más gastaron",
+      "recent": "Más recientes"
+    },
+    "item": "Artículo a enviar",
+    "itemLeft": "{collection} · quedan {left}",
+    "noItems": "A ninguno de tus artículos le quedan copias para enviar.",
+    "recipients": "{count, plural, one {# destinatario} other {# destinatarios}}",
+    "heldLine": "· tiene {count}",
+    "stock": "Esto emite {count, plural, one {# copia nueva} other {# copias nuevas}} de “{name}”, de las {left} que quedan.",
+    "notEnough": "A “{name}” solo le quedan {left}. Elige menos personas u otro artículo.",
+    "continue": "Continuar"
   }
 }

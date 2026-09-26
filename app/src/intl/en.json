@@ -514,7 +514,8 @@
     "issuing": "Issuing…",
     "toastSuccess": "Issued {count} {count, plural, one {copy} other {copies}} of “{name}”.",
     "successBody": "Issued {count} {count, plural, one {copy} other {copies}} of “{name}”.",
-    "errorGeneric": "Couldn't issue your copies — please try again."
+    "errorGeneric": "Couldn't issue your copies — please try again.",
+    "overBatch": "You can issue up to {max} copies at a time."
   },
   "resales": {
     "modalTitle": "Other Resellers",
@@ -736,7 +737,8 @@
     "colOwner": "Owner",
     "colOwned": "Held",
     "colAcquired": "Latest",
-    "ownersCount": "{count, plural, one {# owner} other {# owners}}"
+    "ownersCount": "{count, plural, one {# owner} other {# owners}}",
+    "rewardOwners": "Reward owners"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",
@@ -1466,5 +1468,25 @@
   "removeListing": {
     "title": "Remove from sale?",
     "body": "“{name}” will no longer be available in the Shop. You can put it on sale again anytime."
+  },
+  "reward": {
+    "title": "Reward your top owners",
+    "subtitle": "Send one new copy of an item to each of the people who hold the most of your work.",
+    "howMany": "How many",
+    "topN": "Top {count}",
+    "rankedBy": "Ranked by",
+    "ranking": {
+      "nfts": "Most held",
+      "spent": "Most spent",
+      "recent": "Most recent"
+    },
+    "item": "Item to send",
+    "itemLeft": "{collection} · {left} left",
+    "noItems": "None of your items has copies left to send.",
+    "recipients": "{count, plural, one {# recipient} other {# recipients}}",
+    "heldLine": "· holds {count}",
+    "stock": "This issues {count, plural, one {# new copy} other {# new copies}} of “{name}”, out of the {left} left.",
+    "notEnough": "“{name}” has only {left} left. Pick fewer people or another item.",
+    "continue": "Continue"
   }
 }
