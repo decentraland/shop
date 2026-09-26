@@ -20,6 +20,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
 import { SortHeader } from '~/components/SortHeader'
+import { RewardOwnersModal } from '~/components/RewardOwnersModal'
 import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
 import { fetchTopOwners, TopOwnersReadError, TopOwnersUnavailableError, type TopOwnersSort } from '~/lib/owners'
 import { captureError } from '~/lib/monitoring'
@@ -786,7 +787,12 @@ export function MyStore() {
   const [buyerSort, setBuyerSort] = useState<ColumnSort<BuyerColumn> | null>(null)
   const [ownerSort, setOwnerSort] = useState<ColumnSort<TopOwnersSort>>({ key: 'nfts', dir: 'desc' })
   const [ownerPage, setOwnerPage] = useState(0)
-  const [issuing, setIssuing] = useState<{ item: StoreItem; contractAddress: string } | null>(null)
+  const [issuing, setIssuing] = useState<{
+    item: Pick<StoreItem, 'itemId' | 'name' | 'thumbnail' | 'left'>
+    contractAddress: string
+    recipients?: string[]
+  } | null>(null)
+  const [rewardOpen, setRewardOpen] = useState(false)
   const queryClient = useQueryClient()
   /**
    * Dismissing the pricing nudge lasts this visit only, deliberately not persisted: the listings it is
@@ -890,6 +896,25 @@ export function MyStore() {
   }, [ownersRead.error])
   const owners = mock ? mockTopOwners(ownerSort, ownerPage, OWNERS_PER_PAGE) : ownersRead.data
   const ownerPages = Math.max(1, Math.ceil((owners?.total ?? 0) / OWNERS_PER_PAGE))
+  /** What a reward can be issued from: every item of the store with copies left, most left first. */
+  const rewardItems = useMemo(
+    () =>
+      (stats?.collections ?? [])
+        .flatMap(collection =>
+          collection.items
+            .filter(item => item.left > 0)
+            .map(item => ({
+              contractAddress: collection.contractAddress,
+              itemId: item.itemId,
+              name: item.name,
+              thumbnail: item.thumbnail,
+              collectionName: collection.name,
+              left: item.left
+            }))
+        )
+        .sort((a, b) => b.left - a.left),
+    [stats]
+  )
   // The total can shrink between reads (an owner sells everything); a page past the end steps back.
   useEffect(() => {
     if (ownerPage > ownerPages - 1) setOwnerPage(ownerPages - 1)
@@ -994,6 +1019,27 @@ export function MyStore() {
     <A.Root>
       <A.Main>
         <S.Root data-testid="my-store">
+          {rewardOpen && owners ? (
+            <RewardOwnersModal
+              creator={session?.address ?? 'mock'}
+              ownerCount={owners.total}
+              items={rewardItems}
+              loadOwners={async (count, sortBy) =>
+                mock
+                  ? mockTopOwners({ key: sortBy, dir: 'desc' }, 0, count).data
+                  : (await fetchTopOwners(session!.address, { sortBy, orderDirection: 'desc', first: count, skip: 0 }))
+                      .data
+              }
+              onClose={() => setRewardOpen(false)}
+              onTrack={trackStore}
+              onContinue={({ item, recipients }) => {
+                setRewardOpen(false)
+                // The invented store has no account to issue from; the choice is as far as it goes.
+                if (!session) return
+                setIssuing({ item, contractAddress: item.contractAddress, recipients })
+              }}
+            />
+          ) : null}
           {issuing && session ? (
             <IssueModal
               item={{
@@ -1005,6 +1051,7 @@ export function MyStore() {
                 available: issuing.item.left
               }}
               session={session}
+              initialRecipients={issuing.recipients}
               onClose={() => {
                 setIssuing(null)
                 void queryClient.invalidateQueries({ queryKey: ['store-catalogue'] })
@@ -1840,7 +1887,23 @@ export function MyStore() {
                 <S.Panel aria-labelledby="store-owners-h" data-testid="store-owners-panel">
                   <S.PanelHead>
                     <S.PanelTitle id="store-owners-h">{t('myStore.owners')}</S.PanelTitle>
-                    <S.PanelHint>{t('myStore.ownersHint')}</S.PanelHint>
+                    <S.HeadRight>
+                      <S.PanelHint>{t('myStore.ownersHint')}</S.PanelHint>
+                      {(session || mock) && owners && owners.total > 0 ? (
+                        <Button
+                          variant="red"
+                          size="sm"
+                          onClick={() => {
+                            trackStore('Shop Clicked Store Action', { action: 'reward_owners' })
+                            setRewardOpen(true)
+                          }}
+                          data-testid="store-reward-owners"
+                        >
+                          <span aria-hidden>🎁</span>
+                          {t('myStore.rewardOwners')}
+                        </Button>
+                      ) : null}
+                    </S.HeadRight>
                   </S.PanelHead>
                   {!owners ? (
                     <S.Empty data-testid="store-owners-unavailable">{t('myStore.ownersUnavailable')}</S.Empty>

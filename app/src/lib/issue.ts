@@ -55,6 +55,17 @@ export function totalToIssue(entries: IssueEntry[]): number {
  *  - the total does not exceed the item's remaining supply (max supply − already minted).
  * Empty rows (no address AND no amount) are ignored so a trailing blank row never blocks submit.
  */
+/**
+ * Copies one issue may create, whatever the supply left: the builder's own cap for one mint, which keeps the
+ * batch inside a transaction's gas.
+ */
+export const MAX_COPIES_PER_ISSUE = 50
+
+/** How many copies one issue may create for an item with `available` left. */
+export function issueCap(available: number): number {
+  return Math.max(0, Math.min(available, MAX_COPIES_PER_ISSUE))
+}
+
 export function isIssueValid(entries: IssueEntry[], available: number): boolean {
   const rows = entries.filter(e => e.address.trim().length > 0 || (e.amount || 0) > 0)
   if (rows.length === 0) return false
@@ -63,7 +74,7 @@ export function isIssueValid(entries: IssueEntry[], available: number): boolean 
     if (!Number.isInteger(e.amount) || e.amount < 1) return false
   }
   const total = totalToIssue(rows)
-  return total >= 1 && total <= available
+  return total >= 1 && total <= issueCap(available)
 }
 
 /**

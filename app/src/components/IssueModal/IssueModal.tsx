@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Session } from '~/lib/auth'
-import { issueTokens, isIssueValid, isValidIssueAddress, totalToIssue, type IssueEntry } from '~/lib/issue'
+import {
+  issueCap,
+  issueTokens,
+  isIssueValid,
+  isValidIssueAddress,
+  MAX_COPIES_PER_ISSUE,
+  totalToIssue,
+  type IssueEntry
+} from '~/lib/issue'
 import { isManagedWallet } from '~/lib/wallet'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
@@ -43,15 +51,22 @@ export function IssueModal({
   item,
   session,
   onClose,
-  onIssued
+  onIssued,
+  initialRecipients
 }: {
   item: IssueTarget
   session: Session
   onClose: () => void
   onIssued?: () => void
+  /** Addresses to start with, one copy each, when the recipients were chosen before the modal opened. */
+  initialRecipients?: string[]
 }) {
   const queryClient = useQueryClient()
-  const [rows, setRows] = useState<Row[]>([{ address: '', amount: '1' }])
+  const [rows, setRows] = useState<Row[]>(() =>
+    initialRecipients?.length
+      ? initialRecipients.map(address => ({ address, amount: '1' }))
+      : [{ address: '', amount: '1' }]
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [issuedCount, setIssuedCount] = useState<number | null>(null)
@@ -61,7 +76,8 @@ export function IssueModal({
   const entries = toEntries(rows)
   const total = totalToIssue(entries)
   const valid = isIssueValid(entries, item.available)
-  const overCap = total > item.available
+  const cap = issueCap(item.available)
+  const overCap = total > cap
 
   // Accessible modal: focus the card on mount and close on Esc (backdrop click is wired on the scrim).
   useEffect(() => {
@@ -220,10 +236,16 @@ export function IssueModal({
             </S.AddRowBtn>
 
             <S.Total over={overCap} aria-live="polite">
-              <strong>{total}</strong> / {item.available} {t('issue.itemsToIssue')}
+              <strong>{total}</strong> / {cap} {t('issue.itemsToIssue')}
             </S.Total>
 
-            {overCap ? <S.Note>{t('issue.overCap', { available: item.available })}</S.Note> : null}
+            {overCap ? (
+              <S.Note>
+                {item.available > MAX_COPIES_PER_ISSUE
+                  ? t('issue.overBatch', { max: MAX_COPIES_PER_ISSUE })
+                  : t('issue.overCap', { available: item.available })}
+              </S.Note>
+            ) : null}
 
             <ErrorNotice message={error} />
 
