@@ -60,6 +60,7 @@ export function Event() {
       <CampaignBanner slot={CAMPAIGN_BANNER_SLOT} />
       <Assets
         contracts={contracts}
+        itemIds={campaign?.items}
         hideNames
         lockStatus="on_sale"
         seo={{

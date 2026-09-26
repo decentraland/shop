@@ -42,14 +42,18 @@ export function useCampaignHero(slot: string): CampaignHero | null {
     if (!banner || !campaign) return null
 
     const contentfulLocale = toContentfulLocale(locale)
-    const desktopImage = assetUrl(campaign.assets, banner.fullSizeBackground?.[ContentfulLocale.enUS])
+    // The ARTWORK is picked per locale, not just the copy around it. A campaign's headline is usually
+    // lettering baked into the image rather than a font we could set, so the translated banner is a
+    // different file, and reading only the English one would show every Spanish reader English art.
+    // `localized` falls back to English, so a campaign that ships one image still works everywhere.
+    const desktopImage = assetUrl(campaign.assets, localized(banner.fullSizeBackground, contentfulLocale))
     // A hero with no artwork is not a hero — it would paint the bare `#14161b` backdrop with a headline on
     // it. Falling back to the Shop's own is better than shipping that.
     if (!desktopImage) return null
 
     // The phone frame is a different composition, not a crop, so a campaign that ships only the wide
     // artwork gets it at both sizes rather than nothing on mobile.
-    const mobileImage = assetUrl(campaign.assets, banner.mobileBackground?.[ContentfulLocale.enUS]) || desktopImage
+    const mobileImage = assetUrl(campaign.assets, localized(banner.mobileBackground, contentfulLocale)) || desktopImage
 
     // The same three conditions ui2's own banner applies, read under the same keys: the switch and the
     // destination are single-valued, only the label is translated.

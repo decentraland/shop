@@ -15,13 +15,20 @@ export function CampaignBanner({ slot }: { slot: string }) {
   if (!banner) return null
 
   return (
-    <S.Banner data-testid="campaign-banner">
+    <S.Banner
+      data-testid="campaign-banner"
+      // The blurred filler behind the artwork reads its URL from here; see the styles for why it exists.
+      // Desktop only — the mobile asset is square and fills its box, so nothing needs filling there.
+      style={{ ['--banner-art' as string]: `url(${banner.desktopImage})` }}
+    >
       <picture>
         <source media="(max-width: 768px)" srcSet={banner.mobileImage} />
         <S.Bg src={banner.desktopImage} alt="" aria-hidden />
       </picture>
       <S.Inner>
-        <S.Title data-testid="campaign-banner-title">{banner.title}</S.Title>
+        {/* Nothing is drawn when the campaign ships no title: its headline is lettering inside the
+            artwork, and an empty heading here would still take up the space above the CTA. */}
+        {banner.title ? <S.Title data-testid="campaign-banner-title">{banner.title}</S.Title> : null}
         {/* Hidden in the iOS web view for the same reason the home hero's is: the destination is free text
             an editor typed, and a drop most often points at buying something. */}
         {!isIapMode() && banner.cta ? (

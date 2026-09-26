@@ -39,6 +39,7 @@ const aCampaign = (): Campaign => ({
   mainTag: 'halloween',
   tags: ['halloween'],
   collections: [],
+  items: [],
   banners: {},
   assets: {}
 })

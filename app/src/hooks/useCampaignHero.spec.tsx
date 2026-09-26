@@ -35,6 +35,7 @@ function aCampaign(bannerOverrides: Record<string, unknown> = {}, assets?: Recor
     mainTag: 'halloween',
     tags: ['halloween'],
     collections: [],
+    items: [],
     banners: {
       [SLOT]: {
         id: 'banner-1',
@@ -93,6 +94,49 @@ describe('useCampaignHero', () => {
 
       expect(hero?.title).toBe('Llegó Halloween')
       expect(hero?.cta?.label).toBe('Ver la colección')
+    })
+
+    it('should serve the TRANSLATED artwork, not just the translated copy', () => {
+      // A campaign's headline is usually lettering baked into the image rather than a font we could set,
+      // so the Spanish banner is a different file. Reading only the English link would show every Spanish
+      // reader English art with Spanish copy laid over it.
+      withCampaign(
+        aCampaign(
+          {
+            fullSizeBackground: {
+              [ContentfulLocale.enUS]: assetLink(DESKTOP),
+              [ContentfulLocale.es]: assetLink('desktop-es')
+            },
+            mobileBackground: {
+              [ContentfulLocale.enUS]: assetLink(MOBILE),
+              [ContentfulLocale.es]: assetLink('mobile-es')
+            }
+          },
+          {
+            [DESKTOP]: asset(DESKTOP, 'https://cms-images.decentraland.org/wide.png'),
+            [MOBILE]: asset(MOBILE, 'https://cms-images.decentraland.org/square.png'),
+            'desktop-es': asset('desktop-es', 'https://cms-images.decentraland.org/wide-es.png'),
+            'mobile-es': asset('mobile-es', 'https://cms-images.decentraland.org/square-es.png')
+          }
+        )
+      )
+      useLocale.setState({ locale: 'es' })
+
+      const hero = renderHook(() => useCampaignHero(SLOT)).result.current
+
+      expect(hero?.desktopImage).toBe('https://cms-images.decentraland.org/wide-es.png')
+      expect(hero?.mobileImage).toBe('https://cms-images.decentraland.org/square-es.png')
+    })
+
+    it('should fall back to the English artwork for a campaign that ships only one', () => {
+      // The common case, and the one that must not regress: most campaigns never translate the image.
+      withCampaign(aCampaign())
+      useLocale.setState({ locale: 'es' })
+
+      const hero = renderHook(() => useCampaignHero(SLOT)).result.current
+
+      expect(hero?.desktopImage).toBe('https://cms-images.decentraland.org/wide.png')
+      expect(hero?.mobileImage).toBe('https://cms-images.decentraland.org/square.png')
     })
 
     it('should reuse the wide artwork on mobile when the campaign ships only one', () => {

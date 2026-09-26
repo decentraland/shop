@@ -491,6 +491,16 @@ describe('the home hero', () => {
       expect(screen.getByTestId('hero-title').textContent).toBe('Halloween is here')
     })
 
+    it('should draw NO headline when the campaign ships none, rather than the Shop default', () => {
+      // A seasonal banner carries its headline as lettering inside the artwork, so the CMS title is left
+      // blank on purpose. Falling back to the Shop's own default there stamped "A New Way to Shop" across
+      // the campaign's own wordmark — the default is for having no campaign, not for a blank field.
+      useCampaignHero.mockReturnValue({ ...campaignHero, title: '' } as never)
+      renderOverview()
+
+      expect(screen.queryByTestId('hero-title')).toBeNull()
+    })
+
     it('should paint the campaign artwork at both sizes', () => {
       const { container } = renderOverview()
 

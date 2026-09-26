@@ -70,6 +70,15 @@ export type Campaign = {
    * escape hatch: a comma-separated list of addresses, unioned with the tagged ones.
    */
   collections: string[]
+  /**
+   * INDIVIDUAL items named one by one in the CMS, as `<contract>-<itemId>`, on top of whatever the tags
+   * and `collections` resolve to.
+   *
+   * Collections are the wrong unit for a curated list: Halloween's 28 items live in 26 different creator
+   * collections, and naming those whole would put 84 items on the tab instead of 27. Tagging is not an
+   * option either, since creators own their collections in the builder.
+   */
+  items: string[]
   /** Banners keyed by the ADMIN entry's field name (e.g. `marketplaceHomepageBanner`). */
   banners: Record<string, CampaignBanner>
   /** Every asset referenced above, keyed by id — what ui2's `<Banner>` resolves its artwork against. */
@@ -95,9 +104,13 @@ export function localized<T>(field: LocalizedField<T> | undefined | null, locale
 /**
  * A linked asset's URL, ready to put in an `src`.
  *
- * Assets are stored under `en-US` whatever the reader's language — the artwork is the same file in every
- * locale — which is the same key `decentraland-ui2` reads them under. Returns `''` for an absent link or an
- * asset that failed to load, so a caller can treat "no artwork" as one case.
+ * The LINK is what carries the reader's language: a localized reference field points at a different asset
+ * per locale, so a translated banner is a different file and the caller resolves the link before getting
+ * here. The asset's own `file` is still read under `en-US`, because one asset is one file whatever the
+ * language — which is also the key `decentraland-ui2` reads it under.
+ *
+ * Returns `''` for an absent link or an asset that failed to load, so a caller can treat "no artwork" as
+ * one case.
  */
 export function assetUrl(assets: Record<string, ContentfulAsset>, link: SysLink<'Asset'> | undefined): string {
   if (!link) return ''
@@ -304,6 +317,33 @@ export function parseCollectionIds(value: string | undefined): string[] {
   return [...seen]
 }
 
+/**
+ * The `itemIds` field: `<contract>-<itemId>` pairs separated by commas, as an editor types them.
+ *
+ * Also accepts a MARKETPLACE URL, because that is what marketing actually has to hand — the curated list
+ * arrives as links, and making somebody transcribe 28 contract/item pairs by hand is a transcription bug
+ * waiting to happen. Both shapes normalise to the composite id the catalogue itself uses.
+ *
+ * Anything else is DROPPED rather than passed on, the same policy `parseCollectionIds` uses: a typo costs
+ * one item, not the whole event. Leading zeros go too — `…-007` would otherwise validate here and then
+ * match nothing, since the server compares against a numeric column rendered without them.
+ */
+export function parseItemIds(value: string | undefined): string[] {
+  if (!value) return []
+  const seen = new Set<string>()
+  for (const part of value.split(',')) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+    // `/contracts/0x…/items/5` from a Marketplace or Shop link, or the bare `0x…-5`.
+    const fromUrl = /\/contracts\/(0x[0-9a-fA-F]{40})\/items\/(\d+)/.exec(trimmed)
+    const bare = /^(0x[0-9a-fA-F]{40})-(\d+)$/.exec(trimmed)
+    const match = fromUrl ?? bare
+    if (!match) continue
+    seen.add(`${match[1].toLowerCase()}-${match[2].replace(/^0+(?=\d)/, '')}`)
+  }
+  return [...seen]
+}
+
 function dedupeTags(tags: (string | undefined)[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -367,6 +407,9 @@ export async function fetchCampaign(): Promise<Campaign | null> {
   // types, so it is read off the untyped entry and validated here.
   const collectionIds = (campaignFields as unknown as { collectionIds?: LocalizedField<string> } | undefined)
     ?.collectionIds?.[ContentfulLocale.enUS]
+  const itemIds = (campaignFields as unknown as { itemIds?: LocalizedField<string> } | undefined)?.itemIds?.[
+    ContentfulLocale.enUS
+  ]
 
   return {
     name: campaignFields?.name?.[ContentfulLocale.enUS] ?? null,
@@ -374,6 +417,7 @@ export async function fetchCampaign(): Promise<Campaign | null> {
     mainTag,
     tags: dedupeTags([mainTag ?? undefined, ...additionalTags]),
     collections: parseCollectionIds(collectionIds),
+    items: parseItemIds(itemIds),
     banners,
     assets
   }
