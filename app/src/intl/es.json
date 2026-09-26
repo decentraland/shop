@@ -365,7 +365,7 @@
     "buy": "Comprar",
     "choosePayment": "Elige tu método de pago",
     "methodCredits": "Créditos",
-    "methodMana": "Polygon MANA",
+    "methodMana": "MANA",
     "methodCombined": "Créditos + MANA",
     "buyWithMana": "Comprar con MANA",
     "buyWith": "Comprar con",
@@ -389,7 +389,9 @@
     },
     "manaPriceUnavailable": "No pudimos consultar el precio de MANA en este momento, así que pagar con MANA no está disponible para esta compra. Prueba de nuevo en un instante.",
     "priceChanged": "El precio de este artículo cambió mientras estabas aquí. Revisa el nuevo importe y confirma para continuar.",
-    "heldExplainer": "{credits} de tus {currency} están retenidos por una compra que ya empezaste, así que ahora no están disponibles. Vuelven solos — mirá el indicador en la barra de menú."
+    "heldExplainer": "{credits} de tus {currency} están retenidos por una compra que ya empezaste, así que ahora no están disponibles. Vuelven solos — mirá el indicador en la barra de menú.",
+    "chainEthereum": "Ethereum",
+    "chainPolygon": "Polygon"
   },
   "cartCheckout": {
     "titleBuy": "Comprar artículos",
@@ -1315,7 +1317,10 @@
     "errorRouteCost": "El registro de NAMEs no está disponible temporalmente. Inténtalo de nuevo más tarde.",
     "errorNotRegistered": "Se usaron tus Créditos pero el NAME no pudo registrarse, así que los fondos volvieron a Decentraland para su recuperación. Contacta a soporte con este NAME y lo resolvemos — no vuelvas a comprar.",
     "errorSettlementUnknown": "No pudimos confirmar si tu compra se completó. No vuelvas a comprar — revisa Mis Ítems en unos minutos y contacta a soporte con este NAME si no aparece.",
-    "errorSpentDismiss": "Entendido"
+    "errorSpentDismiss": "Entendido",
+    "switchToEthereum": "Tu cuenta tiene que estar en Ethereum para pagar así.",
+    "switchToEthereumCta": "Cambiar y continuar",
+    "ethereumNeedsOwnWallet": "Esta cuenta no puede pagar sus propias compras en Ethereum."
   },
   "seo": {
     "collectibles": {
