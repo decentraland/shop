@@ -715,7 +715,7 @@
     "savesHint": "{count, plural, =0 {Nobody has saved this yet} one {# person saved this} other {# people saved this}}",
     "colEarnings": "Earnings",
     "bestSellers": "Best-selling items",
-    "bestSellersSub": "Your top {n, plural, one {item} other {# items}} by copies sold in this period",
+    "bestSellersSub": "{n, plural, one {The item} other {# items}} that sold in this period, first sales only: resales of your items are not counted here",
     "noBestSellers": "Nothing has sold in this period yet.",
     "recentSales": "Recent sales",
     "recentSalesSub": "The latest sales across your collections",

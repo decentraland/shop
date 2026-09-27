@@ -1462,14 +1462,19 @@ export const Face = styled.span`
 
 export const Pager = styled.nav`
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
   font-variant-numeric: tabular-nums;
+
+  /* Nine controls in a phone's width: tighter, but never wrapping, which would move the arrows too. */
+  ${theme.media.maxWidth('mobile')} {
+    gap: 6px;
+  }
 `
 
 const pageControl = `
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1521,8 +1526,13 @@ export const PageNum = styled.button`
   }
 `
 
+/** As wide as a page number, so a slot holding the ellipsis takes the same room as one holding a page. */
 export const PageGap = styled.span`
-  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex: none;
   font-family: ${theme.font.sans};
   font-size: 12px;
   color: ${theme.colors.gray4};
