@@ -1040,7 +1040,6 @@ export function MyStore() {
     return sortRows(collections, value, collectionSort.dir)
   }, [stats, sort, collectionSort, currency])
 
-  /** What is selling across the whole store, which the per-collection ordering cannot answer. */
   /**
    * Over all time a store's best seller is the item that brought in the most, not the one that moved the
    * most copies; over a week or a month, copies are the better read. Either way a header click overrides it.

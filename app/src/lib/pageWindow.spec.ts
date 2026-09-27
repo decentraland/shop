@@ -24,6 +24,11 @@ describe('when laying out a pager', () => {
       expect(pageWindow(38, 40)).toEqual([0, 'gap', 35, 36, 37, 38, 39])
     })
 
+    it('should switch from the start slide to a centred window at page 5', () => {
+      expect(pageWindow(3, 40)).toEqual([0, 1, 2, 3, 4, 'gap', 39])
+      expect(pageWindow(4, 40)).toEqual([0, 'gap', 3, 4, 5, 'gap', 39])
+    })
+
     it('should centre the current page in the middle of the list', () => {
       expect(pageWindow(20, 40)).toEqual([0, 'gap', 19, 20, 21, 'gap', 39])
     })
