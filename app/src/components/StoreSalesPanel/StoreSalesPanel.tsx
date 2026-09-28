@@ -11,8 +11,10 @@ import {
   seriesOf,
   type BucketUnit,
   type CompareMode,
-  type ResolvedRange
+  type ResolvedRange,
+  type SeriesPoint
 } from '~/lib/storeRange'
+import { formatUsd, type RateBook, type StoreCurrency } from '~/lib/manaUsd'
 import * as S from './StoreSalesPanel.styles'
 
 const DAY_MS = 86_400_000
@@ -76,7 +78,9 @@ export function StoreSalesPanel({
   fetching,
   collections,
   onTrack,
-  comparisonRows
+  comparisonRows,
+  currency,
+  rateBook
 }: {
   address: string | undefined
   range: ResolvedRange
@@ -87,6 +91,9 @@ export function StoreSalesPanel({
   onTrack: (event: string, props: Record<string, unknown>) => void
   /** Rows to compare against instead of reading them, for the invented store, which has no address to read. */
   comparisonRows?: SaleRow[]
+  /** Which currency earnings are drawn in; dollars convert each sale at its own day's close. */
+  currency: StoreCurrency
+  rateBook: RateBook
 }) {
   const [metric, setMetric] = useState<Metric>('sales')
   const [compareChoice, setCompareChoice] = useState<CompareMode>('previous')
@@ -116,15 +123,17 @@ export function StoreSalesPanel({
     placeholderData: previous => previous,
     queryFn: () => fetchSellerSales({ seller: address, from: against!.from, to: against!.to })
   })
-  const comparison = comparisonRows
-    ? { data: { rows: comparisonRows, truncated: false }, isFetching: false }
-    : comparisonRead
+  const mockComparison = useMemo(
+    () => (comparisonRows ? { data: { rows: comparisonRows, truncated: false }, isFetching: false } : null),
+    [comparisonRows]
+  )
+  const comparison = mockComparison ?? comparisonRead
 
   const unit = bucketUnit(from, range.to)
   const current = useMemo(() => {
     const starts = bucketStarts(from, range.to, unit)
-    return seriesOf(inScope(rows, scopedCollection, item), starts, range.to)
-  }, [rows, from, range.to, unit, scopedCollection, item])
+    return seriesOf(inScope(rows, scopedCollection, item), starts, range.to, rateBook)
+  }, [rows, from, range.to, unit, scopedCollection, item, rateBook])
 
   const againstFrom = against?.from
   const againstTo = against?.to
@@ -132,17 +141,29 @@ export function StoreSalesPanel({
     if (againstFrom == null || againstTo == null || !comparison.data) return null
     // Laid over the current buckets by position, so it never runs longer than the line it is read against.
     const starts = bucketStarts(againstFrom, againstTo, unit).slice(0, current.length)
-    return seriesOf(inScope(comparison.data.rows, scopedCollection, item), starts, againstTo)
-  }, [againstFrom, againstTo, comparison.data, unit, current.length, scopedCollection, item])
+    return seriesOf(inScope(comparison.data.rows, scopedCollection, item), starts, againstTo, rateBook)
+  }, [againstFrom, againstTo, comparison.data, unit, current.length, scopedCollection, item, rateBook])
 
-  const valueOf = (point: { sales: number; earnedWei: bigint }) =>
-    metric === 'sales' ? point.sales : manaOf(point.earnedWei)
-  const sum = (points: { sales: number; earnedWei: bigint }[]) =>
+  const inDollars = currency === 'usd'
+  const valueOf = (point: SeriesPoint) =>
+    metric === 'sales' ? point.sales : inDollars ? point.earnedUsd : manaOf(point.earnedWei)
+  const sum = (points: SeriesPoint[]) =>
     metric === 'sales'
       ? points.reduce((total, point) => total + point.sales, 0)
-      : manaOf(points.reduce((total, point) => total + point.earnedWei, 0n))
+      : inDollars
+        ? points.reduce((total, point) => total + point.earnedUsd, 0)
+        : manaOf(points.reduce((total, point) => total + point.earnedWei, 0n))
   const formatValue = (value: number) =>
-    metric === 'sales' ? Math.round(value).toLocaleString(activeLocale()) : formatMana(value)
+    metric === 'sales'
+      ? Math.round(value).toLocaleString(activeLocale())
+      : inDollars
+        ? // Round axis steps read as "$40", not "$40.00"; amounts keep their cents.
+          `$${Number.isInteger(value) ? value.toLocaleString(activeLocale()) : formatUsd(value, activeLocale())}`
+        : formatMana(value)
+  const unpriced =
+    metric === 'earnings' && inDollars
+      ? [...current, ...(previous ?? [])].reduce((total, point) => total + point.unpriced, 0)
+      : 0
 
   const currentTotal = sum(current)
   const previousTotal = previous ? sum(previous) : null
@@ -227,7 +248,7 @@ export function StoreSalesPanel({
       <S.Totals>
         <S.Total data-testid="store-chart-total">
           <b>
-            {metric === 'earnings' ? <CurrencyMark kind="mana" /> : null}
+            {metric === 'earnings' && !inDollars ? <CurrencyMark kind="mana" /> : null}
             {formatValue(currentTotal)}
           </b>
           <span>{formatSpan(from, range.to)}</span>
@@ -235,7 +256,7 @@ export function StoreSalesPanel({
         {previous && against ? (
           <S.Total data-testid="store-chart-previous">
             <b>
-              {metric === 'earnings' ? <CurrencyMark kind="mana" /> : null}
+              {metric === 'earnings' && !inDollars ? <CurrencyMark kind="mana" /> : null}
               {formatValue(previousTotal ?? 0)}
               {change != null ? (
                 <small data-dir={change >= 0 ? 'up' : 'down'}>
@@ -282,6 +303,7 @@ export function StoreSalesPanel({
       </S.Frame>
 
       {partial ? <S.Note>{t('myStore.chart.partial')}</S.Note> : null}
+      {unpriced > 0 && !fetching ? <S.Note>{t('myStore.chart.unpriced', { count: unpriced })}</S.Note> : null}
       {unit !== 'day' ? <S.Note>{t(unit === 'week' ? 'myStore.chart.byWeek' : 'myStore.chart.byMonth')}</S.Note> : null}
     </>
   )

@@ -279,6 +279,49 @@ export const Periods = styled.div`
   }
 `
 
+export const PerfControls = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+`
+
+export const CurrencySwitch = styled.div`
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px;
+  border-radius: ${theme.radius.pill};
+  background: rgba(0, 0, 0, 0.22);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+  }
+  /* The page drives the MANA mark white for its dark panels; on the selected, white pill it vanished. */
+  button[aria-pressed='true'] [data-kind='mana'] img {
+    filter: none;
+  }
+`
+
+export const CurrencyNote = styled.p`
+  margin: -12px 0 0;
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${theme.colors.gray4};
+  text-align: right;
+`
+
+/** The dollar sign, set a touch lighter than the figure so the amount stays the thing read. */
+export const Dollar = styled.span`
+  margin-right: 1px;
+  opacity: 0.8;
+`
+
 /** Anchors the range picker under the period row, outside its scroller so the popup is not clipped. */
 export const PeriodsWrap = styled.div`
   position: relative;

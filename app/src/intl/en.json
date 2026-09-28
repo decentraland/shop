@@ -769,13 +769,20 @@
       "byMonth": "Each point is a month.",
       "allItems": "All items",
       "item": "Item",
-      "roleDescription": "chart"
+      "roleDescription": "chart",
+      "unpriced": "{count, plural, one {# sale has} other {# sales have}} no dollar rate yet and {count, plural, one {is} other {are}} left out of the dollar line."
     },
     "rangePickStart": "Pick the first day",
     "rangePickEnd": "{from} – pick the last day",
     "rangeDialog": "Choose dates",
     "rangeCancel": "Cancel",
-    "rangeApply": "Apply"
+    "rangeApply": "Apply",
+    "currency": "Currency",
+    "currencyPaid": "What you were paid",
+    "currencyUsd": "In dollars, at each sale’s day",
+    "noUsd": "No dollar rate for this day yet",
+    "usdUnpriced": "{count, plural, one {# sale falls} other {# sales fall}} on a day with no dollar rate yet, so the dollar figures leave {count, plural, one {it} other {them}} out.",
+    "usdUnavailable": "Dollar figures are not available right now."
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",

@@ -45,6 +45,8 @@ export type StoreCollection = {
   sold: number
   /** What first sales of this collection brought in over the window, in MANA wei. */
   earningsWei: bigint
+  /** The same earnings in dollars at each sale's day rate, when the server prices them. */
+  earningsUsd: number | null
   /** The newest item in it, when the source dates them. */
   createdAt: number | null
   /** Sales across the window, oldest first — the sparkline's series. */
@@ -76,6 +78,10 @@ export type StoreStats = {
   resales: number
   /** MANA wei, summed from the rows the cap allowed. */
   earningsWei: bigint
+  /** The same earnings in dollars at each sale's day rate, when the server prices them; null otherwise. */
+  earningsUsd: number | null
+  /** Sales in the window on a day with no stored rate, which the dollar figures leave out. */
+  unpricedSales: number
   /** True when the headline sums cover only part of the window, which the server's aggregate never does. */
   partial: boolean
   /**
@@ -251,6 +257,7 @@ export function buildStoreStats({
       soldOut: 0,
       sold: 0,
       earningsWei: 0n,
+      earningsUsd: null,
       createdAt: null,
       trend: [],
       claimed: 0,
@@ -295,6 +302,7 @@ export function buildStoreStats({
       ? weiOf(fromSummary.earnedWei)
       : own.reduce((sum, row) => sum + weiOf(row.price), 0n)
     if (fromSummary) entry.sold = fromSummary.sold
+    entry.earningsUsd = fromSummary?.earnedUsd != null ? Number(fromSummary.earnedUsd) : null
     entry.trend = bucketSales(own, trendDays, now)
     entry.exhausted = entry.items.length > 0 && entry.soldOut === entry.items.length
     // Best-selling first: a store's own page should open on what is working.
@@ -320,6 +328,8 @@ export function buildStoreStats({
     mints: summary?.mints ?? mints,
     resales: summary ? summary.resales : total - mints,
     earningsWei: summary ? weiOf(summary.earnedWei) : rows.reduce((sum, row) => sum + weiOf(row.price), 0n),
+    earningsUsd: summary?.earnedUsd != null ? Number(summary.earnedUsd) : null,
+    unpricedSales: summary?.unpricedSales ?? 0,
     // The server's sum covers the whole window whatever its size; only a client-side one can fall short.
     partial: summary ? false : truncated,
     breakdownPartial: truncated,

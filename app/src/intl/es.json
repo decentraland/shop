@@ -769,13 +769,20 @@
       "byMonth": "Cada punto es un mes.",
       "allItems": "Todos los artículos",
       "item": "Artículo",
-      "roleDescription": "gráfico"
+      "roleDescription": "gráfico",
+      "unpriced": "{count, plural, one {# venta todavía no tiene} other {# ventas todavía no tienen}} cotización en dólares y {count, plural, one {queda} other {quedan}} fuera de la línea en dólares."
     },
     "rangePickStart": "Elige el primer día",
     "rangePickEnd": "{from} – elige el último día",
     "rangeDialog": "Elegir fechas",
     "rangeCancel": "Cancelar",
-    "rangeApply": "Aplicar"
+    "rangeApply": "Aplicar",
+    "currency": "Moneda",
+    "currencyPaid": "Lo que cobraste",
+    "currencyUsd": "En dólares, al día de cada venta",
+    "noUsd": "Todavía no hay cotización en dólares para este día",
+    "usdUnpriced": "{count, plural, one {# venta cae} other {# ventas caen}} en un día sin cotización en dólares todavía, así que las cifras en dólares {count, plural, one {la dejan} other {las dejan}} afuera.",
+    "usdUnavailable": "Las cifras en dólares no están disponibles ahora."
   },
   "myAssets": {
     "signInTitle": "Inicia sesión para ver tus artículos",

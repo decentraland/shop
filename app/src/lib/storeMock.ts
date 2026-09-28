@@ -15,6 +15,8 @@ import type { TopOwner, TopOwnersSort } from '~/lib/owners'
  * production to produce that combination is not a plan.
  */
 const DAY = 86_400_000
+/** The invented store's dollars: close to where MANA traded when this was written, so the figures look real. */
+const MOCK_RATE = 0.093
 const NOW = Date.now()
 
 const item = (n: number, name: string, minted: number, cap: number, state: StoreItem['state']): StoreItem => ({
@@ -125,6 +127,7 @@ function collection(spec: MockCollection, index: number): StoreCollection {
     soldOut: items.filter(i => i.state === 'soldout').length,
     sold: spec.sold,
     earningsWei: BigInt(spec.earnings) * 10n ** 18n,
+    earningsUsd: spec.earnings * MOCK_RATE,
     createdAt: NOW - index * 30 * DAY,
     trend: TRENDS[spec.trend],
     claimed,
@@ -141,6 +144,8 @@ export const mockStats: StoreStats = (() => {
     mints: 198,
     resales: 13,
     earningsWei: 3070n * 10n ** 18n,
+    earningsUsd: 3070 * MOCK_RATE,
+    unpricedSales: 0,
     partial: false,
     breakdownPartial: false,
     fetched: 211,
@@ -309,4 +314,14 @@ export const mockChartRows: SaleRow[] = (() => {
     }
   }
   return rows
+})()
+
+/** Two years of daily closes for the invented store, drifting around {@link MOCK_RATE} so a chart in dollars has a shape. */
+export const mockRateBook: Map<string, number> = (() => {
+  const book = new Map<string, number>()
+  for (let day = 0; day < 740; day++) {
+    const at = NOW - day * DAY
+    book.set(new Date(at).toISOString().slice(0, 10), MOCK_RATE * (1 + 0.35 * Math.sin(day / 60) + day / 1500))
+  }
+  return book
 })()
