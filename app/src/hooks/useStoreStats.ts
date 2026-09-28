@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { countSales, fetchSalesSummary, fetchSellerSales, weiOf } from '~/lib/sales'
+import { countSales, fetchSalesSummary, fetchSellerSales, weiOf, type SaleRow } from '~/lib/sales'
 import { collectorsOf, daysSinceLastSale, deltaOf, deltaOfWei, topBuyers } from '~/lib/storeMetrics'
 import { fetchFavoriteStats } from '~/lib/favorites'
 import { fetchPublishableItems } from '~/lib/builder'
@@ -10,16 +10,15 @@ import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collec
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
 import { toSaleableCollections } from '~/lib/saleableCollections'
 import type { Session } from '~/lib/auth'
+import { comparisonRange, type ResolvedRange } from '~/lib/storeRange'
 
 /** Stable empty map, so a render before the saves land does not hand consumers a new object. */
 const EMPTY_SAVES = new Map<string, number>()
+const EMPTY_ROWS: SaleRow[] = []
 
-export type StorePeriod = '7d' | '30d' | 'all'
 export type { StoreItem, StoreCollection, StoreStats } from '~/lib/storeStats'
 
-const DAY_MS = 86_400_000
 const PUBLIC_CATALOGUE_TIMEOUT_MS = 6_000
-const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: null }
 
 /**
  * The reads the store dashboard runs, composed into one figure set.
@@ -33,17 +32,15 @@ const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: nu
  * is why they run unconditionally rather than behind it: a degraded page that reports the most recent
  * sales is worth more than one that reports nothing.
  */
-export function useStoreStats(session: Session | null, period: StorePeriod) {
+export function useStoreStats(session: Session | null, range: ResolvedRange) {
   const address = session?.address
-  const days = WINDOW[period]
-  // Pinned to the day so the key does not change on every render and refetch the window each time.
-  const now = useMemo(() => Math.floor(Date.now() / DAY_MS) * DAY_MS + DAY_MS - 1, [])
-  const from = days ? now - days * DAY_MS : undefined
+  const { days, from, to: now } = range
+  const period = [from ?? null, now]
 
   const sales = useQuery({
-    queryKey: ['store-sales', address, period],
+    queryKey: ['store-sales', address, ...period],
     enabled: !!address,
-    queryFn: () => fetchSellerSales({ seller: address, from })
+    queryFn: () => fetchSellerSales({ seller: address, from, to: now })
   })
 
   /**
@@ -52,9 +49,9 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
    * store; the reads below stay as the fallback for a server that has not shipped it yet.
    */
   const summary = useQuery({
-    queryKey: ['store-summary', address, period],
+    queryKey: ['store-summary', address, ...period],
     enabled: !!address,
-    queryFn: () => fetchSalesSummary({ seller: address as string, from })
+    queryFn: () => fetchSalesSummary({ seller: address as string, from, to: now })
   })
 
   /**
@@ -64,10 +61,11 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
    * the month before it did, and the creator is the one person who cannot look that up. Skipped for all
    * time, which has nothing before it to compare against.
    */
-  const previousFrom = days != null ? now - 2 * days * DAY_MS : undefined
-  const previousTo = days != null ? now - days * DAY_MS : undefined
+  const before = comparisonRange(range, 'previous')
+  const previousFrom = before?.from
+  const previousTo = before?.to
   const previous = useQuery({
-    queryKey: ['store-summary-previous', address, period],
+    queryKey: ['store-summary-previous', address, ...period],
     enabled: !!address && previousFrom !== undefined,
     queryFn: () => fetchSalesSummary({ seller: address as string, from: previousFrom, to: previousTo })
   })
@@ -75,9 +73,9 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
   // Exact, and one request: the feed counts by kind server-side, so the split never depends on how many
   // rows the cap above let through.
   const mints = useQuery({
-    queryKey: ['store-mints', address, period],
+    queryKey: ['store-mints', address, ...period],
     enabled: !!address,
-    queryFn: () => countSales({ seller: address, from, type: 'mint' })
+    queryFn: () => countSales({ seller: address, from, to: now, type: 'mint' })
   })
 
   const builderCatalogue = useQuery({
@@ -222,6 +220,8 @@ export function useStoreStats(session: Session | null, period: StorePeriod) {
     trend,
     savesByKey,
     saleable,
+    /** The period's own sales rows, for the chart: the same read the tables are built from. */
+    sales: { rows: sales.data?.rows ?? EMPTY_ROWS, truncated: !!sales.data?.truncated, isFetching: sales.isFetching },
     // The summary counts, because the tiles read from it the moment it lands: leaving it out let the page
     // declare itself ready on the row-derived fallback and then rewrite every headline figure under the
     // creator a beat later. Its ERROR deliberately does not count — a summary that cannot be read leaves a
