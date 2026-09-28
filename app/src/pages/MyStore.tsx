@@ -1,4 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
@@ -25,6 +36,7 @@ import { SortHeader } from '~/components/SortHeader'
 import { RewardOwnersModal } from '~/components/RewardOwnersModal'
 import { RangePicker } from '~/components/RangePicker'
 import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
+import { pageWindow } from '~/lib/pageWindow'
 import { fetchTopOwners, TopOwnersReadError, TopOwnersUnavailableError, type TopOwnersSort } from '~/lib/owners'
 import { captureError } from '~/lib/monitoring'
 import {
@@ -201,27 +213,6 @@ const LINK_ICON: Record<LinkType, IconName> = {
 const SALES_PER_PAGE = 5
 
 /**
- * The page numbers to draw around the current one.
- *
- * A store with 183 pages cannot show them all, so it shows the ends, the neighbours, and an ellipsis for
- * whatever is skipped — the reader always knows where they are and how far it goes.
- */
-/**
- * Which page numbers to draw. Five slots at most: past that the row stops reading as a control and starts
- * reading as a list of its own.
- */
-function pageWindow(page: number, pages: number): (number | 'gap')[] {
-  if (pages <= 5) return Array.from({ length: pages }, (_, i) => i)
-  const around = [page - 1, page, page + 1].filter(n => n > 0 && n < pages - 1)
-  const out: (number | 'gap')[] = [0]
-  if (around[0] > 1) out.push('gap')
-  out.push(...around)
-  if (around[around.length - 1] < pages - 2) out.push('gap')
-  out.push(pages - 1)
-  return out
-}
-
-/**
  * One pager, used by every table on the page.
  *
  * Arrows rather than the words, which is both what the design draws and what keeps the control the same
@@ -302,6 +293,14 @@ function useBuyerNames(addresses: string[]) {
   })
 }
 
+/**
+ * Where a buyer or owner opens: the classic Marketplace account, which lists what the account holds. The
+ * profile page shows only what is equipped, and what a customer collects is what a creator is looking for.
+ */
+function accountHref(address: string): string {
+  return `${config.marketplaceUrl}/accounts/${address.toLowerCase()}`
+}
+
 function buyerName(address: string, profiles?: Map<string, ProfileAvatar>): string {
   const name = profiles?.get(address.toLowerCase())?.name
   return name ? capitalizeFirst(name) : shortAddress(address)
@@ -335,6 +334,23 @@ function royaltyOf(volumeWei: bigint): bigint {
 }
 
 /** MANA wei to a readable figure. Two decimals under ten, none above: a creator reads 0.37 and 1,204. */
+/**
+ * Holds a paged table at the tallest height it has reached, so a short last page leaves room below instead of
+ * shrinking and pulling the pager up under the pointer. Off for a table that fits on one page; the reset key
+ * starts over when what the table lists changes (another period, a different number of pages).
+ */
+function useStableHeight<T extends HTMLElement>(active: boolean, resetKey: string) {
+  const ref = useRef<T>(null)
+  const [tallest, setTallest] = useState(0)
+  useEffect(() => setTallest(0), [resetKey])
+  useLayoutEffect(() => {
+    if (!active || !ref.current) return
+    const height = ref.current.offsetHeight
+    if (height > tallest) setTallest(height)
+  })
+  return { ref, style: active && tallest > 0 ? { minHeight: tallest } : undefined }
+}
+
 /** Which currency the page's amounts are written in; read by every {@link Amount} without threading it through. */
 const CurrencyContext = createContext<StoreCurrency>('mana')
 
@@ -1052,25 +1068,30 @@ export function MyStore() {
     return sortRows(collections, value, collectionSort.dir)
   }, [stats, sort, collectionSort, currency])
 
-  /** What is selling across the whole store, which the per-collection ordering cannot answer. */
+  /**
+   * Over all time a store's best seller is the item that brought in the most, not the one that moved the
+   * most copies; over a week or a month, copies are the better read. Either way a header click overrides it.
+   */
+  const bestSortInForce: ColumnSort<BestColumn> | null =
+    bestSort ?? (period === 'all' ? { key: 'earnings', dir: 'desc' } : null)
   const best = useMemo(() => {
-    // The rank is the best-seller position, so it is taken before any re-sort and travels with the row.
-    const ranked = bestSellers(stats?.collections ?? [], Infinity).map((entry, index) => ({
-      ...entry,
-      rank: index + 1
-    }))
-    if (!bestSort) return ranked
+    const entries = bestSellers(stats?.collections ?? [], Infinity)
     const value = {
-      name: (e: (typeof ranked)[number]) => e.name,
-      collection: (e: (typeof ranked)[number]) => e.collectionName,
-      sold: (e: (typeof ranked)[number]) => e.sold,
-      earnings: (e: (typeof ranked)[number]) =>
+      name: (e: (typeof entries)[number]) => e.name,
+      collection: (e: (typeof entries)[number]) => e.collectionName,
+      sold: (e: (typeof entries)[number]) => e.sold,
+      earnings: (e: (typeof entries)[number]) =>
         currency === 'usd' ? (itemUsd.get(e.key.toLowerCase()) ?? null) : e.earnedWei
-    }[bestSort.key]
-    return sortRows(ranked, value, bestSort.dir)
-  }, [stats, bestSort, currency, itemUsd])
+    }
+    // The rank is the position in the default order (copies, or earnings over all time), taken before any
+    // header sort and carried with the row.
+    const byDefault = period === 'all' ? sortRows(entries, value.earnings, 'desc') : entries
+    const ranked = byDefault.map((entry, index) => ({ ...entry, rank: index + 1 }))
+    if (!bestSort) return ranked
+    return sortRows(ranked, value[bestSort.key], bestSort.dir)
+  }, [stats, bestSort, currency, itemUsd, period])
   function sortBest(key: BestColumn, first: SortDir) {
-    const next = nextSort(bestSort, key, first)
+    const next = nextSort(bestSortInForce, key, first)
     trackStore('Shop Sorted Store Table', { table: 'best_sellers', column: next.key, direction: next.dir })
     setBestSort(next)
     setBestPage(0)
@@ -1090,6 +1111,13 @@ export function MyStore() {
       sortedCollections.slice(collectionPageShown * COLLECTIONS_SHOWN, (collectionPageShown + 1) * COLLECTIONS_SHOWN),
     [sortedCollections, collectionPageShown]
   )
+
+  const heightKey = `${resolved.from ?? 'all'}-${resolved.to}`
+  const collectionsHeight = useStableHeight<HTMLDivElement>(collectionPages > 1, `${heightKey}-${collectionPages}`)
+  const bestHeight = useStableHeight<HTMLDivElement>(bestPages > 1, `${heightKey}-${bestPages}`)
+  const salesHeight = useStableHeight<HTMLDivElement>((mock ? 1 : sales.pages) > 1, `${heightKey}-${sales.pages}`)
+  const buyersHeight = useStableHeight<HTMLDivElement>(buyerPages > 1, `${heightKey}-${buyerPages}`)
+  const ownersHeight = useStableHeight<HTMLDivElement>(ownerPages > 1, `${ownerSort.key}-${ownerPages}`)
 
   if (access === 'off') return <Navigate to="/" replace />
 
@@ -1418,13 +1446,13 @@ export function MyStore() {
                 </S.Tiles>
 
                 <S.Panel aria-labelledby="store-chart-h" data-testid="store-chart-panel">
-                  <S.PanelHeadStack>
-                    <div>
-                      <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
-                      <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
-                    </div>
-                  </S.PanelHeadStack>
                   <StoreSalesPanel
+                    heading={
+                      <div>
+                        <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
+                        <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
+                      </div>
+                    }
                     address={session?.address}
                     range={resolved}
                     rows={chartRows}
@@ -1511,7 +1539,7 @@ export function MyStore() {
                     <S.Empty>{t('myStore.noCollections')}</S.Empty>
                   ) : (
                     <>
-                      <S.List>
+                      <S.List ref={collectionsHeight.ref} style={collectionsHeight.style}>
                         <S.ColHead>
                           <span />
                           <span />
@@ -1644,25 +1672,25 @@ export function MyStore() {
                     {best.length === 0 ? (
                       <S.Empty>{t('myStore.noBestSellers')}</S.Empty>
                     ) : (
-                      <S.FeedWrap>
+                      <S.FeedWrap ref={bestHeight.ref} style={bestHeight.style}>
                         <S.BestFeed>
                           <thead>
                             <tr>
-                              <th scope="col" aria-sort={ariaSort(dirOf(bestSort, 'name'))}>
+                              <th scope="col" aria-sort={ariaSort(dirOf(bestSortInForce, 'name'))}>
                                 <S.RankCell>
                                   <S.Rank aria-hidden>#</S.Rank>
                                   <SortHeader
                                     label={t('myStore.colItem')}
-                                    dir={dirOf(bestSort, 'name')}
+                                    dir={dirOf(bestSortInForce, 'name')}
                                     testId="store-sort-best-name"
                                     onSort={() => sortBest('name', 'asc')}
                                   />
                                 </S.RankCell>
                               </th>
-                              <th scope="col" aria-sort={ariaSort(dirOf(bestSort, 'collection'))}>
+                              <th scope="col" aria-sort={ariaSort(dirOf(bestSortInForce, 'collection'))}>
                                 <SortHeader
                                   label={t('myStore.colCollection')}
-                                  dir={dirOf(bestSort, 'collection')}
+                                  dir={dirOf(bestSortInForce, 'collection')}
                                   testId="store-sort-best-collection"
                                   onSort={() => sortBest('collection', 'asc')}
                                 />
@@ -1670,11 +1698,11 @@ export function MyStore() {
                               <th
                                 scope="col"
                                 style={{ textAlign: 'center' }}
-                                aria-sort={ariaSort(dirOf(bestSort, 'sold'))}
+                                aria-sort={ariaSort(dirOf(bestSortInForce, 'sold'))}
                               >
                                 <SortHeader
                                   label={t('myStore.colSold')}
-                                  dir={dirOf(bestSort, 'sold')}
+                                  dir={dirOf(bestSortInForce, 'sold')}
                                   testId="store-sort-best-sold"
                                   onSort={() => sortBest('sold', 'desc')}
                                 />
@@ -1682,11 +1710,11 @@ export function MyStore() {
                               <th
                                 scope="col"
                                 style={{ textAlign: 'right' }}
-                                aria-sort={ariaSort(dirOf(bestSort, 'earnings'))}
+                                aria-sort={ariaSort(dirOf(bestSortInForce, 'earnings'))}
                               >
                                 <SortHeader
                                   label={t('myStore.colEarnings')}
-                                  dir={dirOf(bestSort, 'earnings')}
+                                  dir={dirOf(bestSortInForce, 'earnings')}
                                   align="right"
                                   testId="store-sort-best-earnings"
                                   onSort={() => sortBest('earnings', 'desc')}
@@ -1770,7 +1798,7 @@ export function MyStore() {
                     {salesRows.length === 0 ? (
                       <S.Empty>{t('myStore.noSales')}</S.Empty>
                     ) : (
-                      <S.FeedWrap>
+                      <S.FeedWrap ref={salesHeight.ref} style={salesHeight.style}>
                         <S.SaleFeed>
                           <thead>
                             <tr>
@@ -1844,7 +1872,7 @@ export function MyStore() {
                                       </S.FaceSkeleton>
                                     ) : (
                                       <S.Buyer
-                                        href={`${config.profileUrl}/${row.buyer}`}
+                                        href={accountHref(row.buyer)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         onClick={() =>
@@ -1986,7 +2014,7 @@ export function MyStore() {
                   {trend.buyers.length === 0 ? (
                     <S.Empty data-testid="store-buyers-none">{t('myStore.noBuyers')}</S.Empty>
                   ) : (
-                    <S.FeedWrap>
+                    <S.FeedWrap ref={buyersHeight.ref} style={buyersHeight.style}>
                       <S.BuyerFeed>
                         <thead>
                           <tr>
@@ -2032,7 +2060,7 @@ export function MyStore() {
                               <tr key={buyer.address} data-testid="store-buyer">
                                 <td>
                                   <S.Buyer
-                                    href={`${config.profileUrl}/${buyer.address}`}
+                                    href={accountHref(buyer.address)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={() =>
@@ -2110,7 +2138,7 @@ export function MyStore() {
                     ) : owners.total === 0 ? (
                       <S.Empty data-testid="store-owners-none">{t('myStore.noOwners')}</S.Empty>
                     ) : (
-                      <S.FeedWrap>
+                      <S.FeedWrap ref={ownersHeight.ref} style={ownersHeight.style}>
                         <S.OwnerFeed>
                           <thead>
                             <tr>
@@ -2149,7 +2177,7 @@ export function MyStore() {
                                 <tr key={owner.address} data-testid="store-owner">
                                   <td>
                                     <S.Buyer
-                                      href={`${config.profileUrl}/${owner.address}`}
+                                      href={accountHref(owner.address)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={() =>

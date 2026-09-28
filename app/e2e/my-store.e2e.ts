@@ -86,7 +86,8 @@ describe('when a creator opens their store', () => {
       target: el.getAttribute('target'),
       rel: el.getAttribute('rel')
     }))
-    expect(buyer.href).toMatch(/\/0xaca5bc79b0cd51b726d2eadfc747f7ad4dfe7efb$/)
+    // The Marketplace account page, which lists what the buyer holds, not the profile, which shows what they wear.
+    expect(buyer.href).toMatch(/\/accounts\/0xaca5bc79b0cd51b726d2eadfc747f7ad4dfe7efb$/)
     expect(buyer.target).toBe('_blank')
     expect(buyer.rel).toContain('noopener')
 

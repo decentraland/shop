@@ -715,7 +715,7 @@
     "savesHint": "{count, plural, =0 {Nadie lo guardó todavía} one {# persona lo guardó} other {# personas lo guardaron}}",
     "colEarnings": "Ganado",
     "bestSellers": "Artículos más vendidos",
-    "bestSellersSub": "{n, plural, one {Tu artículo más vendido} other {Tus # artículos más vendidos}} en este período",
+    "bestSellersSub": "{n, plural, one {El artículo que} other {Los # artículos que}} se vendieron en este período, solo primeras ventas: las reventas de tus artículos no cuentan aquí",
     "noBestSellers": "Todavía no se vendió nada en este período.",
     "recentSales": "Ventas recientes",
     "recentSalesSub": "Las últimas ventas de tus colecciones",
