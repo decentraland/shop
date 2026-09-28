@@ -1782,13 +1782,7 @@ export const AudienceTiles = styled.div`
   }
 `
 
-/**
- * The buyers table. Same table, its own column widths.
- *
- * The sales feed's widths are tuned for an item name and a thumbnail in the first cell; here the first
- * cell is a person and the three after it are small counts, so reusing those widths left the numbers
- * stranded at the far right of columns twice the width they need.
- */
+/** The royalties table: an item and a person, then two amounts. */
 export const RoyaltyFeed = styled(Feed)`
   thead th:nth-of-type(1) {
     width: 34%;
@@ -1836,6 +1830,13 @@ export const TileAction = styled.button`
   }
 `
 
+/**
+ * The buyers table. Same table, its own column widths.
+ *
+ * The sales feed's widths are tuned for an item name and a thumbnail in the first cell; here the first
+ * cell is a person and the three after it are small counts, so reusing those widths left the numbers
+ * stranded at the far right of columns twice the width they need.
+ */
 export const BuyerFeed = styled(Feed)`
   thead th:nth-of-type(1) {
     width: 40%;
