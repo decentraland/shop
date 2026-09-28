@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CurrencyMark } from '~/components/CurrencyMark'
 import { SalesChart } from '~/components/SalesChart'
@@ -80,7 +80,8 @@ export function StoreSalesPanel({
   onTrack,
   comparisonRows,
   currency,
-  rateBook
+  rateBook,
+  heading
 }: {
   address: string | undefined
   range: ResolvedRange
@@ -94,6 +95,8 @@ export function StoreSalesPanel({
   /** Which currency earnings are drawn in; dollars convert each sale at its own day's close. */
   currency: StoreCurrency
   rateBook: RateBook
+  /** The panel's title block, drawn on the controls' row so the filters sit to its right like the page header's. */
+  heading: ReactNode
 }) {
   const [metric, setMetric] = useState<Metric>('sales')
   const [compareChoice, setCompareChoice] = useState<CompareMode>('previous')
@@ -186,64 +189,67 @@ export function StoreSalesPanel({
 
   return (
     <>
-      <S.Controls>
-        <S.Metric role="group" aria-label={t('myStore.chart.metric')}>
-          {(['sales', 'earnings'] as Metric[]).map(key => (
-            <S.MetricBtn
-              key={key}
-              type="button"
-              aria-pressed={metric === key}
-              onClick={() => {
-                onTrack('Shop Changed Store Chart', { control: 'metric', value: key })
-                setMetric(key)
+      <S.Head>
+        {heading}
+        <S.Controls>
+          <S.Metric role="group" aria-label={t('myStore.chart.metric')}>
+            {(['sales', 'earnings'] as Metric[]).map(key => (
+              <S.MetricBtn
+                key={key}
+                type="button"
+                aria-pressed={metric === key}
+                onClick={() => {
+                  onTrack('Shop Changed Store Chart', { control: 'metric', value: key })
+                  setMetric(key)
+                }}
+                data-testid={`store-chart-metric-${key}`}
+              >
+                {t(`myStore.chart.${key}`)}
+              </S.MetricBtn>
+            ))}
+          </S.Metric>
+          {range.from != null ? (
+            <S.Select
+              options={compareOptions}
+              value={compare}
+              onChange={value => {
+                onTrack('Shop Changed Store Chart', { control: 'compare', value })
+                setCompareChoice(value as CompareMode)
               }}
-              data-testid={`store-chart-metric-${key}`}
-            >
-              {t(`myStore.chart.${key}`)}
-            </S.MetricBtn>
-          ))}
-        </S.Metric>
-        {range.from != null ? (
-          <S.Select
-            options={compareOptions}
-            value={compare}
-            onChange={value => {
-              onTrack('Shop Changed Store Chart', { control: 'compare', value })
-              setCompareChoice(value as CompareMode)
-            }}
-            ariaLabel={t('myStore.chart.compare')}
-            className="store-chart-compare"
-          />
-        ) : null}
-        {collections.length > 1 ? (
-          <S.Select
-            options={collectionOptions}
-            value={collection}
-            onChange={value => {
-              onTrack('Shop Changed Store Chart', { control: 'collection', value: value === 'all' ? 'all' : 'one' })
-              setCollection(value)
-              setItem('all')
-            }}
-            ariaLabel={t('myStore.chart.collection')}
-            className="store-chart-collection"
-          />
-        ) : null}
-        {scoped && scoped.items.length > 1 ? (
-          <S.Select
-            options={[
-              { value: 'all', label: t('myStore.chart.allItems') },
-              ...scoped.items.map(i => ({ value: i.itemId, label: i.name }))
-            ]}
-            value={item}
-            onChange={value => {
-              onTrack('Shop Changed Store Chart', { control: 'item', value: value === 'all' ? 'all' : 'one' })
-              setItem(value)
-            }}
-            ariaLabel={t('myStore.chart.item')}
-            className="store-chart-item"
-          />
-        ) : null}
-      </S.Controls>
+              ariaLabel={t('myStore.chart.compare')}
+              className="store-chart-compare"
+            />
+          ) : null}
+          {collections.length > 1 ? (
+            <S.Select
+              options={collectionOptions}
+              value={collection}
+              onChange={value => {
+                onTrack('Shop Changed Store Chart', { control: 'collection', value: value === 'all' ? 'all' : 'one' })
+                setCollection(value)
+                setItem('all')
+              }}
+              ariaLabel={t('myStore.chart.collection')}
+              className="store-chart-collection"
+            />
+          ) : null}
+          {scoped && scoped.items.length > 1 ? (
+            <S.Select
+              options={[
+                { value: 'all', label: t('myStore.chart.allItems') },
+                ...scoped.items.map(i => ({ value: i.itemId, label: i.name }))
+              ]}
+              value={item}
+              onChange={value => {
+                onTrack('Shop Changed Store Chart', { control: 'item', value: value === 'all' ? 'all' : 'one' })
+                setItem(value)
+              }}
+              ariaLabel={t('myStore.chart.item')}
+              className="store-chart-item"
+            />
+          ) : null}
+        </S.Controls>
+      </S.Head>
 
       <S.Totals>
         <S.Total data-testid="store-chart-total">

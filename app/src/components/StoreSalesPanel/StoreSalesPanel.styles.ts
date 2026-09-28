@@ -2,11 +2,25 @@ import styled from '@emotion/styled'
 import { Dropdown } from '~/components/Dropdown'
 import { theme } from '~/styles/theme'
 
+/** Title on the left, filters on the right, as in the page header; below the title when they do not fit. */
+export const Head = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+`
+
 export const Controls = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+
+  ${theme.media.maxWidth('mobile')} {
+    justify-content: flex-start;
+  }
 `
 
 export const Metric = styled.div`

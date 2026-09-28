@@ -1,4 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
@@ -323,6 +334,23 @@ function royaltyOf(volumeWei: bigint): bigint {
 }
 
 /** MANA wei to a readable figure. Two decimals under ten, none above: a creator reads 0.37 and 1,204. */
+/**
+ * Holds a paged table at the tallest height it has reached, so a short last page leaves room below instead of
+ * shrinking and pulling the pager up under the pointer. Off for a table that fits on one page; the reset key
+ * starts over when what the table lists changes (another period, a different number of pages).
+ */
+function useStableHeight<T extends HTMLElement>(active: boolean, resetKey: string) {
+  const ref = useRef<T>(null)
+  const [tallest, setTallest] = useState(0)
+  useEffect(() => setTallest(0), [resetKey])
+  useLayoutEffect(() => {
+    if (!active || !ref.current) return
+    const height = ref.current.offsetHeight
+    if (height > tallest) setTallest(height)
+  })
+  return { ref, style: active && tallest > 0 ? { minHeight: tallest } : undefined }
+}
+
 /** Which currency the page's amounts are written in; read by every {@link Amount} without threading it through. */
 const CurrencyContext = createContext<StoreCurrency>('mana')
 
@@ -1084,6 +1112,13 @@ export function MyStore() {
     [sortedCollections, collectionPageShown]
   )
 
+  const heightKey = `${resolved.from ?? 'all'}-${resolved.to}`
+  const collectionsHeight = useStableHeight<HTMLDivElement>(collectionPages > 1, `${heightKey}-${collectionPages}`)
+  const bestHeight = useStableHeight<HTMLDivElement>(bestPages > 1, `${heightKey}-${bestPages}`)
+  const salesHeight = useStableHeight<HTMLDivElement>((mock ? 1 : sales.pages) > 1, `${heightKey}-${sales.pages}`)
+  const buyersHeight = useStableHeight<HTMLDivElement>(buyerPages > 1, `${heightKey}-${buyerPages}`)
+  const ownersHeight = useStableHeight<HTMLDivElement>(ownerPages > 1, `${ownerSort.key}-${ownerPages}`)
+
   if (access === 'off') return <Navigate to="/" replace />
 
   if (!session && !mock) {
@@ -1411,13 +1446,13 @@ export function MyStore() {
                 </S.Tiles>
 
                 <S.Panel aria-labelledby="store-chart-h" data-testid="store-chart-panel">
-                  <S.PanelHeadStack>
-                    <div>
-                      <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
-                      <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
-                    </div>
-                  </S.PanelHeadStack>
                   <StoreSalesPanel
+                    heading={
+                      <div>
+                        <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
+                        <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
+                      </div>
+                    }
                     address={session?.address}
                     range={resolved}
                     rows={chartRows}
@@ -1504,7 +1539,7 @@ export function MyStore() {
                     <S.Empty>{t('myStore.noCollections')}</S.Empty>
                   ) : (
                     <>
-                      <S.List>
+                      <S.List ref={collectionsHeight.ref} style={collectionsHeight.style}>
                         <S.ColHead>
                           <span />
                           <span />
@@ -1637,7 +1672,7 @@ export function MyStore() {
                     {best.length === 0 ? (
                       <S.Empty>{t('myStore.noBestSellers')}</S.Empty>
                     ) : (
-                      <S.FeedWrap>
+                      <S.FeedWrap ref={bestHeight.ref} style={bestHeight.style}>
                         <S.BestFeed>
                           <thead>
                             <tr>
@@ -1763,7 +1798,7 @@ export function MyStore() {
                     {salesRows.length === 0 ? (
                       <S.Empty>{t('myStore.noSales')}</S.Empty>
                     ) : (
-                      <S.FeedWrap>
+                      <S.FeedWrap ref={salesHeight.ref} style={salesHeight.style}>
                         <S.SaleFeed>
                           <thead>
                             <tr>
@@ -1979,7 +2014,7 @@ export function MyStore() {
                   {trend.buyers.length === 0 ? (
                     <S.Empty data-testid="store-buyers-none">{t('myStore.noBuyers')}</S.Empty>
                   ) : (
-                    <S.FeedWrap>
+                    <S.FeedWrap ref={buyersHeight.ref} style={buyersHeight.style}>
                       <S.BuyerFeed>
                         <thead>
                           <tr>
@@ -2103,7 +2138,7 @@ export function MyStore() {
                     ) : owners.total === 0 ? (
                       <S.Empty data-testid="store-owners-none">{t('myStore.noOwners')}</S.Empty>
                     ) : (
-                      <S.FeedWrap>
+                      <S.FeedWrap ref={ownersHeight.ref} style={ownersHeight.style}>
                         <S.OwnerFeed>
                           <thead>
                             <tr>
