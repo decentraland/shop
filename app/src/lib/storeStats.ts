@@ -103,7 +103,8 @@ export type StoreStats = {
   /** Collections whose listing state could not be read, so their items carry no status. */
   unknownCollections: number
   /** Resales of this creator's items, by anyone. Volume traded, not what they were paid. */
-  royalties: { resales: number; volumeWei: bigint } | null
+  /** `paidWei` is what the resales actually paid in royalties, when the server reports it; null means estimate. */
+  royalties: { resales: number; volumeWei: bigint; paidWei: bigint | null } | null
   /** Days the trend lines span. Shorter than the period when the rows do not reach back that far. */
   trendDays: number
   listed: number
@@ -337,7 +338,13 @@ export function buildStoreStats({
     unattributed: summary ? summary.total - attributedSold : rows.length - attributedRows,
     trendDays,
     unknownCollections: [...byAddress.keys()].filter(ca => unreadable?.has(ca)).length,
-    royalties: summary ? { resales: summary.royalties.resales, volumeWei: weiOf(summary.royalties.volumeWei) } : null,
+    royalties: summary
+      ? {
+          resales: summary.royalties.resales,
+          volumeWei: weiOf(summary.royalties.volumeWei),
+          paidWei: summary.royalties.royaltiesWei != null ? weiOf(summary.royalties.royaltiesWei) : null
+        }
+      : null,
     listed,
     neverListed,
     classic,

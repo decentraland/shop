@@ -782,7 +782,17 @@
     "currencyUsd": "En dólares, al día de cada venta",
     "noUsd": "Todavía no hay cotización en dólares para este día",
     "usdUnpriced": "{count, plural, one {# venta cae} other {# ventas caen}} en un día sin cotización en dólares todavía, así que las cifras en dólares {count, plural, one {la dejan} other {las dejan}} afuera.",
-    "usdUnavailable": "Las cifras en dólares no están disponibles ahora."
+    "usdUnavailable": "Las cifras en dólares no están disponibles ahora.",
+    "royaltiesShow": "Ver cada reventa",
+    "royaltiesHide": "Ocultar reventas",
+    "royaltiesTitle": "Regalías por reventas",
+    "royaltiesSub": "Cada reventa de tus artículos en este período y la regalía que te pagó",
+    "royaltiesLoading": "Cargando reventas…",
+    "royaltiesError": "No pudimos cargar las reventas ahora. Prueba de nuevo en un momento.",
+    "royaltiesNone": "Ninguno de tus artículos se revendió en este período.",
+    "colResoldFor": "Revendido por",
+    "colRoyalty": "Tu regalía",
+    "royaltiesCount": "{count, plural, one {# reventa} other {# reventas}}"
   },
   "myAssets": {
     "signInTitle": "Inicia sesión para ver tus artículos",

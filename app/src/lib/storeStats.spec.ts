@@ -371,7 +371,15 @@ describe('buildStoreStats with the server summary', () => {
     expect(stats.mints).toBe(8_400)
     expect(stats.resales).toBe(600)
     expect(stats.earningsWei).toBe(4_500_000_000_000_000_000_000n)
-    expect(stats.royalties).toEqual({ resales: 77, volumeWei: 900_000_000_000_000_000_000n })
+    expect(stats.royalties).toEqual({ resales: 77, volumeWei: 900_000_000_000_000_000_000n, paidWei: null })
+  })
+
+  it('reports what the resales actually paid when the server says so', () => {
+    const stats = withSummary({
+      summary: { ...summary, royalties: { ...summary.royalties, royaltiesWei: '22500000000000000000' } }
+    })
+
+    expect(stats.royalties?.paidWei).toBe(22_500_000_000_000_000_000n)
   })
 
   it("carries each item's lifetime sales, which no window of rows can answer", () => {
