@@ -1,6 +1,7 @@
 import type { SaleRow } from '~/lib/sales'
 import type { StoreCollection, StoreItem, StoreStats } from '~/lib/storeStats'
 import type { Buyer, Collectors } from '~/lib/storeMetrics'
+import type { TopOwner, TopOwnersSort } from '~/lib/owners'
 
 /**
  * A store invented for looking at, reachable at `/my-store?mock=1`.
@@ -170,6 +171,37 @@ export const mockBuyers: Buyer[] = Array.from({ length: 12 }, (_, i) => ({
   spentWei: BigInt(900 - i * 62) * 10n ** 18n,
   lastAt: NOW - (i + 1) * 9 * 3_600_000
 }))
+
+const TOP_OWNERS: TopOwner[] = Array.from({ length: 23 }, (_, i) => ({
+  address: `0x${(i + 7).toString(16).padStart(2, '0').repeat(20)}`,
+  nfts: Math.max(1, 31 - i * 2 + (i % 3)),
+  items: Math.max(1, 12 - i),
+  collections: Math.max(1, 6 - Math.floor(i / 3)),
+  lastAcquiredAt: NOW - ((i * 7) % 23) * DAY - i * 3_600_000,
+  // One who holds little but spent the most, so sorting by spend visibly reorders the list.
+  spentWei: String(BigInt(i === 5 ? 2400 : 1200 - i * 45) * 10n ** 18n)
+}))
+
+/** A page of the invented store's owners, sorted and paged the way the server does it. */
+export function mockTopOwners(
+  sort: { key: TopOwnersSort; dir: 'asc' | 'desc' },
+  page: number,
+  perPage: number
+): { data: TopOwner[]; total: number } {
+  const value = (o: TopOwner): number =>
+    sort.key === 'items'
+      ? o.items
+      : sort.key === 'collections'
+        ? o.collections
+        : sort.key === 'recent'
+          ? o.lastAcquiredAt
+          : sort.key === 'spent'
+            ? Number(BigInt(o.spentWei) / 10n ** 18n)
+            : o.nfts
+  const sign = sort.dir === 'asc' ? 1 : -1
+  const sorted = [...TOP_OWNERS].sort((a, b) => sign * (value(a) - value(b)) || b.nfts - a.nfts)
+  return { data: sorted.slice(page * perPage, (page + 1) * perPage), total: sorted.length }
+}
 
 /**
  * Two discounts, on the two collections whose rows read differently because of them: one on the store's
