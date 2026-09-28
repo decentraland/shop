@@ -302,6 +302,10 @@ export const CurrencySwitch = styled.div`
     justify-content: center;
     min-width: 40px;
   }
+  /* The page drives the MANA mark white for its dark panels; on the selected, white pill it vanished. */
+  button[aria-pressed='true'] [data-kind='mana'] img {
+    filter: none;
+  }
 `
 
 export const CurrencyNote = styled.p`
