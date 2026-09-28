@@ -1,4 +1,4 @@
-import type { SaleRow } from '~/lib/sales'
+import type { RoyaltyRow, SaleRow } from '~/lib/sales'
 import type { StoreCollection, StoreItem, StoreStats } from '~/lib/storeStats'
 import type { Buyer, Collectors } from '~/lib/storeMetrics'
 import type { TopOwner, TopOwnersSort } from '~/lib/owners'
@@ -152,7 +152,7 @@ export const mockStats: StoreStats = (() => {
     unattributed: 6,
     trendDays: 30,
     unknownCollections: 1,
-    royalties: { resales: 41, volumeWei: 2140n * 10n ** 18n },
+    royalties: { resales: 41, volumeWei: 2140n * 10n ** 18n, paidWei: 5350n * 10n ** 16n },
     listed: collections.reduce((n, c) => n + c.listed, 0),
     neverListed: collections.reduce((n, c) => n + c.items.filter(i => i.state === 'unlisted').length, 0),
     classic: collections.reduce((n, c) => n + c.classic, 0),
@@ -325,3 +325,28 @@ export const mockRateBook: Map<string, number> = (() => {
   }
   return book
 })()
+
+/** A page of resales of the invented store's items, with the royalty each paid, newest first. */
+export function mockRoyalties(
+  page: number,
+  perPage: number
+): { data: RoyaltyRow[]; total: number; royaltiesWei: string } {
+  const rows: RoyaltyRow[] = Array.from({ length: 41 }, (_, i) => {
+    const [contractAddress, item] = SALE_ITEMS[(i * 3) % SALE_ITEMS.length]
+    const price = BigInt(8 + ((i * 37) % 90)) * 10n ** 18n
+    return {
+      id: `mock-royalty-${i}`,
+      timestamp: NOW - i * 17 * 3_600_000 - 40 * 60_000,
+      contractAddress,
+      itemId: item.itemId,
+      tokenId: String(100 + i),
+      priceWei: String(price),
+      royaltyWei: String((price * 25n) / 1000n),
+      collector: '0xmockcreator0000000000000000000000000001',
+      buyer: `0x${(i + 20).toString(16).padStart(2, '0').repeat(20)}`,
+      seller: `0x${(i + 60).toString(16).padStart(2, '0').repeat(20)}`
+    }
+  })
+  const total = rows.reduce((sum, row) => sum + BigInt(row.royaltyWei), 0n)
+  return { data: rows.slice(page * perPage, (page + 1) * perPage), total: rows.length, royaltiesWei: String(total) }
+}

@@ -782,7 +782,17 @@
     "currencyUsd": "In dollars, at each sale’s day",
     "noUsd": "No dollar rate for this day yet",
     "usdUnpriced": "{count, plural, one {# sale falls} other {# sales fall}} on a day with no dollar rate yet, so the dollar figures leave {count, plural, one {it} other {them}} out.",
-    "usdUnavailable": "Dollar figures are not available right now."
+    "usdUnavailable": "Dollar figures are not available right now.",
+    "royaltiesShow": "See each resale",
+    "royaltiesHide": "Hide resales",
+    "royaltiesTitle": "Royalties from resales",
+    "royaltiesSub": "Every resale of your items in this period and the royalty it paid you",
+    "royaltiesLoading": "Loading resales…",
+    "royaltiesError": "Resales could not be loaded right now. Try again in a moment.",
+    "royaltiesNone": "None of your items was resold in this period.",
+    "colResoldFor": "Resold for",
+    "colRoyalty": "Your royalty",
+    "royaltiesCount": "{count, plural, one {# resale} other {# resales}}"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",

@@ -1782,6 +1782,54 @@ export const AudienceTiles = styled.div`
   }
 `
 
+/** The royalties table: an item and a person, then two amounts. */
+export const RoyaltyFeed = styled(Feed)`
+  thead th:nth-of-type(1) {
+    width: 34%;
+  }
+  thead th:nth-of-type(2) {
+    width: 14%;
+  }
+  thead th:nth-of-type(3) {
+    width: 22%;
+  }
+  thead th:nth-of-type(4) {
+    width: 15%;
+  }
+  thead th:nth-of-type(5) {
+    width: 15%;
+  }
+`
+
+/** The tile's way into its detail: a quiet link-button under the figures, tappable without growing the tile. */
+export const TileAction = styled.button`
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px -4px -6px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: ${theme.colors.softWhite};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: ${theme.colors.navViolet};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+`
+
 /**
  * The buyers table. Same table, its own column widths.
  *

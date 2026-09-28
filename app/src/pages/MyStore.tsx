@@ -53,7 +53,7 @@ import {
 import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { fetchProfiles, type ProfileAvatar } from '~/lib/profile'
 import { useProfile } from '~/hooks/useProfile'
-import { fetchSalesPage, weiOf } from '~/lib/sales'
+import { fetchRoyalties, fetchSalesPage, weiOf } from '~/lib/sales'
 import { bestSellers, deltaOf } from '~/lib/storeMetrics'
 import type { Delta } from '~/lib/storeMetrics'
 import { config } from '~/config'
@@ -65,6 +65,7 @@ import {
   mockChartRows,
   mockCollectors,
   mockRateBook,
+  mockRoyalties,
   mockSaleRows,
   mockSales,
   mockSaves,
@@ -95,6 +96,8 @@ const BUYERS_PER_PAGE = 5
 const BEST_PER_PAGE = 5
 
 const OWNERS_PER_PAGE = 5
+
+const ROYALTIES_PER_PAGE = 5
 
 const EMPTY_RATES: RateBook = new Map()
 /** The invented store's rate for figures that are not tied to a day. */
@@ -333,7 +336,6 @@ function royaltyOf(volumeWei: bigint): bigint {
   return (volumeWei * ROYALTY_RATE_PPM) / 1_000_000n
 }
 
-/** MANA wei to a readable figure. Two decimals under ten, none above: a creator reads 0.37 and 1,204. */
 /**
  * Holds a paged table at the tallest height it has reached, so a short last page leaves room below instead of
  * shrinking and pulling the pager up under the pointer. Off for a table that fits on one page; the reset key
@@ -379,6 +381,7 @@ function Amount({ wei, usd }: { wei: bigint; usd: number | null | undefined }) {
   )
 }
 
+/** MANA wei to a readable figure. Two decimals under ten, none above: a creator reads 0.37 and 1,204. */
 function mana(wei: bigint): string {
   const whole = Number(wei / 10n ** 14n) / 10_000
   return whole >= 10 ? Math.round(whole).toLocaleString() : whole.toFixed(2)
@@ -871,6 +874,8 @@ export function MyStore() {
   const [buyerSort, setBuyerSort] = useState<ColumnSort<BuyerColumn> | null>(null)
   const [ownerSort, setOwnerSort] = useState<ColumnSort<TopOwnersSort>>({ key: 'nfts', dir: 'desc' })
   const [ownerPage, setOwnerPage] = useState(0)
+  const [royaltiesOpen, setRoyaltiesOpen] = useState(false)
+  const [royaltyPage, setRoyaltyPage] = useState(0)
   const [issuing, setIssuing] = useState<{
     item: Pick<StoreItem, 'itemId' | 'name' | 'thumbnail' | 'left'>
     contractAddress: string
@@ -1023,6 +1028,37 @@ export function MyStore() {
   }, [ownersRead.error])
   const owners = mock ? mockTopOwners(ownerSort, ownerPage, OWNERS_PER_PAGE) : ownersRead.data
   const ownerPages = Math.max(1, Math.ceil((owners?.total ?? 0) / OWNERS_PER_PAGE))
+  // Each resale of the creator's items and the royalty it paid, read only once the creator opens the list.
+  const royaltiesRead = useQuery({
+    queryKey: ['store-royalties', session?.address, resolved.from ?? null, resolved.to, royaltyPage],
+    enabled: royaltiesOpen && !mock && !!session,
+    placeholderData: previous => previous,
+    queryFn: () =>
+      fetchRoyalties({
+        creator: session!.address,
+        from: resolved.from,
+        to: resolved.to,
+        first: ROYALTIES_PER_PAGE,
+        skip: royaltyPage * ROYALTIES_PER_PAGE
+      })
+  })
+  const royalties = mock ? mockRoyalties(royaltyPage, ROYALTIES_PER_PAGE) : royaltiesRead.data
+  const royaltyPages = Math.max(1, Math.ceil((royalties?.total ?? 0) / ROYALTIES_PER_PAGE))
+  const royaltyBuyers = useMemo(
+    () => [...new Set((royalties?.data ?? []).map(r => r.buyer.toLowerCase()))].sort(),
+    [royalties]
+  )
+  const { data: royaltyProfiles } = useBuyerNames(royaltyBuyers)
+  /** The catalogue by item, so a resale row can show the item it moved, not just its ids. */
+  const itemsByKey = useMemo(
+    () =>
+      new Map(
+        (stats?.collections ?? []).flatMap(c =>
+          c.items.map(i => [`${c.contractAddress.toLowerCase()}-${i.itemId}`, { item: i, collection: c.name }] as const)
+        )
+      ),
+    [stats]
+  )
   /** What a reward can be issued from: every item of the store with copies left, most left first. */
   const rewardItems = useMemo(
     () =>
@@ -1118,6 +1154,7 @@ export function MyStore() {
   const salesHeight = useStableHeight<HTMLDivElement>((mock ? 1 : sales.pages) > 1, `${heightKey}-${sales.pages}`)
   const buyersHeight = useStableHeight<HTMLDivElement>(buyerPages > 1, `${heightKey}-${buyerPages}`)
   const ownersHeight = useStableHeight<HTMLDivElement>(ownerPages > 1, `${ownerSort.key}-${ownerPages}`)
+  const royaltiesHeight = useStableHeight<HTMLDivElement>(royaltyPages > 1, `${heightKey}-${royaltyPages}`)
 
   if (access === 'off') return <Navigate to="/" replace />
 
@@ -1981,9 +2018,10 @@ export function MyStore() {
                         <S.TileMark aria-hidden>🔁</S.TileMark>
                       </S.TileKey>
                       <S.TileValue data-testid="store-royalties">
-                        <S.Approx>≈</S.Approx>
+                        {/* Exact once the server reports what each resale paid; an estimate from volume before. */}
+                        {stats.royalties.paidWei != null ? null : <S.Approx>≈</S.Approx>}
                         <CurrencyMark kind="mana" />
-                        {mana(royaltyOf(stats.royalties.volumeWei))}
+                        {mana(stats.royalties.paidWei ?? royaltyOf(stats.royalties.volumeWei))}
                       </S.TileValue>
                       <S.TileFoot>
                         <DeltaTag delta={trend.royalties} period={period} />
@@ -2002,9 +2040,151 @@ export function MyStore() {
                           </span>
                         )}
                       </S.TileFoot>
+                      {stats.royalties.resales > 0 ? (
+                        <S.TileAction
+                          type="button"
+                          aria-expanded={royaltiesOpen}
+                          aria-controls="store-royalties-panel"
+                          onClick={() => {
+                            if (!royaltiesOpen) trackStore('Shop Clicked Store Action', { action: 'open_royalties' })
+                            setRoyaltiesOpen(open => !open)
+                            setRoyaltyPage(0)
+                          }}
+                          data-testid="store-royalties-open"
+                        >
+                          {t(royaltiesOpen ? 'myStore.royaltiesHide' : 'myStore.royaltiesShow')}
+                          <Icon
+                            name="chevron-down"
+                            size={14}
+                            aria-hidden
+                            style={{ transform: royaltiesOpen ? 'rotate(180deg)' : undefined }}
+                          />
+                        </S.TileAction>
+                      ) : null}
                     </S.Tile>
                   ) : null}
                 </S.AudienceTiles>
+
+                {royaltiesOpen ? (
+                  <S.Panel
+                    id="store-royalties-panel"
+                    aria-labelledby="store-royalties-h"
+                    data-testid="store-royalties-panel"
+                  >
+                    <S.PanelHead>
+                      <S.PanelTitle id="store-royalties-h">{t('myStore.royaltiesTitle')}</S.PanelTitle>
+                      <S.PanelHint>{t('myStore.royaltiesSub')}</S.PanelHint>
+                    </S.PanelHead>
+                    {!royalties ? (
+                      royaltiesRead.isError ? (
+                        <S.Empty data-testid="store-royalties-error">{t('myStore.royaltiesError')}</S.Empty>
+                      ) : (
+                        <S.Empty>{t('myStore.royaltiesLoading')}</S.Empty>
+                      )
+                    ) : royalties.total === 0 ? (
+                      <S.Empty data-testid="store-royalties-none">{t('myStore.royaltiesNone')}</S.Empty>
+                    ) : (
+                      <S.FeedWrap ref={royaltiesHeight.ref} style={royaltiesHeight.style}>
+                        <S.RoyaltyFeed>
+                          <thead>
+                            <tr>
+                              <th scope="col">{t('myStore.colItem')}</th>
+                              <th scope="col">{t('myStore.colDate')}</th>
+                              <th scope="col">{t('myStore.colBuyer')}</th>
+                              <th scope="col" style={{ textAlign: 'right' }}>
+                                {t('myStore.colResoldFor')}
+                              </th>
+                              <th scope="col" style={{ textAlign: 'right' }}>
+                                {t('myStore.colRoyalty')}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {royalties.data.map(row => {
+                              const found =
+                                row.itemId === null
+                                  ? undefined
+                                  : itemsByKey.get(`${row.contractAddress.toLowerCase()}-${row.itemId}`)
+                              const face = royaltyProfiles?.get(row.buyer.toLowerCase())?.avatar?.snapshots?.face256
+                              const at = { timestamp: row.timestamp }
+                              return (
+                                <tr key={row.id} data-testid="store-royalty">
+                                  <td>
+                                    <S.SaleItem
+                                      as="a"
+                                      {...(row.itemId
+                                        ? {
+                                            href: appHref(itemHref(row.contractAddress, row.itemId, env)),
+                                            target: '_blank',
+                                            rel: 'noopener noreferrer'
+                                          }
+                                        : {})}
+                                    >
+                                      <S.SaleThumb style={{ backgroundImage: rarityMedia(found?.item.rarity) }}>
+                                        {found?.item.thumbnail ? (
+                                          <img src={found.item.thumbnail} alt="" loading="lazy" />
+                                        ) : null}
+                                      </S.SaleThumb>
+                                      <S.SaleLines>
+                                        <span>{found?.item.name ?? t('myStore.unknownItem')}</span>
+                                        {found ? <small>{found.collection}</small> : null}
+                                      </S.SaleLines>
+                                    </S.SaleItem>
+                                  </td>
+                                  <td data-dim>{ago(row.timestamp)}</td>
+                                  <td>
+                                    <S.Buyer href={accountHref(row.buyer)} target="_blank" rel="noopener noreferrer">
+                                      <S.Face
+                                        style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                        aria-hidden
+                                      />
+                                      {buyerName(row.buyer, royaltyProfiles)}
+                                    </S.Buyer>
+                                  </td>
+                                  <td data-money data-dim>
+                                    <S.Money>
+                                      <Amount
+                                        wei={weiOf(row.priceWei)}
+                                        usd={usdOfSale({ ...at, price: row.priceWei }, rateBook)}
+                                      />
+                                    </S.Money>
+                                  </td>
+                                  <td data-money data-testid="store-royalty-amount">
+                                    <S.Money>
+                                      <Amount
+                                        wei={weiOf(row.royaltyWei)}
+                                        usd={usdOfSale({ ...at, price: row.royaltyWei }, rateBook)}
+                                      />
+                                    </S.Money>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </S.RoyaltyFeed>
+                      </S.FeedWrap>
+                    )}
+                    {royalties && royaltyPages > 1 ? (
+                      <S.ListFoot>
+                        <span>
+                          {t('myStore.royaltiesCount', { count: royalties.total })}
+                          {' · '}
+                          <CurrencyMark kind="mana" />
+                          {mana(weiOf(royalties.royaltiesWei))}
+                        </span>
+                        <Pager
+                          page={Math.min(royaltyPage, royaltyPages - 1)}
+                          pages={royaltyPages}
+                          onChange={next => {
+                            trackStore('Shop Paged Store Table', { table: 'royalties', page: next + 1 })
+                            setRoyaltyPage(next)
+                          }}
+                          name="royalties"
+                        />
+                      </S.ListFoot>
+                    ) : null}
+                  </S.Panel>
+                ) : null}
 
                 <S.Panel aria-labelledby="store-buyers-h">
                   <S.PanelHead>
