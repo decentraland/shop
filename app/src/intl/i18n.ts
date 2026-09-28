@@ -42,6 +42,11 @@ export function setActiveLocale(locale: Locale): void {
   active = getIntl(locale)
 }
 
+/** The locale strings are rendered in, for number and date formatting outside `t()`. */
+export function activeLocale(): string {
+  return active.locale
+}
+
 // Localized string for a key. Interpolation: t('x.y', { name }). Missing keys fall back to the id.
 export function t(id: string, values?: Record<string, string | number>): string {
   return active.formatMessage({ id }, values)

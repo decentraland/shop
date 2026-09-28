@@ -63,6 +63,8 @@ const colors = {
   // The warm stop of `gradients.flare`/`ember`. Named because SVG gradient stops need the raw hex —
   // a CSS gradient string can't be handed to a <stop> (see Icons/CreditMarkIcon).
   flareAmber: '#ffbc5b',
+  // The comparison line on a chart whose current period is dclRed, validated for colour-blind separation on the store's dark panels.
+  chartCompare: '#8f7cf0',
   ok: '#1ea672',
   err: '#d33',
   // Saturated solid-fill variants of ok/err (badges, success checks, toast accents)
