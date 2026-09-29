@@ -96,6 +96,8 @@ export const config = {
    */
   previewHost: import.meta.env.DEV || (typeof window !== 'undefined' && isPreviewHost(window.location.hostname)),
   marketplaceServerUrl: env.VITE_MARKETPLACE_SERVER_URL ?? base.get('MARKETPLACE_SERVER_URL'),
+  cameraReelUrl: env.VITE_CAMERA_REEL_URL ?? base.get('CAMERA_REEL_URL'),
+  placesApiUrl: env.VITE_PLACES_API_URL ?? base.get('PLACES_API_URL'),
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),
   rpcUrl: env.VITE_RPC_URL ?? base.get('RPC_URL'),

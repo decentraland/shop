@@ -423,6 +423,20 @@
       "generic": "Não conseguimos concluir a compra. Tente de novo."
     }
   },
+  "photoReel": {
+    "wornBy": "Usado por",
+    "photoBy": "Foto de",
+    "zoomIn": "Clique para ampliar",
+    "zoomOut": "Clique para reduzir",
+    "jumpIn": "Ir para este lugar",
+    "jumpInCta": "Entrar",
+    "title": "Visto em Decentraland",
+    "subtitle": "Veja como a comunidade combina",
+    "openAria": "Abrir a foto de {name} em {place}",
+    "prev": "Fotos anteriores",
+    "next": "Mais fotos",
+    "close": "Fechar"
+  },
   "itemDetail": {
     "genderMale": "Masculino",
     "genderFemale": "Feminino",
