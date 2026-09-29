@@ -63,7 +63,10 @@
   },
   "common": {
     "copy": "Kopieren",
-    "copied": "Kopiert"
+    "copied": "Kopiert",
+    "sortColumn": "Nach {column} sortieren",
+    "sortedAsc": "{column}, aufsteigend sortiert. Klicke, um absteigend zu sortieren",
+    "sortedDesc": "{column}, absteigend sortiert. Klicke, um aufsteigend zu sortieren"
   },
   "collection": {
     "breadcrumb": "Sammlerstücke",
@@ -511,7 +514,8 @@
     "issuing": "Wird ausgegeben…",
     "toastSuccess": "{count} {count, plural, one {Exemplar} other {Exemplare}} von „{name}“ ausgegeben.",
     "successBody": "{count} {count, plural, one {Exemplar} other {Exemplare}} von „{name}“ ausgegeben.",
-    "errorGeneric": "Deine Exemplare konnten nicht ausgegeben werden – bitte versuch es noch mal."
+    "errorGeneric": "Deine Exemplare konnten nicht ausgegeben werden – bitte versuch es noch mal.",
+    "overBatch": "Du kannst bis zu {max, plural, one {# Exemplar} other {# Exemplare}} auf einmal ausgeben."
   },
   "resales": {
     "modalTitle": "Andere Wiederverkäufer",
@@ -686,7 +690,6 @@
     "tileCollectorsConcentrated": "1 Käufer macht {pct} % der Verkäufe aus",
     "tileSoldFootMintsOnly": "{mints, plural, one {# Erstverkauf} other {# Erstverkäufe}}",
     "tileSoldNone": "In diesem Zeitraum nichts verkauft",
-    "sortSelling": "Aktive zuerst",
     "collExhausted": "ausverkauft",
     "audience": "Deine Zielgruppe",
     "audienceSub": "Wer kauft und was diese Käufer dir wert sind.",
@@ -723,7 +726,73 @@
     "colClaimed": "Vergeben",
     "viewPublicStore": "Öffentlichen Store ansehen",
     "editStore": "Store bearbeiten",
-    "performance": "Store-Performance"
+    "performance": "Store-Performance",
+    "sortCustom": "Nach Spalte sortiert",
+    "issueCopies": "Exemplare ausgeben",
+    "sortEarned": "Höchste Einnahmen",
+    "owners": "Top-Besitzer",
+    "ownersHint": "Wer deine Artikel heute besitzt, egal wie. Unabhängig vom Zeitraum oben.",
+    "ownersUnavailable": "Dein Store ist gerade zu groß, um seine Besitzer zu ranken. Versuch es in ein paar Minuten noch mal.",
+    "noOwners": "Noch besitzt niemand deine Artikel.",
+    "colOwner": "Besitzer",
+    "colOwned": "Anzahl",
+    "colAcquired": "Zuletzt",
+    "ownersCount": "{count, plural, one {# Besitzer} other {# Besitzer}}",
+    "rewardOwners": "Besitzer belohnen",
+    "period90d": "90 Tage",
+    "periodyear": "Dieses Jahr",
+    "periodcustom": "Benutzerdefiniert",
+    "vs90d": "ggü. den 90 Tagen davor",
+    "vsPrevious": "ggü. dem Zeitraum davor",
+    "chart": {
+      "title": "Verkäufe im Zeitverlauf",
+      "sub": "Wie der Zeitraum lief, im Vergleich zu dem, den du gewählt hast",
+      "metric": "Kennzahl",
+      "sales": "Verkäufe",
+      "earnings": "Einnahmen",
+      "compare": "Vergleichen mit",
+      "comparePrevious": "Vorheriger Zeitraum",
+      "compareYear": "Gleicher Zeitraum im Vorjahr",
+      "compareNone": "Kein Vergleich",
+      "collection": "Kollektion",
+      "allCollections": "Alle Kollektionen",
+      "thisPeriod": "Dieser Zeitraum",
+      "previousPeriod": "Vorheriger Zeitraum",
+      "lastYear": "Vorjahr",
+      "change": "{pct} %",
+      "date": "Datum",
+      "ariaSales": "Verkäufe pro Zeitraum, {span}",
+      "ariaEarnings": "Einnahmen pro Zeitraum, {span}",
+      "empty": "In diesem Zeitraum gibt es noch keine Verkäufe.",
+      "partial": "Dein Store hat mehr Verkäufe, als dieses Diagramm auf einmal lesen kann, daher zeigt es die neuesten.",
+      "byWeek": "Jeder Punkt ist eine Woche.",
+      "byMonth": "Jeder Punkt ist ein Monat.",
+      "allItems": "Alle Artikel",
+      "item": "Artikel",
+      "roleDescription": "Diagramm",
+      "unpriced": "{count, plural, one {# Verkauf hat} other {# Verkäufe haben}} noch keinen Dollarkurs und {count, plural, one {fehlt} other {fehlen}} in der Dollar-Linie."
+    },
+    "rangePickStart": "Wähle den ersten Tag",
+    "rangePickEnd": "{from} – wähle den letzten Tag",
+    "rangeDialog": "Zeitraum auswählen",
+    "rangeCancel": "Abbrechen",
+    "rangeApply": "Anwenden",
+    "currency": "Währung",
+    "currencyPaid": "Was du erhalten hast",
+    "currencyUsd": "In Dollar, zum Tag jedes Verkaufs",
+    "noUsd": "Für diesen Tag gibt es noch keinen Dollarkurs",
+    "usdUnpriced": "{count, plural, one {# Verkauf fällt} other {# Verkäufe fallen}} auf einen Tag ohne Dollarkurs, daher {count, plural, one {ist er} other {sind sie}} in den Dollarwerten nicht enthalten.",
+    "usdUnavailable": "Dollarwerte sind gerade nicht verfügbar.",
+    "royaltiesShow": "Jeden Weiterverkauf ansehen",
+    "royaltiesHide": "Weiterverkäufe ausblenden",
+    "royaltiesTitle": "Lizenzgebühren aus Weiterverkäufen",
+    "royaltiesSub": "Jeder Weiterverkauf deiner Artikel in diesem Zeitraum und die Lizenzgebühr, die er dir eingebracht hat",
+    "royaltiesLoading": "Weiterverkäufe werden geladen…",
+    "royaltiesError": "Die Weiterverkäufe konnten gerade nicht geladen werden. Versuch es gleich noch mal.",
+    "royaltiesNone": "In diesem Zeitraum wurde keiner deiner Artikel weiterverkauft.",
+    "colResoldFor": "Weiterverkauft für",
+    "colRoyalty": "Deine Lizenzgebühr",
+    "royaltiesCount": "{count, plural, one {# Weiterverkauf} other {# Weiterverkäufe}}"
   },
   "myAssets": {
     "signInTitle": "Melde dich an, um deine Artikel zu sehen",
@@ -844,13 +913,10 @@
     "suggested": {
       "title": "Für dich empfohlen",
       "reason": {
-        "coOwned": "Weil du {item} hast",
-        "generic": "Für dich ausgewählt",
-        "creatorAffinity": "Mehr von einem Creator, den du sammelst",
-        "favoriteSimilar": "Ähnlich wie deine Favoriten",
-        "equippedSimilar": "Passt zu deinem aktuellen Outfit",
-        "seedSimilar": "Ähnlich wie Artikel, die du angesehen hast",
-        "trending": "Angesagt"
+        "owned": "Basierend auf deinen Artikeln",
+        "favorites": "Basierend auf deinen Favoriten",
+        "creator": "Weil dir dieser Creator gefällt",
+        "activity": "Basierend auf deiner Aktivität"
       }
     }
   },
@@ -1453,5 +1519,25 @@
   "removeListing": {
     "title": "Vom Verkauf nehmen?",
     "body": "„{name}“ ist dann nicht mehr im Shop verfügbar. Du kannst es jederzeit wieder zum Verkauf anbieten."
+  },
+  "reward": {
+    "title": "Belohne deine Top-Besitzer",
+    "subtitle": "Sende jeder der Personen, die die meisten deiner Artikel besitzen, ein neues Exemplar eines Artikels.",
+    "howMany": "Wie viele",
+    "topN": "Top {count}",
+    "rankedBy": "Sortiert nach",
+    "ranking": {
+      "nfts": "Meiste Artikel",
+      "spent": "Höchste Ausgaben",
+      "recent": "Neueste"
+    },
+    "item": "Zu sendender Artikel",
+    "itemLeft": "{collection} · {left} übrig",
+    "noItems": "Keiner deiner Artikel hat noch Exemplare zum Versenden.",
+    "recipients": "{count, plural, one {# Empfänger} other {# Empfänger}}",
+    "heldLine": "· besitzt {count}",
+    "stock": "Dadurch {count, plural, one {wird # neues Exemplar} other {werden # neue Exemplare}} von „{name}“ ausgegeben, {left, plural, one {vom # übrigen} other {von den # übrigen}}.",
+    "notEnough": "Von „{name}“ {left, plural, one {ist nur noch # übrig} other {sind nur noch # übrig}}. Wähle weniger Personen oder einen anderen Artikel.",
+    "continue": "Weiter"
   }
 }
