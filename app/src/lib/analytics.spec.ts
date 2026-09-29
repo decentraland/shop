@@ -56,20 +56,35 @@ function loadedScript() {
   return document.querySelector<HTMLScriptElement>('script[data-global-segment-analytics-key]')
 }
 
+const getIsFeatureEnabled = vi.fn<() => Promise<boolean>>()
+
 /**
- * Re-imports the analytics module against a forced config and user agent. A fresh import is what lets a
- * spec exercise the loader at all: the module resolves its config, its bot check and its `initialized`
- * latch once, at import time.
+ * Re-imports the analytics module against a forced config, user agent and proxy flag. A fresh import is
+ * what lets a spec exercise the loader at all: the module resolves its config, its bot check and its
+ * `initialized` latch once, at import time.
  */
-async function loadAnalytics(configOverrides: Record<string, unknown>, userAgent = CHROME) {
+async function loadAnalytics(
+  configOverrides: Record<string, unknown>,
+  { userAgent = CHROME, proxyFlag = true }: { userAgent?: string; proxyFlag?: boolean } = {}
+) {
   document.querySelectorAll('script[data-global-segment-analytics-key]').forEach(node => node.remove())
   ;(window as unknown as { analytics?: unknown }).analytics = undefined
   setUserAgent(userAgent)
+  getIsFeatureEnabled.mockReset().mockResolvedValue(proxyFlag)
   vi.resetModules()
   vi.doMock('~/config', () => ({
     config: { chainId: 80002, network: 'polygon', appEnv: 'test', segmentAnalyticsUrl: '', ...configOverrides }
   }))
+  vi.doMock('~/lib/featureFlags', () => ({
+    FeatureFlag: { SEGMENT_PROXY: 'segment-proxy' },
+    getIsFeatureEnabled
+  }))
   return import('./analytics')
+}
+
+// The loader decides where to fetch analytics.js from only after the proxy flag has been read.
+async function untilLoaded() {
+  await vi.waitFor(() => expect(loadedScript()).not.toBeNull())
 }
 
 beforeEach(() => {
@@ -79,6 +94,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.doUnmock('~/config')
+  vi.doUnmock('~/lib/featureFlags')
   vi.resetModules()
   setUserAgent(ORIGINAL_USER_AGENT)
   document.querySelectorAll('script[data-global-segment-analytics-key]').forEach(node => node.remove())
@@ -343,7 +359,7 @@ describe('initAnalytics', () => {
     const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
     mod.initAnalytics()
 
-    expect(loadedScript()).not.toBeNull()
+    await untilLoaded()
     expect((window as unknown as { analytics?: unknown }).analytics).toBeDefined()
   })
 
@@ -353,6 +369,7 @@ describe('initAnalytics', () => {
     // in production; this pins them so the failure is a red test instead.
     const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
     mod.initAnalytics()
+    await untilLoaded()
 
     const snippet = analyticsGlobal()
     expect(snippet?.invoked).toBe(true)
@@ -365,21 +382,44 @@ describe('initAnalytics', () => {
 // its settings endpoint from `_cdn`, so a proxy that only serves the script still gets blocked.
 describe('first-party analytics proxy', () => {
   const PROXY = 'https://evs.example.org/eas.js'
+  const SEGMENT_CDN = 'https://cdn.segment.com/analytics.js/'
 
-  it('serves analytics.js from the configured proxy and points the settings endpoint at it', async () => {
-    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY })
+  it('serves analytics.js from the proxy and points the settings endpoint at it when the flag is on', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY }, { proxyFlag: true })
     mod.initAnalytics()
 
+    await untilLoaded()
     expect(loadedScript()?.src).toBe(PROXY)
     expect(analyticsGlobal()?._cdn).toBe('https://evs.example.org')
   })
 
-  it("falls back to Segment's CDN when no proxy url is configured", async () => {
+  it("serves analytics.js from Segment's CDN when the flag is off, even with a proxy configured", async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY }, { proxyFlag: false })
+    mod.initAnalytics()
+
+    await untilLoaded()
+    expect(loadedScript()?.src).toContain(SEGMENT_CDN)
+    expect(analyticsGlobal()?._cdn).toBeUndefined()
+  })
+
+  it("serves analytics.js from Segment's CDN when the flag cannot be read", async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY })
+    getIsFeatureEnabled.mockRejectedValue(new Error('flag service down'))
+    mod.initAnalytics()
+
+    await untilLoaded()
+    expect(loadedScript()?.src).toContain(SEGMENT_CDN)
+    expect(analyticsGlobal()?._cdn).toBeUndefined()
+  })
+
+  it("falls back to Segment's CDN, without reading the flag, when no proxy url is configured", async () => {
     const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: '' })
     mod.initAnalytics()
 
-    expect(loadedScript()?.src).toContain('https://cdn.segment.com/analytics.js/')
+    await untilLoaded()
+    expect(loadedScript()?.src).toContain(SEGMENT_CDN)
     expect(analyticsGlobal()?._cdn).toBeUndefined()
+    expect(getIsFeatureEnabled).not.toHaveBeenCalled()
   })
 
   it("falls back to Segment's CDN when the configured proxy url is not usable", async () => {
@@ -389,13 +429,33 @@ describe('first-party analytics proxy', () => {
     })
     mod.initAnalytics()
 
-    expect(loadedScript()?.src).toContain('https://cdn.segment.com/analytics.js/')
+    await untilLoaded()
+    expect(loadedScript()?.src).toContain(SEGMENT_CDN)
     expect(analyticsGlobal()?._cdn).toBeUndefined()
+  })
+
+  it('queues events fired while the flag is being read, so the first page view survives the wait', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY })
+    let decide: (on: boolean) => void = () => {}
+    getIsFeatureEnabled.mockReturnValue(new Promise<boolean>(resolve => (decide = resolve)))
+    mod.initAnalytics()
+
+    mod.track('Shop Viewed Page', { page: 'overview' })
+
+    // The snippet stub is an array of queued [method, ...args] calls until analytics.js replays them.
+    const queued = (window as unknown as { analytics: unknown[][] }).analytics
+    expect(queued.some(call => call[0] === 'track' && call[1] === 'Shop Viewed Page')).toBe(true)
+    expect(loadedScript()).toBeNull()
+
+    decide(true)
+    await untilLoaded()
+    expect(loadedScript()?.src).toBe(PROXY)
   })
 
   it('still tracks through the proxied analytics once it has loaded', async () => {
     const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY })
     mod.initAnalytics()
+    await untilLoaded()
     const spy = vi.fn()
     ;(window as unknown as { analytics?: unknown }).analytics = {
       track: spy,
@@ -471,7 +531,7 @@ describe('analytics identity for the support widget', () => {
   })
 
   it('never calls a listener for a crawler', async () => {
-    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, GOOGLEBOT)
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, { userAgent: GOOGLEBOT })
     const listener = vi.fn()
     mod.onAnalyticsReady(listener)
 
@@ -484,7 +544,7 @@ describe('analytics identity for the support widget', () => {
 
 describe('bot traffic', () => {
   it('sends nothing at all when the visitor is a crawler', async () => {
-    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, GOOGLEBOT)
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, { userAgent: GOOGLEBOT })
     mod.initAnalytics()
 
     // No loader ran...
@@ -514,7 +574,7 @@ describe('bot traffic', () => {
   })
 
   it('keeps tracking for an ordinary browser user agent', async () => {
-    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, CHROME)
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, { userAgent: CHROME })
     const spy = vi.fn()
     ;(window as unknown as { analytics?: unknown }).analytics = {
       track: spy,

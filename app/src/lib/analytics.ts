@@ -4,8 +4,9 @@
 //
 // - No-ops (logs to console in dev) when VITE_SEGMENT_WRITE_KEY is empty, so local/dev never sends.
 // - No-ops for crawlers, so bot traffic never enters the funnel.
-// - analytics.js is served from a first-party proxy (config.segmentAnalyticsUrl), because ad blockers
-//   drop cdn.segment.com and take a large share of real users' events with it.
+// - analytics.js is served from a first-party proxy (config.segmentAnalyticsUrl) behind the
+//   `segment-proxy` flag, because ad blockers drop cdn.segment.com and take a large share of real
+//   users' events with it. Flag off → Segment's CDN, so a broken proxy is one flag flip away from fixed.
 // - Injects the common context props on every event (address, is_signed_in, session_id, network, app_env).
 // - Event names/props are INTERNAL (precise); nothing here is user-facing, so no web2/web3 copy rules apply.
 // - Never emit PII, secrets, or .env values. Wallet addresses are pseudonymous public ids (allowed).
@@ -13,6 +14,8 @@ import { ProviderType } from '@dcl/schemas'
 import { isbot } from 'isbot'
 import { configureAnalyticsSnippet, installAnalyticsSnippet } from 'decentraland-dapps/dist/modules/analytics/snippet'
 import { config } from '~/config'
+import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
+import { captureError } from '~/lib/monitoring'
 import { useWallet } from '~/store/wallet'
 import type { CatalogItem } from '~/lib/api'
 
@@ -43,6 +46,11 @@ const APP_ENV = config.chainId === 80002 ? 'dev' : 'prod'
 // load rather than per event: the user agent cannot change under us and the match is a sizeable regex.
 const IS_BOT = typeof navigator !== 'undefined' && isbot(navigator.userAgent)
 
+// True from `initAnalytics` deciding to load until `load` has run. Deciding takes a flag read, and the
+// snippet stub is the right destination meanwhile: it queues every call and replays it once analytics.js
+// arrives, so the first page view is not lost to the wait.
+let loadPending = false
+
 function segment(): SegmentApi | undefined {
   if (IS_BOT) return undefined
   const a = (window as unknown as { analytics?: SegmentApi }).analytics
@@ -53,7 +61,7 @@ function segment(): SegmentApi | undefined {
   // the dev console instead of piling up in an array. Re-check this on any decentraland-dapps upgrade
   // that moves the snippet (dist/modules/analytics/snippet) to a new analytics.js major.
   const stubAwaitingLoad = !!a.invoked && !a._writeKey && typeof a.initialize !== 'function'
-  return stubAwaitingLoad ? undefined : a
+  return stubAwaitingLoad && !loadPending ? undefined : a
 }
 
 /** Segment's anonymous id, or undefined before analytics.js has loaded (and for bots). */
@@ -228,19 +236,40 @@ export function isUserRejection(e: unknown): boolean {
 }
 
 /**
- * Loads analytics.js through `decentraland-dapps`' snippet, pointed at the first-party proxy.
- *
- * Setting only the script src is not enough: analytics.js resolves its SETTINGS endpoint from
- * `analytics._cdn`, and that request goes to Segment's CDN — and gets blocked — unless `_cdn` names the
- * proxy origin too. `configureAnalyticsSnippet` does both, and ignores a url that is not valid https, so
- * a missing or broken proxy falls back to Segment's CDN rather than losing tracking altogether.
+ * The first-party proxy url when the `segment-proxy` flag says to use it, else undefined for
+ * Segment's CDN. The flag is only read when a proxy is configured at all, and any failure reading it
+ * counts as off: the CDN is the path known to work, so it is where every doubt resolves.
  */
-function loadSegment(writeKey: string): void {
-  configureAnalyticsSnippet({ analyticsUrl: config.segmentAnalyticsUrl || undefined })
-  installAnalyticsSnippet()
-  const analytics = (window as unknown as { analytics?: SegmentApi }).analytics
-  analytics?.load?.(writeKey)
-  analytics?.page()
+async function proxyAnalyticsUrl(): Promise<string | undefined> {
+  const url = config.segmentAnalyticsUrl
+  if (!url) return undefined
+  try {
+    return (await getIsFeatureEnabled(FeatureFlag.SEGMENT_PROXY)) ? url : undefined
+  } catch (e) {
+    captureError(e, { flow: 'analytics', step: 'read_proxy_flag' })
+    return undefined
+  }
+}
+
+/**
+ * Loads analytics.js through `decentraland-dapps`' snippet, from the first-party proxy or Segment's CDN.
+ *
+ * Setting only the script src is not enough for the proxy: analytics.js resolves its SETTINGS endpoint
+ * from `analytics._cdn`, and that request goes to Segment's CDN — and gets blocked — unless `_cdn` names
+ * the proxy origin too. `configureAnalyticsSnippet` does both, and ignores a url that is not valid https,
+ * so a broken proxy url falls back to Segment's CDN rather than losing tracking altogether.
+ */
+async function loadSegment(writeKey: string): Promise<void> {
+  try {
+    configureAnalyticsSnippet({ analyticsUrl: await proxyAnalyticsUrl() })
+    // Importing the snippet module already installed the stub; installing it twice logs an error.
+    const w = window as unknown as { analytics?: SegmentApi }
+    if (!w.analytics?.invoked) installAnalyticsSnippet()
+    w.analytics?.load?.(writeKey)
+    w.analytics?.page()
+  } finally {
+    loadPending = false
+  }
 }
 
 let initialized = false
@@ -257,9 +286,10 @@ export function initAnalytics(): void {
     pendingReady = null
     return
   }
-  loadSegment(writeKey)
+  loadPending = true
   const waiting = pendingReady ?? []
   pendingReady = null
   const a = segment()
   for (const callback of waiting) a?.ready?.(callback)
+  void loadSegment(writeKey).catch(e => captureError(e, { flow: 'analytics', step: 'load' }))
 }
