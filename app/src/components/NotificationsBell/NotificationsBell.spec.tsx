@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ShopNotification } from '~/lib/notifications'
+import { useLocale } from '~/store/locale'
 
 const session = {
   address: '0xabc0000000000000000000000000000000000abc',
@@ -29,8 +30,10 @@ vi.mock('~/lib/notifications', () => ({
 // PANEL — its list, its order and its unread state — and doesn't need a MUI theme provider. The real
 // renderers are driven in e2e/notifications.e2e.ts.
 vi.mock('decentraland-ui2/dist/components/Notifications/utils', () => {
-  const Row = ({ notification }: { notification: ShopNotification }) => (
-    <div data-testid={`row-${notification.id}`}>{String((notification.metadata as { nftName: string }).nftName)}</div>
+  const Row = ({ notification, locale }: { notification: ShopNotification; locale: string }) => (
+    <div data-testid={`row-${notification.id}`} data-locale={locale}>
+      {String((notification.metadata as { nftName: string }).nftName)}
+    </div>
   )
   return { NotificationComponentByType: { item_sold: Row, royalties_earned: Row } }
 })
@@ -63,6 +66,7 @@ function renderBell() {
 }
 
 beforeEach(() => {
+  useLocale.setState({ locale: 'en' })
   walletState = { session }
   fetchNotifications.mockReset().mockResolvedValue([])
   markNotificationsRead.mockReset().mockResolvedValue(undefined)
@@ -125,6 +129,20 @@ describe('NotificationsBell', () => {
 
       expect(await screen.findAllByTestId('notification-item')).toHaveLength(1)
       expect(screen.getByTestId('row-known')).toBeTruthy()
+    })
+
+    // ui2 indexes its copy by locale with no fallback, so a locale it lacks would crash the row.
+    it.each([
+      ['es', 'es'],
+      ['pt', 'en'],
+      ['de', 'en']
+    ] as const)('renders the rows in a language ui2 has copy for (%s → %s)', async (shop, rendered) => {
+      useLocale.setState({ locale: shop })
+      fetchNotifications.mockResolvedValue([notification('only')])
+      renderBell()
+      await userEvent.click(await screen.findByTestId('notifications-bell'))
+
+      expect((await screen.findByTestId('row-only')).getAttribute('data-locale')).toBe(rendered)
     })
 
     it('shows the empty state when the service has nothing', async () => {

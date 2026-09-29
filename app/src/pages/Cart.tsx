@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
@@ -9,12 +9,11 @@ import { detailRouteFor } from '~/lib/routes'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } from '~/lib/credits'
-import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { useManaRate } from '~/hooks/useManaRate'
 import type { ManaRate } from '~/lib/mana-convert'
-import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
+import { manaRateQueryOptions, usdCentsToManaWei } from '~/lib/mana-rate'
 import { buyManyWithMana, manaSpenderFor, purchaseFor, targetChainId } from '~/lib/buy-mana'
 import {
   computePaymentOptions,
@@ -25,6 +24,7 @@ import {
 } from '~/lib/payment-options'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
+import { recordCouponUses } from '~/store/couponUses'
 import {
   AuthorizationKind,
   ensureAuthorization,
@@ -39,8 +39,8 @@ import manaLight from '~/assets/mana-matic-light.svg'
 import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { EmptyState } from '~/components/EmptyState'
 import { ContractName, getContract } from 'decentraland-transactions'
-import { resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
-import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase } from '~/lib/buy'
+import { resolveLiveCoupon, resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
+import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase, type ListingCoupon } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import {
   purchaseTargetFor,
@@ -60,7 +60,7 @@ import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
 import { Price } from '~/components/Price'
-import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
@@ -69,6 +69,10 @@ import { isRejection, isInsufficient } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
+import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
+import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { Icon } from '~/components/Icon'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import type { CatalogItem } from '~/lib/api'
@@ -140,6 +144,9 @@ type ModalState =
   // settled keeps its reservation, so that much of the balance is out until the reconciler resolves it.
   | { phase: 'error'; message?: string; heldCredits?: boolean }
 
+// Shorter than the home page's: the cart is a decision surface, not a browsing one.
+const CART_RAIL_SIZE = 8
+
 export function Cart() {
   useSeo({ title: t('nav.cart'), noindex: true })
   const items = useCart(s => s.items)
@@ -170,7 +177,9 @@ export function Cart() {
   // Try-on is only meaningful for wearables (emotes aren't "worn").
   const hasWearable = items.some(i => i.category !== 'emote')
 
-  // Last-minute upsell: more credit-buyable listings not already in the cart.
+  // Last-minute upsell, generic: more credit-buyable listings not already in the cart. Kept as the
+  // FALLBACK behind the personalised rail below — it is the first forty listings the feed returns, in no
+  // particular order, which is worth showing only when there is nothing better to say.
   const { data: suggested } = useQuery({
     queryKey: ['upsell-listings'],
     queryFn: () => fetchListings({ first: 40 }),
@@ -220,6 +229,28 @@ export function Cart() {
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
   const upsell = (suggested?.items ?? []).filter(i => !inCart.has(i.id)).slice(0, 12)
+
+  // The cart is where this rail has its best input: `buildSuggestionSeeds` puts cart lines FIRST, so the
+  // recommender is reading what the shopper has just decided they want rather than guessing from history.
+  // What is already in the basket is excluded — offering it back is the one answer that is always wrong.
+  const cartExclude = useMemo(
+    () =>
+      items
+        .map(line =>
+          line.contractAddress && line.itemId ? `${line.contractAddress.toLowerCase()}-${line.itemId}` : null
+        )
+        .filter((id): id is string => id !== null),
+    [items]
+  )
+  const personal = useSuggestedForYou(CART_RAIL_SIZE, { exclude: cartExclude })
+  const personalHidden = suggestedHiddenReason({
+    enabled: personal.enabled,
+    hasSignal: personal.hasSignal,
+    isLoading: personal.isLoading,
+    isError: personal.isError,
+    personalized: personal.result?.personalized,
+    rowCount: explainedRows(personal.result?.data ?? []).length
+  })
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
   const balanceCredits = balance?.credits ?? 0
@@ -251,6 +282,13 @@ export function Cart() {
     })
 
   const tradesIn = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'trade' ? [l.trade] : []))
+  // The creator discounts in the basket, by trade id — what buyManyWithMana needs to settle the discounted
+  // lines through acceptWithCoupon instead of paying their list price. Read off the RESOLVED line, which
+  // carries the coupon re-read at review time, never the one the cart stored.
+  const couponsIn = (lines: ResolvedLine[]): Record<string, ListingCoupon> =>
+    Object.fromEntries(
+      lines.flatMap(l => (l.acquisition === 'trade' && l.coupon ? [[l.trade.id, l.coupon] as const] : []))
+    )
 
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
@@ -575,6 +613,9 @@ export function Cart() {
         no_crypto_step: usedGasless,
         transaction_hash: hashes[0] ?? null
       })
+      // Counted before the refetch, which would come back with the figure from before this basket: the
+      // catalogue's `used` moves on a server-side poller, not on the purchase.
+      recordCouponUses(purchasedUnits.map(unit => unit.coupon))
       invalidateAfterPurchase(qc)
       // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
       // standalone success PAGE the purchased lines + tx and tell it settlement is already done
@@ -654,6 +695,8 @@ export function Cart() {
       if (boughtUnits.length > 0) {
         boughtItemIds.forEach(id => remove(id))
         setReview(null)
+        // Only the half that settled: the rest bought nothing and spent no uses.
+        recordCouponUses(boughtUnits.map(unit => unit.coupon))
         invalidateAfterPurchase(qc)
         // The half that DID go through is revenue and has to be reported as such, per settled group.
         track('Shop Completed Purchase', {
@@ -754,11 +797,7 @@ export function Cart() {
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     if (manaRate) return manaRate
     try {
-      return await qc.fetchQuery({
-        queryKey: ['mana-rate', config.chainId],
-        queryFn: () => readManaUsdRate(config.chainId),
-        staleTime: 60_000
-      })
+      return await qc.fetchQuery(manaRateQueryOptions())
     } catch {
       return undefined
     }
@@ -939,6 +978,7 @@ export function Cart() {
         // Both kinds, each batched into its own call by lib/buy-mana. A basket mixing them costs one signature
         // per kind, the same as it does on the credits rail (see groupPurchases).
         trades: tradesIn(units),
+        coupons: couponsIn(units),
         mints: mintsIn(units),
         buyer: session.address,
         signer: session.signer,
@@ -1127,7 +1167,14 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      const rev = await reviewCart(cartItems, session.address, resolveTrade, await ensureManaRate(), resolveStore)
+      const rev = await reviewCart(
+        cartItems,
+        session.address,
+        resolveTrade,
+        await ensureManaRate(),
+        resolveStore,
+        resolveLiveCoupon
+      )
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]
@@ -1195,8 +1242,13 @@ export function Cart() {
         window.location.href = cs.url // Stripe hosted checkout with the pack pre-selected
         return
       }
-      // No hosted URL (mock/dev, Stripe off): the credits page grants then resumes.
-      navigate('/credits')
+      /**
+       * No hosted URL (mock/dev, Stripe off): hand the order over the way Stripe's success_url would, so the
+       * credits page polls the grant and resumes. Landing on a bare `/credits` left it with nothing to poll
+       * — it just rendered the pack grid — so the top-up finished and the resume silently never fired.
+       */
+      if (!cs.orderId) throw new Error('Checkout returned neither a redirect url nor an order id')
+      navigate(`/credits?order=${encodeURIComponent(cs.orderId)}`)
     } catch (e) {
       try {
         sessionStorage.removeItem(RESUME_CART_KEY)
@@ -1286,6 +1338,10 @@ export function Cart() {
       </S.Checkout>
     )
   }
+
+  // Filtered, not the whole list: every pack in a no-funds picker is a promise that buying it FINISHES
+  // the checkout, and the cart was the one picker still offering ones that could not.
+  const topUpPacks = offerablePacks(OFFER_PACKS, modal?.phase === 'nofunds' ? modal.shortfall : 0).packs
 
   return (
     <S.Checkout>
@@ -1546,7 +1602,23 @@ export function Cart() {
         </S.Body>
       </S.Top>
 
-      {upsell.length > 0 ? (
+      {/* Two rails, never both. The personal one knows what is in the basket; the generic one is what a
+          shopper we know nothing about still gets. */}
+      {/* The wrapper carries 119px of its own spacing, so it has to go when the rail does — the row
+          returning null inside it would otherwise leave a gap the size of a rail. `personalHidden` is
+          null while the answer is still coming too, which is what reserves the space for the
+          placeholders instead of letting them push the page down on arrival. */}
+      {personalHidden === null && (
+        <S.Upsell data-testid="cart-personal-upsell">
+          <SuggestedForYouRow
+            exclude={cartExclude}
+            title={t('cart.suggestedTitle')}
+            surface="cart"
+            first={CART_RAIL_SIZE}
+          />
+        </S.Upsell>
+      )}
+      {personalHidden !== null && upsell.length > 0 ? (
         <S.Upsell>
           <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
         </S.Upsell>
@@ -1590,7 +1662,7 @@ export function Cart() {
           totalCredits={modal.phase === 'choose' ? sumLineCredits(modal.lines) : undefined}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
-          packs={OFFER_PACKS}
+          packs={topUpPacks}
           selectedPack={selectedPack}
           onSelectPack={setSelectedPack}
           onBuyPacks={() => void buyCreditsAndItems()}

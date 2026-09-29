@@ -21,12 +21,13 @@ import {
   buildUseCreditsArgs,
   getOnChainTrade,
   type CreditPurchase,
+  type ListingCoupon,
   type SpendableCredit,
   type StorePurchase
 } from '~/lib/trade-encoding'
 
 // Re-export the shared vocabulary so existing importers (Cart, tests) keep their `~/lib/buy` imports.
-export type { CreditPurchase, SpendableCredit, StorePurchase } from '~/lib/trade-encoding'
+export type { CreditPurchase, ListingCoupon, SpendableCredit, StorePurchase } from '~/lib/trade-encoding'
 
 /**
  * A basket line, on either purchase path. `acquisition` on the catalogue row is what picks between them:
@@ -97,11 +98,17 @@ export function purchaseGroupKey(
   // BEFORE it has a credit for it, because the credit is now authorized per group. The fields below are
   // everything the key is made of, so a draft answers it exactly as a finished purchase does.
   purchase:
-    AnyPurchase | { kind: 'store'; chainId: number } | { kind: 'trade'; trade: { chainId: number; contract: string } }
+    | AnyPurchase
+    | { kind: 'store'; chainId: number }
+    | { kind: 'trade'; trade: { chainId: number; contract: string }; coupon?: unknown }
 ): string {
-  return purchase.kind === 'store'
-    ? `store:${purchase.chainId}`
-    : `trade:${purchase.trade.chainId}:${purchase.trade.contract.toLowerCase()}`
+  if (purchase.kind === 'store') return `store:${purchase.chainId}`
+  // Discounted and undiscounted lines cannot share a transaction: `acceptWithCoupon` wants one coupon per
+  // trade, so a batch is either all discounted or none. WHICH coupon does not split the group any further —
+  // the contract pairs each trade with the coupon at its own index, so a basket of different creators'
+  // sales still settles in one call.
+  const discounted = 'coupon' in purchase && purchase.coupon ? 'coupon' : 'plain'
+  return `trade:${purchase.trade.chainId}:${purchase.trade.contract.toLowerCase()}:${discounted}`
 }
 
 /**
@@ -189,11 +196,28 @@ export function buildGroupUseCreditsArgs(
       group.purchases.map(p => p.trade),
       buyer,
       credits,
-      maxCreditedValue
+      maxCreditedValue,
+      groupCoupons(group.purchases)
     ),
     salts,
     chainId: group.chainId
   }
+}
+
+/**
+ * The coupons of a trade group, or undefined when it has none.
+ *
+ * `purchaseGroupKey` already keeps discounted and undiscounted lines apart, so a half-discounted group
+ * cannot be built by the normal path. The throw is here anyway because this is the money path: a group that
+ * somehow arrived mixed would otherwise drop the coupons and charge every line its LIST price.
+ */
+function groupCoupons(purchases: CreditPurchase[]): ListingCoupon[] | undefined {
+  const coupons = purchases.map(p => p.coupon).filter((c): c is ListingCoupon => c != null)
+  if (coupons.length === 0) return undefined
+  if (coupons.length !== purchases.length) {
+    throw new Error(`a discounted batch needs one coupon per line, got ${coupons.length} for ${purchases.length}`)
+  }
+  return coupons
 }
 
 // ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature, so
@@ -386,7 +410,7 @@ export async function transferItem(opts: {
         signer: signer as ethers.providers.JsonRpcSigner
       })
     } catch (e) {
-      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      if (declinedPrompt(e)) throw e
       // A PENDING meta-tx must NOT fall through to the direct path. Pending means no receipt yet, so the
       // relayed transaction may still mine — re-submitting the transfer directly would run it TWICE.
       // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
@@ -428,6 +452,14 @@ export type CancelWatch = {
  * Surfaced so a caller can offer the gas-paying path as the user's own decision instead of firing a second
  * wallet prompt behind their back.
  */
+// The relayer lib only recognises MetaMask's legacy "User denied message signature"; EIP-1193 wallets say
+// "User rejected the request", which comes back as UNKNOWN with the message intact. Either way the prompt
+// was declined — the seller's answer, not a relay failure.
+function declinedPrompt(e: unknown): boolean {
+  if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) return true
+  return /user (rejected|denied)/i.test((e as { message?: string } | null)?.message ?? '')
+}
+
 export class GaslessCancelFailedError extends Error {
   constructor(public readonly cause: unknown) {
     super('The gasless cancellation was not confirmed')
@@ -473,7 +505,7 @@ export async function cancelListing(opts: {
     try {
       return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller, watch)
     } catch (e) {
-      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      if (declinedPrompt(e)) throw e
       console.warn('[cancelListing] gasless meta-tx failed:', e)
       // The caller asked to be told rather than have gas spent on their behalf.
       if (mode === 'gasless-only') throw new GaslessCancelFailedError(e)
@@ -538,6 +570,13 @@ export async function buyWithCredits(opts: {
   // client-side oracle read. Legacy MANA credits omit it and we derive it from the trade.
   maxCreditedValue?: string
   /**
+   * The creator discount this listing sells at, when it has one. `maxCreditedValue` is already the
+   * DISCOUNTED cap the server sized, so if the coupon were dropped here the marketplace would ask for the
+   * list price, blow past the cap and revert the whole call — the buyer cannot be overcharged, but they
+   * also cannot buy.
+   */
+  coupon?: ListingCoupon
+  /**
    * Fired the moment the transaction is BROADCAST — the buyer confirmed and it is on its way.
    *
    * A caller that releases its reservation on ANY failure gives back money that is already spent: the
@@ -560,12 +599,12 @@ export async function buyWithCredits(opts: {
    */
   onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
-  const { trade, buyer, signer, credits, onBroadcast, onReverted } = opts
+  const { trade, buyer, signer, credits, coupon, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend')
 
   const maxCreditedValue = opts.maxCreditedValue ?? (await tradeManaPriceWei(trade))
   return buyOneWithCredits({
-    purchase: { kind: 'trade', trade, credits, maxCreditedValue },
+    purchase: { kind: 'trade', trade, coupon, credits, maxCreditedValue },
     buyer,
     signer,
     onBroadcast,

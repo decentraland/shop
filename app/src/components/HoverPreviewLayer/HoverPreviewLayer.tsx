@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+import { canHover } from '~/lib/hover'
 import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
@@ -40,6 +41,27 @@ const Wrap = styled.div`
 // cross-origin iframe never surfaces its internal content-URL tooltip.
 const IFRAME_ID = 'hover-preview'
 
+// Slack around the heart's box when cutting it out of the preview (see `notch`), so no antialiased edge
+// of the layer survives along the button's own edge.
+const NOTCH_PAD = 1
+
+// Poses a hovered WEARABLE can strike. It used to be FASHION and only FASHION, so every card in the
+// grid played the identical animation and the rail read as one avatar copy-pasted. Restricted to poses
+// that keep the avatar planted and framed inside a card-sized viewport — walk/run/jump translate it out
+// of frame, and idle is what the shopper is hovering to get away from.
+const HOVER_POSES = [
+  PreviewEmote.FASHION,
+  PreviewEmote.FASHION_2,
+  PreviewEmote.FASHION_3,
+  PreviewEmote.FASHION_4,
+  PreviewEmote.DANCE,
+  PreviewEmote.LOVE,
+  PreviewEmote.MONEY,
+  PreviewEmote.WAVE,
+  PreviewEmote.CLAP,
+  PreviewEmote.FIST_PUMP
+]
+
 // Path prefixes of the surfaces that mount a heavy WearablePreview of their own: the item PDP
 // (/item/*, /token/*), the outfit detail page and the outfit studio. Prefixes rather than exact
 // routes, so anything nested under them counts too. None of these show card hover previews.
@@ -66,22 +88,76 @@ export function HoverPreviewLayer() {
   const address = useWallet(s => s.session?.address)
   const { data: avatar } = useProfile(address)
 
-  // Defer mounting the iframe to browser idle so warming never competes with the initial page render.
+  // Defer mounting the iframe so warming never competes with the initial page render (see the effect).
   const [mounted, setMounted] = useState(false)
   const [booted, setBooted] = useState(false) // engine up (first default-avatar LOAD seen)
   const bootedRef = useRef(false)
   // The token we last asked the engine to load — a LOAD only means "ready" if it still matches.
   const loadingTokenRef = useRef(-1)
   const [rect, setRect] = useState<DOMRect | null>(null)
+  // Where the hovered card's heart sits inside this layer's box, so the layer can cut that corner away.
+  // The layer is fixed in the ROOT stacking context and the card isolates its own, so nothing the card
+  // draws can come out above it: without the cut the preview covers the heart exactly while the shopper
+  // is hovering to reach it.
+  const [notch, setNotch] = useState<{ left: number; bottom: number } | null>(null)
+  // The pose is drawn ONCE per hover and held for it: the UPDATE effect re-runs on boot/avatar changes
+  // too, and re-rolling there would snap the avatar into a different animation mid-hover. Keyed on the
+  // store's hover token, which bumps on show() and ignores re-entering the same card.
+  const poseRef = useRef({ token: -1, emote: HOVER_POSES[0] })
 
+  // Warm the engine only where the feature can be reached, and only once the page it is speculating on
+  // has finished loading.
+  //
+  // The pointer check is not a device check for its own sake: a card's hover handler bails out unless
+  // `(hover: hover)` matches (AssetCard `onEnter`, same `canHover`), so on a touch device this engine can
+  // never be asked for anything — and it was still pulling ~1.2MB of Babylon on every phone load.
+  //
+  // Waiting for `load` is not a delay picked to move a metric either. The idle callback used to run on its
+  // own with `timeout: 3000`, and on a page whose main thread is busy — which is precisely when this
+  // fires — the timeout is what wins, so the warm-up landed in the middle of the initial load and took
+  // bandwidth from the content the visitor actually asked for. Idle after `load` is the same speculation,
+  // in the window it belongs to.
+  //
+  // This is SPECULATION ONLY. Real demand does not come through here — see the effect below, which is
+  // what keeps the wait off the visitor.
   useEffect(() => {
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(() => setMounted(true), { timeout: 3000 })
-      return () => window.cancelIdleCallback(id)
+    if (!canHover()) return
+    let idle: number | undefined
+    const warm = () => {
+      idle =
+        typeof window.requestIdleCallback === 'function'
+          ? window.requestIdleCallback(() => setMounted(true), { timeout: 2000 })
+          : window.setTimeout(() => setMounted(true), 200)
     }
-    const id = window.setTimeout(() => setMounted(true), 1500)
-    return () => window.clearTimeout(id)
+    const cancel = () => {
+      if (idle === undefined) return
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle)
+      else window.clearTimeout(idle)
+    }
+    // `load` has no replay: a component mounted after it would wait for an event that already fired.
+    if (document.readyState === 'complete') {
+      warm()
+      return cancel
+    }
+    window.addEventListener('load', warm, { once: true })
+    return () => {
+      window.removeEventListener('load', warm)
+      cancel()
+    }
   }, [])
+
+  // A hover jumps the queue above, and must: the warm-up is speculation and waits for `load`, but a page
+  // can sit in `interactive` for seconds behind one slow non-critical resource with the first row of cards
+  // already on screen and hoverable. Making someone wait on an unrelated download AFTER they asked for the
+  // feature is the one cost the deferral must not have.
+  //
+  // It is also what covers a pointer that gains hover after mount. `canHover()` above is read once, in an
+  // effect with no dependencies, while a card re-checks it on every enter — so a mouse attached to a
+  // touch device would leave the card asking a layer that had decided, permanently, not to exist.
+  // Demand is the source of truth; the warm-up only tries to be early.
+  useEffect(() => {
+    if (item) setMounted(true)
+  }, [item])
 
   // Being suspended tears the iframe down, so the next one boots a fresh engine. Forget the boot, or
   // that engine's first LOAD — the default avatar — is read as the answer to a hover and reveals a bare
@@ -97,23 +173,55 @@ export function HoverPreviewLayer() {
   useEffect(() => {
     if (!anchor) {
       setRect(null)
+      setNotch(null)
       return
     }
     let raf = 0
-    const update = () => setRect(anchor.getBoundingClientRect())
+    // Measured rather than derived: the button's width follows its save count and the hovered card is
+    // scaled, so the box it actually occupies is the only reliable one.
+    const favEl = anchor.parentElement?.querySelector('[data-testid="card-fav"]') ?? null
+    const update = () => {
+      const anchorRect = anchor.getBoundingClientRect()
+      setRect(anchorRect)
+      const fav = favEl?.getBoundingClientRect()
+      setNotch(
+        fav
+          ? {
+              left: fav.left - (Math.round(anchorRect.left) + RING_INSET) - NOTCH_PAD,
+              bottom: fav.bottom - (Math.round(anchorRect.top) + RING_INSET) + NOTCH_PAD
+            }
+          : null
+      )
+    }
     update()
     const onMove = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(update)
     }
+    // The heart WIDENS when its save count lands, which can happen after the hover started and after the
+    // preview is already showing. Nothing else re-measures for that — scroll and resize do not fire for a
+    // button growing in place — and a cut that is narrower than the button is the same bug as no cut at
+    // all, one digit further right.
+    const favResize = favEl && typeof ResizeObserver === 'function' ? new ResizeObserver(onMove) : null
+    if (favEl && favResize) favResize.observe(favEl)
     window.addEventListener('scroll', onMove, true)
     window.addEventListener('resize', onMove)
     return () => {
       cancelAnimationFrame(raf)
+      favResize?.disconnect()
       window.removeEventListener('scroll', onMove, true)
       window.removeEventListener('resize', onMove)
     }
   }, [anchor])
+
+  // A fresh pose per hover, never the same one twice running — a repeat reads as the feature not working.
+  function poseFor(hoverToken: number) {
+    if (poseRef.current.token !== hoverToken) {
+      const options = HOVER_POSES.filter(e => e !== poseRef.current.emote)
+      poseRef.current = { token: hoverToken, emote: options[Math.floor(Math.random() * options.length)] }
+    }
+    return poseRef.current.emote
+  }
 
   // Point the warm engine at the hovered item. Re-runs when the item/token changes, and once more when
   // the engine boots (so an item hovered before boot still loads). UPDATE is dropped by the app before
@@ -147,10 +255,10 @@ export function HoverPreviewLayer() {
       options: {
         ...urnOptions,
         profile: onAvatar ? address : 'default',
-        // Load straight into the fashion pose (like the per-card previews) so the avatar doesn't flash
-        // a T-pose; emotes auto-detect + play their own animation.
+        // Load straight into a pose so the avatar doesn't flash a T-pose; emotes auto-detect + play
+        // their own animation.
         type: isEmote ? undefined : PreviewType.AVATAR,
-        emote: isEmote ? undefined : PreviewEmote.FASHION,
+        emote: isEmote ? undefined : poseFor(token),
         disableBackground: true,
         disableFadeEffect: true
       }
@@ -203,6 +311,9 @@ export function HoverPreviewLayer() {
         borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
         overflow: 'hidden',
         zIndex: 5,
+        clipPath: notch
+          ? `polygon(0 0, ${notch.left}px 0, ${notch.left}px ${notch.bottom}px, 100% ${notch.bottom}px, 100% 100%, 0 100%)`
+          : undefined,
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,
         transition: 'opacity .25s ease'

@@ -1,10 +1,19 @@
 import { create } from 'zustand'
 import type { AuthIdentity } from '@dcl/crypto'
 import { fetchCatalogByIds, type CatalogItem } from '~/lib/api'
+import { track, creditsToUsd, isPrimaryItem } from '~/lib/analytics'
 import { favoriteKey, fetchFavoriteIds, setFavorite } from '~/lib/favorites'
 import { captureError } from '~/lib/monitoring'
+import type { AddToCartSource } from '~/store/cart'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
+
+/**
+ * Where the heart was clicked. Deliberately the cart's own enum: a favorite and an add are both
+ * intent signals on the same item, and one shared vocabulary is what lets them be compared in the
+ * warehouse without a mapping table.
+ */
+export type FavoriteSource = AddToCartSource
 
 // Favorites have two homes. SIGNED IN: the marketplace favorites service is the source of truth
 // (synced across devices and with the marketplace site); toggles are optimistic with a rollback +
@@ -87,7 +96,7 @@ type FavState = {
   items: Items
   // Server hydration state; the anonymous bucket is always 'ready' (synchronous localStorage).
   status: 'ready' | 'loading' | 'error'
-  toggle: (item: CatalogItem) => void
+  toggle: (item: CatalogItem, source?: FavoriteSource) => void
   // Swap mode on a session boundary: server-backed for addr+identity, anonymous bucket otherwise.
   reloadFor: (addr: string | null, authIdentity?: AuthIdentity) => void
   // Re-run a failed server hydration (the My Favorites error state's Try again).
@@ -129,7 +138,7 @@ export const useFavorites = create<FavState>((set, get) => {
   return {
     items: loadLocal(),
     status: 'ready',
-    toggle: item => {
+    toggle: (item, source) => {
       const key = favoriteKey(item)
       if (!key) return
       const wasFaved = !!get().items[key]
@@ -142,6 +151,26 @@ export const useFavorites = create<FavState>((set, get) => {
         if (!account) saveLocal(items)
         return { items }
       })
+      // On the optimistic toggle rather than on the server's answer, so the signed-OUT bucket (which
+      // never calls the server) counts too and the event measures the intent the user expressed. A
+      // rollback below leaves its event standing; the picks service, not this stream, is the source of
+      // truth for what is actually favorited.
+      const size = Object.keys(get().items).length
+      if (wasFaved) {
+        track('Shop Removed From Favorites', { item_id: item.itemId ?? null, source, favorites_size: size })
+      } else {
+        track('Shop Added To Favorites', {
+          item_id: item.itemId ?? null,
+          contract_address: item.contractAddress,
+          price_credits: item.priceCredits,
+          price_usd: creditsToUsd(item.priceCredits),
+          category: item.category,
+          is_smart: item.isSmart ?? false,
+          is_primary: isPrimaryItem(item),
+          source,
+          favorites_size: size
+        })
+      }
       if (!account || !identity) return
       const started = epoch
       // Recorded only on the server-backed path: signed out there is no hydrate to race.

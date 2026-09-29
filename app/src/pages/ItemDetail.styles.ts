@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { SaleTag } from '~/components/SaleTag'
 import { Link } from 'react-router-dom'
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
@@ -55,14 +56,49 @@ export const CrumbCurrent = styled.span`
 
 // Two-column hero: preview left (1045), info right (514), 48px gap. Inset vs the full-width breadcrumb.
 export const Main = styled.div`
+  position: relative;
+  /* Confines the glow's negative z-index, which would otherwise escape to the root stacking context. */
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
   align-items: start;
 
+  /* Preview column width, re-derived from the tracks above so the glow's pivot cannot drift. */
+  --preview-col-w: calc((100% - 48px) * 1045 / 1559);
+  /* Oversized so the glow reaches past the frame while the gradient still finishes fading inside its
+     own box: the radii cannot exceed 50% without ending outside the box and painting a hard rectangle. */
+  --glow-box: 1.76;
+
+  /* Avatar glow, hung off the grid container because the preview frame clips its own overflow. Sits
+     under the frame and, by document order, above the body symbols on the same z-index. */
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    top: 0;
+    left: calc(var(--preview-col-w) / 2);
+    width: calc(var(--preview-col-w) * var(--glow-box));
+    aspect-ratio: 1045 / 752;
+    transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
+    background: radial-gradient(
+      50% 50% at 50% 52%,
+      rgb(var(--glow-core, ${colors.glowCyanRgb})) 0%,
+      rgb(var(--glow-rgb, ${colors.glowCyanRgb}) / 0.9) 20%,
+      45%,
+      rgb(var(--glow-rgb, ${colors.glowCyanRgb}) / 0) 100%
+    );
+  }
+
   ${media.maxWidth('lg')} {
     grid-template-columns: 1fr;
     gap: 24px;
+
+    /* The track maths is desktop-only; one column puts the pivot nowhere meaningful. */
+    &::before {
+      display: none;
+    }
   }
 `
 
@@ -74,10 +110,6 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* Light surface, deliberately AGAINST the Figma's translucent black (1052:151284): the dark violet
-     backdrop muted every item, so the preview keeps the light stage. The iframe is transparent — this
-     is the scene's backdrop. */
-  background: ${colors.media};
 
   /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
      shell's gutter instead of sitting inside it. No transform, which would make this the containing block
@@ -95,6 +127,20 @@ export const Preview = styled.div`
     height: 100%;
     border: 0;
     display: block;
+  }
+
+  /* Soft edges so legs and the cast shadow dissolve instead of being sliced by the overflow clip — on the
+     iframe alone, so the pills and note stay crisp, and intersected linears rather than one radial, which
+     would round the corners. The bands stay clear of the controls aang draws ~40px inside its canvas. */
+  & iframe {
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 92%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 3%, #000 97%, transparent 100%);
+    mask-composite: intersect;
   }
 
   /* Invisible viewport sentinel for the IntersectionObserver that pauses the preview off-screen.
@@ -198,12 +244,13 @@ export const Preview = styled.div`
       overflow: hidden;
     }
     & > [data-fav-preview] {
-      display: grid;
+      display: inline-flex;
       position: absolute;
       top: 12px;
       right: 12px;
       z-index: 3;
-      width: 40px;
+      width: auto;
+      min-width: 40px;
       height: 40px;
       background: rgba(255, 255, 255, 0.92);
       box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
@@ -256,22 +303,29 @@ export const Title = styled.h1`
 `
 
 // Favourite heart. `data-fav-title` (in the title row, hidden on mobile) or `data-fav-preview`
-// (overlaid on the preview, shown only on mobile — positioned by `Preview`).
+// (overlaid on the preview, shown only on mobile — positioned by `Preview`). A circle on its own,
+// a pill once `data-count` adds the save count beside the icon.
 export const Fav = styled.button`
   flex: none;
-  width: 40px;
+  min-width: 40px;
   height: 40px;
-  border-radius: 50%;
+  padding: 0;
+  border-radius: ${radius.pill};
   border: 0;
   background: rgba(255, 255, 255, 0.16);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   color: ${colors.softWhite};
   cursor: pointer;
   transition:
     color 0.12s ease,
     background 0.12s ease;
 
+  &[data-count] {
+    padding: 0 14px 0 12px;
+  }
   &:hover {
     background: rgba(255, 255, 255, 0.28);
   }
@@ -284,6 +338,19 @@ export const Fav = styled.button`
     &[data-fav-title] {
       display: none;
     }
+  }
+`
+
+// How many people saved the item, inside the heart button. Keeps its own colour rather than
+// inheriting: the button turns red once saved, which leaves a red number on the translucent pill.
+export const FavCount = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: ${colors.softWhite};
+
+  ${media.maxWidth('lg')} {
+    color: ${colors.text};
   }
 `
 
@@ -543,8 +610,18 @@ export const Divider = styled.hr`
   }
 `
 
+/** The discount tag above the title, with room to be its own line rather than crowding the name. */
+export const DetailSaleTag = styled(SaleTag)`
+  margin-bottom: 12px;
+`
+
 export const PriceBlock = styled.div`
   margin-top: 16px;
+  /* The design's Pricing frame stacks its rows 16px apart; without it the stock scale sat against the
+     underside of the price and read as part of it. */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 
   ${media.maxWidth('lg')} {
     order: 4;
@@ -605,7 +682,7 @@ export const PriceLabel = styled.div`
 export const Price = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-weight: 700;
   color: ${colors.softWhite};
 
@@ -618,10 +695,14 @@ export const Price = styled.div`
     font-weight: 600;
     color: ${colors.softWhite};
   }
+  /*
+   * White, not red. The tag above the title is what announces the discount; painting the number red too
+   * said it a second time and left the price itself the least legible thing in its own row.
+   */
   &[data-variant='sale'] {
     flex-wrap: wrap;
-    gap: 10px 14px;
-    color: ${colors.dclRed};
+    gap: 4px 8px;
+    color: ${colors.white};
   }
 `
 
@@ -664,13 +745,39 @@ export const MarketNote = styled.div`
   color: ${colors.gray4};
 `
 
+/**
+ * "Only 3 left at this price" — scarcity, next to the price rather than in the stock line, because it is
+ * about the SALE running out, not the item. Full width so it sits on its own line under the price row
+ * instead of squeezing in beside the countdown.
+ */
+/**
+ * The timer and the units-left note as one line.
+ *
+ * Loose in the price block's wrapping flex they landed on two rows of their own, so a discounted item grew
+ * four stacked bands where an ordinary one has one. They belong together: both answer "how long does this
+ * price last" — one in time, one in copies.
+ */
+export const SaleMeta = styled.div`
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+`
+
+export const UnitsLeft = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${colors.dclRed};
+`
+
+/** The price before the cut: 20px regular in Gray 3, sitting 4px off the number it is being compared to. */
 export const PriceWas = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: ${colors.muted};
+  color: ${colors.muted2};
   text-decoration: line-through;
-  font-weight: 600;
+  font-weight: 400;
   font-size: 20px;
 `
 
@@ -1409,29 +1516,4 @@ export const SkName = styled.span`
   width: 96px;
   height: 16px;
   border-radius: 6px;
-`
-
-// The "the gasless send did not confirm" notice and its two ways out. Neutral, not an error colour: the
-// transaction may still land, and painting it red is what had a creator re-signing six times.
-export const GaslessNotice = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid ${colors.line};
-  border-radius: 12px;
-  background: ${colors.media};
-
-  p {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.5;
-    color: ${colors.text2};
-  }
-`
-
-export const GaslessActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
 `

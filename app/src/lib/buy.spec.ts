@@ -28,10 +28,12 @@ vi.mock('decentraland-transactions', () => ({
     address: name === 'CreditsManager' ? '0xcreditsmanager' : name === 'CollectionStore' ? '0xstore' : '0xmarket',
     name,
     version: '1',
-    // Both fragments so Interface.getSighash resolves for the trade path (accept) and the store path
-    // (buy). The store tuple must match the real CollectionStore ItemToBuy[] or the encoder throws.
+    // Every fragment Interface.getSighash has to resolve: the trade path (accept), the discounted trade
+    // path (acceptWithCoupon) and the store path (buy). The store tuple must match the real CollectionStore
+    // ItemToBuy[] or the encoder throws.
     abi: [
       'function accept(uint256[] x)',
+      'function acceptWithCoupon(uint256[] trades, uint256[] coupons)',
       'function buy(tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[] items)'
     ]
   }),
@@ -124,8 +126,10 @@ import {
   buyOneWithCredits,
   buyManyWithCredits,
   cancelListing,
+  buildGroupUseCreditsArgs,
   groupPurchases,
   purchaseGroupKey,
+  type ListingCoupon,
   type AnyPurchase,
   type CreditPurchase,
   type SpendableCredit
@@ -144,6 +148,33 @@ function credit(id: string, amount: string): SpendableCredit {
 
 // received[0].assetType is parameterised so we can exercise the plain-ERC20 (amount used directly)
 // and USD_PEGGED_MANA (oracle-converted) price branches of tradeManaPriceWei.
+function fakeCoupon(overrides: Partial<ListingCoupon> = {}): ListingCoupon {
+  return {
+    id: 'coupon',
+    signer: SELLER,
+    couponManager: ADDR('77'),
+    couponAddress: ADDR('88'),
+    checks: {
+      uses: 10,
+      expiration: 2_000_000,
+      effective: 1_000_000,
+      salt: B32('1'),
+      contractSignatureIndex: 0,
+      signerSignatureIndex: 0,
+      allowedRoot: '0x',
+      allowedProof: [],
+      externalChecks: []
+    },
+    discountType: 1,
+    discount: 300_000,
+    root: B32('2'),
+    collections: [NFT],
+    signature: '0x',
+    proof: [],
+    ...overrides
+  }
+}
+
 function fakeTrade(contract: string, receivedAssetType: number = TradeAssetType.USD_PEGGED_MANA): Trade {
   return {
     id: 'trade',
@@ -407,6 +438,48 @@ describe('when grouping a basket into transactions', () => {
 
   it('collapses every store mint into a single group regardless of collection', () => {
     expect(groupPurchases([store(), store()])).toHaveLength(1)
+  })
+
+  /**
+   * The one place money can be silently misassigned: `acceptWithCoupon` pairs a trade with the coupon at
+   * its own index, and the two arrays are built from separate maps over the same list. A filter that
+   * dropped one line's coupon would shift every later pair by one, charging each line another's discount.
+   */
+  it('hands the marketplace the coupons in the same order as the trades they discount', () => {
+    const a = {
+      kind: 'trade' as const,
+      trade: fakeTrade('0xmarket'),
+      coupon: fakeCoupon({ id: 'a' }),
+      credits: [],
+      maxCreditedValue: '0'
+    }
+    const b = {
+      kind: 'trade' as const,
+      trade: fakeTrade('0xmarket'),
+      coupon: fakeCoupon({ id: 'b' }),
+      credits: [],
+      maxCreditedValue: '0'
+    }
+    const [group] = groupPurchases([a, b])
+    if (group.kind !== 'trade') throw new Error('expected a trade group')
+
+    expect(group.purchases.map(p => p.coupon?.id)).toEqual(['a', 'b'])
+    // Builds without throwing: one coupon per trade, which is what the contract requires.
+    expect(() => buildGroupUseCreditsArgs(group, BUYER)).not.toThrow()
+  })
+
+  it('refuses a group where only some lines carry a discount, rather than paying list price for all', () => {
+    const group = {
+      kind: 'trade' as const,
+      chainId: 80002,
+      marketplace: '0xmarket',
+      purchases: [
+        { trade: fakeTrade('0xmarket'), coupon: fakeCoupon(), credits: [], maxCreditedValue: '0' },
+        { trade: fakeTrade('0xmarket'), credits: [], maxCreditedValue: '0' }
+      ]
+    }
+
+    expect(() => buildGroupUseCreditsArgs(group, BUYER)).toThrow('one coupon per line')
   })
 
   it('separates the two paths, which is where the second confirmation comes from', () => {
@@ -957,8 +1030,41 @@ describe('when buying a single purchase of either kind', () => {
     // What the cart's mixed-payment rail uses to attach each transaction's MANA gap to its own group.
     expect(purchaseGroupKey(mintPurchase('100'))).toBe('store:80002')
     expect(purchaseGroupKey({ kind: 'trade', trade: fakeTrade('0xMARKET'), credits: [], maxCreditedValue: '0' })).toBe(
-      'trade:80002:0xmarket'
+      'trade:80002:0xmarket:plain'
     )
+  })
+
+  it('keeps a discounted line out of the undiscounted batch, because acceptWithCoupon needs one coupon each', () => {
+    const trade = fakeTrade('0xMARKET')
+    const plain = purchaseGroupKey({ kind: 'trade', trade, credits: [], maxCreditedValue: '0' })
+    const discounted = purchaseGroupKey({
+      kind: 'trade',
+      trade,
+      coupon: fakeCoupon(),
+      credits: [],
+      maxCreditedValue: '0'
+    })
+    expect(discounted).toBe('trade:80002:0xmarket:coupon')
+    expect(discounted).not.toBe(plain)
+  })
+
+  it('settles two creators sales in one transaction, since the contract pairs each trade with its own coupon', () => {
+    const trade = fakeTrade('0xMARKET')
+    const first = purchaseGroupKey({
+      kind: 'trade',
+      trade,
+      coupon: fakeCoupon({ id: 'a' }),
+      credits: [],
+      maxCreditedValue: '0'
+    })
+    const second = purchaseGroupKey({
+      kind: 'trade',
+      trade,
+      coupon: fakeCoupon({ id: 'b' }),
+      credits: [],
+      maxCreditedValue: '0'
+    })
+    expect(first).toBe(second)
   })
 })
 

@@ -50,13 +50,15 @@ vi.mock('~/store/wallet', () => ({
 let namesEnabled = true
 vi.mock('~/hooks/useNamesEnabled', () => ({ useNamesEnabled: () => namesEnabled }))
 
-import { NamesPage } from '~/pages/NamesPage'
+import { NamesPage, type NamesNavState } from '~/pages/NamesPage'
 
-function renderPage(onBack = vi.fn()) {
+function renderPage(onBack = vi.fn(), state?: NamesNavState) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      {/* The page's real address: it is the `names` category of the browse route, not a route of its own
+          — which is what the resume below has to navigate back to. */}
+      <MemoryRouter initialEntries={[{ pathname: '/items', search: '?category=names', state }]}>
         <NamesPage onBack={onBack} />
       </MemoryRouter>
     </QueryClientProvider>
@@ -239,5 +241,33 @@ describe('NamesPage', () => {
     renderPage(onBack)
     await userEvent.click(screen.getByRole('button', { name: 'Collectibles' }))
     expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * Coming back from a Stripe top-up that was started inside the buy modal. /credits routes here with the
+   * NAME, and the buyer should land where they left off rather than on an empty search field with credits
+   * they no longer know what to do with.
+   */
+  describe('and a top-up routed back here with a NAME to resume', () => {
+    it('should re-open the buy modal on that NAME', async () => {
+      checkNameAvailability.mockResolvedValue('available')
+      renderPage(vi.fn(), { resumeName: 'GoodName' })
+
+      expect(await screen.findByRole('dialog', { name: 'Buy NAME' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Search for a NAME')).toHaveValue('GoodName')
+    })
+
+    /**
+     * The buyer was away on Stripe's page for minutes, which is long enough for somebody else to claim the
+     * NAME. Re-opening a purchase modal for a NAME that is gone would walk them into a failure they cannot
+     * avoid; the page's own "taken" notice is the honest answer, and their credits are safely banked.
+     */
+    it('should not re-open it for a NAME that was claimed while they were away', async () => {
+      checkNameAvailability.mockResolvedValue('taken')
+      renderPage(vi.fn(), { resumeName: 'GoodName' })
+
+      expect(await screen.findByText(/this NAME is taken/i)).toBeInTheDocument()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
   })
 })

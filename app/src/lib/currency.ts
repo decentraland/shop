@@ -1,6 +1,6 @@
 // Single source of truth for the shop's spending currency.
 //
-// The final NAME, SYMBOL and ICON are still WIP — we call it "credits" for now, but it may be
+// The final NAME, SYMBOL and ICON are still WIP — we call it "Credits" for now, but it may be
 // renamed/re-symboled. Everything user-facing routes through here, so the eventual rebrand is a
 // one-file change: update these values (and swap the icon SVG referenced by `iconName`) and it
 // propagates across the whole app.
@@ -15,8 +15,10 @@ import type { IconName } from '~/components/Icon'
 import { useLocale } from '~/store/locale'
 
 export const CURRENCY = {
-  name: 'credits', // plural, lowercase — capitalize at the call site if it starts a sentence
-  nameSingular: 'credit',
+  // Capitalized wherever it lands: this is the currency's NAME, not a common noun, so it reads the same
+  // mid-sentence as it does in a heading. Call sites that wrap it in `capitalizeFirst` still work.
+  name: 'Credits',
+  nameSingular: 'Credit',
   iconName: 'credits' as IconName
 } as const
 
@@ -52,7 +54,7 @@ export function usdCentsToCreditsFloor(cents: number): number {
   return Math.floor(cents / USD_CENTS_PER_CREDIT)
 }
 
-// "270 credits" / "1 credit" — pluralizes on the amount.
+// "270 Credits" / "1 Credit" — pluralizes on the amount.
 export function formatAmount(n: number): string {
   return `${n} ${creditsUnit(n)}`
 }

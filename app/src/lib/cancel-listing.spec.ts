@@ -193,6 +193,16 @@ describe('cancelListing — choosing the rail', () => {
     expect(h.requireChainCalls).toHaveLength(0)
   })
 
+  it('surfaces a declined prompt as the rejection it is, not as an unconfirmed relay', async () => {
+    // What an EIP-1193 wallet's refusal looks like after the relayer lib wraps it: code lost, message kept.
+    relay.mockRejectedValueOnce(new h.MetaTransactionError('User rejected the request.', 'UNKNOWN'))
+
+    const err = await cancelListing({ trade, signer, mode: 'gasless-only' }).catch(e => e)
+    expect(err).toBeInstanceOf(h.MetaTransactionError)
+    expect(err).not.toBeInstanceOf(GaslessCancelFailedError)
+    expect(h.cancelCalls).toHaveLength(0)
+  })
+
   it('carries the underlying failure as the cause, so a pending relay stays distinguishable', async () => {
     const underlying = new Error('relayer 503')
     relay.mockRejectedValueOnce(underlying)

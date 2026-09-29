@@ -3,10 +3,10 @@ import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
+import { SaleTag } from '~/components/SaleTag'
 import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
-import { SaleCountdown } from '~/components/SaleCountdown'
 import { Icon } from '~/components/Icon'
 
 const { colors, radius, media } = theme
@@ -24,6 +24,18 @@ export const TOP_GAP = 10
 //
 // No `overflow: hidden` here: the lit ring sits 2px outside the card box, so the media and footer round
 // their own corners instead. See ringHover.
+// Hover/focus state of the whole card: the lit ring, the lift, and the z-index that keeps the scaled
+// card above its neighbours in a rail.
+//
+// Reached through `:has(:focus-visible)` and NOT `:focus-within`: a MOUSE click on one of the card's own
+// controls focuses it too, and that focus outlives the pointer — so hearting an item left the card lit
+// and lifted long after the shopper had moved away from it.
+const cardLit = css`
+  ${ringLit};
+  transform: scale(1.025);
+  z-index: 1;
+`
+
 export const Card = styled.article`
   height: 300px;
   /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
@@ -31,9 +43,40 @@ export const Card = styled.article`
   background: transparent;
 
   /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
-     250px tall over 300, split 136 media / 114 info. */
+     250px tall over 300, split 136 media / 114 info. A card on sale carries one more line of price
+     information than the 114px info block was drawn for, so it is allowed to grow rather than push the
+     countdown out through its own bottom edge; the grid stretches the row, so neighbours stay level. */
   ${media.maxWidth('sm')} {
     height: 250px;
+
+    &[data-sale] {
+      height: auto;
+      min-height: 250px;
+    }
+  }
+  /* A note is one more line in the footer, shown on hover (Figma 2090:401815: the card grows from 300 to
+     325). Without hover there is no way to reveal it, so there the card carries it at all times. */
+  &[data-note] {
+    height: 325px;
+  }
+  ${media.maxWidth('sm')} {
+    &[data-note] {
+      height: auto;
+      min-height: 250px;
+    }
+  }
+  @media (hover: hover) and (min-width: 721px) {
+    &[data-note] {
+      height: 300px;
+      transition:
+        box-shadow 0.15s ease,
+        transform 0.15s ease,
+        height 0.15s ease;
+    }
+    &[data-note]:hover,
+    &[data-note]:has(:focus-visible) {
+      height: 325px;
+    }
   }
   border-radius: ${radius.card};
   position: relative;
@@ -44,21 +87,27 @@ export const Card = styled.article`
     box-shadow 0.15s ease,
     transform 0.15s ease;
 
+  /* The resting ring is structural only. Its hairline read evenly around a pale grey card, but over the
+     rarity wash it vanishes on the media and shows only against the dark footer, so it lands as a
+     contour starting halfway down. The pseudo-element stays: ringHover reuses it. */
   &::after {
     ${ringHairline};
+    border-color: transparent;
   }
 
+  /* Hover and KEYBOARD focus light the card the same way — hence two rules rather than one selector
+     list: a browser without :has() drops only the focus one and still lights the card on hover. */
   @media (hover: hover) {
-    &:hover,
-    &:focus-within {
-      ${ringLit};
-      /* A gentle lift on hover; z-index keeps the scaled card, its ring and its glow above its
-         neighbours in the rail. */
-      transform: scale(1.025);
-      z-index: 1;
+    &:hover {
+      ${cardLit};
     }
-    &:hover::after,
-    &:focus-within::after {
+    &:has(:focus-visible) {
+      ${cardLit};
+    }
+    &:hover::after {
+      ${ringHover};
+    }
+    &:has(:focus-visible)::after {
       ${ringHover};
     }
   }
@@ -101,15 +150,59 @@ export const Fav = styled.button`
   top: 4.75px;
   right: 4.75px;
   z-index: 4;
-  width: 24px;
+  min-width: 24px;
   height: 24px;
-  border-radius: 50%;
+  /* A pill radius rather than 50%: the box grows sideways once the save count is in it, and an ellipse
+     is what 50% would give. At the icon-only width it still draws the same circle. */
+  border-radius: 12px;
   border: 0;
   padding: 0;
   background: rgba(255, 255, 255, 0.85);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   color: ${colors.text};
+  cursor: pointer;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    background 140ms ease;
+
+  &[data-count] {
+    padding: 0 7px 0 5px;
+  }
+
+  @media (hover: hover) {
+    /* At rest the card is its artwork, so the heart is only there once the card is under the pointer.
+       A SAVED one stays on show — that state is the point of having saved it, and it has to be readable
+       while browsing rather than only while hovering. */
+    &:not([data-on]) {
+      opacity: 0;
+    }
+    [data-testid='card']:hover &,
+    [data-testid='card']:has(:focus-visible) &,
+    &:focus-visible {
+      opacity: 1;
+    }
+    /* The heart you are ABOUT to press: the disc goes opaque and lifts. The glyph takes the colour it
+       is about to become — see FavOutline. */
+    &:hover {
+      background: ${colors.white};
+      transform: scale(1.12);
+    }
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:hover,
+    &:active {
+      transform: none;
+    }
+  }
 
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
   // grows the hit area on touch without changing the visual. It stops FLUSH with the card on the two
@@ -121,6 +214,15 @@ export const Fav = styled.button`
     inset: -4.75px -4.75px -10px -10px;
     border-radius: 50%;
   }
+`
+
+// The item's save count, beside the glyph in the same button.
+export const FavCount = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: ${colors.text};
+  font-variant-numeric: tabular-nums;
 `
 
 // Holds the outline heart with the solid heart stacked exactly on top; the 2px nudge optically centres
@@ -136,7 +238,17 @@ export const FavIcons = styled.span`
 // heart ends as a clean solid glyph rather than a red fill sitting inside a black ring. The fade is
 // delayed to land just as the fill reaches full.
 export const FavOutline = styled(Icon)`
-  transition: opacity 160ms ease;
+  transition:
+    opacity 160ms ease,
+    color 140ms ease;
+
+  /* Pre-echo of the press: hovering the button alone (not the card) tints the outline red. Gated like
+     every other hover state on the card — a tap synthesizes :hover, and it would stick. */
+  @media (hover: hover) {
+    [data-testid='card-fav']:hover & {
+      color: ${colors.dclRed};
+    }
+  }
 
   [data-on] & {
     opacity: 0;
@@ -181,6 +293,12 @@ export const Media = styled.div`
   isolation: isolate;
   flex: 1;
   min-height: 0;
+  /* The compact card is a drawn 136/114 split, so the media keeps its height and the footer is the part
+     that flexes. Left to absorb the slack, it gave 23px back to a sale card's taller price block and that
+     card's artwork came out shorter than its neighbours' in the same row. */
+  ${media.maxWidth('sm')} {
+    flex: 0 0 136px;
+  }
   background: ${colors.media};
   overflow: hidden;
   /* Its own top corners — the card doesn't clip. */
@@ -191,29 +309,14 @@ export const Media = styled.div`
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   place-items: center;
-  /* Figma 1480:256712: a hairline on the three outer edges only, never on the seam with the footer. */
-  border-top: 0.25px solid ${colors.gray4};
-  border-left: 0.25px solid ${colors.gray4};
-  border-right: 0.25px solid ${colors.gray4};
 `
 
-// Corner ribbon on the media (fav sits top-right, so this anchors top-left).
-export const SaleBadge = styled.span`
+/** The shared discount tag, anchored to the artwork's top-left — the favourite owns the top-right. */
+export const SaleBadge = styled(SaleTag)`
   position: absolute;
   top: 10px;
   left: 10px;
   z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  background: ${colors.dclRed};
-  color: ${colors.white};
-  font-weight: 800;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  border-radius: 6px;
-  padding: 4px 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 `
 
 // Shimmer over the gray media background while the shared 3D preview boots. z-index -1 (within the
@@ -279,14 +382,19 @@ export const NameValue = styled.span`
 
 // The flat thumbnail crossfades out once the shared 3D preview (HoverPreviewLayer) has this item ready.
 /**
- * The artwork is 136.3px square inside a 188px media band (Figma 1480:256689) — 72.5% of the band, not
- * the whole box. Filling the box drew every wearable about a third larger than the design, and next to
- * it the 24px favourite badge read as undersized: the badge was right all along, the artwork was not.
- * Stated as a share of the HEIGHT because that is what the design holds constant — the card is a grid
- * cell, so its width varies (276px here, 306 in the frame) while the band stays 188.
+ * The artwork fills 85% of the media band's height. Stated as a share of the HEIGHT because that is what
+ * the design holds constant — the card is a grid cell, so its width varies (276px here, 306 in the
+ * frame) while the band stays 188.
+ *
+ * This DEVIATES from Figma 1480:256689, which specifies 136.3px in a 188px band (72.5%). That number was
+ * tuned against a flat grey field, where the margin around the artwork was invisible; over the rarity
+ * background it is two thirds of the band in colour and the artwork reads stranded in it. 85% was picked
+ * over the alternatives after review. Note the earlier finding still holds at the extreme: filling the
+ * band outright drew wearables about a third larger than the design and made the 24px favourite badge
+ * read undersized, so this is a middle ground, not a removal of the constraint.
  */
 export const Img = styled.img`
-  height: 72.5%;
+  height: 85%;
   aspect-ratio: 1;
   width: auto;
   max-width: 100%;
@@ -317,13 +425,36 @@ export const Body = styled.div`
   border-radius: 0 0 ${radius.card} ${radius.card};
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
+  // Keyed on :has(:focus-visible) for the same reason the card's ring is (see cardLit).
   @media (hover: hover) and (min-width: 721px) {
-    &:focus-within [data-testid='card-cart'],
-    &:focus-within [data-reveal] {
+    &:has(:focus-visible) [data-testid='card-cart'],
+    &:has(:focus-visible) [data-reveal] {
       display: flex;
     }
-    &:focus-within [data-chips] {
+    &:has(:focus-visible) [data-chips] {
       display: none;
+    }
+  }
+
+  &[data-note] {
+    flex: 0 0 137px;
+    height: 137px;
+    padding-bottom: 12px;
+  }
+  @media (hover: hover) and (min-width: 721px) {
+    &[data-note] {
+      flex-basis: 112px;
+      height: 112px;
+      padding-bottom: 16px;
+      transition:
+        flex-basis 0.15s ease,
+        height 0.15s ease;
+    }
+    [data-testid='card']:hover &[data-note],
+    &[data-note]:has(:focus-visible) {
+      flex-basis: 137px;
+      height: 137px;
+      padding-bottom: 12px;
     }
   }
 
@@ -347,6 +478,22 @@ export const Body = styled.div`
     row-gap: 6px;
     padding: 16px;
 
+    /* The sale card's price block is three lines — price, struck price, countdown — and 114px was drawn
+       for two. Growing with its content is what keeps the pill inside the card; the root grows with it. */
+    &[data-sale] {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 114px;
+    }
+
+    &[data-note] {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 114px;
+      padding-bottom: 16px;
+      grid-template-areas: 'desc desc' 'note note' 'price add';
+    }
+
     // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
     // stacked column so the mobile layout stays tidy.
     &[data-name] {
@@ -355,6 +502,34 @@ export const Body = styled.div`
     &[data-name] > * {
       display: flex;
     }
+  }
+`
+
+// Hidden at rest where the card can be hovered; the card's own hover and focus rules reveal every
+// [data-reveal] child, this one included.
+export const Note = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.43;
+  color: ${colors.softWhite};
+  white-space: nowrap;
+
+  @media (hover: hover) and (min-width: 721px) {
+    &[data-reveal] {
+      display: none;
+    }
+  }
+
+  /* Two cards share a phone's width and a note does not fit on one line there, so it gets two, at a fixed
+     height so every card in a row stays the same size whatever its note says. */
+  ${media.maxWidth('sm')} {
+    grid-area: note;
+    align-items: flex-start;
+    height: calc(2 * 1.43em);
+    white-space: normal;
   }
 `
 
@@ -430,7 +605,7 @@ export const Creator = styled(CreatorBadge)`
 // Reserves the creator line's height when an item has no creator. data-issued styles it as the owned
 // copy's mint index (e.g. "#5013") — tabular figures so digits align across otherwise-identical copies.
 export const CreatorEmpty = styled.div`
-  font-size: 10px;
+  font-size: 12px;
   margin-bottom: 2px;
 
   &[data-issued] {
@@ -440,11 +615,11 @@ export const CreatorEmpty = styled.div`
   }
 `
 
-// "by {creator}" subtitle under the title on the browse card (Figma 619:5722 — Gray 3 at 10px, quieter
+// "by {creator}" subtitle under the title on the browse card (Figma 2090:401815 — Gray 3 at 12px, quieter
 // than the name above it). Single line, ellipsised so a long name never pushes the body out of shape.
 export const Author = styled(CreatorName)`
   color: ${colors.muted2};
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.43;
   white-space: nowrap;
   overflow: hidden;
@@ -479,6 +654,16 @@ export const Price = styled.div`
     align-self: center;
     justify-self: start;
     gap: 2px;
+
+    /* The 58% cap keeps room for the NAME on the wide card, where the two share one flex row. Here the
+       price has a grid cell of its own, so the cap only squeezed the sale block below the width of the
+       countdown pill inside it: the pill spilled past the card's left edge, and the extra wrapped line
+       pushed the block out through the bottom of the fixed-height body. */
+    &[data-variant='sale'] {
+      max-width: none;
+      justify-content: flex-start;
+      row-gap: 2px;
+    }
   }
 `
 
@@ -495,18 +680,22 @@ export const Nfs = styled.span`
   white-space: nowrap;
 `
 
+/**
+ * The price being charged. Plain ink, not red: the badge on the artwork is already saying "on sale" in
+ * red, and repeating it on the number left the card with two reds competing for the same announcement
+ * while the price itself — the thing the buyer reads — had to fight the strike-through beside it.
+ */
 export const PriceNow = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: ${colors.dclRed};
+  color: ${colors.softWhite};
   font-weight: 700;
 `
 
 export const PriceWas = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   color: ${colors.muted2};
   text-decoration: line-through;
   font-weight: 600;
@@ -516,19 +705,6 @@ export const PriceWas = styled.span`
 export const Approx = styled.span`
   font-weight: 700;
   color: ${colors.muted2};
-`
-
-export const Countdown = styled(SaleCountdown)`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: ${colors.rarityBg};
-  color: ${colors.accent};
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 6px;
-  padding: 2px 8px;
-  white-space: nowrap;
 `
 
 // Fixed-height slot: the full-width action button (Cart) swaps in for the chips on hover/focus without

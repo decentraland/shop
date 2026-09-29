@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Icon } from '~/components/Icon'
 import { config } from '~/config'
+import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import bagArt from '~/assets/marketplace-bag.svg'
 import * as S from './MarketplaceRedirectModal.styles'
@@ -54,9 +55,12 @@ type MarketplaceRedirectModalProps = { onClose: () => void } & (
 export function MarketplaceRedirectModal(props: MarketplaceRedirectModalProps) {
   const { contractAddress, onClose } = props
   const isBuy = props.variant === 'buy'
-  const href = isBuy
-    ? marketplaceItemUrl(contractAddress, props.itemId)
-    : marketplaceTokenUrl(contractAddress, props.tokenId)
+  const itemId = props.variant === 'buy' ? props.itemId : null
+  const tokenId = props.variant === 'buy' ? null : props.tokenId
+  const href =
+    props.variant === 'buy'
+      ? marketplaceItemUrl(contractAddress, props.itemId)
+      : marketplaceTokenUrl(contractAddress, props.tokenId)
   const cardRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -108,7 +112,20 @@ export function MarketplaceRedirectModal(props: MarketplaceRedirectModalProps) {
           <S.Secondary onClick={onClose} data-testid="marketplace-redirect-cancel">
             {t('marketplaceRedirect.cancel')}
           </S.Secondary>
-          <S.Primary href={href} target="_blank" rel="noreferrer" data-testid="marketplace-redirect-continue">
+          <S.Primary
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="marketplace-redirect-continue"
+            onClick={() =>
+              track('Shop Redirected To Marketplace', {
+                direction: isBuy ? 'buy' : 'resell',
+                contract_address: contractAddress,
+                item_id: itemId,
+                token_id: tokenId
+              })
+            }
+          >
             {t('marketplaceRedirect.continue')}
             <S.PrimaryChevron aria-hidden>
               <Icon name="view-all-arrow" className="ico" />

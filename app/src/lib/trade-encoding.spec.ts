@@ -19,11 +19,14 @@ vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 8000
 import {
   getOnChainTrade,
   buildAcceptCalldata,
+  buildAcceptWithCouponCalldata,
+  getOnChainCoupon,
   amoyGasOverrides,
   idToSalt,
   buildUseCreditsArgs,
   buildStoreBuyCalldata,
   buildStoreUseCreditsArgs,
+  type ListingCoupon,
   type SpendableCredit,
   type StoreItemToBuy
 } from '~/lib/trade-encoding'
@@ -433,5 +436,165 @@ describe('when encoding a CollectionStore purchase', () => {
     const args = buildStoreUseCreditsArgs(STORE, STORE_ABI, [item('1', '100')], BUYER, credits, '100')
 
     expect(args.maxUncreditedValue).toBe('40')
+  })
+})
+
+// The real marketplace fragment, so the encoder is checked against how the contract actually reads the
+// call rather than against a restatement of itself.
+const TRADE_TUPLE =
+  'tuple(address signer,bytes signature,' +
+  'tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,' +
+  'uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,' +
+  'tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,' +
+  'tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,' +
+  'tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[]'
+const COUPON_TUPLE =
+  'tuple(bytes signature,' +
+  'tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,' +
+  'uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,' +
+  'tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,' +
+  'address couponAddress,bytes data,bytes callerData)[]'
+const ACCEPT_WITH_COUPON_ABI = [`function acceptWithCoupon(${TRADE_TUPLE} trades, ${COUPON_TUPLE} coupons)`]
+
+const COUPON_ADDRESS = ADDR('66')
+const PROOF = [B32('c'), B32('d')]
+
+function fakeCoupon(overrides: Partial<ListingCoupon> = {}): ListingCoupon {
+  return {
+    id: 'coupon-1',
+    signer: SELLER,
+    couponManager: ADDR('77'),
+    couponAddress: COUPON_ADDRESS,
+    checks: {
+      uses: 10,
+      expiration: 2_000_000,
+      effective: 1_000_000,
+      salt: B32('b'),
+      contractSignatureIndex: 0,
+      signerSignatureIndex: 0,
+      allowedRoot: '0x',
+      allowedProof: [],
+      externalChecks: []
+    },
+    discountType: 1,
+    discount: 300_000,
+    root: B32('e'),
+    collections: [NFT],
+    signature: '0x' + 'cd'.repeat(65),
+    proof: PROOF,
+    ...overrides
+  }
+}
+
+describe('when porting a coupon to its on-chain shape', () => {
+  it('should normalise the checks the way a trade does, so the pair cannot disagree', () => {
+    const coupon = getOnChainCoupon(fakeCoupon({ checks: { ...fakeCoupon().checks, expiration: 2_000_000_000_000 } }))
+    expect(coupon.checks.expiration).toBe(2_000_000_000)
+    expect(coupon.checks.salt).toBe(B32('b'))
+    expect(coupon.checks.allowedRoot).toBe(ZERO32)
+    expect(coupon.checks.allowedProof).toEqual([])
+  })
+
+  it('should encode the discount data as the three static words the contract decodes', () => {
+    const { data } = getOnChainCoupon(fakeCoupon())
+    expect((data.length - 2) / 2).toBe(96)
+    expect(ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256', 'bytes32'], data)).toEqual([
+      ethers.BigNumber.from(1),
+      ethers.BigNumber.from(300_000),
+      B32('e')
+    ])
+  })
+
+  /**
+   * The caller data wraps the proofs in a struct, and a dynamic struct carries an extra offset word ahead
+   * of the array. Encoding the bare `bytes32[][]` lands one word short and the contract misreads it, so this
+   * pins the shape rather than trusting that the two look interchangeable.
+   */
+  it('should wrap the proofs in the struct the contract decodes, not the bare array', () => {
+    const { callerData } = getOnChainCoupon(fakeCoupon())
+    const asStruct = ethers.utils.defaultAbiCoder.encode(['tuple(bytes32[][] proofs)'], [{ proofs: [PROOF] }])
+    const asBareArray = ethers.utils.defaultAbiCoder.encode(['bytes32[][]'], [[PROOF]])
+    expect(callerData).toBe(asStruct)
+    expect(callerData).not.toBe(asBareArray)
+    expect((callerData.length - asBareArray.length) / 64).toBe(1)
+  })
+
+  it('should send one proof per sent asset, which is one for a primary listing', () => {
+    const { callerData } = getOnChainCoupon(fakeCoupon())
+    const [decoded] = ethers.utils.defaultAbiCoder.decode(['tuple(bytes32[][] proofs)'], callerData)
+    expect(decoded.proofs).toEqual([PROOF])
+  })
+})
+
+describe('when building the acceptWithCoupon calldata', () => {
+  it('should derive the acceptWithCoupon selector from the abi', () => {
+    const { selector } = buildAcceptWithCouponCalldata([fakeTrade()], [fakeCoupon()], BUYER, ACCEPT_WITH_COUPON_ABI)
+    expect(selector).toBe(new ethers.utils.Interface(ACCEPT_WITH_COUPON_ABI).getSighash('acceptWithCoupon'))
+  })
+
+  it('should produce exactly what the contract interface encodes for the same call', () => {
+    const trades = [fakeTrade()]
+    const coupons = [fakeCoupon()]
+    const { selector, data } = buildAcceptWithCouponCalldata(trades, coupons, BUYER, ACCEPT_WITH_COUPON_ABI)
+    const expected = new ethers.utils.Interface(ACCEPT_WITH_COUPON_ABI).encodeFunctionData('acceptWithCoupon', [
+      trades.map(t => getOnChainTrade(t, BUYER)),
+      coupons.map(getOnChainCoupon)
+    ])
+    expect(selector + data.slice(2)).toBe(expected)
+  })
+
+  it('should pair a batch of trades with their coupons by index', () => {
+    const trades = [fakeTrade({ id: 'a' }), fakeTrade({ id: 'b' })]
+    const coupons = [fakeCoupon({ discount: 100_000 }), fakeCoupon({ discount: 500_000 })]
+    const { selector, data } = buildAcceptWithCouponCalldata(trades, coupons, BUYER, ACCEPT_WITH_COUPON_ABI)
+    const decoded = new ethers.utils.Interface(ACCEPT_WITH_COUPON_ABI).decodeFunctionData(
+      'acceptWithCoupon',
+      selector + data.slice(2)
+    )
+    expect(decoded.coupons).toHaveLength(2)
+    expect(ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256', 'bytes32'], decoded.coupons[0].data)[1]).toEqual(
+      ethers.BigNumber.from(100_000)
+    )
+    expect(ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256', 'bytes32'], decoded.coupons[1].data)[1]).toEqual(
+      ethers.BigNumber.from(500_000)
+    )
+  })
+
+  it('should refuse a batch whose coupons do not line up one per trade', () => {
+    expect(() =>
+      buildAcceptWithCouponCalldata([fakeTrade(), fakeTrade()], [fakeCoupon()], BUYER, ACCEPT_WITH_COUPON_ABI)
+    ).toThrow('one coupon per trade')
+  })
+})
+
+describe('when building the useCredits args for a discounted batch', () => {
+  it('should call acceptWithCoupon when the batch carries coupons', () => {
+    const args = buildUseCreditsArgs(
+      MARKET,
+      ACCEPT_WITH_COUPON_ABI,
+      [fakeTrade()],
+      BUYER,
+      [credit('c1', '100')],
+      '100',
+      [fakeCoupon()]
+    ) as { externalCall: { selector: string; target: string } }
+    expect(args.externalCall.selector).toBe(
+      new ethers.utils.Interface(ACCEPT_WITH_COUPON_ABI).getSighash('acceptWithCoupon')
+    )
+    expect(args.externalCall.target).toBe(MARKET)
+  })
+
+  it('should keep calling accept when there are none, so an undiscounted batch is untouched', () => {
+    const args = buildUseCreditsArgs(MARKET, ACCEPT_ABI, [fakeTrade()], BUYER, [credit('c1', '100')], '100') as {
+      externalCall: { selector: string }
+    }
+    expect(args.externalCall.selector).toBe(new ethers.utils.Interface(ACCEPT_ABI).getSighash('accept'))
+  })
+
+  it('should treat an empty coupon list as no coupons rather than an empty discounted call', () => {
+    const args = buildUseCreditsArgs(MARKET, ACCEPT_ABI, [fakeTrade()], BUYER, [credit('c1', '100')], '100', []) as {
+      externalCall: { selector: string }
+    }
+    expect(args.externalCall.selector).toBe(new ethers.utils.Interface(ACCEPT_ABI).getSighash('accept'))
   })
 })

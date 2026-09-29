@@ -19,6 +19,10 @@ export type ProfileAvatar = {
   avatar?: {
     bodyShape?: string
     wearables?: string[]
+    // The emote wheel: ten slots, each naming the emote assigned to it. Carried because it is the only
+    // statement a profile makes about emotes — `wearables` never contains one — so a recommender given
+    // wearables alone can say nothing about the half of the catalogue that is emotes.
+    emotes?: { slot: number; urn: string }[]
     eyes?: { color?: Color3 }
     hair?: { color?: Color3 }
     skin?: { color?: Color3 }

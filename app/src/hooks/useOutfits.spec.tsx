@@ -112,8 +112,8 @@ describe('useOutfitCreatorAccess', () => {
     expect(result.current).toBe('denied')
   })
 
-  // FAILS CLOSED, the opposite of useShopPrelaunch: showing the studio is the positive condition
-  // here, so an outage hides it. Harmless — shop-server refuses the writes regardless.
+  // FAILS CLOSED: showing the studio is the positive condition here, so an outage hides it. Harmless —
+  // shop-server refuses the writes regardless.
   it('should deny when the flag service is unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
     useWallet.setState({ session: { address: CREATOR }, restored: true } as never)

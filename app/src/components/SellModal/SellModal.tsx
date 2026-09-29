@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Network } from '@dcl/schemas'
@@ -7,6 +7,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
+import { postListingWithRetry } from '~/lib/import'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { isManagedWallet } from '~/lib/wallet'
@@ -24,6 +25,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { ListingSteps, RelayNotice, useListingEdit, type ListingEdit } from '~/components/ListingSteps'
 import { creditsToUsd } from '~/lib/currency'
 import * as S from './SellModal.styles'
 
@@ -43,6 +45,7 @@ export function SellModal({
   asset,
   session,
   creator,
+  edit,
   onListed,
   onClose
 }: {
@@ -50,10 +53,13 @@ export function SellModal({
   session: Session
   // The item's creator address (passed from the PDP). Shown as "By {name}" on the asset card.
   creator?: string
+  // Re-pricing an existing listing: the shop's listings are independent signed trades, so submitting
+  // first takes the current one down (edit.cancelCurrent) and only then publishes the new price.
+  edit?: ListingEdit
   // Fired with the whole-credit price (and the new listing's tradeId) the moment the listing is published
   // — lets the PDP show the new price immediately and optimistically patch its money/manage caches (the
   // tradeId lets the optimistic on-sale state also carry a working "remove" target). Fixes the stale-price bug.
-  onListed?: (credits: number, tradeId?: string) => void
+  onListed?: (credits: number, tradeId: string) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -75,13 +81,15 @@ export function SellModal({
       ? capitalizeFirst(creatorProfile.name)
       : shortAddress(creatorAddress)
     : null
-  const [price, setPrice] = useState('10') // whole credits
+  const [price, setPrice] = useState(edit?.currentCredits ? String(edit.currentCredits) : '10') // whole credits
   const [expiresDate, setExpiresDate] = useState<Date | null>(() => midnightDaysFromNow(DEFAULT_EXPIRATION_IN_DAYS))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [listedCredits, setListedCredits] = useState<number | null>(null)
   // 'form' = the price/expiration form; 'authorize' = the first-time approval STEP (self-custody only).
   const [step, setStep] = useState<'form' | 'authorize'>('form')
+  const afterAuthorize = useRef<{ payGas?: boolean }>({})
+  const { cancelDone, slow, cancelFailed, setCancelFailed, cancelCurrent, signal } = useListingEdit(edit, setError)
 
   // Managed (web2/OTP) wallets sign with no popup — never show them "confirm in wallet" language and
   // never a discrete approval step; a self-custody wallet must approve, so it sees both. Shared helper
@@ -90,6 +98,8 @@ export function SellModal({
 
   const priceValue = Number(price)
   const priceValid = Number.isInteger(priceValue) && priceValue > 0
+  // Once the old listing is gone, re-listing at the same number is the way back on sale.
+  const unchanged = !!edit && !cancelDone && priceValue === edit.currentCredits
   // Match the marketplace: a listing that expires at/before now is invalid.
   const expiresMs = expiresDate ? expiresDate.getTime() : NaN
   const dateValid = !!expiresDate && expiresMs > Date.now()
@@ -101,7 +111,7 @@ export function SellModal({
   // approval STEP when the marketplace isn't yet approved to transfer this collection. Managed wallets
   // (and already-approved self-custody wallets) skip straight to list(), which authorizes silently
   // (a no-op when already approved).
-  async function handleSubmit() {
+  async function handleSubmit(opts: { payGas?: boolean } = {}) {
     setError(null)
     if (!priceValid) {
       setError(t('sellModal.errorWholeNumber'))
@@ -118,6 +128,8 @@ export function SellModal({
         const authorized = await getAuthorizationStatus(auth, session.address)
         setBusy(false)
         if (!authorized) {
+          // Remembered so a paid retry of the cancel survives the detour through the approval step.
+          afterAuthorize.current = opts
           setStep('authorize')
           return
         }
@@ -127,10 +139,10 @@ export function SellModal({
         setBusy(false)
       }
     }
-    await list()
+    await list(opts)
   }
 
-  async function list() {
+  async function list(opts: { payGas?: boolean } = {}) {
     setError(null)
     if (!priceValid) {
       setError(t('sellModal.errorWholeNumber'))
@@ -142,6 +154,7 @@ export function SellModal({
     }
     setBusy(true)
     try {
+      if (!(await cancelCurrent(opts.payGas))) return
       await ensureApproval({
         signer: session.signer,
         contractAddress: asset.contractAddress,
@@ -162,7 +175,12 @@ export function SellModal({
 
       // The persisted trade carries the new tradeId — hand it to onListed so the PDP's optimistic on-sale
       // state also gets a working "remove" target (avoids a no-op remove right after listing).
-      const created = (await postTrade(trade, session.identity)) as { id?: string } | undefined
+      // Re-pricing: the marketplace can 409 for a few seconds after the cancel until the indexer catches up.
+      const created = await (edit
+        ? postListingWithRetry(trade, session.identity, { signal: signal() })
+        : postTrade(trade, session.identity))
+      // Unmounted while the request was in flight: no toast, caches or callbacks for a page that is gone.
+      signal()?.throwIfAborted()
 
       setListedCredits(priceValue) // already whole credits
       track('Shop Listed Item', {
@@ -173,14 +191,16 @@ export function SellModal({
         listing_type: 'secondary',
         is_primary: false
       })
-      toast.success(t('sellModal.toastOnSale', { name: asset.name }))
+      toast.success(t(edit ? 'listingEdit.toastUpdated' : 'sellModal.toastOnSale', { name: asset.name }))
       void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
       // Let the PDP show the new price at once and optimistically patch its own money/manage caches.
-      onListed?.(priceValue, created?.id)
+      onListed?.(priceValue, created.id)
     } catch (e) {
+      if (signal()?.aborted) return
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
-      setError(friendlyError(e, t('sellModal.errorGeneric')))
+      // Past step 1 the old listing is gone: say so, since "try again" now means putting it back on sale.
+      setError(friendlyError(e, t(edit ? 'listingEdit.listFailedAfterCancel' : 'sellModal.errorGeneric')))
     } finally {
       setBusy(false)
     }
@@ -199,10 +219,10 @@ export function SellModal({
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
-          aria-label={t('sellModal.successHeader')}
+          aria-label={t(edit ? 'listingEdit.successHeader' : 'sellModal.successHeader')}
         >
           <S.Head>
-            <S.Title>{t('sellModal.successHeader')}</S.Title>
+            <S.Title>{t(edit ? 'listingEdit.successHeader' : 'sellModal.successHeader')}</S.Title>
             <S.Close onClick={onClose} aria-label={t('getCredits.done')}>
               <Icon name="close" className="ico" />
             </S.Close>
@@ -212,7 +232,7 @@ export function SellModal({
               <Icon name="check" className="ico" />
             </S.SuccessCheck>
             <S.SuccessText>
-              <b>{t('sellModal.successOnSale')}</b> {t('sellModal.successManage')}
+              <b>{t(edit ? 'listingEdit.successBody' : 'sellModal.successOnSale')}</b> {t('sellModal.successManage')}
             </S.SuccessText>
           </S.SuccessBanner>
           <S.Actions>
@@ -238,11 +258,33 @@ export function SellModal({
         reason={t('authorizeStep.sellReason', { name: asset.name })}
         onAuthorized={() => {
           setStep('form')
-          void list()
+          void list(afterAuthorize.current)
         }}
         onCancel={() => setStep('form')}
         onClose={onClose}
       />
+    )
+  }
+
+  if (edit && busy) {
+    return (
+      <S.Scrim role="presentation">
+        <S.Card
+          onClick={e => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('listingEdit.title')}
+          data-testid="modal"
+        >
+          <S.Head>
+            <S.Title>{t('listingEdit.title')}</S.Title>
+            <S.Close disabled aria-label={t('sellModal.cancel')}>
+              <Icon name="close" className="ico" />
+            </S.Close>
+          </S.Head>
+          <ListingSteps phase={cancelDone ? 'list' : 'cancel'} managed={isManaged} slow={slow} />
+        </S.Card>
+      </S.Scrim>
     )
   }
 
@@ -253,16 +295,16 @@ export function SellModal({
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={t('sellModal.sellProduct')}
+        aria-label={t(edit ? 'listingEdit.title' : 'sellModal.sellProduct')}
       >
         <S.Head>
-          <S.Title>{t('sellModal.sellProduct')}</S.Title>
+          <S.Title>{t(edit ? 'listingEdit.title' : 'sellModal.sellProduct')}</S.Title>
           <S.Close onClick={onClose} disabled={busy} aria-label={t('sellModal.cancel')}>
             <Icon name="close" className="ico" />
           </S.Close>
         </S.Head>
 
-        <S.Subtitle>{t('sellModal.subtitle')}</S.Subtitle>
+        <S.Subtitle>{t(edit ? 'listingEdit.subtitle' : 'sellModal.subtitle')}</S.Subtitle>
 
         <S.AssetCard>
           <S.Thumb>{asset.image ? <img src={asset.image} alt="" /> : null}</S.Thumb>
@@ -278,6 +320,7 @@ export function SellModal({
             <S.InputBox aria-invalid={price.length > 0 && !priceValid}>
               <CurrencyIcon className="ccy" />
               <S.PriceInput
+                data-testid="price-input"
                 type="number"
                 min="1"
                 step="1"
@@ -320,14 +363,30 @@ export function SellModal({
           <S.Note>{t('sellModal.proceedsCredits', { count: priceValue })}</S.Note>
         ) : null}
 
+        {cancelFailed ? (
+          <RelayNotice
+            state={cancelFailed}
+            canPayGas={!!edit?.canPayGas}
+            busy={busy}
+            onPayGas={() => void handleSubmit({ payGas: true })}
+            onLater={() => setCancelFailed(null)}
+          />
+        ) : null}
+
         <ErrorNotice message={error} />
 
-        <S.PrimaryBtn onClick={() => void handleSubmit()} disabled={busy || !priceValid || !dateValid}>
-          {busy
-            ? isManaged
-              ? t('sellModal.puttingOnSale')
-              : t('sellModal.confirmListing')
-            : t('sellModal.putUpForSale')}
+        <S.PrimaryBtn
+          onClick={() => void handleSubmit()}
+          disabled={busy || unchanged || cancelFailed === 'pending' || !priceValid || !dateValid}
+          data-testid="list-submit"
+        >
+          {edit
+            ? t(cancelDone ? 'sellModal.putUpForSale' : 'listingEdit.submit')
+            : busy
+              ? isManaged
+                ? t('sellModal.puttingOnSale')
+                : t('sellModal.confirmListing')
+              : t('sellModal.putUpForSale')}
         </S.PrimaryBtn>
       </S.Card>
     </S.Scrim>

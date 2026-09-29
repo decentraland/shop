@@ -13,6 +13,7 @@ import {
 } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { getIsSecondarySalesEnabled } from '~/lib/featureFlags'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 
 // "Import your listings": bring a seller's OLD classic (MANA-priced) listings into the Shop as
 // credit-buyable. The server returns the raw price; we convert MANA→credits here via the oracle
@@ -49,8 +50,11 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
   const listings = data ?? []
   if (listings.length === 0) return { creations: [], owned: [] }
 
-  const chainId = listings[0].chainId || config.chainId
-  const rate = await readManaUsdRate(chainId)
+  // The marketplace is resolved on config.chainId, NOT on the listing's: readManaUsdRate dials
+  // config.rpcUrl, a single chain, so a marketplace from anywhere else has no contract at that address to
+  // answer. V2 shared one address across chains and hid this; V3's are per-chain. The rate is a reference
+  // price for a suggestion the creator edits, so config's chain is the right one to quote it from.
+  const rate = await readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address)
   // Fall back to 1 for a malformed manaWei — this is only a suggested starting price the creator edits.
   const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: manaWeiToCredits(l.manaWei, rate) ?? 1 }))
 
@@ -85,22 +89,38 @@ export type ImportPhase =
   | { step: 'publishing' }
   | { step: 'indexing'; attempt: number; of: number }
 
-async function postListingWithRetry(
+// Shared with the Edit-price modals, whose cancel-then-relist hits the same window. `signal` ends the wait:
+// a modal that unmounted mid-backoff must not publish its signed listing later, under a reopened edit.
+export async function postListingWithRetry(
   trade: Parameters<typeof postTrade>[0],
   identity: Parameters<typeof postTrade>[1],
-  onPhase?: (phase: ImportPhase) => void
-): Promise<void> {
+  opts: { onPhase?: (phase: ImportPhase) => void; signal?: AbortSignal } = {}
+): Promise<Awaited<ReturnType<typeof postTrade>>> {
+  const { onPhase, signal } = opts
   for (let attempt = 0; ; attempt++) {
+    signal?.throwIfAborted()
     try {
       onPhase?.(
         attempt === 0 ? { step: 'publishing' } : { step: 'indexing', attempt, of: CLEAR_RETRY_DELAYS_MS.length }
       )
-      await postTrade(trade, identity)
-      return
+      const created = await postTrade(trade, identity)
+      // The owner may have gone away while the request was in flight: its success is not to be acted on.
+      signal?.throwIfAborted()
+      return created
     } catch (e) {
-      const stillOnSale = /already an open order/i.test((e as Error)?.message ?? '')
+      const stillOnSale = /already an open order|status code 409/i.test((e as Error)?.message ?? '')
       if (!stillOnSale || attempt >= CLEAR_RETRY_DELAYS_MS.length) throw e
-      await new Promise(r => setTimeout(r, CLEAR_RETRY_DELAYS_MS[attempt]))
+      await new Promise<void>((resolve, reject) => {
+        const id = setTimeout(resolve, CLEAR_RETRY_DELAYS_MS[attempt])
+        signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(id)
+            reject(signal.reason instanceof Error ? signal.reason : new DOMException('Aborted', 'AbortError'))
+          },
+          { once: true }
+        )
+      })
     }
   }
 }
@@ -237,7 +257,7 @@ export async function importListing(
         uses: item.available,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
-      await postListingWithRetry(trade, session.identity, onPhase)
+      await postListingWithRetry(trade, session.identity, { onPhase })
     } else {
       onPhase?.({ step: 'authorising' })
       await ensureApproval({ signer: session.signer, contractAddress: item.contractAddress, chainId })
@@ -248,7 +268,7 @@ export async function importListing(
         usdPrice,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
-      await postListingWithRetry(trade, session.identity, onPhase)
+      await postListingWithRetry(trade, session.identity, { onPhase })
     }
   } catch (e) {
     // If we already took the old listing down, the item is now UNLISTED (the new one never posted).

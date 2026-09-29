@@ -35,6 +35,20 @@ export function saleTimeLeft(saleEndsAt: number | undefined, now: number = Date.
   return Math.max(0, saleEndsAt - now)
 }
 
+/** The remaining window split into whole days, hours, minutes and seconds. */
+export function countdownParts(
+  msLeft: number
+): { days: number; hours: number; minutes: number; seconds: number } | null {
+  if (!isFinite(msLeft) || msLeft <= 0) return null
+  const totalSec = Math.floor(msLeft / 1000)
+  return {
+    days: Math.floor(totalSec / 86400),
+    hours: Math.floor((totalSec % 86400) / 3600),
+    minutes: Math.floor((totalSec % 3600) / 60),
+    seconds: totalSec % 60
+  }
+}
+
 // Compact, urgency-forward countdown: "2d 4h" → "4h 12m" → "12m 30s" → "45s". Seconds only surface
 // under an hour, where they actually create pressure. Returns '' at/after zero so callers hide it.
 export function formatCountdown(msLeft: number): string {
@@ -55,4 +69,22 @@ export function formatCountdown(msLeft: number): string {
 export function countdownTickMs(msLeft: number): number {
   if (!isFinite(msLeft) || msLeft <= 0) return 0
   return msLeft < 3600_000 ? 1000 : 60_000
+}
+
+/**
+ * How many units are worth telling the buyer about — the "only N left at this price" hint, or null.
+ *
+ * Only a small number is urgency; "only 847 left" is noise dressed as pressure, so anything above the
+ * threshold says nothing at all. Zero and below say nothing either: a sale with nothing left is over, and
+ * the listing itself is what should disappear, not shrink to "0 left".
+ *
+ * The server sends the count already resolved (the sale's remaining uses capped by the listing's stock),
+ * so this is only the display rule.
+ */
+export const SALE_UNITS_HINT_MAX = 10
+
+export function saleUnitsHint(saleUnitsLeft: number | undefined): number | null {
+  if (saleUnitsLeft == null || !Number.isFinite(saleUnitsLeft)) return null
+  if (saleUnitsLeft <= 0 || saleUnitsLeft > SALE_UNITS_HINT_MAX) return null
+  return Math.floor(saleUnitsLeft)
 }

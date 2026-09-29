@@ -173,7 +173,10 @@ export const Hero = styled.section`
   }
 `
 
-export const HeroBg = styled.img`
+// The prop is declared in its HTML casing because React 18 has no `fetchPriority` of its own (it lands in
+// 19) and warns about the camelCase spelling on every render. Emotion forwards it — `is-prop-valid` knows
+// the attribute — so it reaches the DOM either way; this is only about which spelling stays quiet.
+export const HeroBg = styled.img<{ fetchpriority?: 'high' | 'low' | 'auto' }>`
   position: absolute;
   inset: 0;
   width: 100%;

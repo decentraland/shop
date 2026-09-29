@@ -4,19 +4,20 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
-import { fetchStoreMintState, resolveLiveTrade, type CatalogItem } from '~/lib/api'
+import { fetchStoreMintState, resolveLiveCoupon, resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
-import { readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
+import { discountedManaWei, readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
-import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
-import { config } from '~/config'
+import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
+import { CreatorName } from '~/components/CreatorName'
+import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
+import { recordCouponUse } from '~/store/couponUses'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
-import packCoin from '~/assets/credits/pack-coin.webp'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
 import {
   getAuthorizationStatus,
@@ -44,7 +45,7 @@ import {
 import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
-import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
@@ -73,7 +74,10 @@ const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAdd
 async function manaPriceFor(sale: PurchaseTarget, opts: { reportFailure?: boolean } = {}): Promise<bigint | null> {
   if (sale.kind === 'store') return BigInt(sale.mint.item.priceWei)
   try {
-    return await readTradeManaPriceWei(sale.trade)
+    // Discounted here rather than at each consumer: this one figure drives the quoted MANA, whether the
+    // rail is offered at all, the allowance, and the mixed rail's gap. Quoting the list price would show a
+    // buyer more MANA than they pay and hide the rail from anyone holding exactly the sale price.
+    return discountedManaWei(await readTradeManaPriceWei(sale.trade), sale.coupon)
   } catch (err) {
     // The retry passes false: one outage, one report.
     if (opts.reportFailure !== false) captureError(err, { flow: 'buy', step: 'mana_price' })
@@ -139,11 +143,9 @@ export function BuyModal({
    */
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     try {
-      return await qc.fetchQuery({
-        queryKey: ['mana-rate', config.chainId],
-        queryFn: () => readManaUsdRate(config.chainId),
-        staleTime: 60_000
-      })
+      // The REFERENCE rate — for converting a legacy MANA-priced line to credits. What a USD-pegged trade
+      // settles at is readTradeManaPriceWei, from the trade's own contract, and never comes through here.
+      return await qc.fetchQuery(manaRateQueryOptions())
     } catch {
       return undefined
     }
@@ -217,11 +219,7 @@ export function BuyModal({
    * an empty picker is worse than an honest one, and buying the largest is still progress.
    */
   const shortfallCredits = Math.max(0, itemCredits - (balance?.credits ?? 0))
-  const COVERING_PACKS = (() => {
-    if (shortfallCredits <= 0) return OFFER_PACKS
-    const covering = OFFER_PACKS.filter(p => p.credits >= shortfallCredits)
-    return covering.length > 0 ? covering : OFFER_PACKS
-  })()
+  const { packs: COVERING_PACKS } = offerablePacks(OFFER_PACKS, shortfallCredits)
   // The MANA (wei) this purchase costs — from the oracle for a trade, from the store's own on-chain price
   // for a mint. Null until read (or if the read fails, in which case MANA simply isn't offered and the
   // credits path is unaffected).
@@ -372,7 +370,14 @@ export function BuyModal({
          * The rate is AWAITED rather than read from a possibly-unresolved query — deciding off a missing rate
          * would report a perfectly buyable item as unavailable on a slow oracle read.
          */
-        const outcome = await resolveLine(item, session.address, resolveLiveTrade, await ensureManaRate(), resolveStore)
+        const outcome = await resolveLine(
+          item,
+          session.address,
+          resolveLiveTrade,
+          await ensureManaRate(),
+          resolveStore,
+          resolveLiveCoupon
+        )
         // The three outcomes read differently to a buyer, so they are not collapsed: gone means the sale ended,
         // own means they are the seller, and no-price means we could not quote it — see lib/errors.
         if (outcome.status === 'own') throw new Error("You can't buy your own listing.")
@@ -628,6 +633,7 @@ export function BuyModal({
     try {
       // Invalidations FIRST: they are what refresh the buyer's balance and drop the item from the PDP, and a
       // Segment fault must not be able to skip them (analytics is the part most likely to throw).
+      recordCouponUse(item.coupon)
       invalidateAfterPurchase(qc, item)
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
@@ -696,6 +702,9 @@ export function BuyModal({
   // grids, My Assets and Activity all reflect the sale). Also bumps the MANA balance, which both rails
   // spend, and the USD balance, which the combined rail spends.
   function refreshAfterPurchase() {
+    // Counted here rather than waited for: the catalogue's `used` comes from a server-side poller, so a
+    // refetch in the next second returns the figure from before this purchase.
+    recordCouponUse(item.coupon)
     void qc.invalidateQueries({ queryKey: ['mana-balance'] })
     void qc.invalidateQueries({ queryKey: ['usd-balance'] })
     void qc.invalidateQueries({ queryKey: ['detail-trade'] })
@@ -737,7 +746,13 @@ export function BuyModal({
       // (which holds no POL) can take it.
       const txHash =
         sale.kind === 'trade'
-          ? await buyWithMana({ trade: sale.trade, buyer: session.address, signer: session.signer, manaWei })
+          ? await buyWithMana({
+              trade: sale.trade,
+              coupon: sale.coupon,
+              buyer: session.address,
+              signer: session.signer,
+              manaWei
+            })
           : await buyMintWithMana({ mint: sale.mint, buyer: session.address, signer: session.signer, manaWei })
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
@@ -807,7 +822,7 @@ export function BuyModal({
       // Both kinds ride the CreditsManager's own mixed-payment rail — only the external call inside it differs.
       txHash =
         sale.kind === 'trade'
-          ? await buyWithCreditsAndMana({ trade: sale.trade, ...gapArgs })
+          ? await buyWithCreditsAndMana({ trade: sale.trade, coupon: sale.coupon, ...gapArgs })
           : await buyMintWithCreditsAndMana({ mint: sale.mint, ...gapArgs })
     } catch (e) {
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
@@ -865,8 +880,13 @@ export function BuyModal({
         window.location.href = cs.url // Stripe hosted checkout with the pack pre-selected
         return
       }
-      // No hosted URL (mock/dev, Stripe off): the credits page grants then resumes.
-      navigate('/credits')
+      /**
+       * No hosted URL (mock/dev, Stripe off): hand the order over the way Stripe's success_url would, so the
+       * credits page polls the grant and resumes. Landing on a bare `/credits` left it with nothing to poll
+       * — it just rendered the pack grid — so the top-up finished and the resume silently never fired.
+       */
+      if (!cs.orderId) throw new Error('Checkout returned neither a redirect url nor an order id')
+      navigate(`/credits?order=${encodeURIComponent(cs.orderId)}`)
     } catch (e) {
       captureError(e, { flow: 'buy_credits_and_item' })
       try {
@@ -1085,7 +1105,11 @@ export function BuyModal({
       <M.Card data-tall={phase === 'processing' || phase === 'loading' || undefined}>
         {methodMode ? (
           <PaymentMethodStep
-            item={item}
+            asset={{
+              name: item.name,
+              thumb: item.thumbnail ? <img src={item.thumbnail} alt="" /> : null,
+              caption: item.creator ? <CreatorName address={item.creator} /> : null
+            }}
             priceCredits={priceCredits}
             priceCents={priceCents}
             options={paymentOptions.options}
@@ -1261,26 +1285,11 @@ export function BuyModal({
                     and can close; they top up in the app and come back. */}
                 {isIapMode() ? null : (
                   <>
-                    <M.Packs data-testid="credit-packs">
-                      {COVERING_PACKS.map(p => {
-                        const packCredits = p.credits
-                        const on = p.id === selectedPack
-                        return (
-                          <M.Pack key={p.id} data-on={on || undefined} onClick={() => setSelectedPack(p.id)}>
-                            <M.PackIco src={packCoin} alt="" />
-                            <M.PackAmount>{formatCredits(packCredits)}</M.PackAmount>
-                            <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
-                          </M.Pack>
-                        )
-                      })}
-                    </M.Packs>
-                    <M.Total>
-                      <M.TotalCredits>
-                        <M.TotalIco />
-                        <span>{formatCredits(COVERING_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
-                      </M.TotalCredits>
-                      <M.TotalUsd>${(COVERING_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}</M.TotalUsd>
-                    </M.Total>
+                    <CreditPackPicker
+                      packs={COVERING_PACKS}
+                      selectedId={selectedPack || undefined}
+                      onSelect={setSelectedPack}
+                    />
                   </>
                 )}
                 <M.Ctas>

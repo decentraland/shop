@@ -51,7 +51,7 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
         {cover ? (
           <S.Img data-testid="coll-card-img" src={cover} alt="" loading="lazy" />
         ) : mosaic.length > 0 ? (
-          <S.Cover items={mosaic} tinted={false} />
+          <S.Cover items={mosaic} />
         ) : null}
       </S.Media>
 

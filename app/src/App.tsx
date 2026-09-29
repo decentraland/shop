@@ -2,15 +2,15 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
-import { PrelaunchNotice } from '~/components/PrelaunchNotice'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
-import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
+import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useWallet } from '~/store/wallet'
+import { config } from '~/config'
 import { usePageView } from '~/hooks/usePageView'
 import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
@@ -27,15 +27,16 @@ import { t } from '~/intl/i18n'
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
+const Event = lazy(() => import('~/pages/Event').then(m => ({ default: m.Event })))
 const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetailRoute })))
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
+const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyStore })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
-const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
@@ -48,6 +49,25 @@ function PageFallback() {
       <span className="spinner" aria-hidden />
     </div>
   )
+}
+
+/**
+ * Approvals left the Shop for the marketplace, which is where on-chain authorizations live and where the
+ * same grants are already listed — batched, and only the ones actually granted.
+ *
+ * An external navigation rather than a <Navigate>, so it leaves the SPA; `replace` rather than `assign` so
+ * Back returns where the visitor came from instead of re-firing this route. The URL is absolute and comes
+ * from config, so one build still serves .zone/.today/.org, and the /shop basename is irrelevant to it.
+ *
+ * The page keeps its PAGE_NAMES entry, but read that as best-effort: trackPage queues through the Segment
+ * SDK and the unload can beat the flush. It records the attempt, not the arrival — measuring arrival needs
+ * attribution on the marketplace side. Never delay the navigation for it.
+ */
+function MarketplaceSettingsRedirect() {
+  useEffect(() => {
+    window.location.replace(`${config.marketplaceUrl}/settings`)
+  }, [])
+  return <PageFallback />
 }
 const ReloadCta = styled(Button)`
   margin-top: 10px;
@@ -77,18 +97,32 @@ function RenamedPathRedirect({ to }: { to: string }) {
   return <Navigate to={`${to}${rest ? `/${rest}` : ''}${search}${hash}`} replace />
 }
 
+// Alias to a fixed path, carrying the incoming query and hash. The root alias needs it most: every
+// in-world entry point opens `/?utm_source=client`, and Segment resolves the landing page view when
+// analytics.js finishes loading — long after a plain <Navigate> would have dropped the tag.
+//
+// `to`'s own params win a collision, since they are what the alias exists to point at.
+export function AliasRedirect({ to }: { to: string }) {
+  const { search, hash } = useLocation()
+  // Split on the FIRST '?' only and keep the rest verbatim: `split('?')` would discard everything past a
+  // second one, and `split('?', 2)` is not a maxsplit in JS — it caps the array, dropping the tail all the same.
+  const mark = to.indexOf('?')
+  const path = mark === -1 ? to : to.slice(0, mark)
+  const params = new URLSearchParams(search)
+  for (const [key, value] of new URLSearchParams(mark === -1 ? '' : to.slice(mark + 1))) params.set(key, value)
+  const query = params.toString()
+  return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
+}
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
-  const prelaunch = useShopPrelaunch()
+  useDialogScrollLock()
   const location = useLocation()
 
-  // Start the silent wallet restore HERE, not only in the navbar.
-  //
-  // The curtain returns before the shell, so while it is up the navbar is unmounted — and the navbar is
-  // what used to kick this off. That worked by accident: the restore promise outlived the unmount. It stops
-  // working the moment the decision waits on the restore, because then nothing would ever start it and the
-  // page would stay blank forever. The store dedupes concurrent callers, so the navbar can keep asking too.
+  // Start the silent wallet restore HERE, not only in the navbar. The navbar used to be the only caller,
+  // which made every consumer of the session depend on that one component staying mounted. The store
+  // dedupes concurrent callers, so the navbar can keep asking too.
   const restoreWallet = useWallet(s => s.restore)
   useEffect(() => {
     void restoreWallet()
@@ -97,22 +131,13 @@ export function App() {
   // Segment is loaded by the AnalyticsProvider in main.tsx; this only emits a page view per route.
   usePageView()
 
-  // The pre-launch curtain. Returned BEFORE the shell so no NavBar, footer or route is mounted: each of those
-  // is a door into a Shop that is meant to be closed. Cosmetic only — what refuses a purchase is the same flag
-  // read server-side by credits-server (see useShopPrelaunch).
-  //
-  // 'pending' renders NOTHING. The decision needs the wallet session, which arrives after the flag, and
-  // showing either answer before both are in produced a visible flash of the holding page on every refresh
-  // for wallets that are in fact allowed. Nothing is the only honest thing to show while the question is
-  // open, and it is brief: an ungated environment never reaches this, and a gated one is waiting on a cached
-  // flag read plus a storage read.
-  if (prelaunch === 'pending') {
-    return null
-  }
-  if (prelaunch === 'hidden') {
-    return <PrelaunchNotice />
-  }
-
+  // Nothing gates the shell. There used to be a pre-launch curtain here that rendered NOTHING until a
+  // feature-flag read and the wallet restore had both settled — and since that read only starts once the
+  // entry chunk has executed, it held the FIRST PAINT of every visit behind a network round trip
+  // (measured: flags at 231ms, first render at 273ms). The Shop is launched, the flag is no longer in the
+  // file, and the half that actually refuses a purchase was always the server's: credits-server reads
+  // `shop-prelaunch` on /credits/authorize against the signed-fetch address. That half is untouched, so
+  // closing the Shop again is a server concern plus a new curtain, not a revert of this.
   return (
     <>
       <ScrollReset />
@@ -130,12 +155,16 @@ export function App() {
                 path prefix, so on hosts that serve the app at the root (Vercel previews, localhost)
                 that URL would be read as the app's mount point, not as a route. */}
             <Routes>
-              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route path="/" element={<AliasRedirect to="/overview" />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/items" element={<Assets />} />
+              {/* The seasonal event's storefront. Generic on purpose: which event it is comes from the
+                  CMS, so one route serves every campaign and nothing has to be deployed to change it. The
+                  page sends visitors to /items when no campaign is running. */}
+              <Route path="/event" element={<Event />} />
               {/* Items is the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
-              <Route path="/market" element={<Navigate to="/items" replace />} />
+              <Route path="/market" element={<AliasRedirect to="/items" />} />
               {/* Two detail routes so the id is never ambiguous (an itemId and a tokenId can collide —
                   item 0's tokens have small tokenIds). /item is the generic buy view; /token is a
                   specific owned/listed copy. Both render ItemDetail, which branches on the param. */}
@@ -150,11 +179,12 @@ export function App() {
               <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
               <Route path="/my-items" element={<MyAssets />} />
+              <Route path="/my-store" element={<MyStore />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
               <Route path="/activity" element={<Activity />} />
               {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
                   existing links (e.g. the Success page, bookmarks) don't 404. */}
-              <Route path="/my-purchases" element={<Navigate to="/activity" replace />} />
+              <Route path="/my-purchases" element={<AliasRedirect to="/activity" />} />
               {/* /assets and /my-assets were renamed to /items and /my-items when the user-facing noun
                   became "item". The old paths MUST stay: /assets is published in public/sitemap.xml, so it
                   is indexed, and creator storefronts (/assets/creator/:address) and outfit pages
@@ -167,9 +197,9 @@ export function App() {
               {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
                   it has been the target of the My Items nudge for months, so it is in histories and
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}
-              <Route path="/import" element={<Navigate to="/activity?section=listings" replace />} />
+              <Route path="/import" element={<AliasRedirect to="/activity?section=listings" />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/authorizations" element={<Authorizations />} />
+              <Route path="/authorizations" element={<MarketplaceSettingsRedirect />} />
               {/* Selling credits is the one thing the Shop cannot do inside the iOS app's web view — the
                   app sells them through In-App Purchase. Hiding the entrances is not enough on its own:
                   the route stays addressable, and a stale link or a back-navigation would land straight on

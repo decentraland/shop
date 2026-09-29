@@ -53,6 +53,7 @@ export type IconName =
   | 'chevron-down'
   | 'chevron-up-line'
   | 'clock'
+  | 'clock-filled'
   | 'close'
   | 'copy'
   | 'credits'
@@ -75,6 +76,7 @@ export type IconName =
   | 'gender-male'
   | 'gender-unisex'
   | 'heart'
+  | 'history'
   | 'heart-solid'
   | 'info'
   | 'link-out'
@@ -101,13 +103,13 @@ export type IconName =
   | 'utility'
   | 'star-rounded'
   | 'trash'
-  | 'twitter'
   | 'upload'
   | 'view-all-arrow'
   | 'view-avatar'
   | 'view-item'
   | 'warning-fill'
   | 'website'
+  | 'x-twitter'
 
 type IconProps = {
   name: IconName

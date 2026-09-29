@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart, type AddToCartSource } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
+import { useLocale } from '~/store/locale'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
+import { canHover } from '~/lib/hover'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
-import { rarityColor, rarityDescription, rarityLabel } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -15,6 +17,7 @@ import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { track } from '~/lib/analytics'
 import { useSaleActive } from '~/hooks/useSaleActive'
+import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import type { CatalogItem } from '~/lib/api'
 import * as S from './AssetCard.styles'
 
@@ -49,7 +52,12 @@ type AssetCardProvenance = { source?: AddToCartSource; position?: number }
 
 type AssetCardProps = AssetCardProvenance &
   (
-    | { item: CatalogItem; mode?: 'shop' }
+    | {
+        item: CatalogItem
+        mode?: 'shop'
+        /** A line of context between the price and the action, e.g. why a rail picked this item. */
+        note?: ReactNode
+      }
     | { item: CatalogItem; mode: 'view' }
     | {
         item: CatalogItem
@@ -64,12 +72,14 @@ type AssetCardProps = AssetCardProvenance &
 
 export function AssetCard(props: AssetCardProps) {
   const { item, source = 'grid', position } = props
+  const note = 'note' in props ? props.note : undefined
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
   const isManageLink = props.mode === 'manage-link'
   // A Decentraland NAME (My Assets → Names): no thumbnail — the media is the typographic "@name" tile.
   // Uses the same card shell + hover as every other card.
   const isNameItem = item.category === 'ens'
+  const showsNote = note != null && !isView && !isManage && !isManageLink && !isNameItem
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
@@ -83,6 +93,14 @@ export function AssetCard(props: AssetCardProps) {
   // Your own (primary) listing — can't add it to the cart (see lib/ownership.ts).
   const own = isOwnListing(item, address)
   const { key: favKey, faved, toggle: toggleFav } = useFavorite(item)
+  const favCount = useFavoriteCount(item)
+  const locale = useLocale(s => s.locale)
+  const favCountLabel = favCount === undefined ? null : favCount.toLocaleString(locale)
+  const favAction = faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')
+  // The button's label replaces everything inside it for assistive tech, so the count has to be part
+  // of it or it is only ever seen, never heard.
+  const favLabel =
+    favCount === undefined ? favAction : t('assetCard.favoriteAria', { action: favAction, count: favCount })
   // The single shared 3D preview (see HoverPreviewLayer): on hover this card asks it to load this item
   // and overlay this card's media. `isPreviewing`/`previewReady` reflect whether THIS card is the one
   // currently driving that shared instance.
@@ -116,8 +134,8 @@ export function AssetCard(props: AssetCardProps) {
   function onEnter() {
     // Touch devices synthesize a `mouseenter` on tap — don't enter the hover state there (it would
     // flash the red border + 3D preview on a tap). Hover is desktop-only; the matching style swap is
-    // gated behind @media (hover: hover).
-    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
+    // gated behind @media (hover: hover), and HoverPreviewLayer warms its engine on the same answer.
+    if (!canHover()) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
@@ -184,6 +202,8 @@ export function AssetCard(props: AssetCardProps) {
 
   const nfs = <S.Nfs data-testid="card-nfs">{t('assetCard.notForSale')}</S.Nfs>
 
+  const soldOutTag = <S.Nfs data-testid="card-sold-out">{t('assetCard.soldOut')}</S.Nfs>
+
   // The card's action when there is nothing to buy: the round arrow on the compact card, the full-width
   // pill everywhere else. Both point at the detail page themselves rather than relying on the whole-card
   // overlay link, which they cover (see ViewRoundLink in the styles). A NAME has no detail page, so there
@@ -211,14 +231,50 @@ export function AssetCard(props: AssetCardProps) {
     </S.ViewCta>
   )
 
+  /**
+   * The owner's surfaces say SOLD OUT where a browse card would say NOT FOR SALE.
+   *
+   * To a buyer the two mean the same thing, so browse keeps its wording. To the creator they do not: NOT
+   * FOR SALE reads as a listing decision they could reverse, and an item with no copies left is not one —
+   * there is nothing to list. `available === 0` and not `undefined`, which means the feed did not say.
+   */
   const priceOrNfs = (listed: boolean) =>
-    listed && item.priceCredits > 0 ? (
-      <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
-        <CurrencyIcon size={15} />
-        {formatCredits(item.priceCredits)}
+    (isManage || isManageLink) && item.available === 0 ? (
+      soldOutTag
+    ) : listed && item.priceCredits > 0 ? (
+      <S.Price data-variant={onSale ? 'sale' : undefined} data-testid="card-price">
+        <S.PriceNow title={formatCreditsFull(item.priceCredits)}>
+          <CurrencyIcon size={15} />
+          {formatCredits(item.priceCredits)}
+        </S.PriceNow>
+        {/* The owner's own grid gets the same before-and-after a buyer sees. Without it the creator's price
+            simply drops and nothing on the card says a discount is why. */}
+        {onSale ? (
+          <S.PriceWas data-testid="card-price-was" title={formatCreditsFull(item.compareAtCredits!)}>
+            {formatCredits(item.compareAtCredits!)}
+          </S.PriceWas>
+        ) : null}
       </S.Price>
     ) : (
       nfs
+    )
+
+  /**
+   * Whether an emote loops or plays once, the same badge the Marketplace card carries.
+   *
+   * `undefined` is a wearable, not an emote with an unknown mode — the feed only sends `data.emote.loop`
+   * for emotes, so the check has to be for the field's PRESENCE rather than its truthiness (`false` is a
+   * real answer: it means it plays once).
+   */
+  const playModeChip =
+    item.emoteLoop === undefined ? null : (
+      <S.CardChip
+        data-variant="icon"
+        data-testid="chip-play-mode"
+        title={item.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
+      >
+        <Icon name={item.emoteLoop ? 'play-loop' : 'play-once'} />
+      </S.CardChip>
     )
 
   const chips = (
@@ -235,6 +291,7 @@ export function AssetCard(props: AssetCardProps) {
           <Icon name={catIco} />
         </S.CardChip>
       ) : null}
+      {playModeChip}
     </S.Chips>
   )
 
@@ -246,11 +303,11 @@ export function AssetCard(props: AssetCardProps) {
         <CurrencyIcon size={15} />
         {formatCredits(item.priceCredits)}
       </S.PriceNow>
+      {/* No mark of its own: the currency is said once, by the price being charged. Two marks in a row read
+          as two unrelated prices rather than as a before and an after. */}
       <S.PriceWas data-testid="card-price-was" title={formatCreditsFull(item.compareAtCredits!)}>
-        <CurrencyIcon size={13} />
         {formatCredits(item.compareAtCredits!)}
       </S.PriceWas>
-      <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
     </S.Price>
   ) : (
     <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
@@ -285,12 +342,15 @@ export function AssetCard(props: AssetCardProps) {
           <Icon name={genderIco} />
         </S.CardChip>
       ) : null}
+      {playModeChip}
     </S.Chips>
   )
 
   return (
     <S.Card
       data-testid="card"
+      data-sale={onSale || undefined}
+      data-note={showsNote || undefined}
       style={canOpen && !isNameItem ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -342,28 +402,32 @@ export function AssetCard(props: AssetCardProps) {
       {!isNameItem && favKey ? (
         <S.Fav
           data-on={faved || undefined}
+          data-count={favCountLabel ?? undefined}
           data-testid="card-fav"
           onClick={e => {
             e.stopPropagation()
-            toggleFav(item)
+            toggleFav(item, source)
           }}
-          aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+          aria-label={favLabel}
         >
           <S.FavIcons>
             <S.FavOutline name="heart" size={16} aria-hidden />
             <S.FavFill name="heart-solid" size={16} aria-hidden />
           </S.FavIcons>
+          {favCountLabel ? <S.FavCount data-testid="card-fav-count">{favCountLabel}</S.FavCount> : null}
         </S.Fav>
       ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
           rect to position over. The card does NOT mount its own WearablePreview — it just asks the store
           to point the one warm iframe here, and the thumbnail crossfades out once that preview is ready. */}
-      <S.Media ref={mediaRef} data-testid="card-media">
-        {onSale ? (
-          <S.SaleBadge data-testid="card-sale-badge">
-            {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
-          </S.SaleBadge>
-        ) : null}
+      <S.Media
+        ref={mediaRef}
+        data-testid="card-media"
+        /* A NAME has no rarity, so it keeps the neutral fill under its violet "@name" tile —
+           without this it falls back to common's colour and reads as a rarity it doesn't have. */
+        style={isNameItem ? undefined : { backgroundImage: rarityMedia(item.rarity) }}
+      >
+        {onSale ? <S.SaleBadge pct={discountPct} testId="card-sale-badge" /> : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
@@ -394,7 +458,9 @@ export function AssetCard(props: AssetCardProps) {
               tag on the right — same layout as the view card. */}
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>{item.name}</S.Name>
+              <S.Name data-testid="card-name" title={item.name}>
+                {item.name}
+              </S.Name>
               {issued}
             </S.Desc>
             {priceOrNfs(props.listed)}
@@ -438,7 +504,7 @@ export function AssetCard(props: AssetCardProps) {
         <S.Body data-name>
           <S.Top>
             <S.Desc>
-              <S.Name data-verified title={item.name}>
+              <S.Name data-testid="card-name" data-verified title={item.name}>
                 <span>{item.name}</span>
                 {/* DCL verified badge: scalloped Cerise-gradient seal + white check. Inlined (not the
                     Icon mask) so the gradient renders. */}
@@ -511,7 +577,9 @@ export function AssetCard(props: AssetCardProps) {
         <S.Body>
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>{item.name}</S.Name>
+              <S.Name data-testid="card-name" title={item.name}>
+                {item.name}
+              </S.Name>
               {issued}
             </S.Desc>
             {priceOrNfs(true)}
@@ -539,7 +607,7 @@ export function AssetCard(props: AssetCardProps) {
               or a small "NOT FOR SALE" tag when it isn't. */}
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>
+              <S.Name data-testid="card-name" title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
               {/* The author line the for-sale card has always shown. Leaving it out of THIS branch is why a
@@ -567,13 +635,13 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : (
-        <S.Body>
+        <S.Body data-sale={onSale || undefined} data-note={showsNote || undefined}>
           {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
               (min-width:0 so a long name ellipses instead of shoving the price out); the price never
               shrinks. */}
           <S.Top>
             <S.Desc>
-              <S.Name title={item.name}>
+              <S.Name data-testid="card-name" title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
               {/* "by {creator}" line under the title: resolves the creator address to a DCL profile name
@@ -587,6 +655,12 @@ export function AssetCard(props: AssetCardProps) {
             </S.Desc>
             {notForSale ? nfs : browsePrice}
           </S.Top>
+
+          {showsNote ? (
+            <S.Note data-testid="card-note" data-reveal>
+              {note}
+            </S.Note>
+          ) : null}
 
           {/* Chips row and the primary action share one fixed-height slot so the card doesn't change size
               when the action is revealed on hover/focus — the button replaces the chips in place. Chips

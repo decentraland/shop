@@ -15,10 +15,18 @@ import { classifyTrade, classifyStoreMint, isLineBuyable, resolveLineAvailabilit
 const resolveMock = vi.mocked(resolveLiveTrade)
 const storeMock = vi.mocked(fetchStoreMintState)
 
-// A USD-pegged trade: received amount is USD wei (1e18 = $1), so $2 → 2e18 wei. Optional expiration is
-// epoch ms (the shape fetchTrade returns).
+// The Amoy V2 marketplace and the Polygon V3 one: real addresses, because the classifier reads the contract
+// registry to check that a trade names a marketplace deployed on its chain.
+const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+const MARKETPLACE_V3_POLYGON = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+const AMOY = 80002
+
+// A USD-pegged trade on the Amoy V2 marketplace: received amount is USD wei (1e18 = $1), so $2 → 2e18 wei.
+// Optional expiration is epoch ms (the shape fetchTrade returns).
 const trade = (dollars: number, expiration?: number): Trade =>
   ({
+    contract: MARKETPLACE_V2_AMOY,
+    chainId: AMOY,
     received: [{ amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString() }],
     ...(expiration != null ? { checks: { expiration } } : {})
   }) as unknown as Trade
@@ -57,6 +65,18 @@ describe('cart-availability', () => {
 
     it('when the price is zero it is unavailable', () => {
       expect(classifyTrade(primary, trade(0))).toBe('unavailable')
+    })
+
+    describe('and the trade names a marketplace not deployed on its chain', () => {
+      let result: ReturnType<typeof classifyTrade>
+
+      beforeEach(() => {
+        result = classifyTrade(primary, { ...trade(2), contract: MARKETPLACE_V3_POLYGON })
+      })
+
+      it('should be unavailable, as checkout would refuse to settle it', () => {
+        expect(result).toBe('unavailable')
+      })
     })
   })
 

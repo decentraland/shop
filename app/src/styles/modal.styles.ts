@@ -60,6 +60,36 @@ export const Title = styled.h2`
   font-size: 20px;
 `
 
+// Title row with the hairline every form-style modal draws under its heading.
+export const Head = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid ${colors.gray4};
+
+  & > h2 {
+    margin: 0;
+  }
+`
+
+export const LinkBtn = styled.button`
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: ${colors.accent};
+  text-decoration: underline;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`
+
 export const Img = styled.img`
   width: 140px;
   height: 140px;
@@ -80,6 +110,11 @@ export const Actions = styled.div`
   margin-top: 6px;
   padding-top: 8px;
   background: ${colors.white};
+
+  > button {
+    flex: 1;
+    text-transform: uppercase;
+  }
 `
 
 export const SuccessCheck = styled.div`

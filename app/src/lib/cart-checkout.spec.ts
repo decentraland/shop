@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
+import type { ListingCoupon } from '~/lib/trade-encoding'
 import {
   reviewCart,
   resolveLine,
@@ -10,12 +11,27 @@ import {
   draftPurchase,
   checkoutLineFor,
   groupUnitsForAuthorization,
+  discountedUsdCents,
+  couponForTrade,
+  type LineOutcome,
   type StoreResolver,
   type TradeResolver,
   type ResolvedLine
 } from '~/lib/cart-checkout'
 
 const BUYER = '0xBUYER'
+
+// Real marketplace addresses, because the review reads the contract registry to check that a trade names a
+// marketplace deployed on its chain. Polygon mainnet: the V3 marketplace, the manager it redeems coupons
+// through, and the V2 marketplace still settling the listings signed before it. Amoy: its V2 marketplace.
+const MARKETPLACE_V3 = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+const MARKETPLACE_V2 = '0xa40b1d129b8906888720686f3a01921ddf37716f'
+const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+/** The first version, which still carries live primary listings on Polygon mainnet. */
+const MARKETPLACE_V1 = '0x540fb08eDb56AaE562864B390542C97F562825BA'
+const COUPON_MANAGER_V3 = '0x655fdfa91d69ea49f4ce1a8f7f7e2622c8630813'
+const POLYGON = 137
+const AMOY = 80002
 
 const item = (id: string, priceCredits: number, over: Partial<CatalogItem> = {}): CatalogItem => ({
   id,
@@ -42,6 +58,8 @@ const item = (id: string, priceCredits: number, over: Partial<CatalogItem> = {})
 const trade = (dollars: number, signer = '0xseller'): Trade =>
   ({
     signer,
+    contract: MARKETPLACE_V2_AMOY,
+    chainId: AMOY,
     received: [
       {
         assetType: TradeAssetType.USD_PEGGED_MANA,
@@ -55,6 +73,8 @@ const trade = (dollars: number, signer = '0xseller'): Trade =>
 const legacyTrade = (mana: number, signer = '0xseller'): Trade =>
   ({
     signer,
+    contract: MARKETPLACE_V2_AMOY,
+    chainId: AMOY,
     received: [{ assetType: TradeAssetType.ERC20, amount: (BigInt(Math.round(mana * 1000)) * 10n ** 15n).toString() }]
   }) as unknown as Trade
 
@@ -827,6 +847,319 @@ describe('when preparing a checkout for authorization', () => {
 
     it('should return nothing for an empty basket', () => {
       expect(groupUnitsForAuthorization([], keyOf)).toEqual([])
+    })
+  })
+})
+
+const coupon = (discountPpm: number) =>
+  ({
+    id: 'coupon-1',
+    signer: '0xseller',
+    couponManager: COUPON_MANAGER_V3,
+    couponAddress: '0xcoupon',
+    checks: {
+      uses: 10,
+      expiration: Date.now() + 86_400_000,
+      effective: Date.now() - 1000,
+      salt: '0x' + '00'.repeat(32),
+      contractSignatureIndex: 0,
+      signerSignatureIndex: 0,
+      allowedRoot: '0x',
+      allowedProof: [],
+      externalChecks: []
+    },
+    discountType: 1,
+    discount: discountPpm,
+    root: '0x' + '11'.repeat(32),
+    collections: ['0xcollection'],
+    signature: '0x' + 'ab'.repeat(65),
+    proof: []
+  }) as unknown as NonNullable<CatalogItem['coupon']>
+
+describe('when pricing a line that a creator put on sale', () => {
+  describe('and there is no coupon', () => {
+    it('should leave the live listing price alone', () => {
+      expect(discountedUsdCents(1000, undefined)).toBe(1000)
+    })
+  })
+
+  describe('and a rate coupon applies', () => {
+    it('should charge the discounted price rather than the one signed into the trade', () => {
+      expect(discountedUsdCents(1000, coupon(300_000))).toBe(700)
+      expect(discountedUsdCents(1000, coupon(500_000))).toBe(500)
+    })
+
+    it('should round up, so the approval is never a wei short of what the marketplace asks', () => {
+      // 999 * 0.7 = 699.3 — rounding down would authorize 699 and revert the whole purchase.
+      expect(discountedUsdCents(999, coupon(300_000))).toBe(700)
+    })
+
+    it('should never price a line below what the discount actually is', () => {
+      for (const cents of [1, 7, 13, 99, 137, 1001]) {
+        expect(discountedUsdCents(cents, coupon(300_000))).toBeGreaterThanOrEqual((cents * 7) / 10)
+      }
+    })
+  })
+
+  describe('and the line has no honest price to start from', () => {
+    it('should stay unpriced rather than discount a zero into a free item', () => {
+      expect(discountedUsdCents(0, coupon(300_000))).toBe(0)
+    })
+  })
+})
+
+/** A PRIMARY listing on the V3 marketplace: the only kind the coupon contract will discount. */
+const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLACE_V3, chainId = POLYGON): Trade =>
+  ({
+    signer,
+    contract,
+    chainId,
+    sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xcollection', value: '0' }],
+    received: [
+      {
+        assetType: TradeAssetType.USD_PEGGED_MANA,
+        amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString()
+      }
+    ]
+  }) as unknown as Trade
+
+describe('when deciding whether a coupon can settle a trade', () => {
+  describe('and it is a live rate discount on a primary listing', () => {
+    it('should keep it', () => {
+      expect(couponForTrade(coupon(300_000), primaryTrade(10))?.discount).toBe(300_000)
+    })
+  })
+
+  describe('and it is a flat discount', () => {
+    it('should drop it, since the rate formula would price the line as negative and drop the row entirely', () => {
+      const flat = { ...coupon(300_000), discountType: 2, discount: 500_000_000_000_000_000 }
+      expect(couponForTrade(flat, primaryTrade(10))).toBeUndefined()
+    })
+  })
+
+  describe('and its window has closed', () => {
+    it('should drop an expired one rather than submit a purchase the contract refuses', () => {
+      const expired = { ...coupon(300_000), checks: { ...coupon(300_000).checks, expiration: Date.now() - 1000 } }
+      expect(couponForTrade(expired, primaryTrade(10))).toBeUndefined()
+    })
+
+    it('should drop one that has not become effective yet', () => {
+      const scheduled = {
+        ...coupon(300_000),
+        checks: { ...coupon(300_000).checks, effective: Date.now() + 86_400_000 }
+      }
+      expect(couponForTrade(scheduled, primaryTrade(10))).toBeUndefined()
+    })
+  })
+
+  describe('and the listing is not a primary sale', () => {
+    it('should drop it, because the coupon reverts on anything but a collection item', () => {
+      expect(couponForTrade(coupon(300_000), trade(10))).toBeUndefined()
+    })
+  })
+
+  describe('and the listing settles on a marketplace version other than the one the coupon was signed for', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      result = couponForTrade(coupon(300_000), primaryTrade(10, '0xseller', MARKETPLACE_V2))
+    })
+
+    it('should drop it, because that marketplace verifies coupons against its own manager and would revert', () => {
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('and the coupon arrives without a manager', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      const withoutManager = { ...coupon(300_000), couponManager: undefined } as unknown as ListingCoupon
+      result = couponForTrade(withoutManager, primaryTrade(10))
+    })
+
+    it('should drop it rather than throw out of the review', () => {
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('and the coupon arrives without its checks', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      const withoutChecks = { ...coupon(300_000), checks: undefined } as unknown as ListingCoupon
+      result = couponForTrade(withoutChecks, primaryTrade(10))
+    })
+
+    it('should drop it for the same reason', () => {
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('and the listing pairs the Polygon marketplace address with another chain id', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      result = couponForTrade(coupon(300_000), primaryTrade(10, '0xseller', MARKETPLACE_V3, AMOY))
+    })
+
+    it("should drop it, because that chain's manager did not sign for a trade that settles on Polygon", () => {
+      expect(result).toBeUndefined()
+    })
+  })
+
+  describe('and the listing names a marketplace the contract registry does not know', () => {
+    let result: ListingCoupon | undefined
+
+    beforeEach(() => {
+      result = couponForTrade(
+        coupon(300_000),
+        primaryTrade(10, '0xseller', '0x0000000000000000000000000000000000000001')
+      )
+    })
+
+    it('should drop it rather than guess which manager could redeem it', () => {
+      expect(result).toBeUndefined()
+    })
+  })
+})
+
+describe('when resolving a line whose listing is on sale', () => {
+  const liveCoupon =
+    (c = coupon(300_000)) =>
+    async () =>
+      c
+
+  it('should authorize the sale price, not the list price the trade is signed at', async () => {
+    const onSale = item('i1', 135, { coupon: coupon(300_000) })
+    const resolve: TradeResolver = async () => primaryTrade(10)
+    const outcome = await resolveLine(onSale, BUYER, resolve, undefined, undefined, liveCoupon())
+
+    expect(outcome.status).toBe('buyable')
+    if (outcome.status !== 'buyable') return
+    // $10.00 list -> 1000 cents -> 30% off -> 700 cents -> 70 credits.
+    expect(outcome.line.usdCents).toBe(700)
+    expect(outcome.line.priceCredits).toBe(70)
+  })
+
+  it('should carry the coupon into the purchase, or the line would settle through plain accept', async () => {
+    const onSale = item('i1', 135, { coupon: coupon(300_000) })
+    const resolve: TradeResolver = async () => primaryTrade(10)
+    const outcome = await resolveLine(onSale, BUYER, resolve, undefined, undefined, liveCoupon())
+    if (outcome.status !== 'buyable') throw new Error('expected a buyable line')
+
+    const draft = draftPurchase(outcome.line)
+    expect(draft.kind === 'trade' && draft.coupon?.discount).toBe(300_000)
+    const target = purchaseTargetFor(outcome.line)
+    expect(target.kind === 'trade' && target.coupon?.discount).toBe(300_000)
+  })
+
+  it('should charge the list price when the sale has ended since the item was added to the cart', async () => {
+    const onSale = item('i1', 135, { coupon: coupon(300_000) })
+    const resolve: TradeResolver = async () => primaryTrade(10)
+    // The live listing no longer carries a coupon: the creator cancelled the signature.
+    const outcome = await resolveLine(onSale, BUYER, resolve, undefined, undefined, async () => undefined)
+    if (outcome.status !== 'buyable' || outcome.line.acquisition !== 'trade')
+      throw new Error('expected a buyable trade line')
+
+    expect(outcome.line.usdCents).toBe(1000)
+    expect(outcome.line.coupon).toBeUndefined()
+    expect(draftPurchase(outcome.line)).toEqual(expect.objectContaining({ coupon: undefined }))
+  })
+
+  it('should ignore a stored coupon when no resolver is wired, rather than trust a snapshot', async () => {
+    const onSale = item('i1', 135, { coupon: coupon(300_000) })
+    const resolve: TradeResolver = async () => primaryTrade(10)
+    const outcome = await resolveLine(onSale, BUYER, resolve)
+    if (outcome.status !== 'buyable' || outcome.line.acquisition !== 'trade')
+      throw new Error('expected a buyable trade line')
+
+    expect(outcome.line.usdCents).toBe(1000)
+    expect(outcome.line.coupon).toBeUndefined()
+  })
+
+  it('should not pay for a lookup on a line that was never on sale', async () => {
+    const plain = item('i1', 135)
+    const resolveCoupon = vi.fn(async () => coupon(300_000))
+    await resolveLine(plain, BUYER, async () => primaryTrade(10), undefined, undefined, resolveCoupon)
+    expect(resolveCoupon).not.toHaveBeenCalled()
+  })
+})
+
+describe('when the live coupon of an on-sale line is malformed', () => {
+  let outcome: LineOutcome
+
+  beforeEach(async () => {
+    const malformed = { ...coupon(300_000), couponManager: undefined } as unknown as ListingCoupon
+    outcome = await resolveLine(
+      item('i1', 135, { coupon: coupon(300_000) }),
+      BUYER,
+      async () => primaryTrade(10),
+      undefined,
+      undefined,
+      async () => malformed
+    )
+  })
+
+  it('should still be buyable, at the list price the trade was signed at', () => {
+    expect(outcome).toEqual(
+      expect.objectContaining({
+        status: 'buyable',
+        line: expect.objectContaining({ usdCents: 1000, coupon: undefined })
+      })
+    )
+  })
+})
+
+describe('when reviewing a line whose trade settles on the first marketplace version', () => {
+  let outcome: LineOutcome
+
+  beforeEach(async () => {
+    outcome = await resolveLine(item('v1', 10), BUYER, async () => primaryTrade(10, '0xseller', MARKETPLACE_V1))
+  })
+
+  it('should keep it buyable, since an open listing settles on the version it was signed against', () => {
+    expect(outcome.status).toBe('buyable')
+  })
+})
+
+describe('when reviewing a line whose trade names a marketplace not deployed on its chain', () => {
+  let mismatched: TradeResolver
+
+  beforeEach(() => {
+    mismatched = async () => primaryTrade(10, '0xseller', MARKETPLACE_V3, AMOY)
+  })
+
+  describe('and it is reviewed on its own', () => {
+    let outcome: LineOutcome
+
+    beforeEach(async () => {
+      outcome = await resolveLine(item('x', 10), BUYER, mismatched)
+    })
+
+    it('should classify it as gone rather than price a purchase no marketplace can settle', () => {
+      expect(outcome).toEqual({ status: 'gone' })
+    })
+  })
+
+  describe('and it is reviewed as part of a basket', () => {
+    let unavailableIds: string[]
+    let buyableIds: string[]
+
+    beforeEach(async () => {
+      const review = await reviewCart([item('x', 10), item('y', 20)], BUYER, async i =>
+        i.id === 'x' ? mismatched(i) : trade(2)
+      )
+      unavailableIds = review.unavailable.map(i => i.id)
+      buyableIds = review.buyable.map(l => l.item.id)
+    })
+
+    it('should list the mismatched line as unavailable', () => {
+      expect(unavailableIds).toEqual(['x'])
+    })
+
+    it('should keep the rest of the basket buyable', () => {
+      expect(buyableIds).toEqual(['y'])
     })
   })
 })

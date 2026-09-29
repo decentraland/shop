@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -74,7 +74,12 @@ vi.mock('~/lib/analytics', () => ({
   isUserRejection: () => false
 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
+import { track } from '~/lib/analytics'
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+// The seasonal-event chip. Stubbed like the other data hooks so this file stays about the page; whether an
+// item belongs to the running event is `useCampaignBadge`'s own spec.
+const { useCampaignBadge } = vi.hoisted(() => ({ useCampaignBadge: vi.fn<() => string | null>(() => null) }))
+vi.mock('~/hooks/useCampaignBadge', () => ({ useCampaignBadge }))
 
 // No connected wallet: ownership/management branches are a different concern with their own specs.
 const walletState = {
@@ -111,11 +116,11 @@ function item(overrides: Partial<CatalogItem> & { id: string; name: string }): C
   }
 }
 
-function renderPdp() {
+function renderPdp(itemSegment = '1') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/item/${ANCHOR}/1`]}>
+      <MemoryRouter initialEntries={[`/item/${ANCHOR}/${itemSegment}`]}>
         <Routes>
           <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
         </Routes>
@@ -196,6 +201,17 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
     await userEvent.click(await screen.findByTestId('buy-resale'))
 
     expect(await screen.findByTestId('marketplace-redirect-modal')).toHaveTextContent(/not made with credits/i)
+  })
+
+  it('should record the intent on the click, before the hand-off is even shown', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    expect(vi.mocked(track)).toHaveBeenCalledWith(
+      'Shop Clicked Buy Resale',
+      expect.objectContaining({ item_id: '1', has_shop_resale: false })
+    )
   })
 })
 
@@ -653,5 +669,154 @@ describe('ItemDetail — the creator attribution', () => {
     renderPdp()
 
     expect(await screen.findByText('Creator')).toBeInTheDocument()
+  })
+})
+
+/**
+ * A UTM GLUED ONTO THE ITEM ID.
+ *
+ * The in-world client links with `&utm_source=client` appended to a URL that has no `?`, so the `&` lands
+ * inside the path and react-router reports an itemId of `1&utm_source=client`. Every lookup keyed on it
+ * missed, and the page called a buyable mint "Not for sale": measured on production, the same item served
+ * Buy Now on the clean URL and BUY RESALE with the suffix, and it happened to every item, not one.
+ */
+describe('ItemDetail — an item id arriving with a query fragment stuck to it', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({ items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })], total: 1 })
+  })
+
+  it('should look the listing up by the item id alone, not by the id plus the tracking parameter', async () => {
+    const api = await import('~/lib/api')
+
+    renderPdp('1&utm_source=client')
+
+    await waitFor(() => expect(api.fetchUnifiedListingForItem).toHaveBeenCalled())
+    expect(api.fetchUnifiedListingForItem).toHaveBeenCalledWith(ANCHOR, '1')
+  })
+
+  it('should still hydrate the item, which is what made the broken link look like a genuine "Not for sale"', async () => {
+    renderPdp('1&utm_source=client')
+
+    expect(await screen.findByRole('heading', { name: 'Anchor Hat' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * A mint with nothing listed says only "Not for sale", which is the same sentence for two opposite stories:
+ * the mint sold out, or its creator never put it up. The supply tells them apart and the item row already
+ * carries it — the page just never read it, because it only ever looked at the listing.
+ */
+describe('when an item has no listing', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', rarity: 'exotic' })],
+      total: 1
+    })
+  })
+
+  it('should report a mint that ran out as out of stock', async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchItemMeta).mockResolvedValue({
+      name: 'Anchor Hat',
+      thumbnail: '',
+      isSmart: false,
+      utility: null,
+      urn: null,
+      wearableCategory: 'hat',
+      gender: 'unisex',
+      available: 0
+    })
+
+    renderPdp('1')
+
+    expect(await screen.findByTestId('out-of-stock')).toBeInTheDocument()
+  })
+
+  it('should show the untouched supply of one its creator never put up for sale', async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchItemMeta).mockResolvedValue({
+      name: 'Anchor Hat',
+      thumbnail: '',
+      isSmart: false,
+      utility: null,
+      urn: null,
+      wearableCategory: 'hat',
+      gender: 'unisex',
+      available: 50
+    })
+
+    renderPdp('1')
+
+    // 50 of 50 still mintable: nothing sold, so this is emphatically NOT the sold-out state above.
+    expect(await screen.findByText('50/50')).toBeInTheDocument()
+    expect(screen.queryByTestId('out-of-stock')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * A rarity IS its scarcity, so the chip that names one should say how many can exist. It used to carry a
+ * native `title` promising to "browse all {rarity} items" — through a key that does not exist, so what
+ * actually appeared on hover was the literal string `itemDetail.browseByRarity`.
+ */
+describe('when hovering the rarity chip', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', rarity: 'exotic' })],
+      total: 1
+    })
+  })
+
+  it('should say how many copies can ever exist', async () => {
+    renderPdp('1')
+
+    const chip = await screen.findByTestId('detail-rarity-link')
+    fireEvent.mouseEnter(chip.parentElement as HTMLElement)
+
+    expect(await screen.findByText(/only 50 will ever exist/i)).toBeInTheDocument()
+  })
+
+  it('should not leak an untranslated key', async () => {
+    renderPdp('1')
+
+    const chip = await screen.findByTestId('detail-rarity-link')
+    fireEvent.mouseEnter(chip.parentElement as HTMLElement)
+
+    expect(screen.queryByText(/itemDetail\./)).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The seasonal-event chip.
+ *
+ * It carries the event's NAME, not its tag: `halloween2026` is an internal identifier, and the marketplace
+ * putting one on screen is a bug rather than a precedent. Absent on an ordinary day, which is the state
+ * every other spec in this file runs in.
+ */
+describe('ItemDetail — the seasonal event chip', () => {
+  it('is absent while no event is running', async () => {
+    useCampaignBadge.mockReturnValue(null)
+
+    const { queryByTestId } = renderPdp()
+
+    await waitFor(() =>
+      expect(queryByTestId('detail-rarity-link') ?? queryByTestId('detail-category-link')).toBeTruthy()
+    )
+    expect(queryByTestId('detail-event')).toBeNull()
+  })
+
+  it('names the event and opens its grid', async () => {
+    useCampaignBadge.mockReturnValue('Halloween')
+
+    const { findByTestId } = renderPdp()
+
+    const chip = await findByTestId('detail-event')
+    expect(chip.textContent).toContain('Halloween')
+    expect(chip.getAttribute('href')).toBe('/event')
   })
 })

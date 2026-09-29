@@ -40,16 +40,39 @@ export enum FeatureFlag {
    */
   SECONDARY_SALES = 'shop-secondary-sales',
   /**
-   * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
-   * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
+   * Whether creators can put their collections on sale from the Shop (a signed discount coupon the catalogue
+   * applies to their listings) and whether the Shop shows them their running sales.
    *
-   * Cosmetic by construction. This bundle is static and the APIs behind it are public, so a check here is a
-   * curtain, not a lock — what actually refuses a purchase is the same flag read server-side by
-   * credits-server on /credits/authorize, against the signed-fetch address. Read under the SAME key and
-   * variant as that check so one list drives both and they cannot drift apart.
+   * Also the kill switch for sales that ALREADY EXIST. Off, the catalogue's discounts are stripped from every
+   * row as it is mapped: the Shop shows and charges the list price, and the Deals filter is not offered.
+   * That has to be all-or-nothing — turning off only the settlement half would show a buyer a sale price and
+   * then ask them for the list price, which reverts after they confirm.
+   *
+   * It does NOT retract the coupons themselves. They stay signed and valid on chain, and any other client
+   * reading the same catalogue still sees the discount; making a sale stop existing is the creator's own
+   * `cancelSignature`, not a flag.
    */
-  SHOP_PRELAUNCH = 'shop-prelaunch',
-
+  SHOP_CREATOR_SALES = 'shop-creator-sales',
+  /**
+   * Whether the home page shows the personalised "Suggested for you" rail.
+   *
+   * OFF by default. The rail is judged against Trending on click-through, so it ships dark and is
+   * turned on for a share of visitors; the row also hides itself whenever the server says it had no
+   * personal signal to work with, so the flag controls whether to ASK, not whether to show.
+   */
+  SHOP_SUGGESTED_FOR_YOU = 'shop-suggested-for-you',
+  /**
+   * The creator's own dashboard at /my-store: how each collection is selling, what needs attention, and the
+   * discounts running. Off means the page is unreachable and its nav entry is absent — nothing about
+   * selling changes, only whether the creator can see it in one place. On, My Items stops offering its own
+   * creations section, so the collections are reachable from one place rather than two.
+   *
+   * Reads an address-list VARIANT to roll out gradually: with one, only those addresses get the dashboard
+   * and everyone else keeps today's My Items; without one, the flag alone answers and it is on for all.
+   * An empty list therefore means "no restriction", not "nobody": this flag opens a surface, so an
+   * unset list is "everyone", never "no one".
+   */
+  SHOP_MY_STORE = 'shop-my-store',
   /**
    * Address-list variant of accounts that see the outfit-authoring studio. COSMETIC: the real
    * gate is shop-server's OUTFIT_CREATORS allowlist, enforced against the signed-fetch address.
@@ -82,14 +105,28 @@ export enum FeatureFlag {
    * free public read against the registrar on Ethereum and keeps working either way, so a closed feature
    * still answers "is this name taken?" and points at the classic marketplace, which can sell one today.
    *
-   * Cosmetic here, like the pre-launch gate: this bundle is static and the endpoint behind it is public, so
-   * what actually refuses a registration is the same flag read server-side by credits-server on
+   * Cosmetic here: this bundle is static and the endpoint behind it is public, so what actually refuses a
+   * registration is the same flag read server-side by credits-server on
    * /credits-name-route. Read under the SAME key so one flip drives both and they cannot drift apart.
    *
    * Registering leaves Polygon — the credit is spent there and the mint happens on Ethereum behind a bridge
    * — so it carries failure modes no other purchase has and needs a switch of its own.
    */
   SHOP_NAMES = 'shop-names',
+
+  /**
+   * Whether the Shop shows the seasonal EVENT surfaces — the Contentful-driven banner and the event tab
+   * that pins the grid to the event's collections.
+   *
+   * The event's existence, name, artwork and collections all live in the CMS, so this flag is not how an
+   * event is started or ended — unpublishing the entry does that, with no deploy. It is the kill switch for
+   * the CODE: the one way to take the surfaces down from our side if the CMS read, the tag lookup or the
+   * filtered grid misbehaves, without waiting on whoever owns the Contentful space.
+   *
+   * Fails closed like every other accessor here, and there it matches the product default: no flag, no
+   * event.
+   */
+  SHOP_CAMPAIGN = 'shop-campaign',
 
   /**
    * Kill switch back to Segment's own hosts. ON means analytics.js and its events go STRAIGHT to Segment;
@@ -198,7 +235,7 @@ async function getSnapshot(): Promise<Snapshot> {
  * Mirrors credits-server's parseAddressListVariant so one flag drives both sides.
  */
 export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]> {
-  const override = devVariantOverrideFor(flag)
+  const override = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
   if (override !== undefined) return parseAddressList(override)
   try {
     const value = (await getSnapshot()).variants[flagKey(flag)]
@@ -219,6 +256,41 @@ function parseAddressList(value: string): string[] {
         .filter(address => /^0x[0-9a-f]{40}$/.test(address))
     )
   )
+}
+
+/**
+ * A flag forced from the query string, on preview deployments only.
+ *
+ * `?ff=shop-my-store:true` for a boolean, `?ffv=shop-my-store:0xabc…,0xdef…` for a variant payload — the
+ * same syntax as the `VITE_FEATURE_FLAG*_OVERRIDES` vars, so there is one thing to learn. Entries are
+ * separated by ',' for booleans and ';' for variants, whose payload is itself a comma-separated list.
+ *
+ * The build-time overrides cannot serve a preview deploy: they are `VITE_*` vars baked in at build, and a
+ * Vercel preview is built by plain `npm run build`. Without a query override a flag-gated page cannot be
+ * shown to a reviewer at all — `dapps-shop-my-store` is absent from both flag files, so /my-store redirects
+ * home on every deployment there is.
+ *
+ * Gated on {@link config.previewHost}, which reads the HOSTNAME rather than the resolved environment, so no
+ * query string can flip a flag on the live Shop or on staging.
+ */
+function queryOverrideFor(flag: FeatureFlag, param: 'ff' | 'ffv'): string | undefined {
+  if (!config.previewHost || typeof window === 'undefined') return undefined
+  const raw = new URLSearchParams(window.location.search).get(param)
+  if (!raw) return undefined
+
+  for (const entry of raw.split(param === 'ffv' ? ';' : ',')) {
+    if (entry.trim().length === 0) continue
+    const separator = entry.indexOf(':')
+    // Warned about rather than dropped: the audience here is somebody pasting a long URL, who has less
+    // chance of spotting the typo than the developer editing .env.local.
+    if (separator === -1) {
+      console.warn(`Ignoring ?${param} override "${entry}": expected "<flag>:<value>"`)
+      continue
+    }
+    if (entry.slice(0, separator).trim() !== String(flag)) continue
+    return entry.slice(separator + 1).trim()
+  }
+  return undefined
 }
 
 /**
@@ -253,6 +325,12 @@ function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
   return undefined
 }
 
+/** The boolean form of {@link queryOverrideFor}; an unrecognised value falls through to the real flag. */
+function queryFlagOverrideFor(flag: FeatureFlag): boolean | undefined {
+  const value = queryOverrideFor(flag, 'ff')
+  return value === 'true' ? true : value === 'false' ? false : undefined
+}
+
 /**
  * Whether a flag is on. FAILS CLOSED — an unreachable flag service, a malformed body or an absent flag all
  * resolve to `false`.
@@ -263,7 +341,7 @@ function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
  * to credit the seller for them.
  */
 export async function getIsFeatureEnabled(flag: FeatureFlag): Promise<boolean> {
-  const override = devOverrideFor(flag)
+  const override = devOverrideFor(flag) ?? queryFlagOverrideFor(flag)
   if (override !== undefined) return override
   try {
     const flags = await getFeatureFlags()
@@ -348,4 +426,14 @@ export async function getIsProceedsToTreasuryEnabled(): Promise<boolean> {
  */
 export async function getIsSecondarySalesEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SECONDARY_SALES)
+}
+
+/** Whether creators can put their collections on sale from the Shop. Fails closed like every other accessor. */
+export async function getIsCreatorSalesEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+}
+
+/** Whether the creator's store dashboard is reachable. */
+export async function getIsMyStoreEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)
 }

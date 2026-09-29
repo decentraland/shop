@@ -1,3 +1,4 @@
+import { RARITIES } from '~/lib/rarity'
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
 import { Chevron } from '~/components/Chevron'
@@ -15,10 +16,11 @@ import { theme } from '~/styles/theme'
 // and Creator instead keep Rarity + Price inline in the bar via the optional filter slots below.
 
 // Rarity order + colors follow the Figma "Rarities/*" tokens (see styles/theme.ts `rarities`).
-export const RARITIES = ['common', 'uncommon', 'epic', 'rare', 'legendary', 'exotic', 'mythic', 'unique']
+export { RARITIES }
 
-// Labels match the Figma sort menu (node 1059-160222). The server supports newest/cheapest/
-// most_expensive/name — there is no dedicated "recently listed" sort, so "Newest" covers it.
+// Labels match the Figma sort menu. The server supports newest/cheapest/most_expensive/name (plus
+// discount and relevance, offered only where they mean something) — there is no dedicated "recently
+// listed" sort, so "Newest" covers it.
 // `label` holds an i18n key (translated at render — see the Dropdown below) so the menu follows the
 // active locale; consumers only read `.key`/`.server`.
 export const SORTS: { key: string; label: string; server: ShopSort }[] = [
@@ -26,6 +28,28 @@ export const SORTS: { key: string; label: string; server: ShopSort }[] = [
   { key: 'price-asc', label: 'filterBar.sortCheapest', server: 'cheapest' },
   { key: 'price-desc', label: 'filterBar.sortMostExpensive', server: 'most_expensive' },
   { key: 'name', label: 'filterBar.sortName', server: 'name' }
+]
+
+/**
+ * The relevance sort, offered only while a query runs and listed first, since it is what a search opens
+ * on. Without a query every row would tie, so it is not part of SORTS.
+ */
+export const RELEVANCE_SORT: { key: string; label: string; server: ShopSort } = {
+  key: 'relevance',
+  label: 'filterBar.sortRelevance',
+  server: 'relevance'
+}
+
+/**
+ * The sort menu while the Deals filter is on, biggest discount first.
+ *
+ * A separate list rather than a fifth entry in SORTS: ranking by discount is meaningless on a grid that
+ * is not filtered to discounted listings — everything ties at zero — so the option only appears where it
+ * means something.
+ */
+export const DEALS_SORTS: { key: string; label: string; server: ShopSort }[] = [
+  { key: 'discount', label: 'filterBar.sortBiggestDiscount', server: 'discount' },
+  ...SORTS
 ]
 
 /** An applied-filter chip: a label + the handler that removes just that filter. */
@@ -231,7 +255,7 @@ export function FilterBar({
             onOpenChange={next => (next ? panel.toggle('sort') : panel.close())}
           />
           {onOpenFilters ? (
-            <S.FiltersPill type="button" onClick={onOpenFilters}>
+            <S.FiltersPill type="button" data-testid="open-filters" onClick={onOpenFilters}>
               {t('filterBar.filters')}
               <S.FiltersPillIcon name="filter" aria-hidden />
             </S.FiltersPill>

@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { ContractName, getContract } from 'decentraland-transactions'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import type { ManaRate } from '~/lib/mana-convert'
 
@@ -36,14 +36,46 @@ type AggregatorContract = ethers.Contract & {
 // genuinely stuck feed.
 const MAX_STALENESS_SECONDS = 90000
 
-// Read the MANA/USD Chainlink-style aggregator off the marketplace contract (decoupled from the
-// wallet's network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so
-// callers can disable Buy Now with a message instead of pricing off a bad rate.
-export async function readManaUsdRate(chainId: number = config.chainId): Promise<ManaRate> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+/**
+ * Read the MANA/USD Chainlink-style aggregator off a marketplace contract (decoupled from the wallet's
+ * network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so callers can
+ * disable Buy Now with a message instead of pricing off a bad rate.
+ *
+ * Takes the marketplace address rather than a chain id: the address is what determines the aggregator,
+ * and the RPC is a single configured chain. It is REQUIRED and not defaulted. Each marketplace version holds its own
+ * `manaUsdAggregator`, so a function that picked a version for itself would silently price one contract's
+ * listing at another contract's rate the moment a second version exists. Making the caller name it keeps
+ * that choice visible and reviewable.
+ *
+ * This is a REFERENCE rate — for converting a legacy MANA-priced listing to credits for display, sizing a
+ * name reservation, or suggesting a starting price. Pricing what a USD-pegged trade will actually SETTLE
+ * at is a different question with a different answer, and it lives in `readTradeManaPriceWei`
+ * (lib/mana.ts), which resolves the aggregator from that trade's own `contract`.
+ */
+/**
+ * The react-query options for the reference MANA/USD rate, shared by every caller.
+ *
+ * One definition on purpose: three call sites each spelling out their own key drifted into two different
+ * ones, which silently split the cache and cost an extra oracle read per surface. The marketplace is
+ * resolved INSIDE the query — during render a chain with no deployment would throw all the way to the
+ * ErrorBoundary, while in here it is just a failed query the callers already handle.
+ *
+ * Keyed by chain alone: the address is a pure function of it. The rate a USD-pegged trade SETTLES at is a
+ * different number entirely (readTradeManaPriceWei, from the trade's own contract) and never enters this
+ * cache, so there is nothing here for it to collide with.
+ */
+export function manaRateQueryOptions() {
+  return {
+    queryKey: ['mana-rate', config.chainId],
+    queryFn: () => readManaUsdRate(getLatestOffChainMarketplaceContract(config.chainId).address),
+    staleTime: 60_000
+  }
+}
+
+export async function readManaUsdRate(marketplaceAddress: string): Promise<ManaRate> {
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
   const mkt = new ethers.Contract(
-    market.address,
+    marketplaceAddress,
     ['function manaUsdAggregator() view returns (address)'],
     provider
   ) as OracleReaderContract
