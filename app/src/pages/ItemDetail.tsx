@@ -49,6 +49,7 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { useCampaignBadge } from '~/hooks/useCampaignBadge'
@@ -299,7 +300,7 @@ export function ItemDetail() {
     isLoading: personal.isLoading,
     isError: personal.isError,
     personalized: personal.result?.personalized,
-    rowCount: personal.result?.data.length ?? 0
+    rowCount: explainedRows(personal.result?.data ?? []).length
   })
 
   // The rail below the fold: this collection's other items, padded with the creator's and then with

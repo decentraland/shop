@@ -72,6 +72,7 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { Icon } from '~/components/Icon'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import type { CatalogItem } from '~/lib/api'
@@ -248,7 +249,7 @@ export function Cart() {
     isLoading: personal.isLoading,
     isError: personal.isError,
     personalized: personal.result?.personalized,
-    rowCount: personal.result?.data.length ?? 0
+    rowCount: explainedRows(personal.result?.data ?? []).length
   })
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
