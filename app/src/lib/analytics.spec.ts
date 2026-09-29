@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { ProviderType } from '@dcl/schemas'
 import {
   track,
@@ -35,9 +35,54 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
   ...over
 })
 
+const CHROME = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0 Safari/537.36'
+const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+
+const ORIGINAL_USER_AGENT = navigator.userAgent
+
+function setUserAgent(userAgent: string) {
+  Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true })
+}
+
+function analyticsGlobal() {
+  return (
+    window as unknown as { analytics?: { _cdn?: string; _writeKey?: string; invoked?: boolean; initialize?: unknown } }
+  ).analytics
+}
+
+// The snippet may insert its script before an existing one instead of appending to <head>, so look it
+// up by the attribute Segment marks it with rather than by spying on a single insertion method.
+function loadedScript() {
+  return document.querySelector<HTMLScriptElement>('script[data-global-segment-analytics-key]')
+}
+
+/**
+ * Re-imports the analytics module against a forced config and user agent. A fresh import is what lets a
+ * spec exercise the loader at all: the module resolves its config, its bot check and its `initialized`
+ * latch once, at import time.
+ */
+async function loadAnalytics(configOverrides: Record<string, unknown>, userAgent = CHROME) {
+  document.querySelectorAll('script[data-global-segment-analytics-key]').forEach(node => node.remove())
+  ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  setUserAgent(userAgent)
+  vi.resetModules()
+  vi.doMock('~/config', () => ({
+    config: { chainId: 80002, network: 'polygon', appEnv: 'test', segmentAnalyticsUrl: '', ...configOverrides }
+  }))
+  return import('./analytics')
+}
+
 beforeEach(() => {
   ;(window as unknown as { analytics?: unknown }).analytics = undefined
   useWallet.setState({ session: null })
+})
+
+afterEach(() => {
+  vi.doUnmock('~/config')
+  vi.resetModules()
+  setUserAgent(ORIGINAL_USER_AGENT)
+  document.querySelectorAll('script[data-global-segment-analytics-key]').forEach(node => node.remove())
+  ;(window as unknown as { analytics?: unknown }).analytics = undefined
 })
 
 describe('analytics wrapper', () => {
@@ -295,21 +340,191 @@ describe('initAnalytics', () => {
   it('loads the Segment script (positive path) when a write key IS present', async () => {
     // The other tests exercise the empty-key path (test env blanks the key). Here we force a key via
     // a scoped config mock + a fresh module import so `initialized` is reset, and assert the loader runs.
-    vi.resetModules()
-    vi.doMock('~/config', () => ({
-      config: { segmentWriteKey: 'wk_test', chainId: 80002, network: 'polygon', appEnv: 'test' }
-    }))
-    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation(n => n)
-
-    const mod = await import('./analytics')
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
     mod.initAnalytics()
 
-    expect(appendChild).toHaveBeenCalledTimes(1)
+    expect(loadedScript()).not.toBeNull()
     expect((window as unknown as { analytics?: unknown }).analytics).toBeDefined()
+  })
 
-    appendChild.mockRestore()
-    vi.doUnmock('~/config')
-    vi.resetModules()
-    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  it('finds the snippet internals the stub check reads, so a dapps upgrade that drops them fails here', async () => {
+    // `segment()` tells the not-yet-loaded snippet apart from the real analytics.js by these three
+    // undocumented fields. If an upgrade renames them, tracking would silently stop (or queue forever)
+    // in production; this pins them so the failure is a red test instead.
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
+    mod.initAnalytics()
+
+    const snippet = analyticsGlobal()
+    expect(snippet?.invoked).toBe(true)
+    expect(snippet?._writeKey).toBe('wk_test')
+    expect(snippet?.initialize).toBeUndefined()
+  })
+})
+
+// A configured analytics url must reach BOTH the bundle and the settings request: analytics.js resolves
+// its settings endpoint from `_cdn`, so a proxy that only serves the script still gets blocked.
+describe('first-party analytics proxy', () => {
+  const PROXY = 'https://evs.example.org/eas.js'
+
+  it('serves analytics.js from the configured proxy and points the settings endpoint at it', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY })
+    mod.initAnalytics()
+
+    expect(loadedScript()?.src).toBe(PROXY)
+    expect(analyticsGlobal()?._cdn).toBe('https://evs.example.org')
+  })
+
+  it("falls back to Segment's CDN when no proxy url is configured", async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: '' })
+    mod.initAnalytics()
+
+    expect(loadedScript()?.src).toContain('https://cdn.segment.com/analytics.js/')
+    expect(analyticsGlobal()?._cdn).toBeUndefined()
+  })
+
+  it("falls back to Segment's CDN when the configured proxy url is not usable", async () => {
+    const mod = await loadAnalytics({
+      segmentWriteKey: 'wk_test',
+      segmentAnalyticsUrl: 'http://insecure.example.org/analytics.min.js'
+    })
+    mod.initAnalytics()
+
+    expect(loadedScript()?.src).toContain('https://cdn.segment.com/analytics.js/')
+    expect(analyticsGlobal()?._cdn).toBeUndefined()
+  })
+
+  it('still tracks through the proxied analytics once it has loaded', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test', segmentAnalyticsUrl: PROXY })
+    mod.initAnalytics()
+    const spy = vi.fn()
+    ;(window as unknown as { analytics?: unknown }).analytics = {
+      track: spy,
+      identify: vi.fn(),
+      page: vi.fn(),
+      initialize: () => {}
+    }
+
+    mod.track('Shop Viewed Page', { page: 'overview' })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not send events when analytics was never loaded (no write key)', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: '' })
+    mod.initAnalytics()
+
+    expect(loadedScript()).toBeNull()
+    expect(() => mod.track('Shop Viewed Page', { page: 'overview' })).not.toThrow()
+    // The snippet's queue is not a destination: nothing was loaded, so nothing will ever flush it.
+    expect(analyticsGlobal()?._writeKey).toBeUndefined()
+  })
+})
+
+describe('analytics identity for the support widget', () => {
+  // Stands in for a loaded analytics.js: `initialize` is what marks it as the real one.
+  function loadedAnalytics() {
+    return {
+      track: vi.fn(),
+      identify: vi.fn(),
+      page: vi.fn(),
+      initialize: () => {},
+      ready: (callback: () => void) => callback(),
+      user: () => ({ anonymousId: () => 'anon-42' })
+    }
+  }
+
+  it('tells a listener that registered before analytics started, so a conversation carries the anon id', async () => {
+    // React runs a child's effect before its parent's: the Intercom widget asks for the id before App
+    // has called initAnalytics, and dropping that request left every conversation without an anon_id.
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+    expect(listener).not.toHaveBeenCalled()
+    ;(window as unknown as { analytics?: unknown }).analytics = loadedAnalytics()
+
+    mod.initAnalytics()
+
+    expect(listener).toHaveBeenCalled()
+    expect(mod.anonymousId()).toBe('anon-42')
+  })
+
+  it('runs a listener registered after analytics started', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' })
+    ;(window as unknown as { analytics?: unknown }).analytics = loadedAnalytics()
+    mod.initAnalytics()
+    const listener = vi.fn()
+
+    mod.onAnalyticsReady(listener)
+
+    expect(listener).toHaveBeenCalled()
+  })
+
+  it('never calls a listener when analytics is off, and reports no id', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: '' })
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+
+    mod.initAnalytics()
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(mod.anonymousId()).toBeUndefined()
+  })
+
+  it('never calls a listener for a crawler', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, GOOGLEBOT)
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+
+    mod.initAnalytics()
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(mod.anonymousId()).toBeUndefined()
+  })
+})
+
+describe('bot traffic', () => {
+  it('sends nothing at all when the visitor is a crawler', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, GOOGLEBOT)
+    mod.initAnalytics()
+
+    // No loader ran...
+    expect(loadedScript()).toBeNull()
+    // ...and every entry point is inert, even with a live analytics object on the page.
+    const track = vi.fn()
+    const ident = vi.fn()
+    const page = vi.fn()
+    const segmentReset = vi.fn()
+    ;(window as unknown as { analytics?: unknown }).analytics = {
+      track,
+      identify: ident,
+      page,
+      reset: segmentReset,
+      initialize: () => {}
+    }
+
+    mod.track('Shop Viewed Item', { item_id: '5' })
+    mod.trackPage('overview')
+    mod.identify('0xabc')
+    mod.reset()
+
+    expect(track).not.toHaveBeenCalled()
+    expect(ident).not.toHaveBeenCalled()
+    expect(page).not.toHaveBeenCalled()
+    expect(segmentReset).not.toHaveBeenCalled()
+  })
+
+  it('keeps tracking for an ordinary browser user agent', async () => {
+    const mod = await loadAnalytics({ segmentWriteKey: 'wk_test' }, CHROME)
+    const spy = vi.fn()
+    ;(window as unknown as { analytics?: unknown }).analytics = {
+      track: spy,
+      identify: vi.fn(),
+      page: vi.fn(),
+      initialize: () => {}
+    }
+
+    mod.track('Shop Viewed Item', { item_id: '5' })
+
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 })
