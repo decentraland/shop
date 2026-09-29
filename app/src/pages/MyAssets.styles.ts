@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { noForward } from '~/styles/emotion'
@@ -205,33 +206,153 @@ export const Grid = styled.div`
   }
 `
 
-// Sign-in gate (no connected account).
-export const Gate = styled.section`
-  max-width: 520px;
-  margin: 48px auto;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: center;
-`
-
-export const GateTitle = styled.h1`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-weight: 700;
-  font-size: 24px;
-  color: ${theme.colors.softWhite};
-`
-
-export const GateText = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 15px;
-  color: ${theme.colors.gray4};
-`
-
 // Import banner (surfaces classic listings the seller can bring into the Shop).
 export const ImportBanner = styled(ManaPricingBanner)`
   margin-bottom: 16px;
+`
+
+// The creator's sales, above the creations grid: a header with the one action, then the running sales.
+/**
+ * Shaped like the page's other in-page nudge, `ManaPricingBanner`: a tinted strip with no border, not a
+ * bordered grey slab. Both sit in the same column on My Items and ask the creator to do something, so they
+ * should read as the same kind of thing — the plain `panel` fill made this one look like an unstyled box
+ * next to it.
+ */
+/**
+ * One collection's block: its header, then that collection's cards.
+ *
+ * Consecutive blocks are ruled off. Spacing alone left each header sitting on the previous collection's
+ * cards, so the grid read as one run rather than as separate collections.
+ */
+export const CollectionGroup = styled.section`
+  & + & {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+  }
+`
+
+export const CollectionHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+`
+
+/**
+ * Putting a collection on sale is the advancing action on this page, so it takes the buy CTA's
+ * orange→red gradient — the same fill the item page gives BUY NOW — instead of the purple primary.
+ */
+/**
+ * The header's answer when a discount already covers the collection: a statement, not a control.
+ *
+ * Sized and spaced like the button it replaces so the header does not reflow when a discount starts, but
+ * deliberately flat — a filled pill here would read as a third action next to the panel's END DISCOUNT.
+ */
+export const SaleState = styled.span`
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: ${theme.radius.pill};
+  border: 1px solid transparent;
+  font-family: ${theme.font.sans};
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  /* The running discount's own colours — the same ramp the chips, the review badge and the sale price
+     wear, so the header reads as the same discount rather than as a status of its own invention. */
+  ${Object.entries(theme.saleHeat)
+    .map(
+      ([step, { tint, ink }]) => `
+  &[data-heat='${step}'] {
+    background: ${tint};
+    border-color: ${ink};
+    color: ${ink};
+  }`
+    )
+    .join('')}
+`
+
+export const SaleCta = styled(Button)`
+  && {
+    background: ${theme.gradients.buyBtn};
+    color: ${theme.colors.white};
+  }
+  /* The purple variant paints its solid hover state through a ::before overlay, which would cover the
+     gradient; the hover below swaps the fill directly instead. */
+  &&::before {
+    content: none;
+  }
+  &&:hover:not(:disabled),
+  &&:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+  }
+  /* Three ampersands, not two: the purple variant's own disabled rule carries one more class than a
+     two-ampersand override, so it would otherwise repaint the button flat purple when nothing is listed. */
+  &&&:disabled {
+    background: ${theme.gradients.buyBtn};
+    opacity: 0.55;
+  }
+`
+
+/** Fixed frame so every header lines up whatever each collection's mosaic holds. */
+export const CollectionThumbFrame = styled.span`
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: ${theme.radius.btn};
+  overflow: hidden;
+  background: ${theme.colors.media};
+`
+
+export const CollectionHeadText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Takes the slack so the CTA sits at the far edge, and lets a long name ellipse instead of pushing it. */
+  flex: 1;
+  min-width: 0;
+`
+
+export const CollectionName = styled.h3`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 16px;
+  color: ${theme.colors.softWhite};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const CollectionCount = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  /* Gray 5 — what the toolbar's own item count uses on this field. Gray 3 sat at 2.2:1 against the
+     page gradient and Gray 4 only reaches 3.8:1; both belong on the darker card fill, not out here. */
+  color: ${theme.colors.gray5};
+`
+
+export const SalesPanel = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  /* Even sides now that nothing sits at the right edge — the 8px was the old cta's optical inset. */
+  padding: 16px 18px;
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.promptLilac};
+`
+
+export const SalesTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 16px;
+  color: ${theme.colors.text};
 `

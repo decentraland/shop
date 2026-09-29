@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { ContractName, getContract } from './dcl-transactions'
+import { getLatestOffChainMarketplace } from './dcl-transactions'
 import { config, USD_WEI_PER_CREDIT, type RoundMode } from './config'
 import type { OracleSnapshot } from './types'
 
@@ -23,7 +23,7 @@ export function readProvider(): ethers.providers.JsonRpcProvider {
  */
 export async function readOracle(chainId: number): Promise<OracleSnapshot> {
   const provider = readProvider()
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplace(chainId)
 
   let aggregatorAddress = config.fallbackAggregator
   try {

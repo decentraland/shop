@@ -17,7 +17,7 @@ export const Toolbar = styled.div`
 
 export const Count = styled.span`
   order: 1;
-  color: #ecebed;
+  color: ${colors.gray5};
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;

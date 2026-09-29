@@ -70,6 +70,46 @@ export const ManaMark = styled.img`
   vertical-align: -0.12em;
 `
 
+/** The right-hand end of the strip: the action, and the close button when the caller offers one. */
+export const Actions = styled.div`
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  /* On the stacked layout this row owns the full width, so the close button keeps its far-right place
+     instead of trailing the cta. */
+  ${media.maxWidth('mobile')} {
+    width: 100%;
+    justify-content: space-between;
+  }
+`
+
+/**
+ * Dismisses the strip for this visit only — nothing is stored, so it is back on the next load. The
+ * seller still has the listings it is about, and the tool stays reachable from the page either way.
+ */
+export const Dismiss = styled.button`
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: ${colors.text};
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.text};
+    outline-offset: 2px;
+  }
+`
+
 export const Cta = styled(Link)`
   flex: none;
   display: inline-flex;

@@ -2,11 +2,13 @@ import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCollectionItems } from '~/lib/collections'
 import type { CatalogItem } from '~/lib/api'
-import { rarityGradient } from '~/lib/rarity'
+import { rarityMedia } from '~/lib/rarity'
 import * as S from './CollectionThumb.styles'
 
 // Collections carry no image of their own, so their "thumbnail" is synthesized from a mosaic of the
-// collection's first few item thumbnails, each over its rarity-colored gradient. This is the single
+// collection's first few item thumbnails, each over its own rarity wash — the SAME treatment the item
+// card gives its media (lib/rarity's rarityMedia), so a collection reads as made of those items. This is
+// the single
 // implementation shared by the search suggestions (small rounded tile) and the CollectionCard (large
 // cover) — callers size/shape it via `className`; the grid layout adapts to the item count.
 const MOSAIC_COUNT = 4
@@ -22,28 +24,16 @@ export function useCollectionPreview(contractAddress: string, enabled = true) {
   })
 }
 
-// Presentational mosaic — the grid of item thumbnails, no fetching. `data-count` (1–4) reshapes the
-// grid so any number of items looks intentional. `tinted` paints each cell with its item's rarity
-// gradient (the small search tile, which would otherwise be colourless); the collection card opts out so
-// the transparent thumbnails read as sitting on the card's own background.
-export function CollectionMosaic({
-  items,
-  className,
-  tinted = true
-}: {
-  items: CatalogItem[]
-  className?: string
-  tinted?: boolean
-}) {
+// Presentational mosaic — the grid of item thumbnails, no fetching. `data-count` (1–4) reshapes the grid
+// so any number of items looks intentional. Every cell carries its item's rarity wash: the collection card
+// used to opt out, which left a grid of collections reading as white plates on the purple page while the
+// item cards beside them were coloured.
+export function CollectionMosaic({ items, className }: { items: CatalogItem[]; className?: string }) {
   const cells = items.slice(0, MOSAIC_COUNT)
   return (
     <S.Mosaic className={className} data-count={cells.length} aria-hidden>
       {cells.map(item => (
-        <span
-          key={item.id}
-          data-testid="coll-thumb-cell"
-          style={tinted ? { backgroundImage: rarityGradient(item.rarity) } : undefined}
-        >
+        <span key={item.id} data-testid="coll-thumb-cell" style={{ backgroundImage: rarityMedia(item.rarity) }}>
           {item.thumbnail ? <img src={item.thumbnail} alt="" loading="lazy" /> : null}
         </span>
       ))}

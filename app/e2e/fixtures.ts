@@ -177,15 +177,9 @@ export const collections = {
 }
 
 // --- Creator search (search dropdown "Creators" section, lib/search.ts) ---
-// Step 1: DCL names matching the query (/v1/nfts?category=ens&search=) → owner address.
-export const creatorNames = {
-  data: [{ nft: { name: 'GalaxyStudio', owner: CREATOR_ADDRESS } }],
-  total: 1
-}
-// Step 2: which owners are actual sellers (/v1/accounts) — CREATOR_ADDRESS has collections.
-export const accounts = {
-  data: [{ address: CREATOR_ADDRESS, collections: 3 }],
-  total: 1
+// Ranked creators matching the query (/v3/catalog/creators/search), as the server answers them.
+export const creators = {
+  data: [{ address: CREATOR_ADDRESS, name: 'Galaxy Studio', face: null, items: 3 }]
 }
 
 // --- Legacy catalog (v3/catalog/legacy → Market grid): OLD classic MANA-priced liquidity ---
@@ -368,6 +362,9 @@ export const creditsResponse = {
 // Secondary ERC721 order for Nebula Jacket (token 7), priced $13.50 (135 credits). `contract` is the
 // real Amoy OffChainMarketplaceV2 address so getContractName() resolves it in the browser.
 export const OFFCHAIN_MARKETPLACE_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+// The V3 deployment on Amoy: where the shop lists now, and the only marketplace that redeems a coupon signed
+// against the V3 manager (`saleCoupon.couponManager`). A coupon only settles on the version wired to its manager.
+export const OFFCHAIN_MARKETPLACE_V3_AMOY = '0x36fd1434a6c4b8ade80c9847c1d15033ce34488c'
 export const MANA_AMOY = '0x7ad72b9f944ea9793cf4055d88f81138cc2c63a0'
 export const buyTrade = {
   id: 'trade-2',
@@ -574,6 +571,80 @@ export const profile = {
       userId: TEST_ADDRESS,
       ethAddress: TEST_ADDRESS,
       avatar: { snapshots: { face256: '' } }
+    }
+  ]
+}
+
+/**
+ * A creator's sale: the primary Galaxy Hat listing at 30% off.
+ *
+ * `priceCredits` is the SALE price the server already discounted and `compareAtCredits` the list price, which
+ * is what the card strikes through. The coupon carries everything `acceptWithCoupon` hashes plus the Merkle
+ * proof for this collection — empty because a one-collection tree's root IS its only leaf.
+ */
+export const saleCoupon = {
+  id: 'coupon-1',
+  signer: CREATOR_ADDRESS,
+  couponManager: '0x6c956587d9fe70032781edcdc626310648575382',
+  couponAddress: '0x4ee8f6b87f4917a3bbc7c8bb3a06db8555f83db9',
+  checks: {
+    uses: 100,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '11'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  discountType: 1,
+  discount: 300_000,
+  root: '0x' + '22'.repeat(32),
+  collections: [COLLECTION],
+  signature: '0x' + 'cd'.repeat(65),
+  proof: []
+}
+
+const onSaleFields = {
+  priceCredits: 189,
+  compareAtCredits: 270,
+  saleEndsAt: Math.floor((Date.now() + 86_400_000) / 1000),
+  coupon: saleCoupon
+}
+
+/** The catalogue with the primary listing on sale: 270 credits struck through, 189 to pay. */
+export const shopListingsOnSale = {
+  data: [{ ...shopListings.data[0], ...onSaleFields }, shopListings.data[1]],
+  total: 2
+}
+
+/** The same sale on the unified feed, which is what the item page prices from. */
+export const unifiedListingsOnSale = {
+  ...unifiedListings,
+  data: [{ ...unifiedListings.data[0], ...onSaleFields }, ...unifiedListings.data.slice(1)]
+}
+
+/**
+ * The Galaxy Hat's primary trade — a COLLECTION_ITEM mint, which is the only kind a coupon may discount. Listed on
+ * V3, the version `saleCoupon` was signed for: the checkout drops a coupon whose manager is not the one of the
+ * marketplace the trade settles on, since that marketplace would reject it.
+ */
+export const saleTrade = {
+  ...buyTrade,
+  id: 'trade-1',
+  type: 'public_item_order',
+  contract: OFFCHAIN_MARKETPLACE_V3_AMOY,
+  signer: CREATOR_ADDRESS,
+  sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '27000000000000000000',
+      amount: '27000000000000000000',
+      beneficiary: CREATOR_ADDRESS,
+      extra: '0x'
     }
   ]
 }

@@ -2,6 +2,8 @@
   "ENVIRONMENT": "development",
   "CHAIN_ID": "80002",
   "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.zone",
+  "CAMERA_REEL_URL": "https://camera-reel-service.decentraland.zone",
+  "PLACES_API_URL": "https://places.decentraland.zone/api",
   "AUTH_URL": "/auth",
   "RPC_URL": "https://rpc.decentraland.org/amoy",
   "ETHEREUM_CHAIN_ID": "11155111",
@@ -21,5 +23,9 @@
   "SEGMENT_API_HOST": "api.e.decentraland.org/v1",
   "SENTRY_DSN": "https://734376fbe845d08ef24e2b2d0481b3f4@o4504361728212992.ingest.us.sentry.io/4511789233209344",
   "FEATURE_FLAGS_URL": "https://feature-flags.decentraland.zone",
+  "CONTENTFUL_URL": "https://cms-api.decentraland.org",
+  "CONTENTFUL_SPACE_ID": "ea2ybdmmn1kv",
+  "CONTENTFUL_ENVIRONMENT": "master",
+  "CONTENTFUL_ADMIN_ENTITY_ID": "7FJAHnPOiCEHMJhrZ3sRmG",
   "TREASURY_ADDRESS": "0x3EEdEceaFA4797D36819C1d9f8e3b0071285AD69"
 }

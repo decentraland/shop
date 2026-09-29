@@ -242,9 +242,9 @@ export type OutfitCreatorAccess =
  * real gate is shop-server's OUTFIT_CREATORS allowlist against the signed-fetch address. Fails
  * closed once known — a flag outage just hides the studio entry.
  *
- * Tri-state for the same reason {@link useShopPrelaunch} is: the two inputs settle independently —
- * the flag over the network, the session from storage — so answering on the first reading is a
- * guess, and the guess is what flashed the sign-in gate on every refresh of the studio.
+ * Tri-state because the two inputs settle independently — the flag over the network, the session from
+ * storage — so answering on the first reading is a guess, and the guess is what flashed the sign-in gate
+ * on every refresh of the studio.
  */
 export function useOutfitCreatorAccess(): OutfitCreatorAccess {
   const address = useWallet(s => s.session?.address)

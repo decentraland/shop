@@ -33,6 +33,11 @@ const session = {
 }
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
 
+// The real Amoy V2 marketplace, the one the trade fixture names. Hoisted with the mock that answers for it.
+const { MARKETPLACE_ADDRESS } = vi.hoisted(() => ({
+  MARKETPLACE_ADDRESS: '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+}))
+
 // The completed state fires the confetti, which lazy-loads lottie-web — a canvas/rAF runtime that throws on
 // import under jsdom, taking the Suspense subtree (and the CTAs asserted below) with it.
 vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
@@ -43,10 +48,24 @@ vi.mock('decentraland-ui2', () => ({
 }))
 
 // decentraland-transactions ships an ESM directory import vitest's resolver cannot follow.
+// The marketplace entry answers consistently in both directions: the review refuses a trade whose address is
+// not what the registry deploys for its name on that chain, so a mock that named one address and returned
+// another would report every purchase as no longer for sale.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager', MANAToken: 'MANAToken' },
-  getContractName: () => 'DecentralandMarketplacePolygon',
-  getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: [] })
+  ContractName: {
+    CreditsManager: 'CreditsManager',
+    MANAToken: 'MANAToken',
+    OffChainMarketplaceV3: 'OffChainMarketplaceV3',
+    OffChainMarketplaceV2: 'OffChainMarketplaceV2'
+  },
+  getContractName: (address: string) =>
+    address?.toLowerCase() === MARKETPLACE_ADDRESS ? 'OffChainMarketplaceV2' : 'DecentralandMarketplacePolygon',
+  getContract: (name: string) => ({
+    address: name === 'OffChainMarketplaceV2' ? MARKETPLACE_ADDRESS : `0x${name}`,
+    name,
+    version: '1',
+    abi: []
+  })
 }))
 
 // Plenty of credits and no MANA: the credits rail is the only one on the table, so `resume` confirms it.
@@ -127,7 +146,9 @@ const { resolveLiveTrade, fetchStoreMintState } = vi.hoisted(() => ({
 vi.mock('~/lib/api', async orig => ({
   ...(await orig<Record<string, unknown>>()),
   resolveLiveTrade,
-  fetchStoreMintState
+  fetchStoreMintState,
+  // Stubbed, or the real one reaches the catalogue over the network for every on-sale line.
+  resolveLiveCoupon: async () => undefined
 }))
 const { readTradeManaPriceWei, readManaBalanceWei } = vi.hoisted(() => ({
   readTradeManaPriceWei: vi.fn(async () => 0n),
@@ -135,9 +156,21 @@ const { readTradeManaPriceWei, readManaBalanceWei } = vi.hoisted(() => ({
   // below, and was the bug: an unresolved balance used to read as "holds no MANA".
   readManaBalanceWei: vi.fn(async () => 0n)
 }))
-vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei, readManaBalanceWei }))
+// Spread rather than replaced: the module also exports the discount the MANA quote is built from, and a
+// missing one would read as "no discount" instead of failing loudly.
+vi.mock('~/lib/mana', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  readTradeManaPriceWei,
+  readManaBalanceWei
+}))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
+  // The shared options the callers now use. Same stubbed rate, resolved without touching a chain.
+  manaRateQueryOptions: () => ({
+    queryKey: ['mana-rate', 80002],
+    queryFn: async () => ({ rate: 50_000_000n, decimals: 8 }),
+    staleTime: 60_000
+  }),
   manaWeiToUsdCents: () => 0
 }))
 vi.mock('~/lib/ownership', () => ({ isOwnTrade: () => false }))
@@ -147,7 +180,13 @@ vi.mock('~/lib/authorizations', () => ({
   needsApprovalStep: () => false
 }))
 vi.mock('~/lib/after-purchase', () => ({ invalidateAfterPurchase: vi.fn() }))
-vi.mock('~/lib/payments', () => ({ createPackCheckout: vi.fn(), MAX_OFFER_PACKS: 3 }))
+// `offerablePacks` comes from the REAL module — it is the covering-pack rule the no-funds cases assert, and
+// a hand-written copy here could disagree with what ships while the assertions still passed.
+vi.mock('~/lib/payments', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  createPackCheckout: vi.fn(),
+  MAX_OFFER_PACKS: 3
+}))
 
 const { track, captureError } = vi.hoisted(() => ({ track: vi.fn(), captureError: vi.fn() }))
 vi.mock('~/lib/analytics', async orig => ({ ...(await orig<Record<string, unknown>>()), track }))
@@ -206,7 +245,7 @@ beforeEach(() => {
   resolveLiveTrade.mockResolvedValue({
     id: 'trade-1',
     chainId: 80002,
-    contract: '0xmarket',
+    contract: MARKETPLACE_ADDRESS,
     signer: '0xseller',
     received: [{ assetType: 2, amount: (2700n * 10n ** 16n).toString() }]
   })

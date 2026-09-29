@@ -5,6 +5,11 @@ vi.mock('~/config', () => ({
   config: { marketplaceServerUrl: 'http://server', chainId: 80002 }
 }))
 
+const getLatestOffChainMarketplaceContract = vi.fn((_chainId: number) => ({
+  address: '0xmarket',
+  name: 'DecentralandMarketplacePolygon',
+  version: '1.0.0'
+}))
 const postTrade = vi.fn()
 const fetchTrade = vi.fn()
 // Hoisted with the mock: vi.mock is lifted to the top of the file, so a plain top-level class would
@@ -27,6 +32,12 @@ const getIsSecondarySalesEnabled = vi.fn()
 vi.mock('~/lib/featureFlags', () => ({
   getIsSecondarySalesEnabled: () => getIsSecondarySalesEnabled()
 }))
+// Stubbed at the lib level like the rest of this file: the real module pulls decentraland-transactions,
+// whose ESM build cannot be resolved under vitest.
+vi.mock('~/lib/marketplace', () => ({
+  getLatestOffChainMarketplaceContract: (chainId: number) => getLatestOffChainMarketplaceContract(chainId)
+}))
+
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: (...args: unknown[]) => readManaUsdRate(...args),
   manaWeiToCredits: (...args: unknown[]) => manaWeiToCredits(...args)
@@ -57,7 +68,8 @@ import {
   importListing,
   RelistFailedError,
   type ImportItem,
-  type ImportListing
+  type ImportListing,
+  postListingWithRetry
 } from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
@@ -153,13 +165,17 @@ describe("when fetching a seller's importable listings", () => {
     expect(result.owned.map(i => i.oldTradeId)).toEqual(['b'])
   })
 
-  it('should read the rate on the chain of the first listing and attach suggestedCredits', async () => {
+  // The rate is read over config.rpcUrl, a single chain, so the marketplace has to be the one deployed
+  // THERE — a listing from another chain names a contract that address cannot answer for.
+  it('should read the rate on the configured chain even when the listing is from another one', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(okResponse([listing({ chainId: 1 })]))
     manaWeiToCredits.mockReturnValue(42)
 
     const result = await fetchImportable('0xseller')
 
-    expect(readManaUsdRate).toHaveBeenCalledWith(1)
+    expect(getLatestOffChainMarketplaceContract).toHaveBeenCalledWith(80002)
+    expect(getLatestOffChainMarketplaceContract).not.toHaveBeenCalledWith(1)
+    expect(readManaUsdRate).toHaveBeenCalledWith('0xmarket')
     expect(result.owned[0].suggestedCredits).toBe(42)
   })
 
@@ -168,7 +184,7 @@ describe("when fetching a seller's importable listings", () => {
 
     await fetchImportable('0xseller')
 
-    expect(readManaUsdRate).toHaveBeenCalledWith(80002)
+    expect(getLatestOffChainMarketplaceContract).toHaveBeenCalledWith(80002)
   })
 
   it('and the conversion returns null it should default suggestedCredits to 1', async () => {
@@ -328,6 +344,37 @@ describe('when the marketplace has not yet cleared the old order', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('should stop waiting and never post again once its owner has gone away', async () => {
+    vi.useFakeTimers()
+    try {
+      postTrade.mockRejectedValue(new Error('There is already an open order for this NFT'))
+      const owner = new AbortController()
+
+      const p = postListingWithRetry({} as never, session.identity, { signal: owner.signal })
+      p.catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(1000)
+      owner.abort()
+      await vi.runAllTimersAsync()
+
+      await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+      expect(postTrade).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('should not hand back a listing whose owner went away while the post was in flight', async () => {
+    let finish!: (v: unknown) => void
+    postTrade.mockReturnValueOnce(new Promise(resolve => (finish = resolve)))
+    const owner = new AbortController()
+
+    const p = postListingWithRetry({} as never, session.identity, { signal: owner.signal })
+    owner.abort()
+    finish({ id: 'published-anyway' })
+
+    await expect(p).rejects.toMatchObject({ name: 'AbortError' })
   })
 
   it('should rethrow other errors immediately without retrying', async () => {

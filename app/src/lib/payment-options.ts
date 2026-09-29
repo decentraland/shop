@@ -94,6 +94,17 @@ export function computePaymentOptions(input: {
   balanceCents: number
   /** The buyer's on-chain MANA balance in wei. */
   manaBalanceWei: bigint
+  /**
+   * Whether this purchase can settle WITHOUT spending a credit.
+   *
+   * An item can: the MANA-alone rail calls marketplace.accept directly, leaving the CreditsManager out of
+   * it. A NAME cannot — it is registered on Ethereum through a server-signed external call that only
+   * CreditsManager.useCredits can make, and that reverts with NoCredits() when handed an empty credits
+   * array. So a NAME is always at least one credit, and MANA can only ever cover the remainder.
+   *
+   * Defaults to true, which is the item behaviour this module was written for.
+   */
+  manaOnlyRail?: boolean
 }): PaymentOptions {
   const priceCents = Number.isFinite(input.priceCents) ? Math.max(0, Math.trunc(input.priceCents)) : 0
   const balanceCents = Number.isFinite(input.balanceCents) ? Math.max(0, Math.trunc(input.balanceCents)) : 0
@@ -149,7 +160,8 @@ export function computePaymentOptions(input: {
 
   // 3. MANA alone (spends no credits) — offered whenever the MANA balance covers the whole price,
   //    even if the buyer also has enough credits: spending MANA instead of credits is their call.
-  if (priceManaWei > 0n && manaBalanceWei >= priceManaWei) {
+  //    Unavailable to a purchase that can only settle through the CreditsManager (see manaOnlyRail).
+  if (input.manaOnlyRail !== false && priceManaWei > 0n && manaBalanceWei >= priceManaWei) {
     options.push({ method: 'mana', creditsCents: 0, credits: 0, manaWei: priceManaWei })
   }
 

@@ -70,3 +70,19 @@ export const Empty = styled.div`
   flex-direction: column;
   align-items: center;
 `
+
+/**
+ * The gap above the suggestions rail.
+ *
+ * `Row.Root` carries a bottom margin but no top one — on the home page the row above it supplies that
+ * space, and here there is no row above, only the grid and its load-more. Without this the heading
+ * lands against the last line of cards.
+ */
+export const Suggested = styled.div`
+  width: 100%;
+  margin-top: 56px;
+
+  ${theme.media.maxWidth('mobile')} {
+    margin-top: 36px;
+  }
+`

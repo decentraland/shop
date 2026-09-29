@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { ReactElement } from 'react'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AssetCard } from './AssetCard'
@@ -21,6 +21,13 @@ import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
+
+// Every card reads its save count through react-query, so every render needs a client — one per render,
+// so one case's counts never reach the next.
+function render(ui: ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
+}
 
 // A minimal catalog item — creator '' so the card skips CreatorBadge (which would fetch a profile).
 function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
@@ -85,23 +92,22 @@ describe('AssetCard author row', () => {
 })
 
 describe('AssetCard flash-sale treatment', () => {
-  it('renders the SALE -X% badge, struck-through compare-at, and a countdown when on sale', () => {
+  it('renders the discount tag and the struck-through compare-at when on sale', () => {
     const { container } = renderCard(
       makeItem({ priceCredits: 7, compareAtCredits: 10, saleEndsAt: Date.now() + 2 * 86400_000 })
     )
-    // 10 → 7 is a 30% cut.
-    expect(screen.getByText(/SALE\s*-30%/)).toBeTruthy()
+    // 10 → 7 is a 30% cut. The tag is the flame and the number; the word SALE is not part of it.
+    expect(container.querySelector('[data-testid="card-sale-badge"]')?.textContent).toContain('-30%')
     const was = container.querySelector('[data-testid="card-price-was"]')
     expect(was?.textContent).toContain('10')
     const now = container.querySelector('[data-testid="card-price-now"]')
     expect(now?.textContent).toContain('7')
-    // A live window renders a ticking countdown pill.
-    expect(container.querySelector('[data-testid="card-countdown"]')).toBeTruthy()
+    // The countdown belongs to the item page now: a grid of them was four chips fighting for one card.
+    expect(container.querySelector('[data-testid="card-countdown"]')).toBeNull()
   })
 
   it('shows no sale treatment for a regular listing', () => {
     const { container } = renderCard(makeItem({ priceCredits: 7 }))
-    expect(screen.queryByText(/SALE/)).toBeNull()
     expect(container.querySelector('[data-testid="card-price-was"]')).toBeNull()
     expect(container.querySelector('[data-testid="card-sale-badge"]')).toBeNull()
   })
@@ -286,13 +292,6 @@ describe('AssetCard add-to-cart CTA when the item is already in the cart', () =>
 describe('AssetCard own-item MANAGE CTA', () => {
   const ME = '0x' + '11'.repeat(20)
 
-  // creator === you means the card renders CreatorBadge (which reads a profile via react-query), so
-  // these renders need a QueryClientProvider (the profile fetch is fire-and-forget / disabled here).
-  function renderWithQuery(ui: ReactElement) {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
-  }
-
   afterEach(() => {
     // The wallet store is real (not mocked) — clear the session so it doesn't leak into other suites.
     useWallet.setState({ session: null })
@@ -301,7 +300,7 @@ describe('AssetCard own-item MANAGE CTA', () => {
   it('labels the action MANAGE (not "your item") for your own primary item and enables it', () => {
     useWallet.setState({ session: { address: ME } as never })
     // A primary item you created (creator === you, no tokenId) → isOwnListing is true.
-    const { container } = renderWithQuery(
+    const { container } = render(
       <MemoryRouter>
         <AssetCard item={makeItem({ creator: ME })} />
       </MemoryRouter>
@@ -316,7 +315,7 @@ describe('AssetCard own-item MANAGE CTA', () => {
   it('navigates to the item detail page (management view) when MANAGE is clicked, without adding to cart', () => {
     useWallet.setState({ session: { address: ME } as never })
     const item = makeItem({ creator: ME, contractAddress: '0xc', itemId: '1' })
-    const { container } = renderWithQuery(
+    const { container } = render(
       <MemoryRouter initialEntries={['/items']}>
         <Routes>
           <Route path="/items" element={<AssetCard item={item} />} />
@@ -592,5 +591,139 @@ describe('AssetCard provenance (which surface the card was rendered on)', () => 
     expect(useCart.getState().items[0]).toMatchObject({ source: 'grid' })
     const call = spy.mock.calls.find(([event]) => event === 'Shop Clicked Item')
     expect(call?.[1]).toMatchObject({ source: 'grid', position: null })
+  })
+})
+
+/**
+ * An emote's play mode is on the Marketplace's card and was missing from ours. `loop === false` is a real
+ * answer (it plays once), so the badge has to key on the field being PRESENT — a truthiness check would
+ * silently drop every play-once emote, which is the half most likely to go unnoticed.
+ */
+describe('AssetCard emote play mode', () => {
+  const emote = (overrides: Partial<CatalogItem> = {}) =>
+    makeItem({ category: 'emote', name: 'Macarena', ...overrides })
+
+  it('marks a looping emote', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={emote({ emoteLoop: true })} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelector('[data-testid="chip-play-mode"]')).toHaveAttribute('title', 'Play loop')
+  })
+
+  it('marks one that plays once, which a truthiness check would drop', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={emote({ emoteLoop: false })} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelector('[data-testid="chip-play-mode"]')).toHaveAttribute('title', 'Play once')
+  })
+
+  it('shows nothing for a wearable, which has no play mode at all', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelector('[data-testid="chip-play-mode"]')).toBeNull()
+  })
+})
+
+/**
+ * The save count in the card's heart.
+ *
+ * The number is only half of it: the button's aria-label replaces everything inside the button for
+ * assistive tech, so a count that is not in the label is a count only sighted shoppers ever get.
+ */
+describe('AssetCard save count', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, data: [{ itemId: '0xc-1', count: 12 }] })
+      })
+    )
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('should show how many people saved the item', async () => {
+    renderCard(makeItem())
+
+    expect((await screen.findByTestId('card-fav-count')).textContent).toBe('12')
+  })
+
+  it('should put the count in the button label too', async () => {
+    renderCard(makeItem())
+    await screen.findByTestId('card-fav-count')
+
+    expect(screen.getByTestId('card-fav').getAttribute('aria-label')).toBe('Add to favorites, saved by 12 people')
+  })
+
+  it('and nobody has saved it yet it should say so rather than hide the number', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, data: [{ itemId: '0xc-1', count: 0 }] })
+      })
+    )
+    renderCard(makeItem())
+
+    expect((await screen.findByTestId('card-fav-count')).textContent).toBe('0')
+  })
+
+  it('and the item cannot be saved it should not show a heart at all', () => {
+    renderCard(makeItem({ itemId: null }))
+
+    expect(screen.queryByTestId('card-fav')).toBeNull()
+  })
+})
+
+describe('AssetCard note', () => {
+  it('shows the note between the price and the action on a shop card', () => {
+    render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} note="Based on your favorites" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('card-note').textContent).toBe('Based on your favorites')
+    expect(screen.getByTestId('card').getAttribute('data-note')).toBe('true')
+  })
+
+  it('marks the note as part of the hover reveal, so it waits for hover where hover exists', () => {
+    render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} note="Based on your favorites" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId('card-note').hasAttribute('data-reveal')).toBe(true)
+  })
+
+  it('leaves a shop card without a note at its usual size', () => {
+    renderCard(makeItem())
+
+    expect(screen.queryByTestId('card-note')).toBeNull()
+    expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
+  })
+
+  it('does not accept or show a note on a card that is not for browsing', () => {
+    render(
+      <MemoryRouter>
+        {/* @ts-expect-error a note only belongs on a shop card */}
+        <AssetCard item={makeItem()} mode="view" note="Based on your favorites" />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByTestId('card-note')).toBeNull()
+    expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
   })
 })

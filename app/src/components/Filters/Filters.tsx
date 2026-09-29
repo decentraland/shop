@@ -87,6 +87,8 @@ export function Filters({
   onStatus,
   smart,
   onSmart,
+  deals,
+  onDeals,
   hideNames = false,
   collections = false,
   onCollections
@@ -105,6 +107,9 @@ export function Filters({
   onStatus: (s: FilterStatus) => void
   smart: boolean
   onSmart: (v: boolean) => void
+  /** Only listings a creator currently discounts. Absent on the surfaces that do not offer it. */
+  deals?: boolean
+  onDeals?: (v: boolean) => void
   // Creator page: no NAMEs entry, plus a "Collections" destination after the categories. Passed
   // through to CategoryFilter so the creator storefront reuses this sidebar rather than growing a
   // second one.
@@ -343,10 +348,28 @@ export function Filters({
 
       <S.Divider />
 
-      <S.SmartRow>
-        <S.SmartLeft>
+      {onDeals ? (
+        <S.ToggleRow data-testid="deals-row">
+          <S.ToggleLeft>
+            <S.ToggleTitle>{t('filter.deals')}</S.ToggleTitle>
+          </S.ToggleLeft>
+          <S.Toggle
+            type="button"
+            role="switch"
+            on={!!deals}
+            aria-checked={!!deals}
+            aria-label={t('filter.deals')}
+            data-testid="deals-toggle"
+            onClick={() => onDeals(!deals)}
+          >
+            <S.ToggleKnob on={!!deals} />
+          </S.Toggle>
+        </S.ToggleRow>
+      ) : null}
+      <S.ToggleRow>
+        <S.ToggleLeft>
           <S.SmartFlash name="smart" aria-hidden />
-          <S.SmartTitle>{t('filter.smart')}</S.SmartTitle>
+          <S.ToggleTitle>{t('filter.smart')}</S.ToggleTitle>
           <Tooltip content={t('filter.smartHint')} placement="bottom">
             <S.SmartInfo
               name="info"
@@ -356,7 +379,7 @@ export function Filters({
               data-testid="smart-hint"
             />
           </Tooltip>
-        </S.SmartLeft>
+        </S.ToggleLeft>
         <S.Toggle
           type="button"
           role="switch"
@@ -367,7 +390,7 @@ export function Filters({
         >
           <S.ToggleKnob on={smart} />
         </S.Toggle>
-      </S.SmartRow>
+      </S.ToggleRow>
     </S.Root>
   )
 }

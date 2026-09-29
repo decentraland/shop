@@ -17,7 +17,7 @@ const session = {
 // The tool reaches ~/lib/import through the migrate modal, which pulls decentraland-transactions at
 // module load; stub it so the module graph resolves.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
+  ContractName: { OffChainMarketplaceV3: 'OffChainMarketplaceV3', OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
   getContract: () => ({ address: '0xmarket', name: 'DecentralandMarketplacePolygon', version: '1', abi: [] })
 }))
 

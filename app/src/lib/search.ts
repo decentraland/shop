@@ -1,28 +1,29 @@
 import { config } from '~/config'
-import { fetchProfile } from '~/lib/profile'
+import type { CatalogItem } from '~/lib/api'
+import { toCatalogItem, type RawCollectionItem } from '~/lib/catalogItem'
 
 // ---------------------------------------------------------------------------
-// Multi-entity search for the search-bar suggestions dropdown.
+// The search-bar suggestions, in one request.
 //
-// The item GRID search (see lib/api.ts fetchListings → /v3/catalog/shop) already covers item
-// name + tags server-side. This module adds the two entity types the grid can't surface as
-// dedicated rows: COLLECTIONS and CREATORS. The dropdown stacks all three as one vertical list;
-// the grid stays items-only.
-//
-// - Collections: the indexer's GET /v1/collections?search=<name> matches collection name and
-//   returns { name, contractAddress, creator }.
-// - Creators: there is NO creator-name search endpoint. Mirroring the marketplace webapp, we
-//   search DCL *names* (GET /v1/nfts?category=ens&search=<name>), take each name's owner address,
-//   keep the ones that are actually sellers (GET /accounts → collections > 0), and resolve each to
-//   a display name + avatar (peer lambdas profile). The matched name is the display name (falling
-//   back to the profile name), so "search by author" finds authors even when no item/collection
-//   name matches. ("ENS"/"names" is internal plumbing — the UI only ever says "Creators".)
+// GET /v3/catalog/suggest answers the three sections the dropdown stacks — items, collections and
+// creators — ranked by the same matching the results grid uses, with `total` being what the grid the
+// query opens will report. Every item and collection row already names its creator, so the dropdown
+// resolves no profiles. It replaced three requests per keystroke (the items feed, /v1/collections by
+// substring and the creators search) plus a profile lookup per row.
 // ---------------------------------------------------------------------------
+
+export type SuggestedItem = CatalogItem & {
+  // What to call the creator, resolved server-side; null when the creator has no known name.
+  creatorName: string | null
+}
 
 export type CollectionHit = {
   contractAddress: string
   name: string
   creator: string
+  creatorName: string | null
+  items: number
+  sales: number
 }
 
 export type CreatorHit = {
@@ -31,80 +32,56 @@ export type CreatorHit = {
   face?: string
 }
 
-type RawCollection = {
-  contractAddress: string
-  name: string
-  creator: string
+export type Suggestions = {
+  items: SuggestedItem[]
+  // Items the grid the query opens will show, i.e. the "See all (N)" number.
+  total: number
+  collections: CollectionHit[]
+  creators: CreatorHit[]
 }
 
-// Matching collections by name. Small page — this feeds a preview dropdown, not a grid.
-export async function fetchCollectionSuggestions(search: string, first = 4): Promise<CollectionHit[]> {
-  const qs = new URLSearchParams({ search, first: String(first) })
-  const res = await fetch(`${config.marketplaceServerUrl}/v1/collections?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchCollectionSuggestions ${res.status}`)
-  const { data } = (await res.json()) as { data?: RawCollection[] }
-  return (data ?? [])
-    .filter(c => c.contractAddress && c.name)
-    .map(c => ({ contractAddress: c.contractAddress, name: c.name, creator: c.creator ?? '' }))
+export const EMPTY_SUGGESTIONS: Suggestions = { items: [], total: 0, collections: [], creators: [] }
+
+export type SuggestionSizes = { items?: number; collections?: number; creators?: number }
+
+type RawSuggestions = {
+  items?: { data?: (RawCollectionItem & { creatorName?: string | null })[]; total?: number }
+  collections?: { data?: Partial<CollectionHit>[] }
+  creators?: { data?: { address?: string; name?: string; face?: string | null }[] }
 }
 
-type EnsNft = { nft?: { name?: string; owner?: string } }
-type Account = { address: string; collections?: number }
-
-// The DCL names that match the query → their owner addresses, paired with the matched name (used as
-// the creator's display name). First name wins per owner (names come back best-match first).
-async function fetchNameOwners(search: string, first: number): Promise<Map<string, string>> {
-  const qs = new URLSearchParams({ category: 'ens', search, first: String(first) })
-  const res = await fetch(`${config.marketplaceServerUrl}/v1/nfts?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchNameOwners ${res.status}`)
-  const { data } = (await res.json()) as { data?: EnsNft[] }
-  const owners = new Map<string, string>()
-  for (const row of data ?? []) {
-    const owner = row.nft?.owner?.toLowerCase()
-    const name = row.nft?.name
-    if (owner && name && !owners.has(owner)) owners.set(owner, name)
-  }
-  return owners
-}
-
-// Of the given addresses, which are actual sellers (have published collections). Returns the set of
-// address → collections count for those with count > 0.
-async function fetchSellerCounts(addresses: string[]): Promise<Map<string, number>> {
-  if (addresses.length === 0) return new Map()
-  const qs = new URLSearchParams({ sortBy: 'most_collections' })
-  for (const a of addresses) qs.append('address', a)
-  const res = await fetch(`${config.marketplaceServerUrl}/v1/accounts?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchSellerCounts ${res.status}`)
-  const { data } = (await res.json()) as { data?: Account[] }
-  const counts = new Map<string, number>()
-  for (const a of data ?? []) {
-    if ((a.collections ?? 0) > 0) counts.set(a.address.toLowerCase(), a.collections ?? 0)
-  }
-  return counts
-}
-
-// Creators matching the query by DCL name: name-search → owners → seller gate → profile resolve.
-// `nameFirst` bounds the name lookup; `first` caps the rows shown.
-export async function fetchCreatorSuggestions(search: string, first = 4, nameFirst = 20): Promise<CreatorHit[]> {
+export async function fetchSuggestions(
+  search: string,
+  { items = 5, collections = 4, creators = 4 }: SuggestionSizes = {},
+  // Lets the caller drop a request the reader has already typed past.
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<Suggestions> {
   const term = search.trim()
-  if (!term) return []
-
-  const owners = await fetchNameOwners(term, nameFirst)
-  if (owners.size === 0) return []
-
-  const sellers = await fetchSellerCounts([...owners.keys()])
-  const addresses = [...owners.keys()].filter(a => sellers.has(a)).slice(0, first)
-  if (addresses.length === 0) return []
-
-  return Promise.all(
-    addresses.map(async address => {
-      const profile = await fetchProfile(address)
-      // Prefer the profile's display name; fall back to the matched DCL name.
-      return {
-        address,
-        name: profile?.name || (owners.get(address) ?? address),
-        face: profile?.avatar?.snapshots?.face256
-      }
-    })
-  )
+  if (!term) return EMPTY_SUGGESTIONS
+  const qs = new URLSearchParams({
+    search: term,
+    items: String(items),
+    collections: String(collections),
+    creators: String(creators)
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/suggest?${qs.toString()}`, { signal })
+  if (!res.ok) throw new Error(`fetchSuggestions ${res.status}`)
+  const body = (await res.json()) as RawSuggestions
+  return {
+    items: (body.items?.data ?? []).map(row => ({ ...toCatalogItem(row), creatorName: row.creatorName ?? null })),
+    total: body.items?.total ?? 0,
+    collections: (body.collections?.data ?? [])
+      .filter(c => c.contractAddress && c.name)
+      .map(c => ({
+        contractAddress: c.contractAddress!,
+        name: c.name!,
+        creator: c.creator ?? '',
+        creatorName: c.creatorName ?? null,
+        items: c.items ?? 0,
+        sales: c.sales ?? 0
+      })),
+    creators: (body.creators?.data ?? [])
+      .filter(c => c.address && c.name)
+      .map(c => ({ address: c.address!.toLowerCase(), name: c.name!, face: c.face ?? undefined }))
+  }
 }

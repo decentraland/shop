@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
@@ -6,6 +6,7 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorite, useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
+import { useLocale } from '~/store/locale'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
   fetchUnifiedListingForItem,
@@ -17,11 +18,14 @@ import {
   fetchOwnedItemCount,
   fetchTokenById,
   fetchTrade,
+  fetchPrimaryListingForItem,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { couponUsedWith, useCouponUses } from '~/store/couponUses'
 import { itemIdFromTokenId } from '~/lib/token-id'
+import { routeSegment } from '~/lib/routes'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { manaWeiToCredits } from '~/lib/mana-convert'
@@ -32,23 +36,29 @@ import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
+import { RemoveListingModal } from '~/components/RemoveListingModal'
+import { isManagedWallet } from '~/lib/wallet'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { IssueModal } from '~/components/IssueModal'
 import { VideoShowcaseModal } from '~/components/VideoShowcaseModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
-import { captureError } from '~/lib/monitoring'
-import { friendlyError, isRejection } from '~/lib/errors'
-import { isManagedWallet } from '~/lib/wallet'
 import { canPayGasItself } from '~/lib/wallet-kind'
+import type { ListingCancelResult, ListingEdit } from '~/components/ListingSteps'
 import { useManaRate } from '~/hooks/useManaRate'
+import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
+import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
+import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
+import { useCampaignBadge } from '~/hooks/useCampaignBadge'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { PhotoReel } from '~/components/PhotoReel'
 import { ResellersModal } from '~/components/ResellersModal'
 import { MarketplaceRedirectModal } from '~/components/MarketplaceRedirectModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
@@ -56,15 +66,17 @@ import { NotifyMe } from '~/components/NotifyMe'
 import { isNotifyAvailable } from '~/lib/notify'
 // import { MakeOfferButton } from '~/components/MakeOfferButton' // see the CTA block below
 import { Tooltip } from '~/components/Tooltip'
-import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { SaleTimer } from '~/components/SaleTimer'
+import { OfferStock } from '~/components/OfferStock'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
-import { rarityColor, rarityDescription } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
+import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { track, itemProps, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
@@ -108,6 +120,10 @@ function categoryLabel(item: CatalogItem): string {
  * PATHNAME only, not the search or the router state: navigating to the SAME asset with new state (the
  * buy-modal resume after a sign-in round-trip) must not throw the page away and reopen it.
  */
+// The PDP rail is shorter than the home page's: it sits under a page the reader came to for one
+// specific item, not under a browsing surface.
+const PERSONAL_RAIL_SIZE = 8
+
 export function ItemDetailRoute() {
   const { pathname } = useLocation()
   return <ItemDetail key={pathname} />
@@ -117,14 +133,22 @@ export function ItemDetail() {
   // TWO routes render this page (see App.tsx): /item/:contractAddress/:itemId (generic buy view) and
   // /token/:contractAddress/:tokenId (a specific copy). react-router populates whichever param matched.
   const {
-    contractAddress,
-    itemId: routeItemId,
-    tokenId: routeTokenId
+    contractAddress: rawContractAddress,
+    itemId: rawItemId,
+    tokenId: rawTokenId
   } = useParams<{
     contractAddress: string
     itemId?: string
     tokenId?: string
   }>()
+  // Sanitised once, here, because eight consumers below key their lookups off these three (see
+  // `routeSegment` for what the in-world client's links do to them).
+  const contractAddress = routeSegment(rawContractAddress)
+  // The running seasonal event, when this item's collection is in it. Read from the ROUTE's address rather
+  // than from the loaded item so the chip is right from the first paint, and does not appear late.
+  const eventBadge = useCampaignBadge(contractAddress)
+  const routeItemId = routeSegment(rawItemId)
+  const routeTokenId = routeSegment(rawTokenId)
   const isTokenRoute = !!routeTokenId
   // The itemId this page is about: the route itemId, or decoded from the token (itemId = tokenId >> 216).
   // Both routes fetch the generic item data (name, resales, siblings, description) by this itemId.
@@ -158,14 +182,16 @@ export function ItemDetail() {
 
   const qc = useQueryClient()
   const add = useCart(s => s.add)
+  /**
+   * Uses this session has watched the discount spend, which the catalogue has not caught up to yet.
+   *
+   * Subscribed here rather than read where it is used: the catalogue answers a refetch after a purchase
+   * with the same bytes, so react-query hands back the same object and nothing would redraw on its own.
+   */
+  const couponSpent = useCouponUses(state => state.spent)
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
-  // Managed (web2) wallets sign transparently (no popup); self-custody wallets (MetaMask,
-  // WalletConnect…) show a confirmation prompt. Used to word the Edit-price "cancel first" step
-  // appropriately: "confirm in your wallet" vs a plain "canceling…" progress state. Shared helper so
-  // the classification stays consistent with the buy/sell modals (lib/wallet).
-  const isManaged = isManagedWallet(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -257,6 +283,26 @@ export function ItemDetail() {
     openBuy()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
+
+  // `contract-itemId`, the identity the recommender keys on. Null for anything it cannot speak about.
+  const anchorExclude = useMemo(() => {
+    const id = current.contractAddress && (current.itemId ?? pageItemId)
+    return id ? [`${current.contractAddress.toLowerCase()}-${current.itemId ?? pageItemId}`] : undefined
+  }, [current.contractAddress, current.itemId, pageItemId])
+
+  // The PERSONAL rail, asked for this reader rather than for this item, and told to leave the anchor out
+  // -- offering back the very item the page is about is the one thing it must never do. Asked here as
+  // well as inside the component on purpose: react-query dedupes on the key, so this is the same single
+  // request, and the page needs the answer to decide whether its own cascade below is still wanted.
+  const personal = useSuggestedForYou(PERSONAL_RAIL_SIZE, { exclude: anchorExclude })
+  const personalHidden = suggestedHiddenReason({
+    enabled: personal.enabled,
+    hasSignal: personal.hasSignal,
+    isLoading: personal.isLoading,
+    isError: personal.isError,
+    personalized: personal.result?.personalized,
+    rowCount: explainedRows(personal.result?.data ?? []).length
+  })
 
   // The rail below the fold: this collection's other items, padded with the creator's and then with
   // similar ones so it never shows up as two or three lonely cards. `siblings` also backfills the item.
@@ -624,6 +670,37 @@ export function ItemDetail() {
     compareAtCredits: current.compareAtCredits,
     saleEndsAt: current.saleEndsAt
   })
+  // Scarcity, only while the sale is actually live: a count left over from a window that has closed would
+  // read as pressure to buy at a price no longer on offer.
+
+  /**
+   * The OFFER's scale — both numbers from the coupon, which is the thing the bar is about.
+   *
+   * They have to share a scope. `used` counts the whole collection the coupon covers, while
+   * `saleUnitsLeft` is capped by THIS item's stock, so pairing them produced a figure true of neither: a
+   * coupon with 100 uses, 60 spent on a sibling, on an item with 3 copies left read "60 of 63 claimed" —
+   * this item looking nearly exhausted without having sold one.
+   */
+  const offerStock = (() => {
+    if (!saleActive) return null
+    // Not `coupon.used` straight from the catalogue: the server learns of a purchase on its own schedule,
+    // so a buyer who just took one would watch the bar sit still until it caught up.
+    const claimed = couponUsedWith(couponSpent, current.coupon)
+    const total = Number(current.coupon?.checks?.uses ?? 0)
+    return total > 0 && claimed <= total ? { claimed, total } : null
+  })()
+
+  /**
+   * "Only 3 left at this price" — what the collection-wide bar cannot say.
+   *
+   * Only when this item runs out BEFORE the offer does; otherwise the bar's own remainder already is the
+   * answer and the line would repeat it.
+   */
+  const unitsLeft = (() => {
+    if (!saleActive || current.saleUnitsLeft == null) return null
+    const offerLeft = offerStock ? offerStock.total - offerStock.claimed : Infinity
+    return current.saleUnitsLeft < offerLeft ? current.saleUnitsLeft : null
+  })()
   // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
   const cartItem: CatalogItem = useMemo(
     () => ({ ...current, tradeId: buyableTradeId, id: buyableTradeId ?? current.id }),
@@ -637,6 +714,14 @@ export function ItemDetail() {
   const cartQty = cartItems.find(i => i.id === cartItem.id)?.quantity ?? 0
   const atStockCap = isPrimary && typeof current.available === 'number' && cartQty >= current.available
   const { key: favKey, faved } = useFavorite(current)
+  const favCount = useFavoriteCount(current)
+  const locale = useLocale(s => s.locale)
+  const favCountLabel = favCount === undefined ? null : favCount.toLocaleString(locale)
+  // The button's label replaces everything inside it for assistive tech, so the count has to be part of
+  // it or it is only ever seen, never heard.
+  const favAction = faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')
+  const favLabel =
+    favCount === undefined ? favAction : t('itemDetail.favoriteAria', { action: favAction, count: favCount })
 
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
   // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
@@ -710,21 +795,14 @@ export function ItemDetail() {
   // price the SellModal just submitted immediately, then let the authoritative ownedAsset refetch take
   // over (cleared below once it reports the matching listing). Bridges the MV lag on the Edit-price flow.
   const [justListedCredits, setJustListedCredits] = useState<number | null>(null)
-  // Which manage action is in flight, so ONLY its button shows a working label (Update price shouldn't
-  // read "Working…" while a Remove is running, and vice-versa). null = idle.
-  const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
-  const [manageError, setManageError] = useState<string | null>(null)
-  // The relay did not get the cancellation confirmed. Holds the choice open — pay the gas now, or leave it —
-  // instead of spending the seller's gas behind their back (see cancelListing's `mode`).
-  // null when nothing failed. 'pending' means the relay may still land, 'reverted' that it provably did
-  // not — the two need different words, and only one of them may say "it may still go through".
-  const [gaslessCancelFailed, setGaslessCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
+  // The remove-from-sale confirmation is open; it owns the take-down's working/error/relay state.
+  const [removing, setRemoving] = useState(false)
+  // The list modal is open to re-price the CURRENT listing (it takes the old one down before publishing).
+  const [editing, setEditing] = useState(false)
   // Whether the gas-paying route is a route AT ALL for this seller. A managed wallet holds no POL, so
   // offering it a "pay the fee" button leads to an INSUFFICIENT_FUNDS revert — and the fee/network wording
   // around it is what these users must never be shown. Same question the checkout surfaces ask.
   const canPayGas = canPayGasItself(session?.providerType)
-  // Shown once the wait passes the point where "a moment" stops being true, so the spinner explains itself.
-  const [cancelSlow, setCancelSlow] = useState(false)
 
   const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
@@ -890,7 +968,7 @@ export function ItemDetail() {
    * owned token is a SECONDARY sale and so is gone while the flag is off.
    *
    * Taking an existing listing DOWN stays available either way — hiding the entrance must not trap the
-   * people already inside. But CHANGING THE PRICE is not an exit: `updatePrice` cancels and re-lists, so it
+   * people already inside. But CHANGING THE PRICE is not an exit: Edit price cancels and re-lists, so it
    * creates a brand-new secondary listing. Gating only the first listing let the flag be walked around by
    * anyone who already had one, which is why this now guards both entrances and leaves only Remove.
    *
@@ -943,108 +1021,107 @@ export function ItemDetail() {
     ])
   }
 
-  // Take the current listing down (invalidates its signature on-chain). Mirrors My Assets' cancel flow.
-  // `silent` skips the "no longer for sale" toast when this is the first half of an Update price
-  // (cancel-then-relist — see updatePrice).
-  // `own` (default true): this call owns the 'remove' working state. Update price calls it with
-  // own:false — that flow owns the 'update' state so takeDown must not stomp it.
-  async function takeDown(opts: { silent?: boolean; own?: boolean; payGas?: boolean } = {}): Promise<boolean> {
-    const own = opts.own !== false
-    if (!session || !manageTradeId) return false
-    setManageError(null)
-    setGaslessCancelFailed(null)
-    setCancelSlow(false)
-    if (own) setManaging('remove')
-    try {
-      const trade = await fetchTrade(manageTradeId)
-      await cancelListing({
-        trade,
-        signer: session.signer,
-        // Ask before spending their gas: 'gasless-only' reports back instead of opening a second wallet
-        // prompt on its own. `payGas` is the seller answering yes, from inside their own click — which is
-        // also what makes the wallet accept the network request the direct path needs.
-        mode: opts.payGas ? 'direct' : 'gasless-only',
-        watch: {
-          // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
-          // one). Asking the feed keeps "confirmed" and "what the seller will see" the same thing.
-          isCancelled: async () => {
+  // Take the current listing down (invalidates its signature on-chain) and flip every cache that renders
+  // it. Throws on failure — the Remove and Edit-price modals each turn that into their
+  // own on-screen state. `silent` skips the "no longer for sale" toast.
+  async function cancelCurrentListing(opts: {
+    silent?: boolean
+    payGas?: boolean
+    onWaiting?: (elapsedMs: number) => void
+  }): Promise<void> {
+    if (!session || !manageTradeId) throw new Error('No listing to take down')
+    const trade = await fetchTrade(manageTradeId)
+    await cancelListing({
+      trade,
+      signer: session.signer,
+      // Ask before spending their gas: 'gasless-only' reports back instead of opening a second wallet
+      // prompt on its own. `payGas` is the seller answering yes, from inside their own click — which is
+      // also what makes the wallet accept the network request the direct path needs.
+      mode: opts.payGas ? 'direct' : 'gasless-only',
+      watch: {
+        // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
+        // one). The trade id is no evidence either way: the server re-signs a still-live listing under a NEW
+        // id when availability changes, so a 404 may be a successor, not a cancel. What is stable is this
+        // seller having no live listing on THIS asset — the token's own order for a resale, the item's
+        // primary shop listing for a mint. A successor keeps that alive; an unrelated resale of the same
+        // item never touches it; a failed read is not evidence.
+        isCancelled: async () => {
+          try {
+            if (manageAsSecondary) {
+              if (!current.tokenId) return false
+              const token = await fetchOwnedToken(session.address, current.contractAddress, current.tokenId)
+              return token !== null && !token.isOnSale
+            }
             if (!current.itemId) return false
-            const live = await fetchTradeForItem(current.contractAddress, current.itemId).catch(() => undefined)
-            return live !== undefined && live?.id !== manageTradeId
-          },
-          onWaiting: elapsed => setCancelSlow(elapsed > 20_000)
-        }
-      })
-      if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
-      // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
-      // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
-      // invalidate→refetch alone would read back the STALE still-listed price (previously it only
-      // corrected on the next window focus). Runs for the silent edit-price cancel too, so the old listing
-      // disappears immediately before the relist modal reopens. refreshManage then reconciles.
-      setJustListedCredits(null)
-      // Retire the trade so nothing can offer it back while the MV catches up: patchManageCaches below only
-      // reaches the TOKEN-scoped caches, and no-ops entirely without a tokenId — i.e. never on the /item
-      // route, where a creator's primary listing lives in this page's own item state instead.
-      markListingCancelled(qc, manageTradeId)
-      // …and drop it from that state, so the buyable-trade query stops short-circuiting on a dead id and can
-      // resolve whatever replaces it (the re-list half of an Edit price, say).
-      setCurrent(prev => (prev.tradeId === manageTradeId ? { ...prev, tradeId: undefined } : prev))
-      void refreshManage()
-      patchManageCaches(
-        qc,
-        { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
-        { kind: 'removed' }
-      )
-      return true
-    } catch (e) {
-      const rejected = isRejection(e)
-      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
-      if (e instanceof GaslessCancelFailedError) {
-        // Offer the gas-paying route either way, but say which situation it is: a reverted relay is dead and
-        // paying gas is the real next step, while an unconfirmed one may still land on its own — and telling
-        // someone that about a revert is simply false.
-        setGaslessCancelFailed(e.definitive ? 'reverted' : 'pending')
-        return false
+            // Primary only (a live resale must not keep a cancelled mint listing "pending"), from the unified
+            // feed (a live legacy MANA order must not read as gone).
+            return (await fetchPrimaryListingForItem(current.contractAddress, current.itemId)) === null
+          } catch {
+            return false
+          }
+        },
+        onWaiting: opts.onWaiting
       }
-      // Through friendlyError so a wrong network or a wallet that refused the request says which of those
-      // it was — "couldn't remove the listing" is true but useless when the fix is a network switch.
-      setManageError(rejected ? t('getCredits.errorCanceled') : friendlyError(e, t('myAssets.removeListingError')))
-      return false
-    } finally {
-      if (own) setManaging(null)
-      setCancelSlow(false)
-    }
+    })
+    if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
+    // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
+    // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
+    // invalidate→refetch alone would read back the STALE still-listed price (previously it only
+    // corrected on the next window focus). refreshManage then reconciles.
+    setJustListedCredits(null)
+    // Retire the trade so nothing can offer it back while the MV catches up: patchManageCaches below only
+    // reaches the TOKEN-scoped caches, and no-ops entirely without a tokenId — i.e. never on the /item
+    // route, where a creator's primary listing lives in this page's own item state instead.
+    markListingCancelled(qc, manageTradeId)
+    // …and drop it from that state, so the buyable-trade query stops short-circuiting on a dead id and can
+    // resolve whatever replaces it (the re-list half of an Edit price, say).
+    setCurrent(prev => (prev.tradeId === manageTradeId ? { ...prev, tradeId: undefined } : prev))
+    void refreshManage()
+    patchManageCaches(
+      qc,
+      { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+      { kind: 'removed' }
+    )
   }
 
-  // `relist` suppresses the funnel-entry event: updatePrice() takes the old listing down and reopens this
-  // modal to price it again, which is an EDIT, not a new listing. Counting it would inflate the funnel's
-  // entry by one per price change and make the listing conversion rate look worse than it is.
-  function openListModal({ relist = false }: { relist?: boolean } = {}) {
+  // Edit price: the shop's listings are independent signed trades (unlike the classic marketplace's
+  // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
+  // price still fulfillable. The list modal runs both halves on submit — take the current listing down,
+  // then publish the new price — through this adapter, so the seller picks the price BEFORE anything
+  // happens. A relay that could not confirm the removal is reported, not thrown: the modal offers the
+  // seller their options instead of a bare error.
+  const cancelForModal =
+    (silent: boolean): ListingEdit['cancelCurrent'] =>
+    async ({ payGas, onWaiting }): Promise<ListingCancelResult> => {
+      try {
+        await cancelCurrentListing({ silent, payGas, onWaiting })
+        return 'ok'
+      } catch (e) {
+        if (e instanceof GaslessCancelFailedError) return e.definitive ? 'relay-reverted' : 'relay-pending'
+        throw e
+      }
+    }
+  const editListing: ListingEdit = {
+    currentCredits: managePriceCredits || current.priceCredits || undefined,
+    canPayGas,
+    cancelCurrent: cancelForModal(true)
+  }
+
+  // `edit` suppresses the funnel-entry event: re-pricing is an EDIT, not a new listing. Counting it would
+  // inflate the funnel's entry by one per price change and make the listing conversion rate look worse.
+  function openListModal({ edit = false }: { edit?: boolean } = {}) {
     // Funnel entry for a listing, PRIMARY or SECONDARY. The spec (§5.6) has always called for both; the
     // event was wired only to the secondary branch, so the primary flow — the one sellers actually use —
     // produced listings with no funnel entry at all and `Shop Started Listing` read zero.
-    if (!relist) {
+    if (!edit) {
       track('Shop Started Listing', {
         listing_type: manageAsSecondary ? 'secondary' : 'primary',
         item_id: current.itemId ?? current.tokenId ?? null
       })
     }
+    setEditing(edit)
     if (manageAsSecondary) setShowSell(true)
     else setShowPrimary(true)
-  }
-
-  // Update price: the shop's listings are independent signed trades (unlike the classic marketplace's
-  // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
-  // price still fulfillable. Take the current listing down first, then open the list modal to re-list
-  // at the new price — both halves are the shop's existing, tested flows.
-  async function updatePrice() {
-    setManaging('update')
-    try {
-      const ok = await takeDown({ silent: true, own: false })
-      if (ok) openListModal({ relist: true })
-    } finally {
-      setManaging(null)
-    }
   }
 
   // Modal closed (after a successful list or a cancel) → refresh the management state so the view
@@ -1052,6 +1129,7 @@ export function ItemDetail() {
   function closeManageModal() {
     setShowSell(false)
     setShowPrimary(false)
+    setEditing(false)
     void refreshManage()
   }
 
@@ -1067,11 +1145,19 @@ export function ItemDetail() {
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
-  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
+  /**
+   * Remaining supply, backfilled from the item row when no listing carried it.
+   *
+   * Without the fallback an item with nothing listed reports `undefined`, so neither branch below fires and
+   * the page shows "Not for sale" with no numbers — which reads the same whether the mint sold out or the
+   * creator never put it up. The item row knows, and the chip query above already fetched it.
+   */
+  const supply = current.available ?? itemTraits?.available ?? null
+  const showStock = typeof supply === 'number' && supply > 0 && !current.tokenId && !isMarket
   // Primary (mint) listing whose supply is exhausted → surface "OUT OF STOCK" next to the not-for-sale
   // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
   // and market items have no stock concept).
-  const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  const outOfStock = !isMarket && !current.tokenId && supply === 0
   /**
    * L1 items credit nobody.
    *
@@ -1194,7 +1280,9 @@ export function ItemDetail() {
         <S.CrumbCurrent>{current.name || t('itemDetail.itemFallback')}</S.CrumbCurrent>
       </S.Crumbs>
 
-      <S.Main>
+      <S.Main
+        style={{ '--glow-rgb': rarityGlowRgb(rarity), '--glow-core': rarityGlowCoreRgb(rarity) } as CSSProperties}
+      >
         <S.Preview data-testid="item-preview">
           {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
               stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
@@ -1203,7 +1291,7 @@ export function ItemDetail() {
             <ItemPreview item={current} />
           ) : (
             <S.PreviewLoading aria-busy="true" aria-label={t('itemPreview.loading')}>
-              <span className="skeleton" aria-hidden />
+              <S.PreviewSkeleton className="skeleton" aria-hidden />
             </S.PreviewLoading>
           )}
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).
@@ -1213,11 +1301,17 @@ export function ItemDetail() {
             <S.Fav
               data-fav-preview
               data-on={faved || undefined}
-              onClick={() => toggleFav(current)}
+              data-count={favCountLabel ?? undefined}
+              onClick={() => toggleFav(current, 'item_detail')}
               aria-pressed={faved}
-              aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+              aria-label={favLabel}
             >
               <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+              {favCount !== undefined ? (
+                <S.FavCount title={t('itemDetail.savedCount', { count: favCount })} data-testid="fav-count-preview">
+                  {favCountLabel}
+                </S.FavCount>
+              ) : null}
             </S.Fav>
           ) : null}
           {/* Over the preview, where the marketplace puts it: the clip is about this render, not about the
@@ -1235,6 +1329,15 @@ export function ItemDetail() {
             <ItemInfoSkeleton />
           ) : (
             <>
+              {/* Above the title, not beside the price: it announces the whole item, and down in the price
+                  row it was a third chip arguing with the number it describes. */}
+              {onSale && current.compareAtCredits != null ? (
+                <S.DetailSaleTag
+                  pct={saleDiscountPct(current.compareAtCredits, current.priceCredits)}
+                  size="lg"
+                  testId="detail-sale-badge"
+                />
+              ) : null}
               <S.InfoHead>
                 {/* Token route: append the specific copy's mint index to the title (e.g. "Ruby Red
                     Fascinator #1") so the owner/viewer sees exactly which copy this page is about. The
@@ -1247,11 +1350,17 @@ export function ItemDetail() {
                   <S.Fav
                     data-fav-title
                     data-on={faved || undefined}
-                    onClick={() => toggleFav(current)}
+                    data-count={favCountLabel ?? undefined}
+                    onClick={() => toggleFav(current, 'item_detail')}
                     aria-pressed={faved}
-                    aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                    aria-label={favLabel}
                   >
                     <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+                    {favCount !== undefined ? (
+                      <S.FavCount title={t('itemDetail.savedCount', { count: favCount })} data-testid="fav-count">
+                        {favCountLabel}
+                      </S.FavCount>
+                    ) : null}
                   </S.Fav>
                 ) : null}
               </S.InfoHead>
@@ -1260,30 +1369,33 @@ export function ItemDetail() {
                 {/* The filterable attributes are LINKS to the browse page — clicking one shows everything
                     that shares it. Only these three are linked because only these three are things the
                     grid can filter by; see lib/chip-links. */}
+                {/* A rarity IS its scarcity, so the chip explains itself with the number: how many of this
+                    item can ever exist. Both variants say it — the linked one used to promise "browse all
+                    {rarity} items" instead, and did it through a key that does not exist, so what actually
+                    rendered was the literal `itemDetail.browseByRarity`. */}
                 {rarityLink ? (
-                  <S.DetailChipLink
-                    to={rarityLink}
-                    data-variant="rarity"
-                    data-testid="detail-rarity-link"
-                    style={{ background: rarityColor(rarity) }}
-                    title={t('itemDetail.browseByRarity', { rarity: current.rarity })}
-                  >
-                    {current.rarity}
-                  </S.DetailChipLink>
+                  <Tooltip content={rarityDescription(current.rarity)}>
+                    <S.DetailChipLink
+                      to={rarityLink}
+                      data-variant="rarity"
+                      data-testid="detail-rarity-link"
+                      style={{ background: rarityColor(rarity) }}
+                    >
+                      {current.rarity}
+                    </S.DetailChipLink>
+                  </Tooltip>
                 ) : (
-                  <S.DetailChip
-                    data-variant="rarity"
-                    style={{ background: rarityColor(rarity) }}
-                    title={rarityDescription(current.rarity)}
-                  >
-                    {current.rarity}
-                  </S.DetailChip>
+                  <Tooltip content={rarityDescription(current.rarity)}>
+                    <S.DetailChip data-variant="rarity" style={{ background: rarityColor(rarity) }}>
+                      {current.rarity}
+                    </S.DetailChip>
+                  </Tooltip>
                 )}
                 {categoryLink ? (
                   <S.DetailChipLink
                     to={categoryLink}
                     data-testid="detail-category-link"
-                    title={t('itemDetail.browseByCategory', { category: categoryLabel(chipItem) })}
+                    title={t('filter.browseByCategory', { category: categoryLabel(chipItem) })}
                   >
                     {catIco ? <Icon name={catIco} size={18} /> : null}
                     {categoryLabel(chipItem)}
@@ -1306,10 +1418,20 @@ export function ItemDetail() {
                 {!isTokenRoute && current.issuedId ? (
                   <S.DetailChip data-testid="detail-issued">#{current.issuedId}</S.DetailChip>
                 ) : null}
+                {/* Part of the running seasonal event. First in this row rather than last: it is the only
+                    chip here that is timely, and the one a reader is most likely to want to follow. The
+                    label is the event's own name from the CMS — NOT its tag, which is an internal
+                    identifier the marketplace surfaces by mistake. */}
+                {eventBadge ? (
+                  <S.DetailChipLink to="/event" data-testid="detail-event" title={eventBadge}>
+                    <Icon name="star-rounded" size={18} />
+                    {eventBadge}
+                  </S.DetailChipLink>
+                ) : null}
                 {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
                 {isSmart ? (
-                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('itemDetail.browseBySmart')}>
+                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('filter.browseBySmart')}>
                     <Icon name="smart" size={18} />
                     {t('itemDetail.smart')}
                   </S.DetailChipLink>
@@ -1514,25 +1636,18 @@ export function ItemDetail() {
                             </>
                           ) : forSale ? (
                             onSale ? (
+                              // One line: the mark, what it costs now, what it cost, and how long that
+                              // lasts. The discount tag moved up beside the title — in here it was a
+                              // fourth thing competing with the number it is about.
                               <S.Price data-variant="sale" data-testid="item-price">
-                                <S.Price>
-                                  <S.Diamond />
-                                  <S.PriceValue>
-                                    <Price credits={current.priceCredits} />
-                                  </S.PriceValue>
-                                </S.Price>
-                                <S.PriceWas>
-                                  <S.Diamond data-was />
+                                <S.Diamond />
+                                <S.PriceValue>
+                                  <Price credits={current.priceCredits} />
+                                </S.PriceValue>
+                                <S.PriceWas data-testid="detail-price-was">
                                   <Price credits={current.compareAtCredits!} />
                                 </S.PriceWas>
-                                {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                                  <S.SaleBadge>
-                                    {t('assetCard.saleWithDiscount', {
-                                      pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
-                                    })}
-                                  </S.SaleBadge>
-                                ) : null}
-                                <S.Countdown endsAt={current.saleEndsAt} />
+                                <SaleTimer until={current.saleEndsAt} testId="detail-countdown" />
                               </S.Price>
                             ) : (
                               <S.Price data-testid="item-price">
@@ -1570,17 +1685,42 @@ export function ItemDetail() {
                           <S.StockCol>
                             <S.PriceLabel>{t('itemDetail.stock')}</S.PriceLabel>
                             <S.StockValue>
-                              {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                              {(supply ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
                             </S.StockValue>
                           </S.StockCol>
                         ) : outOfStock ? (
+                          // The count stays. "OUT OF STOCK" alone says none are left but not how many there
+                          // ever were, which is the difference between a 1-of-1 and a drop of a thousand.
                           <S.StockCol>
+                            <S.PriceLabel>{t('itemDetail.stock')}</S.PriceLabel>
+                            <S.StockValue>
+                              {(supply ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                            </S.StockValue>
                             <S.StockValue data-out data-testid="out-of-stock">
                               {t('itemDetail.outOfStock')}
                             </S.StockValue>
                           </S.StockCol>
                         ) : null}
                       </S.PriceRow>
+                      {/* How much of the mint is gone, under the row rather than inside the STOCK column:
+                          the scale is ~130px wide and that column is sized for a "99/100". */}
+                      {/*
+                       * How much of the OFFER is gone, which is not how much of the item is.
+                       *
+                       * A coupon's allowance covers a whole collection, so it can be far larger than what
+                       * this listing can deliver. `saleUnitsLeft` arrives already capped by the server
+                       * (LEAST of the coupon's remaining uses and this item's stock), so the ceiling is
+                       * what has been claimed plus what is genuinely still gettable here — never the
+                       * collection-wide number.
+                       */}
+                      {offerStock ? (
+                        <OfferStock claimed={offerStock.claimed} total={offerStock.total} testId="detail-offer-stock" />
+                      ) : null}
+                      {unitsLeft != null ? (
+                        <S.UnitsLeft data-testid="detail-units-left">
+                          {t('assetCard.unitsLeftAtThisPrice', { count: unitsLeft })}
+                        </S.UnitsLeft>
+                      ) : null}
                     </S.PriceBlock>
                   )}
 
@@ -1599,49 +1739,6 @@ export function ItemDetail() {
                       </S.DetailCta>
                     ) : manage ? (
                       <S.ManageActions data-testid="manage-actions">
-                        <ErrorNotice message={manageError} />
-                        {/* The relay could not confirm it. Deliberately NOT an error: the transaction may
-                            still land, so the seller gets the two honest options instead of a "try again"
-                            that has them re-signing something already in flight. */}
-                        {gaslessCancelFailed && !canPayGas ? (
-                          <S.GaslessNotice data-testid="cancel-gasless-failed">
-                            <p>{t('itemDetail.cancelRelayRetry')}</p>
-                          </S.GaslessNotice>
-                        ) : null}
-                        {gaslessCancelFailed && canPayGas ? (
-                          <S.GaslessNotice data-testid="cancel-gasless-failed">
-                            <p>
-                              {gaslessCancelFailed === 'reverted'
-                                ? t('itemDetail.cancelRelayReverted')
-                                : t('itemDetail.cancelRelayFailed')}
-                            </p>
-                            <S.GaslessActions>
-                              <S.LinkCta
-                                type="button"
-                                data-testid="cancel-pay-gas"
-                                onClick={() => void takeDown({ payGas: true })}
-                                disabled={managing !== null}
-                              >
-                                {t('itemDetail.cancelPayGas')}
-                              </S.LinkCta>
-                              <S.LinkCta
-                                type="button"
-                                data-testid="cancel-later"
-                                onClick={() => setGaslessCancelFailed(null)}
-                                disabled={managing !== null}
-                              >
-                                {t('itemDetail.cancelLater')}
-                              </S.LinkCta>
-                            </S.GaslessActions>
-                          </S.GaslessNotice>
-                        ) : null}
-                        {/* A relayed cancel on a congested network takes minutes. Say so, instead of a mute
-                            spinner that reads as "nothing is happening". */}
-                        {managing === 'remove' && cancelSlow ? (
-                          <S.GaslessNotice data-testid="cancel-slow">
-                            <p>{t(canPayGas ? 'itemDetail.cancelSlow' : 'itemDetail.cancelSlowManaged')}</p>
-                          </S.GaslessNotice>
-                        ) : null}
                         {manageListed ? (
                           <>
                             {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. Absent when
@@ -1649,23 +1746,16 @@ export function ItemDetail() {
                             entrance, not an exit. Remove stays below either way. */}
                             {canPutOnSale ? (
                               <S.SoftCta
-                                onClick={() => void updatePrice()}
-                                disabled={managing !== null || !canOpenListModal}
+                                onClick={() => openListModal({ edit: true })}
+                                disabled={!canOpenListModal}
+                                data-testid="edit-price"
                               >
-                                {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
-                                <span>
-                                  {managing === 'update'
-                                    ? isManaged
-                                      ? t('itemDetail.updateCanceling')
-                                      : t('itemDetail.updateConfirmCancel')
-                                    : t('itemDetail.manageUpdatePrice')}
-                                </span>
+                                <Icon name="pen" className="ico" />
+                                <span>{t('itemDetail.manageUpdatePrice')}</span>
                               </S.SoftCta>
                             ) : null}
-                            <S.ScrimCta onClick={() => void takeDown()} disabled={managing !== null}>
-                              <span>
-                                {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
-                              </span>
+                            <S.ScrimCta onClick={() => setRemoving(true)} data-testid="remove-listing">
+                              <span>{t('itemDetail.manageRemove')}</span>
                             </S.ScrimCta>
                           </>
                         ) : (
@@ -1673,10 +1763,7 @@ export function ItemDetail() {
                             {/* Put up for sale (Figma 1527-302810): dark-solid primary. Absent when the
                             viewer may not sell — an owned token with secondary sales off. */}
                             {canPutOnSale ? (
-                              <S.DarkCta
-                                onClick={() => openListModal()}
-                                disabled={managing !== null || !canOpenListModal}
-                              >
+                              <S.DarkCta onClick={() => openListModal()} disabled={!canOpenListModal}>
                                 <span>{t('itemDetail.manageList')}</span>
                               </S.DarkCta>
                             ) : null}
@@ -1684,7 +1771,7 @@ export function ItemDetail() {
                             (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
                             {manageAsSecondary ? (
                               <>
-                                <S.ScrimCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
+                                <S.ScrimCta onClick={() => setShowTransfer(true)}>
                                   <span>{t('itemDetail.manageTransfer')}</span>
                                 </S.ScrimCta>
                                 {/* RESELL ITEM (Figma 1526:300789): a text link under the CTA, not a third
@@ -1696,7 +1783,6 @@ export function ItemDetail() {
                                   data-on-purple
                                   data-testid="resell-item"
                                   onClick={() => setShowResell(true)}
-                                  disabled={managing !== null}
                                 >
                                   {t('itemDetail.manageResell')}
                                 </S.LinkCta>
@@ -1708,20 +1794,9 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <S.LinkCta
-                            type="button"
-                            data-on-purple
-                            onClick={() => setShowIssue(true)}
-                            disabled={managing !== null}
-                          >
+                          <S.LinkCta type="button" data-on-purple onClick={() => setShowIssue(true)}>
                             {t('itemDetail.manageIssue')}
                           </S.LinkCta>
-                        ) : null}
-                        {managing === 'update' ? (
-                          // Only note kept in the manage view: explain the two-step nature while the
-                          // current listing is being taken down. The "manage it in My Assets" note was
-                          // removed — you're already managing right here (on both /item and /token).
-                          <S.ManageNote>{t('itemDetail.updateHelper')}</S.ManageNote>
                         ) : null}
                         {lowestResale != null ? (
                           <S.ManageResellers>
@@ -1785,7 +1860,16 @@ export function ItemDetail() {
                         <NotifyMe item={current} />
                         {current.itemId ? (
                           <S.BuyResaleLink
-                            onClick={() => setShowBuyResale(true)}
+                            onClick={() => {
+                              // Separate from the redirect event on purpose: the gap between them is the
+                              // question worth answering, "wanted a resale" against "actually went looking".
+                              track('Shop Clicked Buy Resale', {
+                                item_id: current.itemId,
+                                contract_address: current.contractAddress,
+                                has_shop_resale: !!cheapestResaleItem
+                              })
+                              setShowBuyResale(true)
+                            }}
                             data-testid="buy-resale"
                             aria-haspopup="dialog"
                           >
@@ -1833,16 +1917,30 @@ export function ItemDetail() {
         </S.Info>
       </S.Main>
 
-      {/* CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
-      <CollectionCarousel
-        title={carouselTitle}
-        items={carouselItems}
-        onViewAll={
-          isCollectionOnly && current.contractAddress
-            ? () => navigate(`/collection/${current.contractAddress}`)
-            : undefined
-        }
+      {/* Two rails, never both: the personal one answers "what should YOU buy", the cascade below answers
+          "what else is like THIS". Showing both stacks two carousels of largely the same items. */}
+      <SuggestedForYouRow
+        exclude={anchorExclude}
+        title={t('itemDetail.becauseYouOwn')}
+        surface="pdp"
+        first={PERSONAL_RAIL_SIZE}
       />
+
+      {/* CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
+      {personalHidden !== null && (
+        <CollectionCarousel
+          title={carouselTitle}
+          items={carouselItems}
+          onViewAll={
+            isCollectionOnly && current.contractAddress
+              ? () => navigate(`/collection/${current.contractAddress}`)
+              : undefined
+          }
+        />
+      )}
+
+      {/* Photos of people wearing it, in world. Renders nothing when there are none. */}
+      <PhotoReel item={current} />
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout
@@ -1900,6 +1998,7 @@ export function ItemDetail() {
           asset={ownedAsset}
           session={session}
           creator={current.creator}
+          edit={editing ? editListing : undefined}
           onListed={(credits, tradeId) => {
             // Show the new price immediately on THIS page (justListedCredits), and optimistically patch every
             // cache that renders this token's sale state (PDP owned-token → no re-entry flash, My Assets grid,
@@ -1915,6 +2014,15 @@ export function ItemDetail() {
             )
           }}
           onClose={closeManageModal}
+        />
+      ) : null}
+      {removing && session ? (
+        <RemoveListingModal
+          name={current.name}
+          managed={isManagedWallet(session)}
+          canPayGas={canPayGas}
+          cancel={cancelForModal(false)}
+          onClose={() => setRemoving(false)}
         />
       ) : null}
       {showTransfer && session && current.tokenId ? (
@@ -1951,7 +2059,13 @@ export function ItemDetail() {
         <PrimaryListModal
           item={publishableItem}
           session={session}
-          onListed={credits => setJustListedCredits(credits)}
+          edit={editing ? editListing : undefined}
+          onListed={(credits, tradeId) => {
+            setJustListedCredits(credits)
+            // The new trade is what Remove / Edit act on until the feed catches up; without it the page would
+            // still point at the retired one.
+            setCurrent(prev => ({ ...prev, tradeId }))
+          }}
           onClose={closeManageModal}
         />
       ) : null}

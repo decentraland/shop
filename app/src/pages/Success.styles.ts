@@ -25,27 +25,14 @@ export const Root = styled.div`
   padding: 32px 12px 64px;
   min-height: 72vh;
 
-  /* The confirmation is a LIGHT surface on the shop's purple field — the same full-bleed band the cart
-     paints (see pages/Cart.styles.ts Top). The negative top eats .page's own padding so the band starts
-     flush under the sub-nav. Its z-index sits alongside the confetti layer's, and ::before paints first,
-     so the burst still rains over it. */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -28px;
-    bottom: 0;
-    left: 50%;
-    width: 100vw;
-    transform: translateX(-50%);
-    background: ${colors.media};
-    z-index: -1;
-  }
+  /* No surface of its own: the confirmation sits on the shop's purple field, like Activity. It used to
+     paint a full-bleed light band here, which is what made this the one screen still on white after the
+     rest of the shop moved. The cards below carry the contrast instead, so the confetti has something
+     to rain over without a grey slab behind it.
 
-  ${narrow} {
-    &::before {
-      top: -16px;
-    }
-  }
+     Light text is set here rather than per element, so anything added later is legible by default
+     instead of inheriting the body's near-black onto the purple. */
+  color: ${colors.softWhite};
 `
 
 export const Status = styled.div`
@@ -73,8 +60,17 @@ export const Title = styled.h1`
 
 export const Sub = styled.p`
   font-size: 18px;
-  color: #4b4b57;
+  /* Gray 5, not Gray 4: this copy sits straight on the purple field (Activity's Gray 4 sub-counts sit
+     INSIDE a 60%-black card, which is a different surface). Gray 4 measures 3.84:1 against the
+     gradient's lightest stop; Gray 5 clears AA at 5.09:1. */
+  color: ${colors.gray5};
   margin: 0 0 22px;
+
+  /* The timed-out copy embeds a .link button, which takes accent purple from the global rule — 1.46:1
+     on this field, i.e. gone. It had a light band under it before this screen moved. */
+  & .link {
+    color: ${colors.softWhite};
+  }
 `
 
 // data-receipt right-aligns the row on the confirmed screen (where it holds just the receipt link).
@@ -93,7 +89,6 @@ export const Links = styled.div`
 export const Receipt = styled.a`
   display: inline-block;
   margin: 0;
-  color: ${colors.accent};
   font-weight: 600;
   font-size: 14px;
   text-decoration: none;
@@ -121,8 +116,10 @@ export const Banner = styled.div`
   justify-content: center;
   gap: 16px;
   padding: 24px 16px;
-  background: ${colors.successBg};
-  border: 1px solid ${colors.successBorder};
+  /* The ok green (#1ea672) at 14% — the same translucent fill the Activity cards use for a settled
+     status, which is what this field was measured against. The solid mint it had was built for white. */
+  background: rgba(30, 166, 114, 0.14);
+  border: 1px solid ${colors.cardLine};
   border-radius: 16px;
 
   ${narrow} {
@@ -144,7 +141,6 @@ export const BannerText = styled.p`
   text-align: center;
   font-size: 20px;
   line-height: 1.334;
-  color: ${colors.text2};
 
   & b {
     font-weight: 700;
@@ -161,8 +157,8 @@ export const List = styled.div`
   display: flex;
   flex-direction: column;
   padding: 24px;
-  background: ${colors.white};
-  border: 1px solid ${colors.gray4};
+  background: ${colors.overlay};
+  border: 1px solid ${colors.cardLine};
   border-radius: 16px;
 
   ${narrow} {
@@ -179,8 +175,8 @@ export const ListRow = styled.div`
 
   ${narrow} {
     padding: 16px;
-    background: ${colors.white};
-    border: 1px solid ${colors.gray4};
+    background: ${colors.overlay};
+    border: 1px solid ${colors.cardLine};
     border-radius: 16px;
   }
 `
@@ -190,7 +186,7 @@ export const Divider = styled.span`
   display: block;
   height: 1px;
   margin: 12px 0;
-  background: ${colors.gray4};
+  background: ${colors.cardLine};
 
   ${narrow} {
     display: none;
@@ -209,8 +205,7 @@ export const Credits = styled.div`
   margin-bottom: 12px;
   padding: 8px 24px;
   border-radius: ${radius.btn};
-  background: ${colors.promptLilac};
-  color: ${colors.text};
+  background: ${colors.overlay};
 
   ${narrow} {
     margin-bottom: 0;
@@ -220,7 +215,7 @@ export const Credits = styled.div`
 export const CreditsIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const CreditsText = styled.p`
@@ -324,7 +319,6 @@ export const RowName = styled.div`
   font-weight: 700;
   font-size: 20px;
   line-height: 1.3;
-  color: ${colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -339,14 +333,14 @@ export const RowQty = styled.span`
   margin-left: 8px;
   font-weight: 600;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 // No avatar on the success rows (the design shows just "By {name}"); the badge renders it elsewhere.
 export const RowCreator = styled(CreatorBadge)`
   position: relative;
   z-index: 1;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   font-size: 13px;
 
   & [data-avatar] {
@@ -361,7 +355,6 @@ export const RowPrice = styled.div`
   padding: 8px;
   font-weight: 700;
   font-size: 21px;
-  color: ${colors.text2};
   white-space: nowrap;
 
   ${narrow} {
@@ -372,7 +365,7 @@ export const RowPrice = styled.div`
 export const RowPriceIco = styled(CurrencyIcon)`
   width: 22px;
   height: 22px;
-  background: ${colors.text2};
+  background: ${colors.softWhite};
 `
 
 // CTA row: ghost MY ASSETS + ruby TRY IN WORLD, each flexing to fill. Stays side-by-side on mobile.
@@ -406,14 +399,15 @@ const ctaCss = css`
     filter 0.15s ease,
     background 0.15s ease;
 
+  /* The secondary CTA keeps its light fill and dark ink: on the purple field a white button IS the
+     quiet option beside the red one, and inverting it would make both buttons shout. */
   &[data-variant='ghost'] {
-    background: ${colors.white};
-    border: 1px solid ${colors.text};
-    color: ${colors.text};
+    background: ${colors.softWhite};
+    border: 1px solid ${colors.softWhite};
+    color: ${colors.text2};
   }
   &[data-variant='ghost']:hover {
-    background: ${colors.text2};
-    color: ${colors.softWhite};
+    filter: brightness(0.92);
   }
   &[data-variant='ruby'] {
     background: ${colors.dclRed};

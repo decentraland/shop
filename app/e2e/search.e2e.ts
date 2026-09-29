@@ -19,14 +19,14 @@ describe('search bar', () => {
     await page.waitForSelector(SEARCH)
     await page.type(SEARCH, 'Nebula')
 
-    // The dropdown fetches the same feed the results grid uses (/v3/catalog/unified?groupBy=item)
-    // and shows the matching item.
+    // The dropdown fetches the same feed the results grid lands on (/v3/catalog/items, the whole
+    // catalogue, ranked by relevance) and shows the matching item.
     await page.waitForSelector('[data-testid="search-pop"]')
     await waitForText(page, 'Nebula Jacket')
     // "Galaxy Hat" doesn't match the query → not suggested.
     expect(
       await page.evaluate(() =>
-        document.querySelector('[data-testid="search-pop"]')!.textContent!.includes('Galaxy Hat')
+        document.querySelector('[data-testid="search-pop"]')!.textContent.includes('Galaxy Hat')
       )
     ).toBe(false)
   })
@@ -41,8 +41,9 @@ describe('search bar', () => {
 
     expect(await clickByText(page, '[data-testid="search-pop-row"]', /nebula jacket/i)).toBe(true)
 
-    // Nebula Jacket is a secondary listing (tokenId 7) → routed to /token/<collection>/7.
-    await page.waitForFunction(() => /\/token\//.test(location.pathname))
+    // A suggestion is an ITEM of the catalogue, as the results grid shows it → routed to /item/<collection>/<id>,
+    // whatever listings it has (the grid a search lands on is the full catalogue, not the on-sale feed).
+    await page.waitForFunction(() => /\/item\//.test(location.pathname))
     await waitForText(page, 'Nebula Jacket')
   })
 
@@ -54,8 +55,8 @@ describe('search bar', () => {
     await page.type(SEARCH, 'Galaxy')
 
     await page.waitForSelector('[data-testid="search-pop"]')
-    // Item (name match), collection (/v1/collections?search=), and creator (DCL-name → owner →
-    // seller → profile) all surface in the one stacked list.
+    // Item (name match), collection and creator all surface in the one stacked list, from the one
+    // suggestions request (/v3/catalog/suggest).
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Galaxy Collection')
     await waitForText(page, 'Galaxy Studio')
@@ -94,6 +95,226 @@ describe('search bar', () => {
 
     expect(await clickByText(page, '[data-testid="search-pop-row"][data-kind="creator"]', /galaxy studio/i)).toBe(true)
     await page.waitForFunction(() => /\/creator\//.test(location.pathname))
+  })
+
+  it('makes one suggestions request per query and fetches no profile per row', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+    const seen: string[] = []
+    page.on('request', req => seen.push(req.url()))
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="creator"]')
+    await waitForText(page, 'Galaxy Studio')
+
+    const count = (part: string) => seen.filter(url => url.includes(part)).length
+    expect(count('/v3/catalog/suggest?')).toBe(1)
+    // The three requests the dropdown used to make, and the profile lookup per row, are gone. The
+    // collection rows' mosaics still fetch their thumbnails; that is the one other call left.
+    expect(count('/lambdas/profiles')).toBe(0)
+    expect(count('/v1/collections?')).toBe(0)
+    expect(count('/v3/catalog/creators/search')).toBe(0)
+    expect(count('/v1/nfts?category=ens')).toBe(0)
+  })
+
+  it('says so and offers a retry when the suggestions fail, instead of reporting no results', async () => {
+    // Two failures: the request retries once on its own, then the panel shows the error.
+    app = await launchApp({ path: '/overview', fixtures: { suggestFailures: 2 } })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-error"]', { timeout: 20000 })
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('[data-testid="search-pop"]')!.textContent.includes('No results')
+      )
+    ).toBe(false)
+
+    await page.click('[data-testid="search-retry"]')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"]')
+    await waitForText(page, 'Galaxy Hat')
+  })
+
+  it('is a combobox: the arrow keys move through every row and Enter opens the active one', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="creator"]')
+    expect(await page.$eval(SEARCH, el => el.getAttribute('role'))).toBe('combobox')
+    expect(await page.$eval(SEARCH, el => el.getAttribute('aria-expanded'))).toBe('true')
+
+    // Home and End move the caret until a row is active; once the arrow has picked one, End lands on the
+    // last row ("See all") and one step up is the creator: the active row is announced to the input and
+    // marked in the list.
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('End')
+    await page.keyboard.press('ArrowUp')
+    const activeId = await page.$eval(SEARCH, el => el.getAttribute('aria-activedescendant'))
+    expect(activeId).toMatch(/^search-row-creator-/)
+    expect(
+      await page.$eval('[data-testid="search-pop-row"][data-kind="creator"]', el => el.getAttribute('aria-selected'))
+    ).toBe('true')
+
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => /\/creator\//.test(location.pathname))
+  })
+
+  it('marks what the query matched in each suggestion', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Neb')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"] mark')
+
+    expect(await page.$eval('[data-testid="search-pop-row"][data-kind="item"] mark', el => el.textContent)).toBe('Neb')
+  })
+
+  it('closes the panel on Escape and keeps what was typed', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.keyboard.press('Escape')
+
+    await page.waitForFunction(() => !document.querySelector('[data-testid="search-pop"]'))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('Nebula')
+    expect(await page.$eval(SEARCH, el => el.getAttribute('aria-expanded'))).toBe('false')
+
+    // A second Escape, with nothing to put away, clears the way the button does.
+    await page.keyboard.press('Escape')
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('')
+    expect(await page.evaluate(() => location.pathname)).toBe('/overview')
+  })
+
+  it('clears a search from the URL on a second Escape, as the button would', async () => {
+    app = await launchApp({ path: '/items?q=Nebula&status=not_for_sale' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.focus(SEARCH)
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="search-pop"]'))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('Nebula')
+
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !/q=/.test(location.search))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('')
+    expect(await page.evaluate(() => location.search)).toBe('?status=not_for_sale')
+  })
+
+  it('keeps the rows out of the tab order: Tab leaves the box, never lands on a suggestion', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="creator"]')
+    expect(
+      await page.$$eval('[role="option"]', rows => Array.from(rows).every(row => row.getAttribute('tabindex') === '-1'))
+    ).toBe(true)
+
+    await page.keyboard.press('Tab')
+    const landed = await page.evaluate(() => {
+      const el = document.activeElement
+      return { role: el?.getAttribute('role'), inListbox: !!el?.closest('[role="listbox"]') }
+    })
+    expect(landed.role).not.toBe('option')
+    expect(landed.inListbox).toBe(false)
+  })
+
+  it('offers popular searches to a reader who has searched nothing yet, and runs one on a click', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.focus(SEARCH)
+    await page.waitForSelector('[data-testid="search-popular-row"]')
+    expect(await page.$$eval('[data-testid="search-recent-row"]', rows => rows.length)).toBe(0)
+    const first = await page.$eval('[data-testid="search-popular-row"]', el => el.textContent ?? '')
+    expect(first).not.toBe('')
+
+    await page.click('[data-testid="search-popular-row"]')
+    await page.waitForFunction(() => location.pathname === '/items' && /q=/.test(location.search))
+    expect(await page.evaluate(() => new URLSearchParams(location.search).get('q'))).toBe(first)
+  })
+
+  it('lists the recent searches first, with a removal control the keyboard can reach', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => /q=Nebula/.test(location.search))
+    await page.click('[data-testid="subnav-search-clear"]')
+    await page.waitForSelector('[data-testid="search-recent-row"]')
+
+    // the recent search is an option; its × is a control of its own, next in the tab order after "Clear"
+    expect(await page.$eval('[data-testid="search-recent-row"]', el => el.getAttribute('role'))).toBe('option')
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Tab')
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('search-recent-remove')
+
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="search-recent-row"]'))
+    // a popular search never repeats a recent one, and stays offered once the recent list empties
+    await page.waitForSelector('[data-testid="search-popular-row"]')
+  })
+
+  it('pushes each search into history, so back returns to the previous one', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => /q=Galaxy/.test(location.search))
+    await page.focus(SEARCH)
+    await page.$eval(SEARCH, el => (el as HTMLInputElement).select())
+    await page.type(SEARCH, 'Nebula')
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => /q=Nebula/.test(location.search))
+
+    await page.goBack()
+    await page.waitForFunction(() => /q=Galaxy/.test(location.search))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('Galaxy')
+  })
+
+  it('clears the box without leaving the page it is on', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.click('[data-testid="subnav-search-clear"]')
+
+    // The results are gone; the box keeps the focus, ready for the next query, so the panel now offers
+    // the recent and popular searches instead, as it does whenever the empty box is focused.
+    await page.waitForFunction(() => !document.querySelector('[data-testid="search-pop-row"]'))
+    expect(await page.$eval(SEARCH, el => el.value)).toBe('')
+    expect(await page.evaluate(() => location.pathname)).toBe('/overview')
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe('Search the shop')
+    await page.waitForSelector('[data-testid="search-popular-row"]')
+  })
+
+  it('clears a search on the results page by dropping only the query from the URL', async () => {
+    app = await launchApp({ path: '/items?q=Nebula&status=not_for_sale' })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="subnav-search-clear"]')
+    await page.click('[data-testid="subnav-search-clear"]')
+
+    await page.waitForFunction(() => location.pathname === '/items' && !/q=/.test(location.search))
+    expect(await page.evaluate(() => location.search)).toBe('?status=not_for_sale')
   })
 
   it('runs a full search on Enter and lands on /items?q=', async () => {
@@ -137,7 +358,7 @@ describe('search bar', () => {
     // 8 of the 26 items matching "torso", the reported one among the missing.
     await page.waitForSelector('[data-testid="browse-sidebar"] input[type="radio"]')
     const opened = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
-      els.map(el => (el as HTMLInputElement).checked)
+      els.map(el => el.checked)
     )
     expect(opened).toEqual([true, false, false])
 
@@ -154,7 +375,7 @@ describe('search bar', () => {
 
     await page.waitForSelector('[data-testid="browse-empty"]')
     const checked = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
-      els.map(el => (el as HTMLInputElement).checked)
+      els.map(el => el.checked)
     )
     expect(checked).toEqual([false, false, true])
   })
@@ -187,7 +408,7 @@ describe('search bar', () => {
   it('keeps "See all results" in view without scrolling the suggestions', async () => {
     // Enough suggestions to OVERFLOW the panel — the default fixture has one match, and with a single row
     // the footer sits at the bottom whether or not it is pinned, so the assertions below would pass
-    // either way. Local to this spec: `unifiedListings` also feeds the browse grid, where extra rows
+    // either way. Local to this spec: `shopListings` also feeds the catalogue grids, where extra rows
     // change what other specs count.
     const many = Array.from({ length: 20 }, (_, i) => ({
       tradeId: `pinned-${i}`,
@@ -209,7 +430,7 @@ describe('search bar', () => {
       manaWei: null,
       listingCount: 1
     }))
-    app = await launchApp({ path: '/overview', fixtures: { unifiedListings: { data: many, total: many.length } } })
+    app = await launchApp({ path: '/overview', fixtures: { shopListings: { data: many, total: many.length } } })
     const { page } = app
     // Short on purpose: the panel is capped at 70vh, which is what makes the capped suggestion list
     // overflow it.
@@ -245,7 +466,7 @@ describe('search bar', () => {
     const { page } = app
 
     await page.waitForSelector(SEARCH)
-    const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
+    const value = await page.$eval(SEARCH, el => el.value)
     expect(value).toBe('Nebula')
   })
 
@@ -257,7 +478,7 @@ describe('search bar', () => {
     await page.click('[data-testid="subnav-search-clear"]')
 
     await page.waitForFunction(() => location.pathname === '/items' && location.search === '')
-    const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
+    const value = await page.$eval(SEARCH, el => el.value)
     expect(value).toBe('')
   })
 

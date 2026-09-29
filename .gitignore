@@ -45,3 +45,7 @@ design/
 # Swept into three separate PRs by `git add -A` before this line existed, and it reached the public default
 # branch once. Ignored rather than merely deleted, because deleting it only fixes the last time.
 /SHOP.md
+
+# Lighthouse reports — one run is ~1.2 MB of trace, they accumulate, and a report carries the URLs and
+# cookies of whatever profile ran it. `npm run lighthouse` writes them here plus a regenerated index.md.
+lighthouse-runs/

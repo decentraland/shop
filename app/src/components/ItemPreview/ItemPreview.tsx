@@ -126,8 +126,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           bodyShape={itemAlone || compatibleAvatar ? undefined : mannequinShape}
           type={isEmote ? undefined : itemAlone ? PreviewType.WEARABLE : PreviewType.AVATAR}
           emote={isEmote || itemAlone ? undefined : PreviewEmote.FASHION}
-          // Transparent so the container's light stage shows through (see ItemDetail's Preview
-          // panel) — a full-saturation rarity scene background is too loud either way.
+          // Transparent all the way down to the page's violet field: the Preview panel paints nothing
+          // either, and a full-saturation rarity scene background would be too loud.
           disableBackground
           wheelZoom={isEmote ? 1.5 : undefined}
           wheelStart={isEmote ? 100 : undefined}

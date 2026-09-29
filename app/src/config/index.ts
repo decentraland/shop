@@ -28,6 +28,38 @@ const base = createConfig(
 // client bundle, so never put secrets here.
 const env = import.meta.env
 
+/**
+ * The hostnames that may use the preview overrides. An ALLOWLIST, so an unknown host fails closed.
+ *
+ * A denylist of the live TLDs would hand the overrides to every hostname nobody thought of — a vanity
+ * domain, a raw CDN or bucket origin, an alias added next quarter — and since `?env=prod` aims the same
+ * bundle at the production feeds, an unlisted host would be a live Shop with the flag overrides open. The
+ * two directions are not symmetric: being wrong here costs one line in this list and a redeploy, being
+ * wrong the other way costs a feature flag anybody can flip.
+ *
+ * The Shop serves from `decentraland.{zone,today,org}/shop`, so `.zone` is the dev site and production and
+ * staging are excluded by not appearing. `*.vercel.app` is the per-PR deploy preview.
+ */
+const PREVIEW_HOSTS = [
+  /^localhost$/,
+  /^127\.0\.0\.1$/,
+  /^\[?::1\]?$/,
+  /(^|\.)vercel\.app$/,
+  /(^|\.)decentraland\.zone$/
+]
+
+/**
+ * The trailing dot is stripped first and it is not a nicety: a fully qualified name may carry one, the URL
+ * parser keeps it, and DNS resolves it identically. Under a denylist that was an outright bypass
+ * (`decentraland.org.` matched nothing); under this allowlist it would instead lock a legitimate preview
+ * out, which is the safe direction but still wrong. Lowercasing is belt and braces — the parser already
+ * normalises case.
+ */
+export function isPreviewHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '')
+  return PREVIEW_HOSTS.some(pattern => pattern.test(host))
+}
+
 export const config = {
   /**
    * Whether this is the production deployment, resolved from the hostname at runtime by @dcl/ui-env.
@@ -42,23 +74,30 @@ export const config = {
    * Whether this is the staging deployment (`.today`), resolved the same way as `isProduction`.
    *
    * Staging is no longer a second copy of dev: it reads the production APIs, Polygon and the production
-   * credits-server, so it is the launch rehearsal. Behaviour that exists only on public surfaces —
-   * the pre-launch curtain — therefore has to apply here too, or the rehearsal is missing the thing
-   * being rehearsed.
+   * credits-server, so it is the launch rehearsal. Behaviour that exists only on public surfaces
+   * therefore has to apply here too, or the rehearsal is missing the thing being rehearsed.
    */
   isStaging: base.is(Env.STAGING),
   /**
-   * Arm the pre-launch curtain on the local dev server, so its behaviour can be exercised without a deploy:
+   * Whether this deployment may be driven by the preview overrides: `?mock=1`, `?ff=`, `?ffv=`.
    *
-   *   VITE_SHOP_PRELAUNCH_LOCAL=true   in .env.local
+   * Read off the HOSTNAME, not off the resolved environment, and those are deliberately different things.
+   * `?env=prod` points a preview at the production feeds, and gating on the resolved env would switch the
+   * overrides off exactly when a preview is being tried against real data. Reading the host closes the
+   * other direction too: `?env=dev` on the live Shop cannot turn them on, because the hostname does not
+   * move with the query string.
    *
-   * DEV BUILDS ONLY, and for the same reason as the feature-flag overrides: `import.meta.env.DEV` is
-   * statically replaced with `false` in a production build, so this collapses to `false` and the whole
-   * expression is dropped from the bundle rather than merely never taken. A query string or a stray env var
-   * must not be able to put a holding page in front of the live Shop.
+   * None of them reads another account's data. There used to be a `?viewAs=` here that opened any
+   * creator's dashboard, and on a public preview host that meant anyone's, to anyone.
+   *
+   * See {@link PREVIEW_HOSTS} for who qualifies: `localhost` and the e2e harness, the per-PR deploy
+   * previews, and `decentraland.zone`. Production and staging are not on that list, and neither is any
+   * host nobody has thought of yet.
    */
-  prelaunchLocalPreview: import.meta.env.DEV && env.VITE_SHOP_PRELAUNCH_LOCAL === 'true',
+  previewHost: import.meta.env.DEV || (typeof window !== 'undefined' && isPreviewHost(window.location.hostname)),
   marketplaceServerUrl: env.VITE_MARKETPLACE_SERVER_URL ?? base.get('MARKETPLACE_SERVER_URL'),
+  cameraReelUrl: env.VITE_CAMERA_REEL_URL ?? base.get('CAMERA_REEL_URL'),
+  placesApiUrl: env.VITE_PLACES_API_URL ?? base.get('PLACES_API_URL'),
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),
   rpcUrl: env.VITE_RPC_URL ?? base.get('RPC_URL'),
@@ -130,6 +169,19 @@ export const config = {
   // prod stays off. See lib/featureFlags.ts.
   // `String()` for the same reason as treasuryAddress below: @dcl/ui-env's `get` is untyped.
   featureFlagsUrl: String(env.VITE_FEATURE_FLAGS_URL ?? base.get('FEATURE_FLAGS_URL') ?? ''),
+  /**
+   * Decentraland's CMS proxy (Contentful behind `cms-api.decentraland.org`) and the marketing entry the
+   * seasonal-event banner and tab are read from. PUBLIC reads — the proxy needs no token, which is why a
+   * client-side fetch is possible at all.
+   *
+   * `adminEntityId` is the only value that differs per environment: dev points at a test entry so marketing
+   * can stage an event without it appearing in production. An empty id disables the whole feature (the
+   * fetch is never issued), which is the safe default for an environment that has no entry yet.
+   */
+  contentfulUrl: String(env.VITE_CONTENTFUL_URL ?? base.get('CONTENTFUL_URL') ?? ''),
+  contentfulSpaceId: String(env.VITE_CONTENTFUL_SPACE_ID ?? base.get('CONTENTFUL_SPACE_ID') ?? ''),
+  contentfulEnvironment: String(env.VITE_CONTENTFUL_ENVIRONMENT ?? base.get('CONTENTFUL_ENVIRONMENT') ?? ''),
+  contentfulAdminEntityId: String(env.VITE_CONTENTFUL_ADMIN_ENTITY_ID ?? base.get('CONTENTFUL_ADMIN_ENTITY_ID') ?? ''),
   // ORDERING, if this is ever enabled from scratch: credits-server's consumer must be live and armed FIRST.
   // With routing on here and the consumer off, listings route their MANA to the treasury and nobody credits
   // the seller — recoverable on a testnet, not on mainnet.

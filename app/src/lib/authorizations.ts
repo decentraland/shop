@@ -9,6 +9,7 @@ import {
   type ContractData,
   type Provider
 } from 'decentraland-transactions'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -364,47 +365,13 @@ export type ShopAuthorizationDescriptor = ShopAuthorization & {
 
 /**
  * Letting a contract pull the buyer's MANA. The spender depends on the rail: the MARKETPLACE for a
- * MANA-only purchase (it moves the MANA itself), the CREDITSMANAGER for a mixed credits + MANA one (see
- * getCreditsAuthorization). Callers pass the spender their rail actually uses, so the approval the UI
- * announces is byte-for-byte the one the purchase needs.
+ * MANA-only purchase (it moves the MANA itself), the CREDITSMANAGER for a mixed credits + MANA one.
+ * Callers pass the spender their rail actually uses, so the approval the UI announces is byte-for-byte
+ * the one the purchase needs.
  */
 export function getManaSpendingAuthorization(chainId: ChainId, spenderAddress: string): ShopAuthorization {
   const mana = getContract(ContractName.MANAToken, chainId)
   return { kind: AuthorizationKind.Allowance, contractAddress: mana.address, spenderAddress, chainId }
-}
-
-// The one fixed, account-level authorization the shop uses: letting the CreditsManager spend your
-// balance to top up a purchase that credits don't fully cover. Always shown on the page.
-export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
-  const mana = getContract(ContractName.MANAToken, chainId)
-  const creditsManager = getContract(ContractName.CreditsManager, chainId)
-  return {
-    id: 'credits',
-    group: 'buying',
-    kind: AuthorizationKind.Allowance,
-    contractAddress: mana.address,
-    spenderAddress: creditsManager.address,
-    chainId
-  }
-}
-
-/**
- * Letting the MARKETPLACE pull MANA — the allowance a MANA-only purchase grants (the mixed rail uses the
- * CreditsManager instead, see getCreditsAuthorization). It belongs on the Approvals page for the same
- * reason as any other: a permission the shop asks for has to be visible and revocable, and paying in MANA
- * grants one that was previously listed nowhere.
- */
-export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
-  const mana = getContract(ContractName.MANAToken, chainId)
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
-  return {
-    id: 'mana-marketplace',
-    group: 'buying',
-    kind: AuthorizationKind.Allowance,
-    contractAddress: mana.address,
-    spenderAddress: market.address,
-    chainId
-  }
 }
 
 // The per-collection selling authorization: letting the marketplace transfer collectibles from this
@@ -413,30 +380,11 @@ export function getCollectionSellingAuthorization(
   contractAddress: string,
   chainId: ChainId
 ): ShopAuthorizationDescriptor {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: `selling:${contractAddress.toLowerCase()}`,
     group: 'selling',
     kind: AuthorizationKind.Approval,
-    contractAddress,
-    spenderAddress: market.address,
-    chainId
-  }
-}
-
-// The per-collection minting authorization: letting the marketplace mint items from this collection
-// when a primary/mint listing sells. One row per collection the creator PUBLISHES from. Mirrors the
-// silent grant `ensureMinter` (lib/trades) does at publish time — the operator is the same offchain
-// marketplace that mints — so surfacing it here lets a creator SEE and REVOKE that mint right.
-export function getCollectionMintingAuthorization(
-  contractAddress: string,
-  chainId: ChainId
-): ShopAuthorizationDescriptor {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
-  return {
-    id: `minting:${contractAddress.toLowerCase()}`,
-    group: 'minting',
-    kind: AuthorizationKind.Minter,
     contractAddress,
     spenderAddress: market.address,
     chainId

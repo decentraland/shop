@@ -24,6 +24,7 @@ vi.mock('~/lib/analytics', () => ({ track: vi.fn(), errorCode: () => 'x' }))
 vi.mock('~/lib/monitoring', () => ({ captureError: vi.fn() }))
 
 import { PrimaryListModal } from '~/components/PrimaryListModal'
+import type { ListingEdit } from '~/components/ListingSteps'
 
 function makeSession(providerType: string) {
   return {
@@ -55,17 +56,24 @@ const item = {
   minters: []
 } as never
 
-function renderModal(providerType = 'injected') {
+function renderModal(providerType = 'injected', edit?: ListingEdit) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onClose = vi.fn()
+  const onListed = vi.fn()
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <PrimaryListModal item={item} session={makeSession(providerType)} onClose={onClose} />
+        <PrimaryListModal
+          item={item}
+          session={makeSession(providerType)}
+          edit={edit}
+          onListed={onListed}
+          onClose={onClose}
+        />
       </MemoryRouter>
     </QueryClientProvider>
   )
-  return { onClose }
+  return { onClose, onListed }
 }
 
 beforeEach(() => {
@@ -73,7 +81,7 @@ beforeEach(() => {
   isMarketplaceMinter.mockResolvedValue(true)
   createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'trade-1' })
   ensureMinter.mockResolvedValue(undefined)
-  postTrade.mockResolvedValue(undefined)
+  postTrade.mockResolvedValue({ id: 'trade-created' })
 })
 
 describe('PrimaryListModal', () => {
@@ -147,6 +155,53 @@ describe('PrimaryListModal', () => {
 
       resolveListing({ id: 'trade-1' })
       await waitFor(() => expect(postTrade).toHaveBeenCalledTimes(1))
+    })
+  })
+})
+
+describe('PrimaryListModal edit price', () => {
+  describe('when the creator submits a new price', () => {
+    it('should take the current listing down first, then publish the new one', async () => {
+      const calls: string[] = []
+      const cancelCurrent = vi.fn(async () => {
+        calls.push('cancel')
+        return 'ok' as const
+      })
+      createPrimaryUsdPeggedListing.mockImplementation(async () => {
+        calls.push('list')
+        return { id: 'trade-2' }
+      })
+      postTrade.mockResolvedValue({ id: 'trade-2' })
+      const { onListed } = renderModal('magic', { canPayGas: false, cancelCurrent })
+
+      await userEvent.click(await screen.findByRole('button', { name: /update price/i }))
+
+      await waitFor(() => expect(postTrade).toHaveBeenCalledTimes(1))
+      expect(calls).toEqual(['cancel', 'list'])
+      expect(screen.getByText('Your price is updated')).toBeInTheDocument()
+      // The page needs the NEW trade to manage the listing before the feed catches up.
+      expect(onListed).toHaveBeenCalledWith(10, 'trade-2')
+    })
+  })
+
+  describe('when the price is unchanged', () => {
+    it('should keep update price disabled', async () => {
+      renderModal('magic', { canPayGas: false, currentCredits: 10, cancelCurrent: vi.fn() })
+      expect(await screen.findByRole('button', { name: /update price/i })).toBeDisabled()
+    })
+  })
+
+  describe('when taking the current listing down fails', () => {
+    it('should not publish the new price', async () => {
+      const cancelCurrent = vi.fn(async () => {
+        throw new Error('boom')
+      })
+      renderModal('magic', { canPayGas: false, cancelCurrent })
+
+      await userEvent.click(await screen.findByRole('button', { name: /update price/i }))
+
+      await screen.findByRole('alert')
+      expect(createPrimaryUsdPeggedListing).not.toHaveBeenCalled()
     })
   })
 })

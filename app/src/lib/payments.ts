@@ -110,6 +110,39 @@ export function packBonus(pack: CreditPack, packs: CreditPack[]): { baseline: nu
 // to fit them (Figma 1179-182656); a single source so the two pickers can't drift out of sync.
 export const MAX_OFFER_PACKS = 4
 
+/**
+ * Which packs a no-funds picker may offer, and which one to recommend.
+ *
+ * Every pack in a no-funds picker is a promise that buying it FINISHES the purchase, so a pack smaller than
+ * the shortfall is filtered out: it leaves the buyer short, back on the same screen, having paid. Reported
+ * from zone on a 270-credit item against a balance of 73 — the picker offered 40 and 100, neither of which
+ * could work.
+ *
+ * `closesGap` is false when nothing covers it (a purchase dearer than the largest pack). The whole list is
+ * offered then, because an empty picker is worse than an honest one and the largest is still progress — but
+ * the flag lets the caller stop CALLING it the answer, since in that branch it is not one.
+ *
+ * Lives here rather than in a component because three pickers derive it (the item modal, the cart and the
+ * NAME modal) and they had already drifted: the cart offered its packs unfiltered, so it still had the bug
+ * the other two fixed. Same reason MAX_OFFER_PACKS is here.
+ */
+export function offerablePacks(
+  packs: CreditPack[],
+  shortfallCredits: number
+): { packs: CreditPack[]; recommended: CreditPack | null; closesGap: boolean } {
+  const shortfall = Math.max(0, shortfallCredits)
+  const covering = shortfall > 0 ? packs.filter(p => p.credits >= shortfall) : packs
+  const closesGap = shortfall <= 0 || covering.length > 0
+  const offered = covering.length > 0 ? covering : packs
+  if (offered.length === 0) return { packs: offered, recommended: null, closesGap }
+  // The cheapest way to what the buyer came for — not the one we would rather sell. When nothing closes the
+  // gap the largest is the most progress on offer instead.
+  const recommended = closesGap
+    ? offered.reduce((best, p) => (p.credits < best.credits ? p : best))
+    : offered.reduce((best, p) => (p.credits > best.credits ? p : best))
+  return { packs: offered, recommended, closesGap }
+}
+
 // Shape returned by the public credits-server catalogue endpoint (READ-only, no auth, no secrets).
 type ServerCreditPack = {
   id: string

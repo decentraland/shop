@@ -5,6 +5,7 @@ import type { ethers as Ethers } from 'ethers'
 // Records the on-chain calls buyWithMana makes so we can assert the allowance-then-accept sequence.
 const approveCalls: Array<{ spender: string; amount: string }> = []
 const acceptCalls: Array<{ trades: unknown[] }> = []
+const acceptWithCouponCalls: Array<{ trades: unknown[]; coupons: unknown[] }> = []
 const storeBuyCalls: Array<{ items: unknown[] }> = []
 let allowanceWei = '0' // current MANA→spender allowance the mocked ERC20 reports
 
@@ -67,6 +68,10 @@ vi.mock('ethers', async importOriginal => {
     async accept(trades: unknown[]) {
       acceptCalls.push({ trades })
       return { wait: async () => ({ transactionHash: '0xmanahash' }) }
+    }
+    async acceptWithCoupon(trades: unknown[], coupons: unknown[]) {
+      acceptWithCouponCalls.push({ trades, coupons })
+      return { wait: async () => ({ transactionHash: '0xcouponhash' }) }
     }
     async buy(items: unknown[]) {
       storeBuyCalls.push({ items })
@@ -135,7 +140,13 @@ vi.mock('~/lib/buy-gasless', () => ({
 
 // From the mock above, so `instanceof` in the rail matches what these tests throw.
 import { ErrorCode, MetaTransactionError } from 'decentraland-transactions'
-import { buyWithMana, buyMintWithMana, buyWithCreditsAndMana, buyMintWithCreditsAndMana } from '~/lib/buy-mana'
+import {
+  buyWithMana,
+  buyManyWithMana,
+  buyMintWithMana,
+  buyWithCreditsAndMana,
+  buyMintWithCreditsAndMana
+} from '~/lib/buy-mana'
 
 const ADDR = (n: string) => '0x' + n.repeat(20)
 const BUYER = ADDR('44')
@@ -641,5 +652,87 @@ describe('buyWithCreditsAndMana (what happens when the relay fails)', () => {
 
     // The relay refused, so the only broadcast is the direct rail's — which reports it itself.
     expect(broadcast).toEqual([])
+  })
+})
+
+const fakeCoupon = (over: Record<string, unknown> = {}) =>
+  ({
+    id: 'coupon',
+    signer: ADDR('11'),
+    couponManager: ADDR('77'),
+    couponAddress: ADDR('88'),
+    checks: {
+      uses: 10,
+      expiration: 2_000_000,
+      effective: 1_000_000,
+      salt: '0x' + '1'.repeat(64),
+      contractSignatureIndex: 0,
+      signerSignatureIndex: 0,
+      allowedRoot: '0x',
+      allowedProof: [],
+      externalChecks: []
+    },
+    discountType: 1,
+    discount: 300_000,
+    root: '0x' + '2'.repeat(64),
+    collections: [ADDR('99')],
+    signature: '0x' + 'cd'.repeat(65),
+    proof: [],
+    ...over
+  }) as never
+
+describe('paying MANA for a listing a creator put on sale', () => {
+  beforeEach(() => {
+    approveCalls.length = 0
+    acceptCalls.length = 0
+    acceptWithCouponCalls.length = 0
+    allowanceWei = '1000000000000000000000000'
+  })
+
+  it('settles through acceptWithCoupon, since plain accept would ask for the list price', async () => {
+    const hash = await buyWithMana({ trade: fakeTrade(), coupon: fakeCoupon(), buyer: BUYER, signer })
+
+    expect(acceptWithCouponCalls).toHaveLength(1)
+    expect(acceptCalls).toHaveLength(0)
+    expect(hash).toBe('0xcouponhash')
+  })
+
+  it('keeps an undiscounted purchase on plain accept', async () => {
+    await buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer })
+
+    expect(acceptCalls).toHaveLength(1)
+    expect(acceptWithCouponCalls).toHaveLength(0)
+  })
+
+  it('pairs each trade with its own coupon, in the same order', async () => {
+    const first = { ...fakeTrade(), id: 'trade-a' }
+    const second = { ...fakeTrade(), id: 'trade-b' }
+    await buyManyWithMana({
+      trades: [first, second],
+      coupons: { 'trade-a': fakeCoupon({ discount: 100_000 }), 'trade-b': fakeCoupon({ discount: 500_000 }) },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(acceptWithCouponCalls).toHaveLength(1)
+    const { trades, coupons } = acceptWithCouponCalls[0]
+    expect(trades).toHaveLength(2)
+    expect(coupons).toHaveLength(2)
+  })
+
+  it('splits a basket into one discounted transaction and one undiscounted, never a half-coupon batch', async () => {
+    const onSale = { ...fakeTrade(), id: 'trade-a' }
+    const plain = { ...fakeTrade(), id: 'trade-b' }
+    await buyManyWithMana({
+      trades: [onSale, plain],
+      coupons: { 'trade-a': fakeCoupon() },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(acceptWithCouponCalls).toHaveLength(1)
+    expect(acceptWithCouponCalls[0].trades).toHaveLength(1)
+    expect(acceptCalls).toHaveLength(1)
+    expect(acceptCalls[0].trades).toHaveLength(1)
   })
 })

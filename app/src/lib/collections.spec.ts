@@ -8,6 +8,8 @@ import {
   fetchCatalogItems,
   fetchCreatorItems,
   fetchCreatorCollections,
+  fetchCollectionSaleState,
+  fetchCreatorSaleState,
   sanitizeCollectionName
 } from '~/lib/collections'
 
@@ -175,6 +177,46 @@ describe('when fetching a collection carousel', () => {
     mockFetchNotOk(503)
 
     await expect(fetchCollectionItems('0xcollection')).rejects.toThrow('fetchCollectionItems 503')
+  })
+})
+
+/**
+ * The collection-set filter on the full-catalogue feed.
+ *
+ * Same contract as the unified feed's, and one deliberate difference: this endpoint parses a set from
+ * REPEATED keys only, so the two encodings are not interchangeable.
+ */
+describe('when filtering the catalog items by a set of collections', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  const urlOf = (fetchMock: ReturnType<typeof mockFetchOk>) => decodeURIComponent(String(fetchMock.mock.calls[0][0]))
+
+  it('should repeat the key, which is the only form this endpoint parses', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ contractAddresses: [A, B] })
+
+    const url = urlOf(fetchMock)
+    expect(url).toContain(`contractAddress=${A}`)
+    expect(url).toContain(`contractAddress=${B}`)
+  })
+
+  it('should ask for nothing rather than everything when the set is empty', async () => {
+    // `forEach` over an empty array appends nothing, and a missing filter is read as "no filter".
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ contractAddresses: [] })
+
+    expect(urlOf(fetchMock)).toContain('contractAddress=0x0000000000000000000000000000000000000000')
+  })
+
+  it('should apply no collection filter when no set is given', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({})
+
+    expect(urlOf(fetchMock)).not.toContain('contractAddress=')
   })
 })
 
@@ -564,5 +606,182 @@ describe('sanitizeCollectionName', () => {
 
   it('should leave empty string unchanged', () => {
     expect(sanitizeCollectionName('')).toBe('')
+  })
+})
+
+describe("when resolving a collection's primary sale state", () => {
+  // Two feeds answer this, so the mock routes by URL: the shop feed knows the USD-pegged rows, the
+  // catalogue knows every item. `items` is a list of PAGES.
+  function mockFeeds({ shop = [] as unknown[], items = [[]] as unknown[][] }) {
+    let page = 0
+    const total = items.reduce((n, pg) => n + pg.length, 0)
+    const fetchMock = vi.fn(async (url: string) => {
+      const isShop = String(url).includes('/v3/catalog/shop')
+      const body = isShop ? { data: shop, total: shop.length } : { data: items[page++] ?? [], total }
+      return { ok: true, status: 200, json: async () => body }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  it('should price a USD-pegged listing from the shop feed, exactly', async () => {
+    mockFeeds({
+      shop: [{ listingType: 'primary', itemId: '2', priceCredits: 1, tradeId: 't-pegged' }],
+      items: [[rawItem({ itemId: '2', isOnSale: true, priceCredits: 1, price: '100000000000000000' })]]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['2']).toEqual({ isOnSale: true, priceCredits: 1, tradeId: 't-pegged' })
+    // No manaWei: a pegged row must never be re-converted at the live rate.
+    expect(map['2'].manaWei).toBeUndefined()
+  })
+
+  it('should carry manaWei for a listing the shop feed omits, so it converts at the live rate', async () => {
+    mockFeeds({
+      shop: [],
+      items: [[rawItem({ itemId: '0', isOnSale: true, priceCredits: 14, price: '5000000000000000000' })]]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['0']).toEqual({ isOnSale: true, priceCredits: 14, manaWei: '5000000000000000000' })
+  })
+
+  it('should keep a store mint on sale even though it has no trade to cancel', async () => {
+    mockFeeds({
+      shop: [],
+      items: [[rawItem({ itemId: '4', isOnSale: true, priceCredits: 7, price: '1', tradeId: null })]]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['4'].isOnSale).toBe(true)
+    expect(map['4'].tradeId).toBeUndefined()
+  })
+
+  it('should skip rows that are not on sale, and rows with no itemId', async () => {
+    mockFeeds({
+      shop: [],
+      items: [
+        [
+          rawItem({ itemId: '1', isOnSale: false, priceCredits: 0 }),
+          rawItem({ itemId: null, isOnSale: true, priceCredits: 5 })
+        ]
+      ]
+    })
+    expect(await fetchCollectionSaleState('0xcol')).toEqual({})
+  })
+
+  it('should page past the first 200 catalogue rows so a later listing is not called not-for-sale', async () => {
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, i) =>
+        rawItem({ itemId: String(from + i), isOnSale: true, priceCredits: 3, price: '1' })
+      )
+    mockFeeds({ shop: [], items: [page(0, 200), page(200, 5)] })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(Object.keys(map)).toHaveLength(205)
+    expect(map['204']).toBeDefined()
+  })
+
+  it('should read the collection catalogue, not only the credit-only shop feed', async () => {
+    const fetchMock = mockFeeds({ shop: [], items: [[]] })
+    await fetchCollectionSaleState('0xcol')
+    const urls = fetchMock.mock.calls.map(c => String(c[0]))
+    expect(urls.some(u => u.includes('/v3/catalog/items?'))).toBe(true)
+    expect(urls.every(u => u.includes('contractAddress=0xcol'))).toBe(true)
+  })
+
+  it('should release the response body when the catalogue request fails', async () => {
+    const cancel = vi.fn(async () => undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        String(url).includes('/v3/catalog/shop')
+          ? { ok: true, status: 200, json: async () => ({ data: [], total: 0 }) }
+          : { ok: false, status: 500, body: { cancel } }
+      )
+    )
+    await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchCollectionSaleState 500')
+    expect(cancel).toHaveBeenCalled()
+  })
+})
+
+describe("when fetching a creator's sale state in one pass", () => {
+  // Routed by URL: the shop feed and the catalogue are read together, so the order of the calls is not
+  // something a test should pin.
+  function routeFetch(handlers: Record<string, (url: URL) => unknown>) {
+    const fetchMock = vi.fn().mockImplementation(async (input: string) => {
+      const url = new URL(input)
+      const handler = handlers[url.pathname]
+      if (!handler) throw new Error(`unexpected fetch ${url.pathname}`)
+      return { ok: true, status: 200, json: async () => handler(url) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  const peggedRow = (contractAddress: string, itemId: string, priceCredits: number, tradeId: string) => ({
+    listingType: 'primary',
+    contractAddress,
+    itemId,
+    priceCredits,
+    tradeId,
+    tokenId: null
+  })
+
+  it('should scope both feeds to the creator and key the map by contract-itemId', async () => {
+    const fetchMock = routeFetch({
+      '/v3/catalog/shop': () => ({ data: [peggedRow('0xCOLL', '7', 30, 'trade-7')], total: 1 }),
+      '/v3/catalog/items': () => ({
+        data: [
+          rawItem({ contractAddress: '0xCOLL', itemId: '7', isOnSale: true, tradeId: 'trade-7', price: '1' }),
+          // On sale but absent from the shop feed: a MANA-denominated listing, priced live from manaWei.
+          rawItem({
+            id: 'item-2',
+            contractAddress: '0xother',
+            itemId: '1',
+            isOnSale: true,
+            tradeId: null,
+            price: '5000000000000000000',
+            priceCredits: 4
+          }),
+          rawItem({ id: 'item-3', contractAddress: '0xother', itemId: '2', isOnSale: false })
+        ],
+        total: 3
+      })
+    })
+
+    const map = await fetchCreatorSaleState('0xCreator')
+
+    const urls = fetchMock.mock.calls.map(call => new URL(call[0] as string))
+    expect(urls).toHaveLength(2)
+    for (const url of urls) expect(url.searchParams.get('creator')).toBe('0xcreator')
+    expect(urls.find(u => u.pathname === '/v3/catalog/shop')?.searchParams.get('listingType')).toBe('primary')
+    expect(map).toEqual({
+      '0xcoll-7': { isOnSale: true, priceCredits: 30, tradeId: 'trade-7' },
+      '0xother-1': { isOnSale: true, priceCredits: 4, manaWei: '5000000000000000000' }
+    })
+  })
+
+  it('should page both feeds to the end rather than trust the first page', async () => {
+    const shopRow = (i: number) => peggedRow('0xcoll', String(i), 1, `t${i}`)
+    const catRow = (i: number) =>
+      rawItem({ id: `item-${i}`, contractAddress: '0xcoll', itemId: String(i), isOnSale: true, tradeId: `t${i}` })
+    const pageOf = (url: URL, row: (i: number) => unknown) => {
+      const skip = Number(url.searchParams.get('skip'))
+      return skip === 0
+        ? { data: Array.from({ length: 200 }, (_, i) => row(i)), total: 201 }
+        : { data: [row(200)], total: 201 }
+    }
+    const fetchMock = routeFetch({
+      '/v3/catalog/shop': url => pageOf(url, shopRow),
+      '/v3/catalog/items': url => pageOf(url, catRow)
+    })
+
+    const map = await fetchCreatorSaleState('0xcreator')
+
+    expect(Object.keys(map)).toHaveLength(201)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('and a feed is down it should throw with the status', async () => {
+    mockFetchNotOk(503)
+
+    await expect(fetchCreatorSaleState('0xcreator')).rejects.toThrow(/503/)
   })
 })

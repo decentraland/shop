@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { Network } from '@dcl/schemas'
@@ -9,6 +9,9 @@ import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useIsOutfitCreator } from '~/hooks/useOutfits'
+import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
+import { useIsCreator } from '~/hooks/useIsCreator'
+import { useEventTab } from '~/hooks/useEventTab'
 import { useBalance } from '~/hooks/useBalance'
 import { useWalletChain } from '~/hooks/useWalletChain'
 import { useManaBalances } from '~/hooks/useManaBalance'
@@ -22,6 +25,12 @@ import { isIapMode } from '~/lib/iap'
 import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
+import { clearedSearchUrl } from '~/lib/searchClear'
+import { NO_ACTIVE_ROW, SUGGESTIONS_LISTBOX_ID, searchKeyAction, type SuggestionRow } from '~/lib/suggestionNavigation'
+import { searchHistoryMode } from '~/lib/searchHistory'
+import { clearedSearchProps, suggestionClickedProps } from '~/lib/searchAnalytics'
+import { facetUrl, type Facet } from '~/lib/searchFacets'
+import type { SuggestionChoice } from '~/components/SearchDropdown/SearchDropdown'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
@@ -43,6 +52,8 @@ const NotificationsBell = lazy(() => import('~/components/NotificationsBell/Noti
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const isOutfitCreator = useIsOutfitCreator()
+  const myStoreEnabled = useMyStoreEnabled()
+  const isCreator = useIsCreator(session?.address)
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
@@ -60,7 +71,7 @@ export function NavBar() {
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { pathname } = useLocation()
+  const { pathname, search: locationSearch } = useLocation()
   // The Collectibles tab covers the whole browse surface: the grid (/items), an item's detail page
   // (/item/* and /token/* — both render ItemDetail), a collection page (/collection/*) and a creator
   // page (/items/creator/*, already under /items). A NavLink to /items alone wouldn't light up on
@@ -73,6 +84,8 @@ export function NavBar() {
   const hidesGlobalSearch = /^\/my-items(\/|$)/.test(pathname)
   // Read once so every branch below decides off the same value (the module memoises it anyway).
   const iap = isIapMode()
+  // The seasonal event tab, when one is running and actually has collections in it.
+  const eventTab = useEventTab()
   // Checkout is a flow, not a place to browse from: inside the iOS web view the cart and its success
   // screen drop the shop's sub-nav entirely (Figma 2703:399357 Cart), leaving the back arrow the page
   // already renders as the only way out. The global bar above stays — it carries the credits balance,
@@ -101,6 +114,10 @@ export function NavBar() {
   const [debounced, setDebounced] = useState(urlQuery)
   const [open, setOpen] = useState(false)
   const [recent, setRecent] = useState<string[]>([])
+  // The dropdown's rows in visual order and which one the arrow keys are on (see lib/suggestionNavigation).
+  const [rows, setRows] = useState<SuggestionRow[]>([])
+  const [activeIndex, setActiveIndex] = useState(NO_ACTIVE_ROW)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   // The translucent band washes out over light content, so it deepens once the page scrolls.
   const [scrolled, setScrolled] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -127,9 +144,14 @@ export function NavBar() {
   // Keep the input in sync with the URL so deep-links, refresh, and back/forward all reflect the
   // active query in the box (the previous local-only state left it blank on /items?q=…).
   useEffect(() => {
+    cancelDebounce()
     setQ(urlQuery)
     setDebounced(urlQuery)
   }, [urlQuery])
+
+  // A keystroke's pending debounce must never outlive what the box shows: the timer is dropped by
+  // clearing, by a search, by a URL change, and on unmount.
+  useEffect(() => cancelDebounce, [])
 
   // Close the dropdown on outside-click or Escape (same pattern as CartPopover).
   useEffect(() => {
@@ -143,28 +165,33 @@ export function NavBar() {
 
   function openDropdown() {
     setRecent(getRecentSearches())
+    setActiveIndex(NO_ACTIVE_ROW)
     setOpen(true)
   }
 
-  // Full search → land on /items filtered by the query (replace so we don't spam history), remember
-  // it, close the panel.
+  // A new list under the keyboard — a new answer, or recent searches instead of results — starts unpositioned.
+  const onRows = useCallback((next: SuggestionRow[]) => {
+    setRows(next)
+    setActiveIndex(NO_ACTIVE_ROW)
+  }, [])
+
+  // Full search → land on /items filtered by the query, remember it, close the panel. A new search or a
+  // search from another page is pushed, so "back" returns to the previous one; repeating exactly the
+  // current destination replaces it (see lib/searchHistory). Enter, "See all", a recent and a popular
+  // search all come through here.
   function runSearch(value: string) {
+    cancelDebounce()
     const trimmed = value.trim()
     setOpen(false)
     if (trimmed) recordSearch(trimmed)
-    navigate(trimmed ? `/items?q=${encodeURIComponent(trimmed)}` : '/items', {
-      replace: true
-    })
+    const target = trimmed ? `/items?q=${encodeURIComponent(trimmed)}` : '/items'
+    navigate(target, { replace: searchHistoryMode({ pathname, search: locationSearch }, target) === 'replace' })
   }
 
-  function onSelectItem(item: CatalogItem) {
+  function onSelectItem(item: CatalogItem, choice: SuggestionChoice) {
     setOpen(false)
     if (q.trim()) recordSearch(q.trim())
-    track('Shop Search Suggestion Clicked', {
-      query: q.trim(),
-      type: 'item',
-      item_id: item.id
-    })
+    track('Shop Search Suggestion Clicked', suggestionClickedProps({ query: q, ...choice }, { item_id: item.id }))
     // A token row → /token, a catalog row → /item (see lib/routes detailRouteFor).
     const detailPath = detailRouteFor(item)
     if (detailPath) {
@@ -174,40 +201,70 @@ export function NavBar() {
     }
   }
 
-  function onSelectCollection(collection: CollectionHit) {
+  function onSelectCollection(collection: CollectionHit, choice: SuggestionChoice) {
     setOpen(false)
     if (q.trim()) recordSearch(q.trim())
-    track('Shop Search Suggestion Clicked', {
-      query: q.trim(),
-      type: 'collection',
-      contract_address: collection.contractAddress
-    })
+    track(
+      'Shop Search Suggestion Clicked',
+      suggestionClickedProps({ query: q, ...choice }, { contract_address: collection.contractAddress })
+    )
     navigate(`/collection/${collection.contractAddress}`)
   }
 
-  function onSelectCreator(creator: CreatorHit) {
+  // A facet is a way into a category or rarity, not a search: the reader lands on the grid the sidebar
+  // would give, built from the facet alone, and the box empties (the destination has no query, and a
+  // URL without one leaves the box as it was).
+  function onSelectFacet(facet: Facet, choice: SuggestionChoice) {
+    cancelDebounce()
     setOpen(false)
     if (q.trim()) recordSearch(q.trim())
-    track('Shop Search Suggestion Clicked', {
-      query: q.trim(),
-      type: 'creator',
-      creator_address: creator.address
-    })
+    setQ('')
+    setDebounced('')
+    track(
+      'Shop Search Suggestion Clicked',
+      suggestionClickedProps({ query: q, ...choice }, { facet_kind: facet.kind, facet_key: facet.key })
+    )
+    const target = facetUrl(facet)
+    navigate(target, { replace: searchHistoryMode({ pathname, search: locationSearch }, target) === 'replace' })
+  }
+
+  function onSelectCreator(creator: CreatorHit, choice: SuggestionChoice) {
+    setOpen(false)
+    if (q.trim()) recordSearch(q.trim())
+    track(
+      'Shop Search Suggestion Clicked',
+      suggestionClickedProps({ query: q, ...choice }, { creator_address: creator.address })
+    )
     navigate(`/items/creator/${creator.address}`)
+  }
+
+  function cancelDebounce() {
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = undefined
   }
 
   function onSearchChange(value: string) {
     setQ(value)
     setOpen(true)
-    if (searchTimer.current) clearTimeout(searchTimer.current)
+    setActiveIndex(NO_ACTIVE_ROW)
+    cancelDebounce()
     searchTimer.current = setTimeout(() => setDebounced(value.trim()), 300)
   }
 
+  // Clearing is about the box: it empties it, closes the panel and hands focus back. Only on the results
+  // page does it also drop the query from the URL (keeping the other filters), because the grid is
+  // showing that query. It used to send everyone to /items, wherever they were. Only ever a reader's
+  // action — the button or Escape — and reported as such when there was text to clear.
   function clearSearch() {
+    cancelDebounce()
+    if (q.trim()) track('Shop Cleared Search', clearedSearchProps(pathname))
     setQ('')
     setDebounced('')
     setOpen(false)
-    navigate('/items', { replace: true })
+    setActiveIndex(NO_ACTIVE_ROW)
+    searchInputRef.current?.focus()
+    const target = clearedSearchUrl(pathname, locationSearch)
+    if (target) navigate(target, { replace: true })
   }
 
   function removeRecent(term: string) {
@@ -219,16 +276,50 @@ export function NavBar() {
     setRecent([])
   }
 
+  // The keys, decided by lib/suggestionNavigation: arrows over the rows while the panel is open, Home
+  // and End only once a row is active (until then they move the caret), Enter on the active row or as a
+  // search, Escape to put the panel away and, pressed again, to clear the box the way the button does
+  // (a search field would clear itself on Escape, but without dropping the query from the URL). Modifiers
+  // and IME composition are the text's, never ours.
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') {
-      setOpen(false)
-      return
-    }
-    if (e.key === 'Enter') {
-      if (searchTimer.current) clearTimeout(searchTimer.current)
-      runSearch(q)
+    const action = searchKeyAction(
+      {
+        key: e.key,
+        altKey: e.altKey,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+        isComposing: e.nativeEvent.isComposing
+      },
+      { open, activeIndex, count: rows.length }
+    )
+    if (!action) return
+    switch (action.type) {
+      case 'move':
+        e.preventDefault()
+        setActiveIndex(action.index)
+        return
+      case 'activate':
+        e.preventDefault()
+        rows[activeIndex]?.activate('keyboard')
+        return
+      case 'submit':
+        runSearch(q)
+        return
+      case 'close':
+        e.preventDefault()
+        setOpen(false)
+        setActiveIndex(NO_ACTIVE_ROW)
+        return
+      case 'clear':
+        if (!q) return
+        e.preventDefault()
+        clearSearch()
+        return
     }
   }
+
+  const activeRowId = open ? (rows[activeIndex]?.id ?? null) : null
 
   return (
     <>
@@ -280,6 +371,15 @@ export function NavBar() {
         <S.Subnav data-testid="subnav" data-iap={iap || undefined} data-scrolled={scrolled || undefined}>
           <S.Tabs data-testid="subnav-tabs">
             <NavLink to="/overview">{t('nav.overview')}</NavLink>
+            {/* The seasonal event, between Overview and Collectibles — the same place the marketplace puts
+                it. Its LABEL is content, not UI copy: it is whatever the campaign is called, so it never
+                goes through t(). Shown only once the event is known to have collections in it; an event tab
+                that opens an empty grid is worse than no tab. */}
+            {eventTab ? (
+              <NavLink to="/event" data-testid="nav-event" data-event>
+                {eventTab}
+              </NavLink>
+            ) : null}
             {/* Collectibles stays active across the item detail / collection / creator pages too (they're
                all part of browsing collectibles), not just the /items grid. */}
             <NavLink to="/items" className={() => (collectiblesActive ? 'active' : '')}>
@@ -288,11 +388,12 @@ export function NavBar() {
             {/* The app has the buyer's items in its own backpack, so the shop's copy is a second front door
                to somewhere they are already standing. */}
             {iap ? null : <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>}
-            {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
-            {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
-               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
-            {session && showsWalletConfirmations(session.providerType) ? (
-              <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
+            {/* The creator's own dashboard. Behind its flag AND behind having published something: to a
+               buyer the page is an empty room, and a nav entry that leads to one is worse than none. */}
+            {session && myStoreEnabled && isCreator ? (
+              <NavLink to="/my-store" data-testid="nav-my-store">
+                {t('myStore.title')}
+              </NavLink>
             ) : null}
             {/* Studio entry for the outfit team only — cosmetic gate, the server allowlist is the real one. */}
             {isOutfitCreator ? (
@@ -310,6 +411,15 @@ export function NavBar() {
             <S.Search ref={wrapRef} data-iap={iap || undefined}>
               <Icon name="search" color={theme.colors.softWhite} />
               <input
+                ref={searchInputRef}
+                type="search"
+                enterKeyHint="search"
+                role="combobox"
+                aria-expanded={open}
+                // Only while the listbox exists: a reference to a node that is not there is worse than none.
+                aria-controls={open ? SUGGESTIONS_LISTBOX_ID : undefined}
+                aria-autocomplete="list"
+                aria-activedescendant={activeRowId ?? undefined}
                 value={q}
                 aria-label={t('nav.searchAria')}
                 placeholder={
@@ -335,9 +445,12 @@ export function NavBar() {
                 <SearchDropdown
                   query={debounced}
                   recent={recent}
+                  activeId={activeRowId}
+                  onRows={onRows}
                   onSelectItem={onSelectItem}
                   onSelectCollection={onSelectCollection}
                   onSelectCreator={onSelectCreator}
+                  onSelectFacet={onSelectFacet}
                   onRunSearch={runSearch}
                   onRemoveRecent={removeRecent}
                   onClearRecent={clearRecent}
@@ -364,6 +477,13 @@ export function NavBar() {
               <S.FavFill name="heart-solid" size={28} aria-hidden />
             </S.FavIcons>
           </S.Fav>
+          {/* Activity moved out of the tabs and in beside the heart: it is a place you check, not a section
+             you browse, and the tab row is for the latter. */}
+          {session ? (
+            <S.Activity to="/activity" aria-label={t('nav.activity')} data-testid="subnav-activity">
+              <Icon name="history" size={28} aria-hidden />
+            </S.Activity>
+          ) : null}
           <S.CartWrap>
             {/* Cart icon opens the cart drawer (open-on-icon) — including on an empty cart, which shows the
                drawer's own empty state rather than navigating the shopper off the page they're browsing. */}

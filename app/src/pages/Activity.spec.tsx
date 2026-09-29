@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -202,6 +203,17 @@ describe('when the user is not signed in', () => {
     expect(fetchUserSales).not.toHaveBeenCalled()
     // No seller, so there is nothing to ask about — the chip's read must not fire either.
     expect(fetchImportable).not.toHaveBeenCalled()
+  })
+
+  // The prompt used to say "sign in" and offer no way to do it: an illustration, a title and a body,
+  // with the only route out being the navbar.
+  it('should offer a way to sign in, which the prompt asks for', async () => {
+    const user = userEvent.setup()
+    walletState.session = null
+    renderPage()
+
+    await user.click(screen.getByTestId('activity-signin').querySelector('button') as HTMLButtonElement)
+    expect(walletState.signIn).toHaveBeenCalled()
   })
 })
 
@@ -711,7 +723,7 @@ describe('when a checkout was left unfinished', () => {
     await clickResume()
 
     await waitFor(() =>
-      expect(toastSuccess).toHaveBeenCalledWith('You already paid for this — your credits are on the way.')
+      expect(toastSuccess).toHaveBeenCalledWith('You already paid for this — your Credits are on the way.')
     )
     expect(window.location.href).toBe('')
   })

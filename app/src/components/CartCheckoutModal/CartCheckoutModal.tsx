@@ -1,6 +1,7 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { isIapMode } from '~/lib/iap'
+import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { CURRENCY, formatCredits } from '~/lib/currency'
 import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
@@ -11,7 +12,6 @@ import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import * as M from '~/components/BuyModal/modal.styles'
 import * as S from './CartCheckoutModal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import packCoin from '~/assets/credits/pack-coin.webp'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
 
 // The processing stages (mirrors Cart.tsx): reserve credits per unit → wait for the wallet signature →
@@ -296,7 +296,6 @@ function NoFunds({
   onBuyPacks: () => void
   onCancel: () => void
 }) {
-  const pack = packs.find(p => p.id === selectedPack)
   const unitCount = lines.reduce((n, l) => n + (l.quantity ?? 1), 0)
   return (
     <M.Body>
@@ -348,31 +347,7 @@ function NoFunds({
           top up in the app and come back. */}
       {isIapMode() ? null : (
         <>
-          <M.Packs>
-            {packs.map(p => {
-              const on = p.id === selectedPack
-              return (
-                <M.Pack
-                  key={p.id}
-                  data-testid="credit-pack"
-                  data-on={on || undefined}
-                  onClick={() => onSelectPack(p.id)}
-                >
-                  <M.PackIco src={packCoin} alt="" />
-                  <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
-                  <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
-                </M.Pack>
-              )
-            })}
-          </M.Packs>
-
-          <M.Total>
-            <M.TotalCredits>
-              <M.TotalIco />
-              <span>{formatCredits(pack?.credits ?? 0)}</span>
-            </M.TotalCredits>
-            <M.TotalUsd>${(pack?.usd ?? 0).toFixed(2)}</M.TotalUsd>
-          </M.Total>
+          <CreditPackPicker packs={packs} selectedId={selectedPack || undefined} onSelect={onSelectPack} />
         </>
       )}
 

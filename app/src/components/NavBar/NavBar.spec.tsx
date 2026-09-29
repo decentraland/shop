@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { ChainId } from '@dcl/schemas'
 
 /**
@@ -35,6 +35,10 @@ vi.mock('~/store/wallet', () => ({
 
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined, isLoading: false }) }))
 vi.mock('~/hooks/useOutfits', () => ({ useIsOutfitCreator: () => false }))
+// The seasonal event tab. Stubbed like every other data hook here so this spec stays about the navbar's
+// own chrome; `null` is the ordinary state, with no campaign running.
+const { useEventTab } = vi.hoisted(() => ({ useEventTab: vi.fn<() => string | null>(() => null) }))
+vi.mock('~/hooks/useEventTab', () => ({ useEventTab }))
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => ({ data: 0, isError: false, isLoading: false }) }))
 vi.mock('~/hooks/useManaBalance', () => ({
   useManaBalance: () => ({ data: undefined }),
@@ -42,15 +46,28 @@ vi.mock('~/hooks/useManaBalance', () => ({
 }))
 vi.mock('~/store/cart', () => ({ useCart: () => 0 }))
 vi.mock('~/components/CartPopover', () => ({ CartPopover: () => null }))
-vi.mock('~/components/SearchDropdown', () => ({ SearchDropdown: () => null }))
+// The dropdown stands in as a prop recorder: what query it is handed is what the keys and the timers leave.
+const dropdownProps = vi.fn()
+vi.mock('~/components/SearchDropdown', () => ({
+  SearchDropdown: (props: Record<string, unknown>) => {
+    dropdownProps(props)
+    return null
+  }
+}))
 vi.mock('~/components/NotificationsBell', () => ({ NotificationsBell: () => null }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
+// The creator's store entry, gated on its flag AND on having published something. Both are network reads,
+// stubbed here like every other data hook; the gate itself has its own block below.
+const store = { flag: false, creator: false }
+vi.mock('~/hooks/useMyStoreEnabled', () => ({ useMyStoreEnabled: () => store.flag }))
+vi.mock('~/hooks/useIsCreator', () => ({ useIsCreator: () => store.creator }))
 
 // Mutable so both sides of the iOS web-view gate are reachable — the difference between them is the point.
 const iap = { on: false }
 vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
 
 import { NavBar } from './NavBar'
+import { track } from '~/lib/analytics'
 
 const CHAINS = [ChainId.ETHEREUM_MAINNET, ChainId.MATIC_MAINNET]
 
@@ -234,5 +251,271 @@ describe('the iOS web-view chrome', () => {
     const { container } = renderNav('/cart')
 
     expect(container.querySelector('[data-testid="subnav"]')).not.toBeNull()
+  })
+})
+
+/**
+ * The seasonal event tab.
+ *
+ * Its label is CONTENT, not UI copy — whatever the running campaign is called — so it never goes through
+ * `t()` and is asserted literally here. It is absent on an ordinary day, which is what every other spec in
+ * this file runs against.
+ */
+describe('the seasonal event tab', () => {
+  it('is absent while no campaign is running', () => {
+    useEventTab.mockReturnValue(null)
+
+    const { container } = renderNav()
+
+    expect(container.querySelector('[data-testid="nav-event"]')).toBeNull()
+  })
+
+  it('carries the campaign name and opens the event grid', () => {
+    useEventTab.mockReturnValue('Halloween')
+
+    const { container } = renderNav()
+
+    const tab = container.querySelector('[data-testid="nav-event"]')
+    expect(tab?.textContent).toBe('Halloween')
+    expect(tab?.getAttribute('href')).toBe('/event')
+  })
+
+  it('sits between Overview and Collectibles, as it does in the marketplace', () => {
+    useEventTab.mockReturnValue('Halloween')
+
+    const { container } = renderNav()
+
+    const labels = Array.from(container.querySelectorAll('[data-testid="subnav-tabs"] a')).map(a => a.textContent)
+    expect(labels.slice(0, 3)).toEqual(['Overview', 'Halloween', 'Collectibles'])
+  })
+})
+
+describe('the creator store entrance', () => {
+  beforeEach(() => {
+    store.flag = false
+    store.creator = false
+    session = { address: '0xabc', providerType: 'injected' }
+  })
+
+  it('leads a creator to their store once the flag is on', () => {
+    store.flag = true
+    store.creator = true
+
+    expect(renderNav().queryByTestId('nav-my-store')).not.toBeNull()
+  })
+
+  it('stays hidden for an account that has never published, to whom the page is an empty room', () => {
+    store.flag = true
+
+    expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
+  })
+
+  it('stays hidden while the flag is off, creator or not', () => {
+    store.creator = true
+
+    expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
+  })
+
+  it('stays hidden when nobody is signed in', () => {
+    store.flag = true
+    store.creator = true
+    session = null
+
+    expect(renderNav().queryByTestId('nav-my-store')).toBeNull()
+  })
+})
+
+/**
+ * The search box's keys and its history.
+ *
+ * The dropdown is mocked away here, so what these pin is the box itself: Escape puts the panel away and,
+ * pressed again, clears the way the button does; a search is pushed so "back" returns to the previous one,
+ * and only an exact repeat of the current destination replaces it.
+ */
+function Probe() {
+  const location = useLocation()
+  const type = useNavigationType()
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="probe">{`${type} ${location.pathname}${location.search}`}</output>
+      {/* stands in for the browser's Back: a URL change the box did not make */}
+      <button type="button" data-testid="probe-go" onClick={() => navigate('/items?q=Galaxy')} />
+    </>
+  )
+}
+
+// The query the dropdown was last handed, or null while it is not mounted.
+const lastDropdownQuery = () => (dropdownProps.mock.calls.at(-1)?.[0] as { query: string } | undefined)?.query ?? null
+
+function renderSearch(route = '/overview') {
+  render(
+    <MemoryRouter initialEntries={[route]}>
+      <NavBar />
+      <Probe />
+    </MemoryRouter>
+  )
+  return screen.getByRole('combobox')
+}
+
+describe('the search box', () => {
+  beforeEach(() => {
+    iap.on = false
+    vi.mocked(track).mockClear()
+    dropdownProps.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('names its listbox only while the panel is open, and no active row without one', () => {
+    const box = renderSearch('/overview')
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).not.toHaveAttribute('aria-controls')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.focus(box)
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    expect(box).toHaveAttribute('aria-controls', 'search-suggestions')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).not.toHaveAttribute('aria-controls')
+  })
+
+  it('drops a pending debounce when the box is cleared, so the panel never gets what was just erased', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.click(screen.getByTestId('subnav-search-clear'))
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    fireEvent.focus(box)
+
+    expect(box).toHaveValue('')
+    expect(lastDropdownQuery()).toBe('')
+    expect(dropdownProps.mock.calls.some(call => (call[0] as { query: string }).query === 'Nebula')).toBe(false)
+  })
+
+  it('drops it on a double Escape too', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    fireEvent.keyDown(box, { key: 'Escape' })
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+    fireEvent.focus(box)
+
+    expect(box).toHaveValue('')
+    expect(lastDropdownQuery()).toBe('')
+  })
+
+  it('lets a URL change win over a keystroke still waiting on its debounce', () => {
+    vi.useFakeTimers()
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Neb' } })
+
+    fireEvent.click(screen.getByTestId('probe-go'))
+    act(() => {
+      vi.advanceTimersByTime(350)
+    })
+
+    expect(box).toHaveValue('Galaxy')
+    expect(lastDropdownQuery()).toBe('Galaxy')
+  })
+
+  it('puts the panel away on Escape and, pressed again, clears the box and says so', () => {
+    const box = renderSearch('/overview')
+    fireEvent.focus(box)
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).toHaveValue('Nebula')
+    expect(track).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(box).toHaveValue('')
+    expect(track).toHaveBeenCalledWith('Shop Cleared Search', { page: '/overview' })
+  })
+
+  it('reports the clear button the same way, with the route alone', () => {
+    const box = renderSearch('/items?q=Nebula&status=not_for_sale')
+    expect(box).toHaveValue('Nebula')
+
+    fireEvent.click(screen.getByTestId('subnav-search-clear'))
+
+    expect(track).toHaveBeenCalledWith('Shop Cleared Search', { page: '/items' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('REPLACE /items?status=not_for_sale')
+  })
+
+  it('pushes a new search and replaces an exact repeat of the current one', () => {
+    const box = renderSearch('/overview')
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Nebula')
+
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('REPLACE /items?q=Nebula')
+
+    fireEvent.change(box, { target: { value: 'Galaxy' } })
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?q=Galaxy')
+  })
+
+  it("opens a facet's grid from the facet alone, pushed, and empties the box", () => {
+    const box = renderSearch('/items?q=hat&status=not_for_sale')
+    fireEvent.focus(box)
+    // typed over the URL's query, so the box holds text the destination will not carry
+    fireEvent.change(box, { target: { value: 'hat' } })
+    const props = dropdownProps.mock.calls.at(-1)![0] as {
+      onSelectFacet: (facet: unknown, choice: unknown) => void
+    }
+
+    act(() => {
+      props.onSelectFacet(
+        { kind: 'category', key: 'Hat', top: 'wearable', labelKey: 'categories.hat', parents: [] },
+        { section: 'facets', position: 0, via: 'keyboard' }
+      )
+    })
+
+    // from scratch: the status filter of the page it came from is not carried over
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?category=wearable&subCategory=Hat')
+    expect(box).toHaveValue('')
+    expect(track).toHaveBeenCalledWith('Shop Search Suggestion Clicked', {
+      query: 'hat',
+      type: 'facet',
+      facet_kind: 'category',
+      facet_key: 'Hat',
+      section: 'facets',
+      position: 0,
+      via: 'keyboard'
+    })
+
+    act(() => {
+      props.onSelectFacet({ kind: 'rarity', key: 'epic' }, { section: 'facets', position: 0, via: 'click' })
+    })
+    expect(screen.getByTestId('probe')).toHaveTextContent('PUSH /items?rarities=epic')
+  })
+
+  it('leaves a modified Enter and an IME composition to the text', () => {
+    const box = renderSearch('/overview')
+    fireEvent.change(box, { target: { value: 'Nebula' } })
+
+    fireEvent.keyDown(box, { key: 'Enter', metaKey: true })
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+
+    expect(screen.getByTestId('probe')).toHaveTextContent('POP /overview')
   })
 })

@@ -1,12 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ManaPricingBanner } from './ManaPricingBanner'
 
-function renderBanner(count: number) {
+function renderBanner(count: number, onDismiss?: () => void) {
   return render(
     <MemoryRouter>
-      <ManaPricingBanner count={count} />
+      <ManaPricingBanner count={count} onDismiss={onDismiss} />
     </MemoryRouter>
   )
 }
@@ -57,5 +58,24 @@ describe('when the seller has classic listings left to move', () => {
     const cta = screen.getByTestId('mana-pricing-banner-cta')
     expect(cta.getAttribute('href')).toBe('/import')
     expect(cta).toHaveTextContent(/update prices/i)
+  })
+})
+
+describe('when the caller offers a way to dismiss the banner', () => {
+  it('should not show a close button unless dismissing is possible', () => {
+    renderBanner(1)
+
+    expect(screen.queryByTestId('mana-pricing-banner-dismiss')).toBeNull()
+  })
+
+  it('should hand the dismissal back to the caller rather than hiding itself', async () => {
+    const onDismiss = vi.fn()
+    renderBanner(1, onDismiss)
+
+    await userEvent.click(screen.getByTestId('mana-pricing-banner-dismiss'))
+
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+    // Still rendered: whether the strip goes away is the page's call, and it is deliberately not stored.
+    expect(screen.getByTestId('mana-pricing-banner')).toBeInTheDocument()
   })
 })
