@@ -11,8 +11,13 @@ const { colors, gradients, radius } = theme
 
 // Cart-specific breakpoints from the Figma cart specs (two-column → single, then the fixed mobile
 // summary bar) — deliberately not the canonical app breakpoints.
-const twoCol = '@media (max-width: 1080px)'
-const mobile = '@media (max-width: 880px)'
+const TWO_COL_MAX = 1080
+const MOBILE_MAX = 880
+const twoCol = `@media (max-width: ${TWO_COL_MAX}px)`
+const mobile = `@media (max-width: ${MOBILE_MAX}px)`
+// Just above the single-column switch, where the summary is still a fixed 615px and the cart column is
+// whatever is left — about 334px. Derived from TWO_COL_MAX so the two can never drift apart.
+const narrowTwoCol = `@media (min-width: ${TWO_COL_MAX + 1}px) and (max-width: 1180px)`
 
 export const Checkout = styled.div`
   max-width: 1510px;
@@ -251,8 +256,6 @@ export const Fitting = styled.button`
      the type, which had it reading smaller than the row title beside it. */
   ${mobile} {
     border-width: 1px;
-    border-color: ${colors.softWhite};
-    color: ${colors.softWhite};
   }
 `
 
@@ -311,10 +314,12 @@ export const Thumb = styled.div`
     filter: drop-shadow(0.56px 2.25px 2.8px rgba(0, 0, 0, 0.1));
   }
 
-  /* Just above the single-column breakpoint the right column is still a fixed 615px, so the left one is
-     only ~334px wide and a 172px thumb leaves the name and the price nothing — the price clipped outright.
-     Step the thumb down over that range; below 1081px the layout is single-column and roomy again. */
-  @media (min-width: 1081px) and (max-width: 1180px) {
+  /* Just above the single-column breakpoint the summary is still a fixed 615px, so the cart column is only
+     ~334px and a 172px thumb left the name and the price nothing — the price clipped outright. Step the
+     thumb down over that range. BELOW the breakpoint there is no problem: the grid is one column there and
+     the row gets the full width. Measured with the longest real price (11K, quantity 2): clipping is gone
+     from 1120px up, and at 1181px the full-size thumb fits again with room to spare. */
+  ${narrowTwoCol} {
     width: 120px;
     height: 120px;
   }
@@ -379,8 +384,10 @@ const nameCss = css`
   text-overflow: ellipsis;
   white-space: nowrap;
 
+  /* Underline, not a colour change: the ink here is already softWhite, so the old hover colour matched
+     the resting one and the link announced nothing on hover. */
   a&:hover {
-    color: ${colors.softWhite};
+    text-decoration: underline;
   }
 
   ${mobile} {
@@ -408,6 +415,11 @@ export const Creator = styled(CreatorBadge)`
 
   & [data-avatar] {
     display: none;
+  }
+  /* The shared badge switches this to its dark ink on hover (badge.styles), which was drawn for a white
+     card and lands around 1.1:1 here — the name disappears under the cursor. */
+  &[data-link]:hover [data-testid='creator-name'] {
+    color: ${colors.softWhite};
   }
   & [data-testid='creator-name'] {
     font-size: 10px;
@@ -602,6 +614,21 @@ export const Summary = styled.aside`
   border-radius: 16px;
   padding: 32px;
 
+  /* PaymentCtas renders both here and inside the checkout modal, whose shell is still white, so its
+     defaults were picked against white and only break on this card. Overridden in the summary's scope
+     rather than in the component, so the modal keeps what works there.
+
+     The focus ring is the blocking one: accent (#691fa9) against this card measures 1.2:1, and 1.65:1 on
+     the mobile bar, where WCAG 1.4.11 asks 3:1 of a focus indicator — on the page's main action, for the
+     one kind of user who depends on it. The shortfall note is the same muted-ink problem already fixed
+     for Msg. */
+  button:focus-visible {
+    outline-color: ${colors.softWhite};
+  }
+  [data-testid='mana-shortfall-note'] {
+    color: ${colors.gray4};
+  }
+
   ${twoCol} {
     position: static;
   }
@@ -621,9 +648,9 @@ export const Summary = styled.aside`
     padding: 16px;
     /* Opaque, unlike the desktop card. This one is docked to the viewport and the whole cart scrolls
        underneath it, so a translucent fill showed the list through the total and the CTA — over one of
-       the light item thumbnails, softWhite measured 1.72:1. The colour is the page field's bottom stop
-       (#4b1a6b) with the same 20% wash already baked in, so the bar still matches where it sits. */
-    background: #3c1556;
+       the light item thumbnails, softWhite measured 1.72:1. The token is the field's bottom stop with
+       this same wash composited in, so the bar matches where it sits. */
+    background: ${colors.fieldBottomWashed};
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
   }
 `

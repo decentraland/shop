@@ -1324,8 +1324,9 @@ export function Cart() {
           </S.Back>
 
           <S.CartEmpty>
+            {/* Default (dark) variant: the light one is a white card, and on the purple field it was the
+                last white surface left on this page. */}
             <EmptyState
-              variant="light"
               testId="cart-empty"
               icon={cartEmptyIllustration}
               title={t('cart.empty.title')}
@@ -1344,8 +1345,8 @@ export function Cart() {
 
   return (
     <S.Checkout>
-      {/* Top section (breadcrumb + cart/summary panels) sits on the gray band; everything below
-          (the cross-sell) is on the white page — Figma 1182-232377. */}
+      {/* Top section (breadcrumb + cart/summary panels) sits on the band; the cross-sell below it is on
+          the bare field — Figma 1182-232377. */}
       <S.Top>
         <S.Back onClick={() => navigate(-1)} type="button">
           <Icon name="arrow-left" />
