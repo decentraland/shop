@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { RawIntlProvider } from 'react-intl'
 import { useLocale } from '~/store/locale'
 import { getIntl, setActiveLocale } from './i18n'
@@ -8,6 +9,11 @@ import { getIntl, setActiveLocale } from './i18n'
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const locale = useLocale(s => s.locale)
   setActiveLocale(locale) // render-time + idempotent: global t() is correct before children render
+  // Screen readers pick their voice from it, and a page still marked `en` gets a browser offer to translate
+  // copy that is already translated. The Portuguese copy is Brazilian, so it says so.
+  useEffect(() => {
+    document.documentElement.lang = locale === 'pt' ? 'pt-BR' : locale
+  }, [locale])
   return (
     <RawIntlProvider value={getIntl(locale)} key={locale}>
       {children}

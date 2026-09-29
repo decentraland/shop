@@ -46,7 +46,9 @@ const legalLinks = [
 
 const LANGUAGE_LABELS: Record<Locale, { label: string; flag: string }> = {
   en: { label: 'English', flag: '🇺🇸' },
-  es: { label: 'Español', flag: '🇪🇸' }
+  es: { label: 'Español', flag: '🇪🇸' },
+  pt: { label: 'Português', flag: '🇧🇷' },
+  de: { label: 'Deutsch', flag: '🇩🇪' }
 }
 
 function SocialRow() {
