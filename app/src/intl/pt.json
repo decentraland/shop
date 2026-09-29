@@ -515,7 +515,7 @@
     "toastSuccess": "{count, plural, one {Foi emitida} other {Foram emitidas}} {count} {count, plural, one {cópia} other {cópias}} de “{name}”.",
     "successBody": "{count, plural, one {Foi emitida} other {Foram emitidas}} {count} {count, plural, one {cópia} other {cópias}} de “{name}”.",
     "errorGeneric": "Não foi possível emitir suas cópias. Tente de novo.",
-    "overBatch": "Você pode emitir até {max} cópias de cada vez."
+    "overBatch": "Você pode emitir até {max, plural, one {# cópia} other {# cópias}} de cada vez."
   },
   "resales": {
     "modalTitle": "Outros revendedores",
@@ -747,7 +747,7 @@
     "chart": {
       "title": "Vendas ao longo do tempo",
       "sub": "Como foi o período, comparado com o que você escolheu",
-      "metric": "Medida",
+      "metric": "Métrica",
       "sales": "Vendas",
       "earnings": "Ganhos",
       "compare": "Comparar com",
@@ -786,7 +786,7 @@
     "royaltiesShow": "Ver cada revenda",
     "royaltiesHide": "Ocultar revendas",
     "royaltiesTitle": "Royalties de revendas",
-    "royaltiesSub": "Cada revenda dos seus itens neste período e os royalties que ela te pagou",
+    "royaltiesSub": "Cada revenda dos seus itens neste período e os royalties que você recebeu com ela",
     "royaltiesLoading": "Carregando revendas…",
     "royaltiesError": "Não foi possível carregar as revendas agora. Tente de novo em instantes.",
     "royaltiesNone": "Nenhum dos seus itens foi revendido neste período.",
@@ -1522,7 +1522,7 @@
   },
   "reward": {
     "title": "Recompense seus principais donos",
-    "subtitle": "Envie uma nova cópia de um item para cada uma das pessoas que têm mais obras suas.",
+    "subtitle": "Envie uma nova cópia de um item para cada uma das pessoas que têm mais itens seus.",
     "howMany": "Quantos",
     "topN": "Top {count}",
     "rankedBy": "Classificado por",
@@ -1532,12 +1532,12 @@
       "recent": "Mais recentes"
     },
     "item": "Item a enviar",
-    "itemLeft": "{collection} · restam {left}",
+    "itemLeft": "{collection} · {left, plural, one {resta #} other {restam #}}",
     "noItems": "Nenhum dos seus itens tem cópias disponíveis para enviar.",
     "recipients": "{count, plural, one {# destinatário} other {# destinatários}}",
     "heldLine": "· tem {count}",
-    "stock": "Isto emite {count, plural, one {# nova cópia} other {# novas cópias}} de “{name}”, das {left} restantes.",
-    "notEnough": "“{name}” tem apenas {left} restantes. Escolha menos pessoas ou outro item.",
+    "stock": "Isto emite {count, plural, one {# nova cópia} other {# novas cópias}} de “{name}”, {left, plural, one {da # restante} other {das # restantes}}.",
+    "notEnough": "“{name}” tem apenas {left, plural, one {# restante} other {# restantes}}. Escolha menos pessoas ou outro item.",
     "continue": "Continuar"
   }
 }

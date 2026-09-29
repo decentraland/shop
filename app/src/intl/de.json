@@ -515,7 +515,7 @@
     "toastSuccess": "{count} {count, plural, one {Exemplar} other {Exemplare}} von „{name}“ ausgegeben.",
     "successBody": "{count} {count, plural, one {Exemplar} other {Exemplare}} von „{name}“ ausgegeben.",
     "errorGeneric": "Deine Exemplare konnten nicht ausgegeben werden – bitte versuch es noch mal.",
-    "overBatch": "Du kannst bis zu {max} Exemplare auf einmal ausgeben."
+    "overBatch": "Du kannst bis zu {max, plural, one {# Exemplar} other {# Exemplare}} auf einmal ausgeben."
   },
   "resales": {
     "modalTitle": "Andere Wiederverkäufer",
@@ -774,7 +774,7 @@
     },
     "rangePickStart": "Wähle den ersten Tag",
     "rangePickEnd": "{from} – wähle den letzten Tag",
-    "rangeDialog": "Daten auswählen",
+    "rangeDialog": "Zeitraum auswählen",
     "rangeCancel": "Abbrechen",
     "rangeApply": "Anwenden",
     "currency": "Währung",
@@ -1522,7 +1522,7 @@
   },
   "reward": {
     "title": "Belohne deine Top-Besitzer",
-    "subtitle": "Sende jeder der Personen, die die meisten deiner Werke besitzen, ein neues Exemplar eines Artikels.",
+    "subtitle": "Sende jeder der Personen, die die meisten deiner Artikel besitzen, ein neues Exemplar eines Artikels.",
     "howMany": "Wie viele",
     "topN": "Top {count}",
     "rankedBy": "Sortiert nach",
@@ -1536,8 +1536,8 @@
     "noItems": "Keiner deiner Artikel hat noch Exemplare zum Versenden.",
     "recipients": "{count, plural, one {# Empfänger} other {# Empfänger}}",
     "heldLine": "· besitzt {count}",
-    "stock": "Dadurch {count, plural, one {wird # neues Exemplar} other {werden # neue Exemplare}} von „{name}“ ausgegeben, von den {left} übrigen.",
-    "notEnough": "Von „{name}“ sind nur noch {left} übrig. Wähle weniger Personen oder einen anderen Artikel.",
+    "stock": "Dadurch {count, plural, one {wird # neues Exemplar} other {werden # neue Exemplare}} von „{name}“ ausgegeben, {left, plural, one {vom # übrigen} other {von den # übrigen}}.",
+    "notEnough": "Von „{name}“ {left, plural, one {ist nur noch # übrig} other {sind nur noch # übrig}}. Wähle weniger Personen oder einen anderen Artikel.",
     "continue": "Weiter"
   }
 }
