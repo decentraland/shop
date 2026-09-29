@@ -38,7 +38,8 @@ export const Back = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  /* Gray 5, not Gray 4: this row sits on the bare field above the cards, where Gray 4 drops under AA. */
+  /* Gray 5, not Gray 4: this row leads the band, above the cards and with nothing but the wash behind it,
+     where Gray 4 drops under AA. */
   color: ${colors.gray5};
   font-size: 14px;
   font-weight: 600;
@@ -90,10 +91,11 @@ export const Top = styled.div`
 
   /* The wash that gives the cards a floor instead of leaving them on the bare field.
 
-     Every surface on this page is ONE step of this same token, never two: translucent fills stack, and a
-     40% panel over a 40% band composites to 64% — the item card on top of both reached 78%, which is what
-     read as heavy. So the band is the light step, the panels take one more, and the item card takes none
-     (see Card). Depth here comes from borders and spacing, not from piling up black. */
+     Every surface on this page is ONE step of this same token, never two: translucent fills stack, and
+     the previous pass had a 40% panel over a 40% band compositing to 64%, with the item card on top of
+     both reaching 78% — which is what read as heavy. At one step each, a panel on the band lands at 36%
+     and the item card adds nothing (see Card). Depth comes from borders and spacing, not from piling up
+     black. */
   &::before {
     content: '';
     position: absolute;
@@ -125,7 +127,8 @@ export const Top = styled.div`
   }
 `
 
-// The left column = TWO stacked translucent cards, 12px apart, both rounded-16 on the band.
+// The left column: one translucent card, rounded-16 on the band. It held two stacked cards until the
+// header moved inside the list (see PanelHead), which is why it is a column with nothing to space out.
 export const Left = styled.div`
   min-width: 0;
   display: flex;
@@ -269,8 +272,9 @@ export const Card = styled.div`
   align-items: stretch;
   gap: 12px;
   /* No fill: the line is drawn by its border alone, over whatever the panel behind it is. A third
-     translucent layer here is what pushed this card to 78% black (see Top), and it buys nothing — the
-     white design separated these lines with a border too, the card being white on a white panel. */
+     translucent layer here is what pushed this card to 78% black in the previous pass (see Top), and it
+     buys nothing — the white design separated these lines with a border too, the card being white on a
+     white panel. */
   border: 1px solid ${colors.cardLine};
   border-radius: ${radius.card};
   overflow: hidden;
@@ -305,6 +309,14 @@ export const Thumb = styled.div`
     height: 83%;
     object-fit: contain;
     filter: drop-shadow(0.56px 2.25px 2.8px rgba(0, 0, 0, 0.1));
+  }
+
+  /* Just above the single-column breakpoint the right column is still a fixed 615px, so the left one is
+     only ~334px wide and a 172px thumb leaves the name and the price nothing — the price clipped outright.
+     Step the thumb down over that range; below 1081px the layout is single-column and roomy again. */
+  @media (min-width: 1081px) and (max-width: 1180px) {
+    width: 120px;
+    height: 120px;
   }
 
   ${mobile} {
@@ -607,6 +619,11 @@ export const Summary = styled.aside`
     /* Back to the compact padding: the desktop card's roomier one would make the docked bar taller than
        the space Checkout reserves for it, and the bar would cover the last cart line. */
     padding: 16px;
+    /* Opaque, unlike the desktop card. This one is docked to the viewport and the whole cart scrolls
+       underneath it, so a translucent fill showed the list through the total and the CTA — over one of
+       the light item thumbnails, softWhite measured 1.72:1. The colour is the page field's bottom stop
+       (#4b1a6b) with the same 20% wash already baked in, so the bar still matches where it sits. */
+    background: #3c1556;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
   }
 `
@@ -733,6 +750,17 @@ export const Msg = styled.p`
 
 export const MsgNotice = styled(ErrorNotice)`
   ${msg};
+
+  /* The shared notice was drawn against a white card: near-black message ink and the flat error red for
+     the icon. On this translucent purple they measure 1.56:1 and 2.78:1 — the message is effectively
+     invisible. It is the checkout failure sitting beside the CTA, announced with role="alert", so it has
+     to survive the move off white. The icon keeps a red so the notice still reads as an error. */
+  .error-notice__msg {
+    color: ${colors.softWhite};
+  }
+  .error-notice__ico {
+    color: ${colors.saleTag};
+  }
 `
 
 // The upsell rail wraps a shared CollectionCarousel (which supplies its own top margin). It was always
