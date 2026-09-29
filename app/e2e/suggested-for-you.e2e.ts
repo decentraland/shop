@@ -60,6 +60,9 @@ describe('suggested for you', () => {
     const suggested = order.findIndex(text => /suggested for you/i.test(text))
     expect(trending).toBeGreaterThanOrEqual(0)
     expect(suggested).toBeGreaterThan(trending)
+    // And under Buy the Look, when there are outfits to show.
+    const outfits = order.findIndex(text => /buy the look/i.test(text))
+    if (outfits >= 0) expect(suggested).toBeGreaterThan(outfits)
   })
 
   it('explains every card, in plain language and without naming a raw id', async () => {
