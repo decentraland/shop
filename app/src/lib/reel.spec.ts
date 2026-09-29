@@ -183,11 +183,11 @@ describe('when ranking the photos of an item', () => {
 
     expect(rankReelPhotos(many)).toHaveLength(2)
 
-    const sameePlace = Array.from({ length: 8 }, (_, i) =>
+    const samePlace = Array.from({ length: 8 }, (_, i) =>
       photo({ id: `q${i}`, userAddress: `0x${i}`, place: 'one place', dateTime: String(i) })
     )
 
-    expect(rankReelPhotos(sameePlace)).toHaveLength(2)
+    expect(rankReelPhotos(samePlace)).toHaveLength(2)
   })
 
   it('should hand back at most a stripful', () => {

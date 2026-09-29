@@ -261,7 +261,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
   }
 
   const current: ReelPhoto | null = open === null ? null : photos[open]
-  const credits = creditsFor(current ?? photos[0])
+  const credits = current ? creditsFor(current) : null
   const currentKey = current ? sceneKey(current) : null
   const currentLive = !!currentKey && !!live?.has(currentKey)
 
@@ -279,31 +279,35 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
           data-at-start={atStart || undefined}
           data-at-end={atEnd || undefined}
         >
-          {photos.map((photo, i) => (
-            <S.Tile
-              key={photo.id}
-              data-testid="photo-reel-shot"
-              onClick={() => openPhoto(i)}
-              aria-label={t('photoReel.openAria', { name: creditsFor(photo).wearer.name, place: photo.place })}
-            >
-              <S.Thumb src={photo.thumbnailUrl} alt="" loading="lazy" />
-              {/* Plain text here: this sits inside the button that opens the photo, and links inside a
+          {photos.map((photo, i) => {
+            const { wearer } = creditsFor(photo)
+            const date = formatPhotoDate(photo.dateTime)
+            return (
+              <S.Tile
+                key={photo.id}
+                data-testid="photo-reel-shot"
+                onClick={() => openPhoto(i)}
+                aria-label={t('photoReel.openAria', { name: wearer.name, place: photo.place })}
+              >
+                <S.Thumb src={photo.thumbnailUrl} alt="" loading="lazy" />
+                {/* Plain text here: this sits inside the button that opens the photo, and links inside a
                   button are neither valid nor operable. The profile and the place links are in the
                   open photo. */}
-              <S.Meta>
-                <Face person={creditsFor(photo).wearer} size="sm" />
-                <S.Names>
-                  <S.Who data-size="sm">
-                    <PersonName person={creditsFor(photo).wearer} />
-                  </S.Who>
-                  <S.Where>
-                    {photo.place}
-                    {formatPhotoDate(photo.dateTime) ? ` · ${formatPhotoDate(photo.dateTime)}` : ''}
-                  </S.Where>
-                </S.Names>
-              </S.Meta>
-            </S.Tile>
-          ))}
+                <S.Meta>
+                  <Face person={wearer} size="sm" />
+                  <S.Names>
+                    <S.Who data-size="sm">
+                      <PersonName person={wearer} />
+                    </S.Who>
+                    <S.Where>
+                      {photo.place}
+                      {date ? ` · ${date}` : ''}
+                    </S.Where>
+                  </S.Names>
+                </S.Meta>
+              </S.Tile>
+            )
+          })}
         </S.Track>
 
         <S.Nav data-side="left" onClick={() => scrollByDir(-1)} aria-label={t('photoReel.prev')} disabled={atStart}>
@@ -314,7 +318,7 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
         </S.Nav>
       </S.Strip>
 
-      {current ? (
+      {current && credits ? (
         <S.Lightbox onClick={closeLightbox} role="presentation" data-testid="photo-reel-lightbox">
           <S.Big
             ref={dialogRef}
