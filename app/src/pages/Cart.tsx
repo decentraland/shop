@@ -1354,22 +1354,21 @@ export function Cart() {
 
         <S.Body>
           <S.Left>
-            {/* Header card (Figma 1182-216308): "Cart: N Items" + Fitting Room — its own white card. */}
-            <S.HeadCard>
-              <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
-                <Icon name="arrow-left" />
-              </S.PanelBack>
-              <S.PanelTitle>{t('cart.panelTitle', { count: totalUnits })}</S.PanelTitle>
-              {hasWearable ? (
-                <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
-                  <Icon name="fitting-room" />
-                  {t('cart.fittingRoom')}
-                </S.Fitting>
-              ) : null}
-            </S.HeadCard>
-
-            {/* Items card (Figma 1182-216322): the cart lines, p-24, radius 16. */}
+            {/* The cart card: header row + the cart lines, p-24, radius 16. */}
             <S.Panel>
+              <S.PanelHead>
+                <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
+                  <Icon name="arrow-left" />
+                </S.PanelBack>
+                <S.PanelTitle>{t('cart.panelTitle', { count: totalUnits })}</S.PanelTitle>
+                {hasWearable ? (
+                  <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
+                    <Icon name="fitting-room" />
+                    {t('cart.fittingRoom')}
+                  </S.Fitting>
+                ) : null}
+              </S.PanelHead>
+
               <S.List>
                 {items.map(item => {
                   const line = lineById.get(item.id)

@@ -78,15 +78,22 @@ export const Body = styled.div`
 // so the band starts flush under the sticky sub-nav instead of leaving a seam.
 export const Top = styled.div`
   position: relative;
-  /* Breathing room under the panels so the band never hugs the last card. No min-height floor: Figma's
-     733px was sized for an opaque band that had to reach the cross-sell, and keeping it here only pushed
-     the rail below down behind a stretch of empty wash. The band now tracks its content. */
-  padding-bottom: 48px;
+  /* The band's own breathing room, above the breadcrumb and under the panels, which is what sets how big
+     the section reads. Deliberately generous rather than hugging the cards: the zone is the checkout, and
+     at the old 48px it read as a strip squeezed between the sub-nav and the cross-sell rail.
 
-  /* The wash. Deliberately darker than the field and LIGHTER than the cards, so the three tiers read
-     page > band > card and the cards sit on something instead of floating. Same token as the cards, which
-     is what makes the section read as its own surface rather than a faint tint: the cards double it up and
-     composite to 64%. */
+     No min-height floor: Figma's 733px was sized for an opaque band that had to reach the cross-sell, and
+     keeping it here only pushed the rail below down behind a stretch of empty wash. The band tracks its
+     content, and this padding is what surrounds it. */
+  padding-top: 58px;
+  padding-bottom: 107px;
+
+  /* The wash that gives the cards a floor instead of leaving them on the bare field.
+
+     Every surface on this page is ONE step of this same token, never two: translucent fills stack, and a
+     40% panel over a 40% band composites to 64% — the item card on top of both reached 78%, which is what
+     read as heavy. So the band is the light step, the panels take one more, and the item card takes none
+     (see Card). Depth here comes from borders and spacing, not from piling up black. */
   &::before {
     content: '';
     position: absolute;
@@ -95,7 +102,7 @@ export const Top = styled.div`
     left: 50%;
     width: 100vw;
     transform: translateX(-50%);
-    background: ${colors.overlay};
+    background: ${colors.overlayLight};
     z-index: 0;
   }
 
@@ -107,7 +114,9 @@ export const Top = styled.div`
   }
 
   ${mobile} {
-    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout). */
+    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout), and a tall band
+       on a short viewport costs more than it gives. */
+    padding-top: 24px;
     padding-bottom: 32px;
 
     &::before {
@@ -121,29 +130,35 @@ export const Left = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 `
 
-// Header card: "Cart: N Items" on the left, Fitting Room on the right.
-export const HeadCard = styled.div`
+// Header row: "Cart: N Items" on the left, Fitting Room on the right. It used to be a card of its own,
+// stacked above the list with a 12px gap. One card holds both now: two translucent panels a few pixels
+// apart read as a seam rather than as two things, and the header has no meaning away from the list it
+// counts.
+export const PanelHead = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: ${colors.overlay};
-  border-radius: 16px;
+  /* Pulled out to the card's edges, then the padding is put back on the row itself, so the row reads as
+     the card's own header strip rather than as content indented inside it. No rule under it: the gap
+     below already separates the header from the list, and the line only added weight. */
+  margin: -24px -24px 16px;
   padding: 12px 12px 12px 24px;
 
   ${mobile} {
     gap: 8px;
+    margin: -16px -16px 12px;
     padding: 8px 16px;
   }
 `
 
-// Items card: the cart-card list, 24px padding all round so the last line has breathing room.
+// The cart card: the header row (see PanelHead) above the cart-card list, 24px padding all round so
+// the last line has breathing room.
 export const Panel = styled.section`
   min-width: 0;
-  background: ${colors.overlay};
+  background: ${colors.overlayLight};
   border-radius: 16px;
   padding: 24px;
 
@@ -253,7 +268,9 @@ export const Card = styled.div`
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: ${colors.overlay};
+  /* No fill: the line is drawn by its border alone, over whatever the panel behind it is. A third
+     translucent layer here is what pushed this card to 78% black (see Top), and it buys nothing — the
+     white design separated these lines with a border too, the card being white on a white panel. */
   border: 1px solid ${colors.cardLine};
   border-radius: ${radius.card};
   overflow: hidden;
@@ -272,8 +289,11 @@ export const Card = styled.div`
 export const Thumb = styled.div`
   position: relative;
   flex-shrink: 0;
-  width: 137.5px;
-  height: 137px;
+  /* The thumb is what sets the row's height — nothing else in the line is taller — so this is where a
+     cart line is made to feel less cramped. A quarter above Figma's 137.5x137, which read small against
+     a row this wide, and small is what a buyer sees of an item they are about to pay for. */
+  width: 172px;
+  height: 171px;
   background: ${colors.media};
   border-radius: ${radius.card};
   display: grid;
@@ -565,10 +585,10 @@ export const Summary = styled.aside`
   top: 172px;
   display: flex;
   flex-direction: column;
-  background: ${colors.overlay};
+  background: ${colors.overlayLight};
   box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
   border-radius: 16px;
-  padding: 16px;
+  padding: 32px;
 
   ${twoCol} {
     position: static;
@@ -584,13 +604,16 @@ export const Summary = styled.aside`
     /* Square and hard-edged against the page (1182:236910): it is a bar docked to the bottom, not a sheet
        lifted off it. */
     border-radius: 0;
+    /* Back to the compact padding: the desktop card's roomier one would make the docked bar taller than
+       the space Checkout reserves for it, and the bar would cover the last cart line. */
+    padding: 16px;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
   }
 `
 
 export const SummaryTitle = styled.h2`
-  margin: 0 0 24px;
-  padding-bottom: 16px;
+  margin: 0 0 32px;
+  padding-bottom: 20px;
   border-bottom: 1px solid ${colors.cardLine};
   font-size: 24px;
   font-weight: 600;
@@ -607,7 +630,12 @@ export const SummaryTitle = styled.h2`
 export const SummaryBody = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 28px;
+
+  /* Same reason as Summary's padding: the mobile bar is docked and its height is budgeted for. */
+  ${mobile} {
+    gap: 12px;
+  }
 `
 
 // The summary's total row — Figma "Price".
