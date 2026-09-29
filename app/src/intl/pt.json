@@ -63,7 +63,10 @@
   },
   "common": {
     "copy": "Copiar",
-    "copied": "Copiado"
+    "copied": "Copiado",
+    "sortColumn": "Ordenar por {column}",
+    "sortedAsc": "{column}, em ordem crescente. Clique para ordenar em ordem decrescente",
+    "sortedDesc": "{column}, em ordem decrescente. Clique para ordenar em ordem crescente"
   },
   "collection": {
     "breadcrumb": "Colecionáveis",
@@ -511,7 +514,8 @@
     "issuing": "Emitindo…",
     "toastSuccess": "{count, plural, one {Foi emitida} other {Foram emitidas}} {count} {count, plural, one {cópia} other {cópias}} de “{name}”.",
     "successBody": "{count, plural, one {Foi emitida} other {Foram emitidas}} {count} {count, plural, one {cópia} other {cópias}} de “{name}”.",
-    "errorGeneric": "Não foi possível emitir suas cópias. Tente de novo."
+    "errorGeneric": "Não foi possível emitir suas cópias. Tente de novo.",
+    "overBatch": "Você pode emitir até {max} cópias de cada vez."
   },
   "resales": {
     "modalTitle": "Outros revendedores",
@@ -686,7 +690,6 @@
     "tileCollectorsConcentrated": "1 comprador é {pct}% das vendas",
     "tileSoldFootMintsOnly": "{mints, plural, one {# primeira venda} other {# primeiras vendas}}",
     "tileSoldNone": "Nada vendido neste período",
-    "sortSelling": "Ainda vendendo primeiro",
     "collExhausted": "esgotada",
     "audience": "Seu público",
     "audienceSub": "Quem está comprando e quanto isso vale para você.",
@@ -723,7 +726,73 @@
     "colClaimed": "Resgatados",
     "viewPublicStore": "Ver loja pública",
     "editStore": "Editar loja",
-    "performance": "Desempenho da loja"
+    "performance": "Desempenho da loja",
+    "sortCustom": "Ordenado por coluna",
+    "issueCopies": "Emitir cópias",
+    "sortEarned": "Maiores ganhos",
+    "owners": "Principais donos",
+    "ownersHint": "Quem tem seus itens hoje, não importa como os conseguiu. Não depende do período acima.",
+    "ownersUnavailable": "Sua loja é grande demais para classificar os donos agora. Tente de novo em alguns minutos.",
+    "noOwners": "Ninguém tem seus itens ainda.",
+    "colOwner": "Dono",
+    "colOwned": "Quantidade",
+    "colAcquired": "Mais recente",
+    "ownersCount": "{count, plural, one {# dono} other {# donos}}",
+    "rewardOwners": "Recompensar donos",
+    "period90d": "90 dias",
+    "periodyear": "Este ano",
+    "periodcustom": "Personalizado",
+    "vs90d": "vs. os 90 dias anteriores",
+    "vsPrevious": "vs. o período anterior",
+    "chart": {
+      "title": "Vendas ao longo do tempo",
+      "sub": "Como foi o período, comparado com o que você escolheu",
+      "metric": "Medida",
+      "sales": "Vendas",
+      "earnings": "Ganhos",
+      "compare": "Comparar com",
+      "comparePrevious": "Período anterior",
+      "compareYear": "Mesmo período do ano passado",
+      "compareNone": "Sem comparação",
+      "collection": "Coleção",
+      "allCollections": "Todas as coleções",
+      "thisPeriod": "Este período",
+      "previousPeriod": "Período anterior",
+      "lastYear": "Ano passado",
+      "change": "{pct}%",
+      "date": "Data",
+      "ariaSales": "Vendas por período, {span}",
+      "ariaEarnings": "Ganhos por período, {span}",
+      "empty": "Ainda não há vendas neste período.",
+      "partial": "Sua loja tem mais vendas do que este gráfico consegue ler de uma vez, então ele mostra as mais recentes.",
+      "byWeek": "Cada ponto é uma semana.",
+      "byMonth": "Cada ponto é um mês.",
+      "allItems": "Todos os itens",
+      "item": "Item",
+      "roleDescription": "gráfico",
+      "unpriced": "{count, plural, one {# venda ainda não tem} other {# vendas ainda não têm}} cotação em dólar e {count, plural, one {ficou} other {ficaram}} fora da linha em dólares."
+    },
+    "rangePickStart": "Escolha o primeiro dia",
+    "rangePickEnd": "{from} – escolha o último dia",
+    "rangeDialog": "Escolher datas",
+    "rangeCancel": "Cancelar",
+    "rangeApply": "Aplicar",
+    "currency": "Moeda",
+    "currencyPaid": "O que você recebeu",
+    "currencyUsd": "Em dólares, na data de cada venda",
+    "noUsd": "Ainda não há cotação em dólar para este dia",
+    "usdUnpriced": "{count, plural, one {# venda caiu} other {# vendas caíram}} em um dia ainda sem cotação em dólar, então os valores em dólares {count, plural, one {não a incluem} other {não as incluem}}.",
+    "usdUnavailable": "Os valores em dólares não estão disponíveis agora.",
+    "royaltiesShow": "Ver cada revenda",
+    "royaltiesHide": "Ocultar revendas",
+    "royaltiesTitle": "Royalties de revendas",
+    "royaltiesSub": "Cada revenda dos seus itens neste período e os royalties que ela te pagou",
+    "royaltiesLoading": "Carregando revendas…",
+    "royaltiesError": "Não foi possível carregar as revendas agora. Tente de novo em instantes.",
+    "royaltiesNone": "Nenhum dos seus itens foi revendido neste período.",
+    "colResoldFor": "Revendido por",
+    "colRoyalty": "Seus royalties",
+    "royaltiesCount": "{count, plural, one {# revenda} other {# revendas}}"
   },
   "myAssets": {
     "signInTitle": "Entre para ver seus itens",
@@ -844,13 +913,10 @@
     "suggested": {
       "title": "Sugestões para você",
       "reason": {
-        "coOwned": "Porque você tem {item}",
-        "generic": "Escolhido para você",
-        "creatorAffinity": "Mais de um criador que você coleciona",
-        "favoriteSimilar": "Parecido com seus favoritos",
-        "equippedSimilar": "Combina com o que você está usando",
-        "seedSimilar": "Parecido com itens que você viu",
-        "trending": "Em alta"
+        "owned": "Com base nos itens que você tem",
+        "favorites": "Com base nos seus favoritos",
+        "creator": "Porque você gosta deste criador",
+        "activity": "Com base na sua atividade"
       }
     }
   },
@@ -1453,5 +1519,25 @@
   "removeListing": {
     "title": "Tirar da venda?",
     "body": "“{name}” não vai mais estar disponível na Loja. Você pode colocá-lo à venda de novo quando quiser."
+  },
+  "reward": {
+    "title": "Recompense seus principais donos",
+    "subtitle": "Envie uma nova cópia de um item para cada uma das pessoas que têm mais obras suas.",
+    "howMany": "Quantos",
+    "topN": "Top {count}",
+    "rankedBy": "Classificado por",
+    "ranking": {
+      "nfts": "Mais itens",
+      "spent": "Maior gasto",
+      "recent": "Mais recentes"
+    },
+    "item": "Item a enviar",
+    "itemLeft": "{collection} · restam {left}",
+    "noItems": "Nenhum dos seus itens tem cópias disponíveis para enviar.",
+    "recipients": "{count, plural, one {# destinatário} other {# destinatários}}",
+    "heldLine": "· tem {count}",
+    "stock": "Isto emite {count, plural, one {# nova cópia} other {# novas cópias}} de “{name}”, das {left} restantes.",
+    "notEnough": "“{name}” tem apenas {left} restantes. Escolha menos pessoas ou outro item.",
+    "continue": "Continuar"
   }
 }
