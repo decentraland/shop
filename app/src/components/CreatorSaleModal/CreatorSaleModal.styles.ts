@@ -262,7 +262,7 @@ export const Chip = styled.button`
 export const InlineInput = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   width: fit-content;
   height: 44px;
   padding: 0 12px;
@@ -281,7 +281,7 @@ export const InlineInput = styled.span`
   }
 
   input {
-    width: 48px;
+    width: 3ch;
     border: 0;
     outline: none;
     background: transparent;
@@ -588,6 +588,8 @@ export const Morph = styled.div`
 
 /** Morph's sibling for a field with no chip to swap with — a checkbox opens it in place instead. */
 export const Reveal = styled.div`
+  /* Its own width, not what the label beside it leaves over: shrunk by the row it clipped its own field. */
+  flex: none;
   display: inline-grid;
   grid-template-columns: 0fr;
   transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
