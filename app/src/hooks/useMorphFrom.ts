@@ -66,16 +66,8 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       )
     )
     opening.current = [grow, lift, ...fades]
-    // Mostly clipped away while it grows, so a press there would fall through to the page behind it.
-    el.style.pointerEvents = 'none'
-    grow.onfinish = () => {
-      el.style.pointerEvents = ''
-    }
     // A rerun measures the panel's resting box, which a still-running grow would have shifted.
-    return () => {
-      el.style.pointerEvents = ''
-      ;[grow, lift, ...fades].forEach(animation => animation.cancel())
-    }
+    return () => [grow, lift, ...fades].forEach(animation => animation.cancel())
   }, [panel, triggerSelector])
 
   // Unmounted some other way mid-fold: drop the fold without running its callback a second time.
@@ -97,7 +89,13 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       if (leaving.current) return
       if (!el || !trigger || typeof el.animate !== 'function' || reducedMotion()) return then()
       leaving.current = true
-      el.style.pointerEvents = 'none'
+      // Swallowed rather than let through, so a second tap on the folding panel never reaches the page under it.
+      const swallow = (event: Event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+      el.addEventListener('pointerdown', swallow, true)
+      el.addEventListener('click', swallow, true)
       // Closed before it finished opening: fold from where it is now, measured against the resting box.
       const now = getComputedStyle(el)
       const from: Keyframe = { transform: now.transform, clipPath: now.clipPath, boxShadow: now.boxShadow }

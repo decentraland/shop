@@ -174,9 +174,6 @@ describe('when a creator opens their store', () => {
     await page.$eval('[data-testid="store-range-picker"]', el =>
       Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished))
     )
-    await page.waitForFunction(
-      () => (document.querySelector('[data-testid="store-range-picker"]') as HTMLElement).style.pointerEvents === ''
-    )
     await page.click('[data-testid="store-period-7d"]')
     await page.waitForFunction(() => !document.querySelector('[data-testid="store-range-picker"]'))
     expect(await text(app, 'store-period-trigger')).toBe('Last 7 days')

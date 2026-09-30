@@ -111,7 +111,13 @@ function stubAnimate() {
   const running: { onfinish: (() => void) | null; cancel: () => void }[] = []
   const original = HTMLElement.prototype.animate
   HTMLElement.prototype.animate = function () {
-    const animation = { onfinish: null as (() => void) | null, cancel: vi.fn() }
+    // Cancelled animations leave the list, as a browser fires `cancel` for them and never `finish`.
+    const animation = {
+      onfinish: null as (() => void) | null,
+      cancel: () => {
+        running.splice(running.indexOf(animation), 1)
+      }
+    }
     running.push(animation)
     return animation as unknown as Animation
   }
@@ -252,14 +258,23 @@ describe('when the picker animates and the viewer is fine with motion', () => {
     expect(onApply).toHaveBeenCalledTimes(1)
   })
 
-  it('should ignore presses while it grows, and take them once it has', async () => {
+  it('should swallow a second press on the panel while it folds', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    const onPick = vi.fn()
+    const outside = vi.fn()
+    render(<Harness onPick={onPick} />)
+    document.addEventListener('click', outside)
     await user.click(screen.getByRole('button', { name: 'Period' }))
-    expect(picker()?.style.pointerEvents).toBe('none')
+    animations.finishAll()
+    await user.click(screen.getByTestId('store-period-7d'))
+    outside.mockClear()
+    await user.click(screen.getByTestId('store-period-30d'))
+    expect(outside).not.toHaveBeenCalled()
 
     animations.finishAll()
-    expect(picker()?.style.pointerEvents).toBe('')
+    document.removeEventListener('click', outside)
+    expect(onPick).toHaveBeenCalledTimes(1)
+    expect(onPick).toHaveBeenCalledWith('7d')
   })
 
   it('should close mid-grow', async () => {

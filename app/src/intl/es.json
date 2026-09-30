@@ -628,6 +628,7 @@
     "summary": "{collections, plural, one {# colección} other {# colecciones}} · {items, plural, one {# ítem} other {# ítems}}",
     "period": "Período",
     "periodTrigger": "Período: {period}",
+    "periodPresets": "Rangos rápidos",
     "period7d": "Últimos 7 días",
     "period30d": "Últimos 30 días",
     "periodall": "Todo",
