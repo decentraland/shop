@@ -252,6 +252,10 @@ export const PerfHead = styled.div`
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+
+  ${theme.media.maxWidth('sm')} {
+    position: relative;
+  }
 `
 
 export const PerfTitle = styled.h2`
@@ -261,22 +265,6 @@ export const PerfTitle = styled.h2`
   font-weight: 700;
   line-height: 1.2;
   color: ${theme.colors.white};
-`
-
-export const Periods = styled.div`
-  display: flex;
-  gap: 4px;
-  max-width: 100%;
-  padding: 4px;
-  border-radius: ${theme.radius.pill};
-  background: rgba(0, 0, 0, 0.22);
-  /* Six presets outgrow a phone: the row scrolls rather than wrapping into a second pill. */
-  overflow-x: auto;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 `
 
 export const PerfControls = styled.div`
@@ -322,10 +310,72 @@ export const Dollar = styled.span`
   opacity: 0.8;
 `
 
-/** Anchors the range picker under the period row, outside its scroller so the popup is not clipped. */
+/** Anchors the range picker under its trigger. */
 export const PeriodsWrap = styled.div`
   position: relative;
+  min-width: 0;
   max-width: 100%;
+
+  /* On a phone the calendar spans the whole header rather than hanging off the trigger. */
+  ${theme.media.maxWidth('sm')} {
+    position: static;
+
+    [data-testid='store-range-picker'] {
+      left: 0;
+      right: 0;
+    }
+  }
+`
+
+export const RangeTrigger = styled.button`
+  /* Above the picker, which slides out from behind it. */
+  position: relative;
+  z-index: 41;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 14px;
+  border: 0;
+  border-radius: ${theme.radius.pill};
+  background: rgba(0, 0, 0, 0.22);
+  color: ${theme.colors.softWhite};
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  span:not(.ico) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ico {
+    transition: transform 0.2s ease;
+  }
+  .ico[data-open] {
+    transform: rotate(180deg);
+  }
+  &:hover {
+    background: rgba(0, 0, 0, 0.32);
+  }
+  /* Opaque while open: the picker slides out from behind it, and a see-through trigger would show it there. */
+  &[aria-expanded='true'] {
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ico {
+      transition: none;
+    }
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
 `
 
 export const Period = styled.button`

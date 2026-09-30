@@ -60,6 +60,65 @@ export const Root = styled.div`
   }
 `
 
+export const Body = styled.div`
+  display: flex;
+
+  ${theme.media.maxWidth('sm')} {
+    flex-direction: column;
+  }
+`
+
+export const Presets = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  min-width: 132px;
+  padding: 10px 8px;
+  border-right: 1px solid rgba(22, 21, 24, 0.1);
+
+  ${theme.media.maxWidth('sm')} {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid rgba(22, 21, 24, 0.1);
+  }
+`
+
+export const Preset = styled.button`
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: ${theme.colors.accent};
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(105, 31, 169, 0.08);
+  }
+  &[aria-pressed='true'] {
+    background: ${theme.colors.accent};
+    color: ${theme.colors.white};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
+
+  ${theme.media.maxWidth('sm')} {
+    border: 1px solid rgba(105, 31, 169, 0.24);
+    border-radius: ${theme.radius.pill};
+  }
+`
+
 export const Foot = styled.div`
   display: flex;
   align-items: center;

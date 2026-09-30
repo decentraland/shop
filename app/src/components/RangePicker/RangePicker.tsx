@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import { useMorphFrom } from '~/hooks/useMorphFrom'
 import { activeLocale, t } from '~/intl/i18n'
 import { breakpoints } from '~/styles/theme'
 import * as S from './RangePicker.styles'
@@ -38,12 +39,15 @@ export function RangePicker({
   from,
   to,
   max,
+  presets,
   onApply,
   onClose
 }: {
   from: number | undefined
   to: number | undefined
   max: number
+  /** Ready-made ranges listed beside the calendar; picking one applies it straight away. */
+  presets?: { key: string; label: string; active: boolean; onPick: () => void }[]
   onApply: (from: number, to: number) => void
   onClose: () => void
 }) {
@@ -51,17 +55,17 @@ export function RangePicker({
   const [end, setEnd] = useState<Date | null>(to != null ? new Date(to) : null)
   const ref = useRef<HTMLDivElement>(null)
   const wide = useWide()
+  const leave = useMorphFrom(ref, '[data-range-trigger]')
+  const close = useCallback(() => leave(onClose), [leave, onClose])
 
   useEffect(() => {
     function onPointer(event: PointerEvent) {
       const target = event.target as Node
       if (ref.current?.contains(target)) return
-      // The trigger toggles the picker itself; closing here as well would reopen it on the same click.
-      if ((target as Element).closest?.('[data-range-trigger]')) return
-      onClose()
+      close()
     }
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') close()
       if (event.key !== 'Tab' || !ref.current) return
       // Keeps Tab inside the dialog while it is open, wrapping at either end.
       const focusable = [...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"]')]
@@ -82,7 +86,7 @@ export function RangePicker({
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [close])
 
   // Focus goes in on open and back to the trigger on every way out, so a keyboard user is never left behind.
   useEffect(() => {
@@ -111,32 +115,49 @@ export function RangePicker({
       tabIndex={-1}
       data-testid="store-range-picker"
     >
-      <DatePicker
-        inline
-        selectsRange
-        startDate={start}
-        endDate={end}
-        onChange={([nextStart, nextEnd]) => {
-          setStart(nextStart)
-          setEnd(nextEnd)
-        }}
-        maxDate={new Date(max)}
-        minDate={EARLIEST}
-        monthsShown={wide ? 2 : 1}
-        openToDate={openOn(end ?? start ?? new Date(max), wide)}
-        calendarStartDay={1}
-      />
+      <S.Body>
+        {presets?.length ? (
+          <S.Presets role="group" aria-label={t('myStore.period')}>
+            {presets.map(preset => (
+              <S.Preset
+                key={preset.key}
+                type="button"
+                aria-pressed={preset.active}
+                onClick={() => leave(preset.onPick)}
+                data-testid={`store-period-${preset.key}`}
+              >
+                {preset.label}
+              </S.Preset>
+            ))}
+          </S.Presets>
+        ) : null}
+        <DatePicker
+          inline
+          selectsRange
+          startDate={start}
+          endDate={end}
+          onChange={([nextStart, nextEnd]) => {
+            setStart(nextStart)
+            setEnd(nextEnd)
+          }}
+          maxDate={new Date(max)}
+          minDate={EARLIEST}
+          monthsShown={wide ? 2 : 1}
+          openToDate={openOn(end ?? start ?? new Date(max), wide)}
+          calendarStartDay={1}
+        />
+      </S.Body>
       <S.Foot>
         <span data-testid="store-range-summary">{summary}</span>
         <S.Actions>
-          <S.Btn type="button" onClick={onClose}>
+          <S.Btn type="button" onClick={close}>
             {t('myStore.rangeCancel')}
           </S.Btn>
           <S.Btn
             type="button"
             data-variant="primary"
             disabled={!start || !end}
-            onClick={() => start && end && onApply(start.getTime(), end.getTime())}
+            onClick={() => start && end && leave(() => onApply(start.getTime(), end.getTime()))}
             data-testid="store-range-apply"
           >
             {t('myStore.rangeApply')}

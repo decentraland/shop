@@ -1348,40 +1348,40 @@ export function MyStore() {
                   ))}
                 </S.CurrencySwitch>
                 <S.PeriodsWrap>
-                  <S.Periods role="group" aria-label={t('myStore.period')}>
-                    {RANGE_KEYS.map(key => (
-                      <S.Period
-                        key={key}
-                        type="button"
-                        aria-pressed={period === key}
-                        {...(key === 'custom'
-                          ? { 'aria-expanded': rangeOpen, 'aria-haspopup': 'dialog' as const, 'data-range-trigger': '' }
-                          : {})}
-                        onClick={() => {
-                          // Custom opens the calendar; the range only changes once one is applied in it.
-                          if (key === 'custom') {
-                            setRangeOpen(open => !open)
-                            return
-                          }
-                          if (key !== period)
-                            trackStore('Shop Changed Store Period', { period: key, previous_period: period })
-                          setRange({ key })
-                          setRangeOpen(false)
-                          setPage(0)
-                        }}
-                        data-testid={`store-period-${key}`}
-                      >
-                        {key === 'custom' && period === 'custom' && resolved.from != null
-                          ? rangeLabel(resolved.from, resolved.to)
-                          : t(`myStore.period${key}`)}
-                      </S.Period>
-                    ))}
-                  </S.Periods>
+                  <S.RangeTrigger
+                    type="button"
+                    aria-expanded={rangeOpen}
+                    aria-haspopup="dialog"
+                    data-range-trigger=""
+                    // Opening only: a press while open is an outside press to the picker, which folds itself away.
+                    onClick={() => setRangeOpen(true)}
+                    data-testid="store-period-trigger"
+                  >
+                    <Icon name="calendar" size={16} aria-hidden />
+                    <span>
+                      {period === 'custom' && resolved.from != null
+                        ? rangeLabel(resolved.from, resolved.to)
+                        : t(`myStore.period${period}`)}
+                    </span>
+                    <Icon name="chevron-down" size={16} aria-hidden data-open={rangeOpen ? '' : undefined} />
+                  </S.RangeTrigger>
                   {rangeOpen ? (
                     <RangePicker
                       from={resolved.from ?? resolved.to - 29 * 86_400_000}
                       to={resolved.to}
                       max={Date.now()}
+                      presets={RANGE_KEYS.filter(key => key !== 'custom').map(key => ({
+                        key,
+                        label: t(`myStore.period${key}`),
+                        active: period === key,
+                        onPick: () => {
+                          if (key !== period)
+                            trackStore('Shop Changed Store Period', { period: key, previous_period: period })
+                          setRange({ key })
+                          setRangeOpen(false)
+                          setPage(0)
+                        }
+                      }))}
                       onClose={closeRange}
                       onApply={(from, to) => {
                         trackStore('Shop Changed Store Period', {
