@@ -473,7 +473,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     })
   }
   // Images / builder content.
-  // Photos of people wearing an item (camera reel). Two shots, one of them a crowd, so a spec can see
+  // Photos of people wearing an item (camera reel). Two shots, one of them a group, so a spec can see
   // the rail rank them; the images themselves resolve through the image branch above.
   const wearableImages = u.hostname.includes('camera-reel') && /^\/api\/wearables\/([^/]+)\/images$/.exec(path)
   if (wearableImages) {
@@ -499,7 +499,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         }))
       }
     })
-    return json(req, { images: [photo('aa', 9), photo('bb', 1)], maxImages: 2 })
+    return json(req, { images: [photo('aa', 4), photo('bb', 1)], maxImages: 2 })
   }
 
   if (path.includes('/contents/') || /\.(png|jpe?g|gif|svg|webp|ico)$/.test(path)) {

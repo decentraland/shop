@@ -139,14 +139,24 @@ describe('when reading the photos of an item', () => {
 })
 
 describe('when ranking the photos of an item', () => {
-  it('should put the emptiest shots first, because a crowd says nothing about the item', () => {
+  it('should put the emptiest shots first, because the fewer people the easier the item is to see', () => {
     const ranked = rankReelPhotos([
-      photo({ id: 'crowd', people: 12, userAddress: '0x1', place: 'a' }),
+      photo({ id: 'group', people: 4, userAddress: '0x1', place: 'a' }),
       photo({ id: 'solo', people: 1, userAddress: '0x2', place: 'b' }),
       photo({ id: 'pair', people: 2, userAddress: '0x3', place: 'c' })
     ])
 
-    expect(ranked.map(p => p.id)).toEqual(['solo', 'pair', 'crowd'])
+    expect(ranked.map(p => p.id)).toEqual(['solo', 'pair', 'group'])
+  })
+
+  it('should leave crowds out, where the item is a speck', () => {
+    const ranked = rankReelPhotos([
+      photo({ id: 'five', people: 5, userAddress: '0x1', place: 'a' }),
+      photo({ id: 'six', people: 6, userAddress: '0x2', place: 'b' }),
+      photo({ id: 'party', people: 32, userAddress: '0x3', place: 'c' })
+    ])
+
+    expect(ranked.map(p => p.id)).toEqual(['five'])
   })
 
   it('should prefer the newest of two equally empty shots', () => {

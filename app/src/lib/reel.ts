@@ -42,11 +42,17 @@ export function reelKey(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>): 
  *
  * The service answers newest first, and newest is not best: on a popular item most recent photos are
  * event crowds where the item cannot be seen at all (measured: 22 of the newest 100 have three people
- * or fewer). So a page is read and ranked here, and the rest is thrown away. 50 is where the payload
- * stops being free — around 50KB over the wire, gzipped — and it is enough to rank from.
+ * or fewer). So the largest page the service serves (100, about 75KB over the wire) is read and
+ * ranked here, and the rest is thrown away.
  */
-const PAGE = 50
+const PAGE = 100
 const SHOWN = 10
+
+/**
+ * Above this many people in the shot the item is a speck in a crowd, so the photo is not shown at all.
+ * An item with only crowd shots then has no strip, which reads better than a strip of crowds.
+ */
+const MAX_PEOPLE = 5
 
 /** At most this many photos by the same person, or in the same place, so the strip is not one scene. */
 const PER_AUTHOR = 2
@@ -111,7 +117,7 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
 }
 
 /**
- * Fewest people first, then most recent, with a cap per person and per place.
+ * Fewest people first, then most recent, with a cap per person and per place. Crowds are left out.
  *
  * The caps are what keep the strip from opening with the same scene four times: a popular spot is
  * photographed by several people on the same night, and those shots are near-identical.
@@ -124,7 +130,9 @@ export function rankReelPhotos(photos: ReelPhoto[], limit = SHOWN): ReelPhoto[] 
   const seen = new Set<string>()
   const ranked: ReelPhoto[] = []
 
-  const ordered = [...photos].sort((a, b) => a.people - b.people || Number(b.dateTime) - Number(a.dateTime))
+  const ordered = [...photos]
+    .filter(photo => photo.people <= MAX_PEOPLE)
+    .sort((a, b) => a.people - b.people || Number(b.dateTime) - Number(a.dateTime))
 
   for (const photo of ordered) {
     const author = photo.userAddress.toLowerCase()
