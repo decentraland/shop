@@ -17,6 +17,16 @@ export const Root = styled.div`
 
   ${calendarPopup}
 
+  &[data-inline] {
+    position: relative;
+    top: auto;
+    right: auto;
+    z-index: 1;
+    max-width: 100%;
+    margin-top: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  }
+
   .react-datepicker {
     border: 0;
     box-shadow: none;

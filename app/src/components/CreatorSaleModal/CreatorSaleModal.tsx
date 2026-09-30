@@ -19,11 +19,7 @@ import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
 import { formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
-import { Global } from '@emotion/react'
-import DatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
-import { t, tNode } from '~/intl/i18n'
-import { heatFor } from '~/styles/theme'
+import { activeLocale, t, tNode } from '~/intl/i18n'
 import { formatCredits } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import manaSymbol from '~/assets/mana-matic.svg'
@@ -33,6 +29,8 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { Chevron } from '~/components/Chevron'
+import { SaleTag } from '~/components/SaleTag'
+import { RangePicker, type RangePickerHandle } from '~/components/RangePicker'
 import type { SaleableCollection } from '~/lib/saleableCollections'
 import * as S from './CreatorSaleModal.styles'
 
@@ -55,41 +53,52 @@ function salePriceOf(price: number, pct: number): number {
 const PCT_PRESETS = [10, 20, 30, 50]
 const DURATION_PRESETS = [
   { key: '24h', hours: 24 },
-  { key: '48h', hours: 48 },
-  { key: '72h', hours: 72 },
-  { key: '7d', hours: 168 }
+  { key: '3d', hours: 72 },
+  { key: '7d', hours: 168 },
+  { key: '14d', hours: 336 }
 ] as const
-type DurationKey = (typeof DURATION_PRESETS)[number]['key'] | 'custom'
 const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+/** The longest a sale can run, so the calendar never offers a day the terms would then refuse. */
+const MAX_DAYS = 30
+const WHEN_TRIGGER = '[data-sale-when-trigger]'
+/** How many of the collection's items the buyer's-eye preview shows. */
+const PREVIEW_ITEMS = 3
+
+/** When the sale runs: a length from now, or two calendar days picked on the Shop's calendar. */
+type When =
+  | { kind: 'preset'; key: (typeof DURATION_PRESETS)[number]['key']; hours: number }
+  | { kind: 'range'; from: number; to: number }
 
 /** Where the create-a-discount flow was opened from — the one prop every event in the funnel carries. */
 export type SaleSource = 'my_store' | 'my_assets'
 
-// <input type="datetime-local"> speaks local wall-clock time without a zone; these convert to and from epoch ms.
-function toLocalInput(ms: number): string {
+function startOfDay(ms: number): number {
   const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
 }
-/**
- * The picker speaks Date, the terms speak the `datetime-local` string the rest of this file already uses.
- * Converting at the boundary keeps the change to the control itself.
- */
-function asDate(value: string): Date | null {
-  const ms = fromLocalInput(value)
-  return ms === undefined ? null : new Date(ms)
+
+function endOfDay(ms: number): number {
+  const d = new Date(ms)
+  d.setHours(23, 59, 59, 999)
+  return d.getTime()
 }
 
 /**
- * The calendar renders into a node of its own at body level. Inside the card it was clipped: the card
- * scrolls (`overflow-y: auto`), and a popup anchored inside a scrolling box is cut off by it.
+ * The window the terms carry. A range starting today starts now, not at a midnight already gone; one starting
+ * later starts at its first day's midnight, and every range runs to the end of its last day.
  */
-const CALENDAR_PORTAL = 'creator-sale-calendar'
+function windowOf(when: When, now: number): { startsAtMs: number | undefined; endsAtMs: number } {
+  if (when.kind === 'preset') return { startsAtMs: undefined, endsAtMs: now + when.hours * HOUR_MS }
+  const start = startOfDay(when.from)
+  return { startsAtMs: start > now ? start : undefined, endsAtMs: endOfDay(when.to) }
+}
 
-function fromLocalInput(value: string): number | undefined {
-  if (!value) return undefined
-  const ms = new Date(value).getTime()
-  return Number.isNaN(ms) ? undefined : ms
+function durationLabel(hours: number): string {
+  return hours % 24 === 0 && hours >= 48
+    ? t('creatorSale.durationDays', { count: hours / 24 })
+    : t('creatorSale.durationHours', { count: hours })
 }
 
 function problemCopy(problem: SaleInputProblem): string {
@@ -105,17 +114,6 @@ function problemCopy(problem: SaleInputProblem): string {
     default:
       return t('creatorSale.errorWindow')
   }
-}
-
-/**
- * Compact on purpose — "24h", "3d". Five controls share this row, and the date field the last one opens
- * needs ~187px of it; spelled-out labels left nine pixels of slack, which CI's wider glyphs turned into a
- * wrapped row and a modal that changed height. It is also the shorthand the Shop's own countdowns speak.
- */
-function durationLabel(hours: number): string {
-  return hours % 24 === 0 && hours >= 24 * 2
-    ? t('creatorSale.days', { count: hours / 24 })
-    : t('creatorSale.hours', { count: hours })
 }
 
 /**
@@ -178,10 +176,9 @@ export function CreatorSaleModal({
   )
   const [pctPreset, setPctPreset] = useState<number | 'custom'>(20)
   const [customPct, setCustomPct] = useState('15')
-  const [duration, setDuration] = useState<DurationKey>('72h')
-  const [customEnd, setCustomEnd] = useState(() => toLocalInput(Date.now() + 7 * 24 * HOUR_MS))
-  const [startMode, setStartMode] = useState<'now' | 'later'>('now')
-  const [startAt, setStartAt] = useState(() => toLocalInput(Date.now() + 24 * HOUR_MS))
+  const [when, setWhen] = useState<When>({ kind: 'preset', key: '3d', hours: 72 })
+  const [whenOpen, setWhenOpen] = useState(false)
+  const whenPicker = useRef<RangePickerHandle>(null)
   const [capOn, setCapOn] = useState(false)
   const [cap, setCap] = useState('50')
   const [touched, setTouched] = useState(false)
@@ -201,11 +198,9 @@ export function CreatorSaleModal({
   // message agree. `now` is taken per render: a "72 hours" sale is measured from the click, not from mount.
   const terms = useMemo(() => {
     const now = Date.now()
-    const startsAtMs = startMode === 'later' ? fromLocalInput(startAt) : undefined
-    const preset = DURATION_PRESETS.find(d => d.key === duration)
-    const endsAtMs = preset ? (startsAtMs ?? now) + preset.hours * HOUR_MS : fromLocalInput(customEnd)
+    const { startsAtMs, endsAtMs } = windowOf(when, now)
     const uses = capOn ? Number(cap) : undefined
-    const candidate = { collections: selected, discountPct: pct, startsAtMs, endsAtMs: endsAtMs ?? 0, uses }
+    const candidate = { collections: selected, discountPct: pct, startsAtMs, endsAtMs, uses }
     let problem: SaleInputProblem | null = null
     try {
       validateSaleTerms(candidate, now)
@@ -213,7 +208,7 @@ export function CreatorSaleModal({
       problem = e instanceof SaleInputError ? e.problem : 'window'
     }
     return { ...candidate, problem }
-  }, [selected, pct, duration, customEnd, startMode, startAt, capOn, cap])
+  }, [selected, pct, when, capOn, cap])
 
   /**
    * Opening the flow is the top of the funnel. Guarded by a ref rather than an empty dependency list so it
@@ -247,10 +242,15 @@ export function CreatorSaleModal({
     leave('closed')
   }
 
-  const example = useMemo(() => {
-    const price = current.examplePriceCredits ?? 100
-    return { price, sale: salePriceOf(price, pct) }
-  }, [current, pct])
+  // What a buyer will see: the collection's priciest listed items, where the cut reads clearest.
+  const previewItems = useMemo(
+    () =>
+      current.items
+        .filter(i => i.state === 'discounted' && i.priceCredits != null)
+        .sort((a, b) => (b.priceCredits as number) - (a.priceCredits as number))
+        .slice(0, PREVIEW_ITEMS),
+    [current]
+  )
 
   /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
   const review = useMemo(() => {
@@ -361,8 +361,12 @@ export function CreatorSaleModal({
             </S.SuccessDetail>
           </S.SuccessBanner>
           <S.Actions>
-            <S.OutlineBtn onClick={onClose}>{t('creatorSale.done')}</S.OutlineBtn>
-            <S.PurpleBtn onClick={viewStore}>{t('creatorSale.viewStore')}</S.PurpleBtn>
+            <S.ActionBtn variant="white" onClick={onClose}>
+              {t('creatorSale.done')}
+            </S.ActionBtn>
+            <S.ActionBtn variant="purple" onClick={viewStore}>
+              {t('creatorSale.viewStore')}
+            </S.ActionBtn>
           </S.Actions>
         </S.Card>
       </S.Scrim>
@@ -421,8 +425,8 @@ export function CreatorSaleModal({
           <S.ReviewSummary>
             <S.ReviewWhenRow data-testid="creator-sale-review-discount">
               <S.ReviewWhenLabel>{t('creatorSale.discount')}</S.ReviewWhenLabel>
-              <S.ReviewPct data-heat={heatFor(pct)} data-testid="creator-sale-review-pct">
-                {t('creatorSale.offPct', { pct })}
+              <S.ReviewPct>
+                <SaleTag pct={pct} testId="creator-sale-review-pct" />
               </S.ReviewPct>
             </S.ReviewWhenRow>
             <S.ReviewWhenRow data-testid="creator-sale-review-starts">
@@ -451,7 +455,7 @@ export function CreatorSaleModal({
                       <CurrencyIcon size={14} />
                       {formatCredits(i.priceCredits as number)}
                     </S.ReviewWas>
-                    <S.ReviewNow data-heat={heatFor(pct)} data-testid="review-now">
+                    <S.ReviewNow data-testid="review-now">
                       <CurrencyIcon size={16} />
                       {formatCredits(salePriceOf(i.priceCredits as number, pct))}
                     </S.ReviewNow>
@@ -517,7 +521,8 @@ export function CreatorSaleModal({
           <ErrorNotice message={error} testId="creator-sale-error" />
 
           <S.Actions>
-            <S.OutlineBtn
+            <S.ActionBtn
+              variant="white"
               onClick={() => {
                 // A rejected signature left its notice on screen when the creator came back to change
                 // something — the message then belonged to an attempt that no longer exists.
@@ -529,10 +534,17 @@ export function CreatorSaleModal({
               data-testid="creator-sale-back"
             >
               {t('creatorSale.back')}
-            </S.OutlineBtn>
-            <S.PurpleBtn data-testid="creator-sale-submit" onClick={() => void submit()} disabled={busy}>
-              {busy ? status : startMode === 'later' ? t('creatorSale.submitScheduled') : t('creatorSale.submit')}
-            </S.PurpleBtn>
+            </S.ActionBtn>
+            <S.ActionBtn variant="red" data-testid="creator-sale-submit" onClick={() => void submit()} disabled={busy}>
+              {busy ? (
+                status
+              ) : (
+                <>
+                  <span aria-hidden>🔥</span>
+                  {terms.startsAtMs ? t('creatorSale.submitScheduled') : t('creatorSale.submit')}
+                </>
+              )}
+            </S.ActionBtn>
           </S.Actions>
         </S.Card>
       </S.Scrim>
@@ -540,10 +552,12 @@ export function CreatorSaleModal({
   }
 
   const inlineProblem = touched && terms.problem ? problemCopy(terms.problem) : null
-  // Which chip is currently standing in for its input.
   const customPctOpen = pctPreset === 'custom'
-  const customEndOpen = duration === 'custom'
-  const startLaterOpen = startMode === 'later'
+  const dateFormat = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric' })
+  const whenLabel =
+    when.kind === 'preset'
+      ? t('creatorSale.whenNow', { duration: durationLabel(when.hours) })
+      : t('creatorSale.whenRange', { from: dateFormat.format(when.from), to: dateFormat.format(when.to) })
 
   /**
    * Which collection, when the modal was opened from the discounts panel rather than from a collection.
@@ -622,15 +636,18 @@ export function CreatorSaleModal({
             {tNode('creatorSale.blockedBody', { c: marked, m: manaMarked, count: review.classic.length })}
           </S.Subtitle>
           <S.Actions>
-            <S.OutlineBtn onClick={onClose}>{t('creatorSale.cancel')}</S.OutlineBtn>
-            <S.PurpleBtn
+            <S.ActionBtn variant="white" onClick={onClose}>
+              {t('creatorSale.cancel')}
+            </S.ActionBtn>
+            <S.ActionBtn
+              variant="red"
               onClick={() => {
                 leave('update_prices')
                 navigate('/activity?section=listings')
               }}
             >
               {t('creatorSale.blockedCta')}
-            </S.PurpleBtn>
+            </S.ActionBtn>
           </S.Actions>
         </S.Card>
       </S.Scrim>
@@ -639,8 +656,6 @@ export function CreatorSaleModal({
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
-      {/* The calendar renders outside this tree, so its theme cannot be scoped by a generated class. */}
-      <Global styles={S.calendarPortalStyles} />
       <S.Card
         data-testid="creator-sale-modal"
         onClick={e => e.stopPropagation()}
@@ -659,22 +674,15 @@ export function CreatorSaleModal({
 
         {/* Read-only: the sale is scoped to the collection the creator opened it from, so this states the
             context rather than offering a choice. */}
-        <S.Field>
-          <S.FieldLabel>{t('creatorSale.collection')}</S.FieldLabel>
-          <S.CollectionList data-testid="creator-sale-collections">
-            <S.CollectionRow data-selected data-readonly>
-              {/* A collection has no image of its own, so it is shown the way the rest of the Shop shows
-                  one: a mosaic of its first items, each over its rarity gradient. */}
-              <S.RowThumb>
-                <CollectionThumb contractAddress={current.contractAddress} />
-              </S.RowThumb>
-              <S.RowInfo>
-                <S.RowName>{current.name}</S.RowName>
-                <S.RowMeta>{t('creatorSale.collectionListed', { count: current.listedCount })}</S.RowMeta>
-              </S.RowInfo>
-            </S.CollectionRow>
-          </S.CollectionList>
-        </S.Field>
+        <S.CollectionRow data-testid="creator-sale-collections">
+          <S.RowThumb>
+            <CollectionThumb contractAddress={current.contractAddress} />
+          </S.RowThumb>
+          <S.RowInfo>
+            <S.RowName>{current.name}</S.RowName>
+            <S.RowMeta>{t('creatorSale.collectionListed', { count: current.listedCount })}</S.RowMeta>
+          </S.RowInfo>
+        </S.CollectionRow>
 
         <S.Field>
           <S.FieldLabel>{t('creatorSale.discount')}</S.FieldLabel>
@@ -683,16 +691,17 @@ export function CreatorSaleModal({
               <S.Chip
                 key={p}
                 type="button"
-                data-heat={heatFor(p)}
                 data-selected={pctPreset === p || undefined}
                 aria-pressed={pctPreset === p}
+                aria-label={t('creatorSale.offPct', { pct: p })}
                 disabled={busy}
                 onClick={() => {
                   setTouched(true)
                   setPctPreset(p)
                 }}
+                data-testid={`creator-sale-pct-${p}`}
               >
-                {t('creatorSale.offPct', { pct: p })}
+                <SaleTag pct={p} />
               </S.Chip>
             ))}
             <MorphField
@@ -712,10 +721,8 @@ export function CreatorSaleModal({
                 </S.Chip>
               }
               field={
-                <S.InlineInput
-                  data-heat={heatFor(pct)}
-                  aria-invalid={touched && terms.problem === 'pct' ? true : undefined}
-                >
+                <S.InlineInput aria-invalid={touched && terms.problem === 'pct' ? true : undefined}>
+                  <span aria-hidden>🔥 -</span>
                   <input
                     type="number"
                     min={MIN_SALE_PCT}
@@ -739,166 +746,134 @@ export function CreatorSaleModal({
         </S.Field>
 
         <S.Field>
-          <S.FieldLabel>{t('creatorSale.duration')}</S.FieldLabel>
-          <S.Chips role="group" aria-label={t('creatorSale.duration')} data-testid="creator-sale-durations">
-            {DURATION_PRESETS.map(d => (
-              <S.Chip
-                key={d.key}
-                type="button"
-                data-selected={duration === d.key || undefined}
-                aria-pressed={duration === d.key}
-                disabled={busy}
-                onClick={() => {
-                  setTouched(true)
-                  setDuration(d.key)
-                }}
-              >
-                {durationLabel(d.hours)}
-              </S.Chip>
-            ))}
-            <MorphField
-              id="creator-sale-custom-end"
-              open={customEndOpen}
-              chip={
-                <S.Chip
-                  type="button"
-                  tabIndex={customEndOpen ? -1 : undefined}
-                  disabled={busy}
-                  onClick={() => {
-                    setTouched(true)
-                    setDuration('custom')
-                  }}
-                >
-                  {t('creatorSale.customEnd')}
-                </S.Chip>
-              }
-              field={
-                <S.DateField>
-                  <DatePicker
-                    selected={asDate(customEnd)}
-                    onChange={date => {
-                      setTouched(true)
-                      setCustomEnd(date ? toLocalInput(date.getTime()) : '')
-                    }}
-                    minDate={new Date()}
-                    showTimeSelect
-                    timeIntervals={30}
-                    dateFormat="Pp"
-                    disabled={busy}
-                    tabIndex={customEndOpen ? undefined : -1}
-                    showPopperArrow={false}
-                    portalId={CALENDAR_PORTAL}
-                    placeholderText={t('creatorSale.endLabel')}
-                    aria-label={t('creatorSale.endLabel')}
-                  />
-                </S.DateField>
-              }
-            />
-          </S.Chips>
-        </S.Field>
-
-        <S.Field>
-          <S.FieldLabel>{t('creatorSale.start')}</S.FieldLabel>
-          <S.Chips role="group" aria-label={t('creatorSale.start')}>
-            <S.Chip
+          <S.FieldLabel>{t('creatorSale.when')}</S.FieldLabel>
+          <S.WhenWrap>
+            <S.WhenTrigger
               type="button"
-              data-selected={startMode === 'now' || undefined}
-              aria-pressed={startMode === 'now'}
+              aria-expanded={whenOpen}
+              aria-haspopup="dialog"
+              aria-label={`${t('creatorSale.when')}: ${whenLabel}`}
+              data-sale-when-trigger=""
               disabled={busy}
-              onClick={() => setStartMode('now')}
+              onClick={() => (whenOpen ? whenPicker.current?.close() : setWhenOpen(true))}
+              data-testid="creator-sale-when"
             >
-              {t('creatorSale.startNow')}
-            </S.Chip>
-            <MorphField
-              id="creator-sale-custom-start"
-              open={startLaterOpen}
-              chip={
-                <S.Chip
-                  type="button"
-                  tabIndex={startLaterOpen ? -1 : undefined}
-                  disabled={busy}
-                  onClick={() => setStartMode('later')}
-                >
-                  {t('creatorSale.startLater')}
-                </S.Chip>
-              }
-              field={
-                <S.DateField>
-                  <DatePicker
-                    selected={asDate(startAt)}
-                    onChange={date => {
-                      setTouched(true)
-                      setStartAt(date ? toLocalInput(date.getTime()) : '')
-                    }}
-                    minDate={new Date()}
-                    showTimeSelect
-                    timeIntervals={30}
-                    dateFormat="Pp"
-                    disabled={busy}
-                    tabIndex={startLaterOpen ? undefined : -1}
-                    showPopperArrow={false}
-                    portalId={CALENDAR_PORTAL}
-                    placeholderText={t('creatorSale.startLabel')}
-                    aria-label={t('creatorSale.startLabel')}
-                  />
-                </S.DateField>
-              }
-            />
-          </S.Chips>
-        </S.Field>
-
-        <S.Field>
-          <S.CapRow>
-            <S.CapLabel>
-              <input
-                type="checkbox"
-                checked={capOn}
-                disabled={busy}
-                data-testid="creator-sale-cap-toggle"
-                onChange={e => setCapOn(e.target.checked)}
+              <Icon name="calendar" size={16} aria-hidden />
+              <span>{whenLabel}</span>
+              <Icon name="chevron-down" size={16} aria-hidden data-open={whenOpen ? '' : undefined} />
+            </S.WhenTrigger>
+            {whenOpen ? (
+              <RangePicker
+                inline
+                handle={whenPicker}
+                label={t('creatorSale.when')}
+                triggerSelector={WHEN_TRIGGER}
+                testId="creator-sale-range"
+                presetTestId="creator-sale-when"
+                from={when.kind === 'range' ? when.from : Date.now()}
+                to={when.kind === 'range' ? when.to : Date.now() + (when.hours - 1) * HOUR_MS}
+                min={startOfDay(Date.now())}
+                max={Date.now() + (MAX_DAYS - 1) * DAY_MS}
+                presets={DURATION_PRESETS.map(d => ({
+                  key: d.key,
+                  label: durationLabel(d.hours),
+                  active: when.kind === 'preset' && when.key === d.key,
+                  onPick: () => {
+                    setTouched(true)
+                    setWhen({ kind: 'preset', key: d.key, hours: d.hours })
+                    setWhenOpen(false)
+                  }
+                }))}
+                onApply={(from, to) => {
+                  setTouched(true)
+                  setWhen({ kind: 'range', from, to })
+                  setWhenOpen(false)
+                }}
+                onClose={() => setWhenOpen(false)}
               />
-              <span>{t('creatorSale.cap')}</span>
-            </S.CapLabel>
-            {/* Opens in the row rather than below it: a two-character number does not need a field the
-                width of the modal, and adding a row resized the card. */}
-            <S.Reveal data-open={capOn || undefined} data-testid="creator-sale-cap">
-              <S.MorphCell data-off={!capOn || undefined} aria-hidden={!capOn || undefined}>
-                <S.InlineInput>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    inputMode="numeric"
-                    value={cap}
-                    disabled={busy}
-                    tabIndex={capOn ? undefined : -1}
-                    aria-label={t('creatorSale.capLabel')}
-                    onChange={e => {
-                      setTouched(true)
-                      setCap(e.target.value)
-                    }}
-                  />
-                </S.InlineInput>
-              </S.MorphCell>
-            </S.Reveal>
-          </S.CapRow>
+            ) : null}
+          </S.WhenWrap>
+          {terms.startsAtMs ? (
+            <S.FieldHint data-testid="creator-sale-when-hint">
+              {t('creatorSale.startsOn', { date: formatDateTime(terms.startsAtMs) })}
+            </S.FieldHint>
+          ) : null}
         </S.Field>
 
-        <S.Preview data-testid="creator-sale-preview">
-          {/* One span, not the sentence's own pieces: the box centres its content with flex, and a flex
-              container drops the whitespace around an element child — which ate the spaces either side of
-              each amount. */}
-          <span>
-            {example.sale < example.price
-              ? tNode('creatorSale.preview', { price: example.price, sale: example.sale, c: marked })
-              : tNode('creatorSale.previewNoChange', { price: example.price, c: marked })}
-          </span>
-        </S.Preview>
+        <S.CapRow>
+          <S.CapLabel>
+            <input
+              type="checkbox"
+              checked={capOn}
+              disabled={busy}
+              data-testid="creator-sale-cap-toggle"
+              onChange={e => setCapOn(e.target.checked)}
+            />
+            <span>{t('creatorSale.cap')}</span>
+          </S.CapLabel>
+          {/* Opens in the row rather than below it: a two-character number does not need a field the
+              width of the modal, and adding a row resized the card. */}
+          <S.Reveal data-open={capOn || undefined} data-testid="creator-sale-cap">
+            <S.MorphCell data-off={!capOn || undefined} aria-hidden={!capOn || undefined}>
+              <S.InlineInput>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={cap}
+                  disabled={busy}
+                  tabIndex={capOn ? undefined : -1}
+                  aria-label={t('creatorSale.capLabel')}
+                  onChange={e => {
+                    setTouched(true)
+                    setCap(e.target.value)
+                  }}
+                />
+              </S.InlineInput>
+            </S.MorphCell>
+          </S.Reveal>
+        </S.CapRow>
+
+        {/* The collection as a buyer will meet it: the same tag and struck price the Shop's cards wear. */}
+        {previewItems.length > 0 ? (
+          <S.Field>
+            <S.FieldLabel>{t('creatorSale.previewTitle')}</S.FieldLabel>
+            <S.PreviewGrid data-testid="creator-sale-preview">
+              {previewItems.map(item => {
+                const price = item.priceCredits as number
+                const sale = salePriceOf(price, pct)
+                return (
+                  <S.PreviewCard key={item.key} data-testid="creator-sale-preview-item">
+                    <S.PreviewMedia>
+                      {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
+                      {sale < price ? <S.PreviewTag pct={pct} /> : null}
+                    </S.PreviewMedia>
+                    <S.PreviewName>{item.name}</S.PreviewName>
+                    <S.PreviewPrices>
+                      <S.PreviewNow data-testid="creator-sale-preview-now">
+                        <CurrencyIcon size={14} className="ccy-mark" />
+                        {formatCredits(sale)}
+                      </S.PreviewNow>
+                      {sale < price ? (
+                        <S.PreviewWas data-testid="creator-sale-preview-was">{formatCredits(price)}</S.PreviewWas>
+                      ) : null}
+                    </S.PreviewPrices>
+                  </S.PreviewCard>
+                )
+              })}
+            </S.PreviewGrid>
+            {previewItems.some(i => salePriceOf(i.priceCredits as number, pct) >= (i.priceCredits as number)) ? (
+              <S.FieldHint>{tNode('creatorSale.previewRounds', { c: marked })}</S.FieldHint>
+            ) : null}
+          </S.Field>
+        ) : null}
 
         {status ? <S.Status>{status}</S.Status> : null}
         <ErrorNotice message={error ?? inlineProblem} testId="creator-sale-error" />
 
         <S.PrimaryBtn
+          variant="red"
           data-testid="creator-sale-continue"
           onClick={() => {
             setTouched(true)
