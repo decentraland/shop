@@ -227,6 +227,26 @@ export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]
   }
 }
 
+/**
+ * A flag's variant payload as a plain string, or `null`.
+ *
+ * The general form of {@link getAddressListVariant} — same source, same dev override, no parsing. What the
+ * payload MEANS is the caller's business: for `shop-campaign` it names the seasonal theme to wear.
+ *
+ * `null` for an absent flag, a disabled variant, an empty payload or an unreachable service, all of which
+ * mean "nothing was chosen". Fails closed like every other accessor here, and a caller must not read that
+ * as a deliberate choice of anything.
+ */
+export async function getVariantValue(flag: FeatureFlag): Promise<string | null> {
+  const override = devVariantOverrideFor(flag)
+  if (override !== undefined) return override || null
+  try {
+    return (await getSnapshot()).variants[flagKey(flag)] || null
+  } catch {
+    return null
+  }
+}
+
 function parseAddressList(value: string): string[] {
   return Array.from(
     new Set(

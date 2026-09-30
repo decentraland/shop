@@ -5,6 +5,7 @@ import {
   FeatureFlag,
   getAddressListVariant,
   getIsFeatureEnabled,
+  getVariantValue,
   getIsProceedsToTreasuryEnabled,
   resetFeatureFlagsCache
 } from '~/lib/featureFlags'
@@ -245,6 +246,54 @@ describe('featureFlags', () => {
       mockFlags({})
 
       await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+    })
+  })
+
+  describe('getVariantValue', () => {
+    function mockVariant(value: string) {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            flags: {},
+            variants: { 'dapps-shop-campaign': { enabled: true, payload: { value } } }
+          })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+    }
+
+    it("should serve the payload verbatim, since what it means is the caller's business", async () => {
+      mockVariant('halloween')
+
+      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBe('halloween')
+    })
+
+    it('should read an absent flag as nothing chosen rather than as an empty choice', async () => {
+      mockFlags({})
+
+      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBeNull()
+    })
+
+    it('should read an empty payload as nothing chosen', async () => {
+      mockVariant('')
+
+      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBeNull()
+    })
+
+    it('should fail closed when the service cannot be reached', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+
+      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBeNull()
+    })
+
+    it('should serve the dev override without consulting the service', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_VARIANT_OVERRIDES', 'shop-campaign:halloween')
+      const fetchMock = mockFlags({})
+
+      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBe('halloween')
+      expect(fetchMock).not.toHaveBeenCalled()
+      vi.unstubAllEnvs()
     })
   })
 

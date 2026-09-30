@@ -22,6 +22,7 @@ function aCampaign(over: Partial<Campaign> = {}): Campaign {
     mainTag: 'halloween',
     tags: ['halloween'],
     collections: [],
+    items: [],
     banners: {},
     assets: {},
     ...over

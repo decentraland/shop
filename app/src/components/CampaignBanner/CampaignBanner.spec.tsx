@@ -38,6 +38,16 @@ describe('CampaignBanner', () => {
     expect(useCampaignHero).toHaveBeenCalledWith(SLOT)
   })
 
+  it('should draw no heading when the campaign ships no title', () => {
+    // Its headline lives in the artwork as lettering, so the CMS field is blank on purpose. An empty
+    // heading would still hold the space above the CTA.
+    useCampaignHero.mockReturnValue({ ...banner, title: '' })
+
+    const { queryByTestId } = render(<CampaignBanner slot={SLOT} />)
+
+    expect(queryByTestId('campaign-banner-title')).toBeNull()
+  })
+
   it('should show the campaign headline and artwork', () => {
     const { getByTestId, container } = render(<CampaignBanner slot={SLOT} />)
 
