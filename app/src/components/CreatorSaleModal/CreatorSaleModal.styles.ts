@@ -309,6 +309,20 @@ export const WhenWrap = styled.div`
   flex-direction: column;
 `
 
+/**
+ * The calendar's anchor, laid over the trigger at body level. The card scrolls, so a popup inside it would be
+ * clipped; out here it floats over the page. Transparent to presses itself, so the trigger under it still works.
+ */
+export const WhenAnchor = styled.div`
+  position: fixed;
+  z-index: ${theme.z.overlay + 1};
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
+`
+
 export const WhenTrigger = styled.button`
   position: relative;
   z-index: 2;

@@ -46,7 +46,7 @@ export function RangePicker({
   max,
   presets,
   handle,
-  inline = false,
+  stretch = false,
   label = t('myStore.period'),
   triggerSelector = '[data-range-trigger]',
   testId = 'store-range',
@@ -59,8 +59,8 @@ export function RangePicker({
   /** The first and last days that can be picked; with no `max` the calendar runs into the future. */
   min?: number
   max?: number
-  /** Laid out in the flow under its trigger, for a trigger inside a scrolling card that would clip a popup. */
-  inline?: boolean
+  /** Spans its anchor's width with a single month, for a trigger too narrow for two months beside the presets. */
+  stretch?: boolean
   label?: string
   /** The one element that opens this picker, which it grows out of and hands focus back to. */
   triggerSelector?: string
@@ -76,8 +76,7 @@ export function RangePicker({
   const [end, setEnd] = useState<Date | null>(to != null ? new Date(to) : null)
   const ref = useRef<HTMLDivElement>(null)
   const wide = useWide()
-  // Inline, it lives in a card too narrow for two months beside the presets.
-  const twoMonths = wide && !inline
+  const twoMonths = wide && !stretch
   const leave = useMorphFrom(ref, triggerSelector)
   const close = useCallback(() => leave(onClose), [leave, onClose])
   useImperativeHandle(handle, () => ({ close }), [close])
@@ -143,10 +142,10 @@ export function RangePicker({
     <S.Root
       ref={ref}
       role="dialog"
-      aria-modal={inline ? undefined : true}
+      aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      data-inline={inline ? '' : undefined}
+      data-stretch={stretch ? '' : undefined}
       data-testid={`${testId}-picker`}
     >
       <S.Body>

@@ -17,16 +17,11 @@ export const Root = styled.div`
 
   ${calendarPopup}
 
-  &[data-inline] {
-    position: relative;
-    top: auto;
-    right: auto;
-    z-index: 1;
-    max-width: 100%;
-    margin-top: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  &[data-stretch] {
+    left: 0;
+    right: 0;
 
-    /* One month in a card wider than it: centred in the space beside the presets. */
+    /* One month in a panel wider than it: centred in the space beside the presets. */
     .react-datepicker {
       flex: 1;
     }

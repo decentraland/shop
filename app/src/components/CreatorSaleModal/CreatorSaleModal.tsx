@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Session } from '~/lib/auth'
@@ -62,6 +63,8 @@ const DAY_MS = 24 * HOUR_MS
 /** The longest a sale can run, so the calendar never offers a day the terms would then refuse. */
 const MAX_DAYS = 30
 const WHEN_TRIGGER = '[data-sale-when-trigger]'
+/** Roughly what the calendar needs under its trigger, presets stacked above the month on a phone. */
+const CALENDAR_ROOM = 460
 /** How many of the collection's items the buyer's-eye preview shows. */
 const PREVIEW_ITEMS = 3
 
@@ -179,6 +182,58 @@ export function CreatorSaleModal({
   const [when, setWhen] = useState<When>({ kind: 'preset', key: '3d', hours: 72 })
   const [whenOpen, setWhenOpen] = useState(false)
   const whenPicker = useRef<RangePickerHandle>(null)
+  const card = useRef<HTMLDivElement>(null)
+  const whenTrigger = useRef<HTMLButtonElement>(null)
+  // Where the calendar floats: over the page, on the trigger's box, so opening it never grows the card.
+  const [whenAnchor, setWhenAnchor] = useState<{ top: number; left: number; width: number; height: number } | null>(
+    null
+  )
+
+  const anchor = useRef<HTMLDivElement>(null)
+  // A short screen can leave no room under the trigger even after the lift: raise it just enough to fit.
+  // Measured from the panel's own height: its position is still mid-grow here, shifted by the animation.
+  useLayoutEffect(() => {
+    if (!whenOpen) return
+    const panel = anchor.current?.firstElementChild as HTMLElement | null | undefined
+    if (!panel) return
+    setWhenAnchor(at => {
+      if (!at) return at
+      const over = at.top + at.height + 8 + panel.offsetHeight - (window.innerHeight - 8)
+      return over > 0 ? { ...at, top: at.top - over } : at
+    })
+  }, [whenOpen])
+
+  // Anchored to where the trigger WAS: once the card scrolls or the window resizes it no longer is, so it folds away.
+  useEffect(() => {
+    if (!whenOpen) return
+    const scroller = card.current
+    // The lift in `openWhen` reports its own scroll a frame late; only a scroll away from there moves the trigger.
+    const opened = scroller?.scrollTop ?? 0
+    const fold = () => whenPicker.current?.close()
+    const onScroll = () => {
+      if (Math.abs((scroller?.scrollTop ?? 0) - opened) > 2) fold()
+    }
+    scroller?.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', fold)
+    return () => {
+      scroller?.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', fold)
+    }
+  }, [whenOpen])
+
+  function openWhen() {
+    const trigger = whenTrigger.current
+    const scroller = card.current
+    if (!trigger) return
+    // A calendar needs room under its trigger: lift the trigger to the card's top first when it has less.
+    const room = window.innerHeight - trigger.getBoundingClientRect().bottom
+    if (scroller && room < CALENDAR_ROOM) {
+      scroller.scrollTop += trigger.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16
+    }
+    const rect = trigger.getBoundingClientRect()
+    setWhenAnchor({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+    setWhenOpen(true)
+  }
   const [capOn, setCapOn] = useState(false)
   const [cap, setCap] = useState('50')
   const [touched, setTouched] = useState(false)
@@ -657,6 +712,7 @@ export function CreatorSaleModal({
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
       <S.Card
+        ref={card}
         data-testid="creator-sale-modal"
         onClick={e => e.stopPropagation()}
         role="dialog"
@@ -753,45 +809,51 @@ export function CreatorSaleModal({
               aria-expanded={whenOpen}
               aria-haspopup="dialog"
               aria-label={`${t('creatorSale.when')}: ${whenLabel}`}
+              ref={whenTrigger}
               data-sale-when-trigger=""
               disabled={busy}
-              onClick={() => (whenOpen ? whenPicker.current?.close() : setWhenOpen(true))}
+              onClick={() => (whenOpen ? whenPicker.current?.close() : openWhen())}
               data-testid="creator-sale-when"
             >
               <Icon name="calendar" size={16} aria-hidden />
               <span>{whenLabel}</span>
               <Icon name="chevron-down" size={16} aria-hidden data-open={whenOpen ? '' : undefined} />
             </S.WhenTrigger>
-            {whenOpen ? (
-              <RangePicker
-                inline
-                handle={whenPicker}
-                label={t('creatorSale.when')}
-                triggerSelector={WHEN_TRIGGER}
-                testId="creator-sale-range"
-                presetTestId="creator-sale-when"
-                from={when.kind === 'range' ? when.from : Date.now()}
-                to={when.kind === 'range' ? when.to : Date.now() + (when.hours - 1) * HOUR_MS}
-                min={startOfDay(Date.now())}
-                max={Date.now() + (MAX_DAYS - 1) * DAY_MS}
-                presets={DURATION_PRESETS.map(d => ({
-                  key: d.key,
-                  label: durationLabel(d.hours),
-                  active: when.kind === 'preset' && when.key === d.key,
-                  onPick: () => {
-                    setTouched(true)
-                    setWhen({ kind: 'preset', key: d.key, hours: d.hours })
-                    setWhenOpen(false)
-                  }
-                }))}
-                onApply={(from, to) => {
-                  setTouched(true)
-                  setWhen({ kind: 'range', from, to })
-                  setWhenOpen(false)
-                }}
-                onClose={() => setWhenOpen(false)}
-              />
-            ) : null}
+            {whenOpen && whenAnchor
+              ? createPortal(
+                  <S.WhenAnchor ref={anchor} style={whenAnchor}>
+                    <RangePicker
+                      stretch
+                      handle={whenPicker}
+                      label={t('creatorSale.when')}
+                      triggerSelector={WHEN_TRIGGER}
+                      testId="creator-sale-range"
+                      presetTestId="creator-sale-when"
+                      from={when.kind === 'range' ? when.from : Date.now()}
+                      to={when.kind === 'range' ? when.to : Date.now() + (when.hours - 1) * HOUR_MS}
+                      min={startOfDay(Date.now())}
+                      max={Date.now() + (MAX_DAYS - 1) * DAY_MS}
+                      presets={DURATION_PRESETS.map(d => ({
+                        key: d.key,
+                        label: durationLabel(d.hours),
+                        active: when.kind === 'preset' && when.key === d.key,
+                        onPick: () => {
+                          setTouched(true)
+                          setWhen({ kind: 'preset', key: d.key, hours: d.hours })
+                          setWhenOpen(false)
+                        }
+                      }))}
+                      onApply={(from, to) => {
+                        setTouched(true)
+                        setWhen({ kind: 'range', from, to })
+                        setWhenOpen(false)
+                      }}
+                      onClose={() => setWhenOpen(false)}
+                    />
+                  </S.WhenAnchor>,
+                  document.body
+                )
+              : null}
           </S.WhenWrap>
           {terms.startsAtMs ? (
             <S.FieldHint data-testid="creator-sale-when-hint">
