@@ -6,7 +6,7 @@ export const Root = styled.div`
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 40;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   max-width: calc(100vw - 32px);

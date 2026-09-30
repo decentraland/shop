@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { useMorphFrom } from '~/hooks/useMorphFrom'
@@ -29,6 +29,9 @@ function openOn(date: Date, twoMonths: boolean): Date {
   return new Date(date.getFullYear(), date.getMonth() - 1, 1)
 }
 
+/** Lets the trigger fold the picker away through the same animation as every other way out. */
+export type RangePickerHandle = { close: () => void }
+
 /**
  * A two-click range picker in the Shop's calendar, opened from a trigger it sits under.
  *
@@ -40,6 +43,7 @@ export function RangePicker({
   to,
   max,
   presets,
+  handle,
   onApply,
   onClose
 }: {
@@ -48,6 +52,7 @@ export function RangePicker({
   max: number
   /** Ready-made ranges listed beside the calendar; picking one applies it straight away. */
   presets?: { key: string; label: string; active: boolean; onPick: () => void }[]
+  handle?: Ref<RangePickerHandle>
   onApply: (from: number, to: number) => void
   onClose: () => void
 }) {
@@ -57,11 +62,14 @@ export function RangePicker({
   const wide = useWide()
   const leave = useMorphFrom(ref, '[data-range-trigger]')
   const close = useCallback(() => leave(onClose), [leave, onClose])
+  useImperativeHandle(handle, () => ({ close }), [close])
 
   useEffect(() => {
     function onPointer(event: PointerEvent) {
       const target = event.target as Node
       if (ref.current?.contains(target)) return
+      // The trigger closes the picker from its own click; closing here too would let that click reopen it.
+      if ((target as Element).closest?.('[data-range-trigger]')) return
       close()
     }
     function onKey(event: KeyboardEvent) {

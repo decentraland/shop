@@ -28,8 +28,9 @@ function expanded(panel: HTMLElement): Keyframe {
 /**
  * Grows a popup out from behind the button that opened it, and folds it back there on the way out.
  *
- * The trigger must stack above the panel, so the panel reads as sliding out from under it. Returns `leave`,
- * which plays the fold and then runs the callback that unmounts the panel.
+ * The trigger must stack above the panel, so the panel reads as sliding out from under it, and must be the
+ * only element matching `triggerSelector` while the panel is open. Returns `leave`, which plays the fold and
+ * then runs its callback; that callback must unmount the panel, which stays folded and inert once it has left.
  */
 export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelector: string) {
   const leaving = useRef(false)
@@ -75,7 +76,6 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       const fold = closing.current
       if (!fold) return
       fold.onfinish = null
-      fold.oncancel = null
       fold.cancel()
     },
     []
@@ -92,7 +92,10 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       // Closed before it finished opening: fold from where it is now, measured against the resting box.
       const now = getComputedStyle(el)
       const from: Keyframe = { transform: now.transform, clipPath: now.clipPath, boxShadow: now.boxShadow }
-      const shown = [...el.children].map(child => getComputedStyle(child).opacity)
+      const shown = [...el.children].map(child => {
+        const style = getComputedStyle(child)
+        return { opacity: style.opacity, transform: style.transform }
+      })
       opening.current.forEach(animation => animation.cancel())
       if (from.clipPath === 'none') from.clipPath = expanded(el).clipPath
       el.animate([{ boxShadow: from.boxShadow }, { boxShadow: NO_SHADOW }], {
@@ -100,7 +103,7 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
         fill: 'forwards'
       })
       ;[...el.children].forEach((child, i) =>
-        child.animate([{ opacity: shown[i] }, { opacity: 0, transform: 'translateY(-4px)' }], {
+        child.animate([shown[i], { opacity: 0, transform: 'translateY(-4px)' }], {
           duration: CLOSE_MS * 0.45,
           easing: 'ease-in',
           fill: 'forwards'
@@ -114,7 +117,6 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       })
       closing.current = fold
       fold.onfinish = then
-      fold.oncancel = then
     },
     [panel, triggerSelector]
   )

@@ -255,6 +255,7 @@ export const PerfHead = styled.div`
 
   ${theme.media.maxWidth('sm')} {
     position: relative;
+    z-index: 1;
   }
 `
 
@@ -312,7 +313,9 @@ export const Dollar = styled.span`
 
 /** Anchors the range picker under its trigger. */
 export const PeriodsWrap = styled.div`
+  /* Its own layer: the trigger and picker stack inside it, above the page and under the sticky nav. */
   position: relative;
+  z-index: 1;
   min-width: 0;
   max-width: 100%;
 
@@ -330,7 +333,7 @@ export const PeriodsWrap = styled.div`
 export const RangeTrigger = styled.button`
   /* Above the picker, which slides out from behind it. */
   position: relative;
-  z-index: 41;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 8px;

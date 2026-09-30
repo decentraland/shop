@@ -1,1 +1,1 @@
-export { RangePicker } from './RangePicker'
+export { RangePicker, type RangePickerHandle } from './RangePicker'
