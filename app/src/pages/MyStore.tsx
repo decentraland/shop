@@ -34,7 +34,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
 import { SortHeader } from '~/components/SortHeader'
 import { RewardOwnersModal } from '~/components/RewardOwnersModal'
-import { RangePicker } from '~/components/RangePicker'
+import { RangePicker, type RangePickerHandle } from '~/components/RangePicker'
 import { nextSort, sortRows, type ColumnSort, type SortDir } from '~/lib/tableSort'
 import { pageWindow } from '~/lib/pageWindow'
 import { fetchTopOwners, TopOwnersReadError, TopOwnersUnavailableError, type TopOwnersSort } from '~/lib/owners'
@@ -854,11 +854,14 @@ export function MyStore() {
   const [params] = useSearchParams()
   const [range, setRange] = useState<StoreRange>({ key: '30d' })
   const [rangeOpen, setRangeOpen] = useState(false)
+  const picker = useRef<RangePickerHandle>(null)
   const [currency, setCurrency] = useState<StoreCurrency>(storedCurrency)
   const closeRange = useCallback(() => setRangeOpen(false), [])
   const period = range.key
   // Recomputed with the range, not per render, so the query keys stay put for the whole visit.
   const resolved = useMemo(() => resolveRange(range, Date.now()), [range])
+  const periodLabel =
+    period === 'custom' && resolved.from != null ? rangeLabel(resolved.from, resolved.to) : t(`myStore.period${period}`)
   // A set, not one id: opening a second collection to compare it with the first should not close the first.
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
   const [collectionPage, setCollectionPage] = useState(0)
@@ -1348,40 +1351,37 @@ export function MyStore() {
                   ))}
                 </S.CurrencySwitch>
                 <S.PeriodsWrap>
-                  <S.Periods role="group" aria-label={t('myStore.period')}>
-                    {RANGE_KEYS.map(key => (
-                      <S.Period
-                        key={key}
-                        type="button"
-                        aria-pressed={period === key}
-                        {...(key === 'custom'
-                          ? { 'aria-expanded': rangeOpen, 'aria-haspopup': 'dialog' as const, 'data-range-trigger': '' }
-                          : {})}
-                        onClick={() => {
-                          // Custom opens the calendar; the range only changes once one is applied in it.
-                          if (key === 'custom') {
-                            setRangeOpen(open => !open)
-                            return
-                          }
+                  <S.RangeTrigger
+                    type="button"
+                    aria-expanded={rangeOpen}
+                    aria-haspopup="dialog"
+                    data-range-trigger=""
+                    aria-label={`${t('myStore.period')}: ${periodLabel}`}
+                    onClick={() => (rangeOpen ? picker.current?.close() : setRangeOpen(true))}
+                    data-testid="store-period-trigger"
+                  >
+                    <Icon name="calendar" size={16} aria-hidden />
+                    <span>{periodLabel}</span>
+                    <Icon name="chevron-down" size={16} aria-hidden data-open={rangeOpen ? '' : undefined} />
+                  </S.RangeTrigger>
+                  {rangeOpen ? (
+                    <RangePicker
+                      handle={picker}
+                      from={resolved.from ?? resolved.to - 29 * 86_400_000}
+                      to={resolved.to}
+                      max={Date.now()}
+                      presets={RANGE_KEYS.filter(key => key !== 'custom').map(key => ({
+                        key,
+                        label: t(`myStore.period${key}`),
+                        active: period === key,
+                        onPick: () => {
                           if (key !== period)
                             trackStore('Shop Changed Store Period', { period: key, previous_period: period })
                           setRange({ key })
                           setRangeOpen(false)
                           setPage(0)
-                        }}
-                        data-testid={`store-period-${key}`}
-                      >
-                        {key === 'custom' && period === 'custom' && resolved.from != null
-                          ? rangeLabel(resolved.from, resolved.to)
-                          : t(`myStore.period${key}`)}
-                      </S.Period>
-                    ))}
-                  </S.Periods>
-                  {rangeOpen ? (
-                    <RangePicker
-                      from={resolved.from ?? resolved.to - 29 * 86_400_000}
-                      to={resolved.to}
-                      max={Date.now()}
+                        }
+                      }))}
                       onClose={closeRange}
                       onApply={(from, to) => {
                         trackStore('Shop Changed Store Period', {
