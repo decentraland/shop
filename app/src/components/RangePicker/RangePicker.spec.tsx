@@ -336,3 +336,17 @@ describe('when the viewer asks for reduced motion', () => {
     expect(picker()).toBeNull()
   })
 })
+
+describe('when the picker opens', () => {
+  it('should focus the preset in force', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    expect(document.activeElement).toBe(screen.getByTestId('store-period-30d'))
+  })
+
+  it('should focus a calendar day when no preset is in force', () => {
+    render(<RangePicker from={TO - 3 * DAY} to={TO} max={TO} onApply={() => {}} onClose={() => {}} />)
+    expect(document.activeElement?.getAttribute('role')).toBe('option')
+  })
+})
