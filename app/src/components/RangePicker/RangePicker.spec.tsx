@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createRef, useRef, useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RangePicker, type RangePickerHandle } from '~/components/RangePicker'
 
@@ -94,5 +94,103 @@ describe('when a caller closes it through its handle', () => {
     render(<RangePicker handle={handle} from={TO - DAY} to={TO} max={TO} onApply={() => {}} onClose={onClose} />)
     handle.current?.close()
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+/** A stand-in for `Element.animate`, which jsdom lacks, whose animations finish when the test says so. */
+function stubAnimate() {
+  const running: { onfinish: (() => void) | null; cancel: () => void }[] = []
+  const original = HTMLElement.prototype.animate
+  HTMLElement.prototype.animate = function () {
+    const animation = { onfinish: null as (() => void) | null, cancel: vi.fn() }
+    running.push(animation)
+    return animation as unknown as Animation
+  }
+  return {
+    finishAll: () =>
+      act(() => {
+        for (const animation of running.splice(0)) animation.onfinish?.()
+      }),
+    restore: () => {
+      HTMLElement.prototype.animate = original
+    }
+  }
+}
+
+describe('when the picker animates its way out', () => {
+  let animations: ReturnType<typeof stubAnimate>
+  beforeEach(() => {
+    animations = stubAnimate()
+  })
+  afterEach(() => animations.restore())
+
+  it('should stay open until its fold finishes', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    await user.keyboard('{Escape}')
+    expect(picker()).not.toBeNull()
+
+    animations.finishAll()
+    expect(picker()).toBeNull()
+  })
+
+  it('should leave focus on what was pressed to close it, rather than pulling it back to the trigger', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <Harness />
+        <input aria-label="Search" />
+      </>
+    )
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    const search = screen.getByRole('textbox', { name: 'Search' })
+    fireEvent.pointerDown(search)
+    search.focus()
+
+    animations.finishAll()
+    expect(picker()).toBeNull()
+    expect(document.activeElement).toBe(search)
+  })
+
+  it('should give focus back to the trigger when it closes from inside', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+
+    animations.finishAll()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Period' }))
+  })
+
+  it('should close once when the trigger is pressed again mid-fold', async () => {
+    const user = userEvent.setup()
+    const onPick = vi.fn()
+    render(<Harness onPick={onPick} />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    await user.click(screen.getByTestId('store-period-7d'))
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+
+    animations.finishAll()
+    expect(onPick).toHaveBeenCalledTimes(1)
+    expect(picker()).toBeNull()
+  })
+
+  it('should not run the close callback when unmounted mid-fold', () => {
+    const handle = createRef<RangePickerHandle>()
+    const onClose = vi.fn()
+    const { unmount } = render(
+      <>
+        <button type="button" data-range-trigger="">
+          Period
+        </button>
+        <RangePicker handle={handle} from={TO - DAY} to={TO} max={TO} onApply={() => {}} onClose={onClose} />
+      </>
+    )
+    act(() => handle.current?.close())
+    unmount()
+
+    animations.finishAll()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

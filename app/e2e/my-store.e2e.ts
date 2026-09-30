@@ -170,6 +170,10 @@ describe('when a creator opens their store', () => {
     expect(picker.left).toBeGreaterThanOrEqual(0)
     expect(picker.right).toBeLessThanOrEqual(width)
 
+    // While it grows, its clip still cuts away the presets, and a press there falls through to the page.
+    await page.$eval('[data-testid="store-range-picker"]', el =>
+      Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished))
+    )
     await page.click('[data-testid="store-period-7d"]')
     await page.waitForFunction(() => !document.querySelector('[data-testid="store-range-picker"]'))
     expect(await text(app, 'store-period-trigger')).toBe('Last 7 days')

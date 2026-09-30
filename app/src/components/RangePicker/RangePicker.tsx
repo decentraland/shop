@@ -6,7 +6,8 @@ import { activeLocale, t } from '~/intl/i18n'
 import { breakpoints } from '~/styles/theme'
 import * as S from './RangePicker.styles'
 
-const WIDE = `(min-width: ${breakpoints.sm}px)`
+// One px past `sm`, so the two-month calendar and the phone's stacked presets never both apply.
+const WIDE = `(min-width: ${breakpoints.sm + 1}px)`
 
 /** Before the first sale any store can have, so a stray click decades back cannot ask the chart for thousands of points. */
 const EARLIEST = new Date(2020, 0, 1)
@@ -96,14 +97,19 @@ export function RangePicker({
     }
   }, [close])
 
-  // Focus goes in on open and back to the trigger on every way out, so a keyboard user is never left behind.
+  // Focus goes in on open and back to the trigger on the way out, so a keyboard user is never left behind.
   useEffect(() => {
+    const panel = ref.current
     const trigger = document.activeElement as HTMLElement | null
-    const day = ref.current?.querySelector<HTMLElement>('.react-datepicker__day[tabindex="0"]')
-    ;(day ?? ref.current)?.focus()
+    const day = panel?.querySelector<HTMLElement>('.react-datepicker__day[tabindex="0"]')
+    ;(day ?? panel)?.focus()
     return () => {
+      // The panel unmounts after its fold, by when a press elsewhere may have focused what it pressed.
+      const active = document.activeElement
+      if (active && active !== document.body && !panel?.contains(active)) return
+      // Safari does not focus a button on click, so the element focused at open may not be the trigger.
       const fallback = document.querySelector<HTMLElement>('[data-range-trigger]')
-      ;(trigger?.isConnected ? trigger : fallback)?.focus()
+      ;(trigger?.isConnected && trigger.matches('[data-range-trigger]') ? trigger : fallback)?.focus()
     }
   }, [])
 
@@ -119,7 +125,7 @@ export function RangePicker({
       ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label={t('myStore.rangeDialog')}
+      aria-label={t('myStore.period')}
       tabIndex={-1}
       data-testid="store-range-picker"
     >

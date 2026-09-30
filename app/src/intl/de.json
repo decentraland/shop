@@ -788,7 +788,6 @@
     },
     "rangePickStart": "Wähle den ersten Tag",
     "rangePickEnd": "{from} – wähle den letzten Tag",
-    "rangeDialog": "Zeitraum auswählen",
     "rangeCancel": "Abbrechen",
     "rangeApply": "Anwenden",
     "currency": "Währung",
