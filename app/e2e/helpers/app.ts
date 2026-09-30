@@ -474,7 +474,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   }
   // Images / builder content.
   // Photos of people wearing an item (camera reel). Two shots, one of them a group, so a spec can see
-  // the rail rank them; the images themselves resolve through the image branch above.
+  // the rail rank them. The group stays within MAX_PEOPLE in lib/reel.ts, above which a shot is dropped,
+  // and the strip needs two. The images themselves resolve through the image branch above.
   const wearableImages = u.hostname.includes('camera-reel') && /^\/api\/wearables\/([^/]+)\/images$/.exec(path)
   if (wearableImages) {
     const photo = (id: string, people: number) => ({
