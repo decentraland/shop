@@ -627,6 +627,8 @@
     "signInBody": "Sieh, wie sich deine Kollektionen verkaufen, was Aufmerksamkeit braucht und welche Rabatte gerade laufen.",
     "summary": "{collections, plural, one {# Kollektion} other {# Kollektionen}} · {items, plural, one {# Artikel} other {# Artikel}}",
     "period": "Zeitraum",
+    "periodTrigger": "Zeitraum: {period}",
+    "periodPresets": "Schnellauswahl",
     "period7d": "Letzte 7 Tage",
     "period30d": "Letzte 30 Tage",
     "periodall": "Gesamt",

@@ -91,7 +91,7 @@ export const Preset = styled.button`
   min-height: 36px;
   padding: 0 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: ${theme.radius.btn};
   background: transparent;
   color: ${theme.colors.accent};
   font-family: ${theme.font.sans};
@@ -114,6 +114,7 @@ export const Preset = styled.button`
   }
 
   ${theme.media.maxWidth('sm')} {
+    min-height: 44px;
     border: 1px solid rgba(105, 31, 169, 0.24);
     border-radius: ${theme.radius.pill};
   }

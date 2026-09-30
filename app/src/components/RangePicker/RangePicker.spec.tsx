@@ -8,7 +8,13 @@ const DAY = 86_400_000
 const TO = new Date(2026, 8, 30).getTime()
 
 /** The page's wiring: the trigger opens the picker, and closes it through the picker's own handle. */
-function Harness({ onPick = () => {} }: { onPick?: (key: string) => void }) {
+function Harness({
+  onPick = () => {},
+  onApply = () => {}
+}: {
+  onPick?: (key: string) => void
+  onApply?: (from: number, to: number) => void
+}) {
   const [open, setOpen] = useState(false)
   const picker = useRef<RangePickerHandle>(null)
   return (
@@ -36,7 +42,10 @@ function Harness({ onPick = () => {} }: { onPick?: (key: string) => void }) {
               setOpen(false)
             }
           }))}
-          onApply={() => setOpen(false)}
+          onApply={(from, to) => {
+            onApply(from, to)
+            setOpen(false)
+          }}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -102,7 +111,13 @@ function stubAnimate() {
   const running: { onfinish: (() => void) | null; cancel: () => void }[] = []
   const original = HTMLElement.prototype.animate
   HTMLElement.prototype.animate = function () {
-    const animation = { onfinish: null as (() => void) | null, cancel: vi.fn() }
+    // Cancelled animations leave the list, as a browser fires `cancel` for them and never `finish`.
+    const animation = {
+      onfinish: null as (() => void) | null,
+      cancel: () => {
+        running.splice(running.indexOf(animation), 1)
+      }
+    }
     running.push(animation)
     return animation as unknown as Animation
   }
@@ -157,6 +172,7 @@ describe('when the picker animates its way out', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Period' }))
+    animations.finishAll()
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
     animations.finishAll()
@@ -168,6 +184,7 @@ describe('when the picker animates its way out', () => {
     const onPick = vi.fn()
     render(<Harness onPick={onPick} />)
     await user.click(screen.getByRole('button', { name: 'Period' }))
+    animations.finishAll()
     await user.click(screen.getByTestId('store-period-7d'))
     await user.click(screen.getByRole('button', { name: 'Period' }))
 
@@ -192,5 +209,144 @@ describe('when the picker animates its way out', () => {
 
     animations.finishAll()
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+const day = (n: number) => screen.getByRole('option', { name: new RegExp(`September ${n}(st|nd|rd|th), 2026`) })
+
+describe('when a custom range is picked', () => {
+  it('should apply the two days picked, and only once Apply is pressed', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    render(<Harness onApply={onApply} />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    await user.click(day(10))
+    await user.click(day(14))
+    expect(onApply).not.toHaveBeenCalled()
+
+    await user.click(screen.getByTestId('store-range-apply'))
+    expect(onApply).toHaveBeenCalledTimes(1)
+    const [from, to] = onApply.mock.calls[0]
+    expect(new Date(from).getDate()).toBe(10)
+    expect(new Date(to).getDate()).toBe(14)
+    expect(picker()).toBeNull()
+  })
+})
+
+describe('when the picker animates and the viewer is fine with motion', () => {
+  let animations: ReturnType<typeof stubAnimate>
+  beforeEach(() => {
+    animations = stubAnimate()
+  })
+  afterEach(() => {
+    animations.restore()
+    vi.useRealTimers()
+  })
+
+  it('should run Apply after the fold, not before it', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    render(<Harness onApply={onApply} />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    animations.finishAll()
+    await user.click(day(10))
+    await user.click(day(14))
+    await user.click(screen.getByTestId('store-range-apply'))
+    expect(onApply).not.toHaveBeenCalled()
+
+    animations.finishAll()
+    expect(onApply).toHaveBeenCalledTimes(1)
+  })
+
+  it('should swallow a second press on the panel while it folds', async () => {
+    const user = userEvent.setup()
+    const onPick = vi.fn()
+    const outside = vi.fn()
+    render(<Harness onPick={onPick} />)
+    document.addEventListener('click', outside)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    animations.finishAll()
+    await user.click(screen.getByTestId('store-period-7d'))
+    outside.mockClear()
+    await user.click(screen.getByTestId('store-period-30d'))
+    expect(outside).not.toHaveBeenCalled()
+
+    animations.finishAll()
+    document.removeEventListener('click', outside)
+    expect(onPick).toHaveBeenCalledTimes(1)
+    expect(onPick).toHaveBeenCalledWith('7d')
+  })
+
+  it('should close mid-grow', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    await user.keyboard('{Escape}')
+
+    animations.finishAll()
+    expect(picker()).toBeNull()
+  })
+
+  it('should still close when the fold never reports that it finished', () => {
+    vi.useFakeTimers()
+    const handle = createRef<RangePickerHandle>()
+    const onClose = vi.fn()
+    render(
+      <>
+        <button type="button" data-range-trigger="">
+          Period
+        </button>
+        <RangePicker handle={handle} from={TO - DAY} to={TO} max={TO} onApply={() => {}} onClose={onClose} />
+      </>
+    )
+    act(() => handle.current?.close())
+    expect(onClose).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    animations.finishAll()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('when the viewer asks for reduced motion', () => {
+  let animations: ReturnType<typeof stubAnimate>
+  const original = window.matchMedia
+  beforeEach(() => {
+    animations = stubAnimate()
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {}
+    })) as unknown as typeof window.matchMedia
+  })
+  afterEach(() => {
+    animations.restore()
+    window.matchMedia = original
+  })
+
+  it('should close at once, without waiting on an animation', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    await user.keyboard('{Escape}')
+    expect(picker()).toBeNull()
+  })
+})
+
+describe('when the picker opens', () => {
+  it('should focus the preset in force', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    expect(document.activeElement).toBe(screen.getByTestId('store-period-30d'))
+  })
+
+  it('should focus a calendar day when no preset is in force', () => {
+    render(<RangePicker from={TO - 3 * DAY} to={TO} max={TO} onApply={() => {}} onClose={() => {}} />)
+    expect(document.activeElement?.getAttribute('role')).toBe('option')
   })
 })

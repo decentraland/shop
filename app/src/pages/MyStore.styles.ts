@@ -375,6 +375,9 @@ export const RangeTrigger = styled.button`
       transition: none;
     }
   }
+  ${theme.media.maxWidth('sm')} {
+    min-height: 44px;
+  }
   &:focus-visible {
     outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;

@@ -35,7 +35,7 @@ function expanded(panel: HTMLElement): Keyframe {
 export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelector: string) {
   const leaving = useRef(false)
   const opening = useRef<Animation[]>([])
-  const closing = useRef<Animation | null>(null)
+  const closing = useRef<{ fold: Animation; timer: ReturnType<typeof setTimeout> } | null>(null)
 
   useLayoutEffect(() => {
     const el = panel.current
@@ -73,10 +73,11 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
   // Unmounted some other way mid-fold: drop the fold without running its callback a second time.
   useLayoutEffect(
     () => () => {
-      const fold = closing.current
-      if (!fold) return
-      fold.onfinish = null
-      fold.cancel()
+      const current = closing.current
+      if (!current) return
+      clearTimeout(current.timer)
+      current.fold.onfinish = null
+      current.fold.cancel()
     },
     []
   )
@@ -88,7 +89,13 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       if (leaving.current) return
       if (!el || !trigger || typeof el.animate !== 'function' || reducedMotion()) return then()
       leaving.current = true
-      el.style.pointerEvents = 'none'
+      // Swallowed rather than let through, so a second tap on the folding panel never reaches the page under it.
+      const swallow = (event: Event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+      el.addEventListener('pointerdown', swallow, true)
+      el.addEventListener('click', swallow, true)
       // Closed before it finished opening: fold from where it is now, measured against the resting box.
       const now = getComputedStyle(el)
       const from: Keyframe = { transform: now.transform, clipPath: now.clipPath, boxShadow: now.boxShadow }
@@ -115,8 +122,17 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
         easing: EASE_IN,
         fill: 'both'
       })
-      closing.current = fold
-      fold.onfinish = then
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        then()
+      }
+      // A hidden tab can hold the fold's finish back; the panel must still go away.
+      const timer = setTimeout(finish, CLOSE_MS * 1.15 + 150)
+      closing.current = { fold, timer }
+      fold.onfinish = finish
     },
     [panel, triggerSelector]
   )
