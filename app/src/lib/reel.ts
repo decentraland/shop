@@ -1,5 +1,6 @@
 import { config } from '~/config'
 import type { CatalogItem } from '~/lib/api'
+import { fetchWearableRules, hiddenBy, type WearableRule } from '~/lib/wearable-rules'
 
 /**
  * A public photo taken in world, from the camera reel service, showing someone wearing this item.
@@ -29,6 +30,10 @@ export type ReelPhoto = {
   dateTime: string
   /** People visible in the shot. 1-2 is a portrait; a dozen is an event crowd. */
   people: number
+  /** Everything the wearer has on, as item urns, so the photo can be dropped when another piece hides this one. */
+  wearerWearables: string[]
+  /** This item's urn as the wearer carries it, without the token id. Empty when nobody in the shot wears it. */
+  itemUrn: string
 }
 
 /** `contract-itemId`, the same identity the favourites use, and what the service indexes photos by. */
@@ -42,11 +47,51 @@ export function reelKey(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>): 
  *
  * The service answers newest first, and newest is not best: on a popular item most recent photos are
  * event crowds where the item cannot be seen at all (measured: 22 of the newest 100 have three people
- * or fewer). So a page is read and ranked here, and the rest is thrown away. 50 is where the payload
- * stops being free — around 50KB over the wire, gzipped — and it is enough to rank from.
+ * or fewer). So the largest page the service serves (100, about 75KB over the wire) is read and
+ * ranked here, and the rest is thrown away.
  */
-const PAGE = 50
+const PAGE = 100
 const SHOWN = 10
+
+/**
+ * Above this many people in the shot the item is a speck in a crowd, so the photo is not shown at all.
+ * An item with only crowd shots then has no strip, which reads better than a strip of crowds.
+ */
+const MAX_PEOPLE = 5
+
+function isCrowd(photo: ReelPhoto): boolean {
+  return photo.people > MAX_PEOPLE
+}
+
+// The Catalyst reads a batch of pointers per request; a strip's candidates can carry a few hundred.
+const RULES_BATCH = 100
+
+/**
+ * Photos where the item is actually rendered on its wearer.
+ *
+ * A photo is tagged with everything the wearer has on, including pieces the renderer did not draw: a long
+ * robe declares that it hides lower_body, and trousers under it never appear in the shot. Those are
+ * dropped here, from the same Catalyst rules the fitting room uses. When the rules cannot be read the
+ * photos are kept, since a strip must not depend on this lookup.
+ */
+async function withItemVisible(photos: ReelPhoto[]): Promise<ReelPhoto[]> {
+  const candidates = photos.filter(photo => !isCrowd(photo) && photo.itemUrn)
+  const urns = [...new Set(candidates.flatMap(photo => [photo.itemUrn, ...photo.wearerWearables]))]
+  const batches: string[][] = []
+  for (let i = 0; i < urns.length; i += RULES_BATCH) batches.push(urns.slice(i, i + RULES_BATCH))
+  const rules = new Map<string, WearableRule>()
+  for (const rule of (await Promise.all(batches.map(fetchWearableRules))).flat())
+    rules.set(rule.urn.toLowerCase(), rule)
+
+  return photos.filter(photo => {
+    const category = rules.get(photo.itemUrn.toLowerCase())?.category
+    if (!category) return true
+    return !photo.wearerWearables.some(urn => {
+      const rule = urn.toLowerCase() === photo.itemUrn.toLowerCase() ? undefined : rules.get(urn.toLowerCase())
+      return !!rule && hiddenBy(rule).has(category)
+    })
+  })
+}
 
 /** At most this many photos by the same person, or in the same place, so the strip is not one scene. */
 const PER_AUTHOR = 2
@@ -73,13 +118,20 @@ type ServiceImage = {
   }
 }
 
-/** Whether this person is wearing the item, whichever copy of it they own. */
-function wears(person: ServicePerson, itemKey: string): boolean {
+/** The item's own urn for a token urn (drops the token id), which is what the Catalyst answers for. */
+function itemPointer(urn: string): string {
+  const parts = urn.split(':')
+  return parts.length > 6 && parts[3]?.startsWith('collections-') ? parts.slice(0, 6).join(':') : urn
+}
+
+/** This item's urn on the person, whichever copy of it they own, or null when they do not wear it. */
+function wornItem(person: ServicePerson, itemKey: string): string | null {
   const [contract, itemId] = itemKey.split('-')
-  return (person.wearables ?? []).some(urn => {
+  const urn = (person.wearables ?? []).find(urn => {
     const parts = urn.split(':')
     return parts.length >= 7 && parts[4].toLowerCase() === contract && parts[5] === itemId
   })
+  return urn ? itemPointer(urn) : null
 }
 
 function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
@@ -89,7 +141,7 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
   const people = metadata.visiblePeople ?? []
   const shooter = (metadata.userAddress ?? '').toLowerCase()
   // The first match is enough: the credit names one wearer, even if several people in the shot own the item.
-  const wearer = people.find(person => wears(person, itemKey))
+  const wearer = people.find(person => wornItem(person, itemKey))
   const wearerAddress = (wearer?.userAddress ?? '').toLowerCase()
   const location = metadata.scene?.location
 
@@ -104,6 +156,8 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
     place: metadata.scene?.name ?? '',
     placeId: metadata.placeId ?? '',
     position: location?.x != null && location?.y != null ? `${location.x},${location.y}` : '',
+    wearerWearables: (wearer?.wearables ?? []).map(itemPointer),
+    itemUrn: wearer ? (wornItem(wearer, itemKey) ?? '') : '',
     realm: metadata.realm ?? '',
     dateTime: metadata.dateTime ?? '',
     people: people.length
@@ -111,7 +165,7 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
 }
 
 /**
- * Fewest people first, then most recent, with a cap per person and per place.
+ * Fewest people first, then most recent, with a cap per person and per place. Crowds are left out.
  *
  * The caps are what keep the strip from opening with the same scene four times: a popular spot is
  * photographed by several people on the same night, and those shots are near-identical.
@@ -124,7 +178,9 @@ export function rankReelPhotos(photos: ReelPhoto[], limit = SHOWN): ReelPhoto[] 
   const seen = new Set<string>()
   const ranked: ReelPhoto[] = []
 
-  const ordered = [...photos].sort((a, b) => a.people - b.people || Number(b.dateTime) - Number(a.dateTime))
+  const ordered = [...photos]
+    .filter(photo => !isCrowd(photo))
+    .sort((a, b) => a.people - b.people || Number(b.dateTime) - Number(a.dateTime))
 
   for (const photo of ordered) {
     const author = photo.userAddress.toLowerCase()
@@ -154,5 +210,5 @@ export async function fetchItemReel(item: Pick<CatalogItem, 'contractAddress' | 
   const body = (await res.json()) as { images?: ServiceImage[] }
   const photos = (body.images ?? []).map(image => toPhoto(image, key)).filter((p): p is ReelPhoto => !!p)
 
-  return rankReelPhotos(photos)
+  return rankReelPhotos(await withItemVisible(photos))
 }

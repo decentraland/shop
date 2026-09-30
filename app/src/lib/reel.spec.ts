@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Pin the service base so the asserted URL is stable regardless of env.
 vi.mock('~/config', () => ({ config: { cameraReelUrl: 'https://camera-reel.example' } }))
+// The hiding rules come from the Catalyst; each test says what it answers, and by default it knows nothing.
+const fetchWearableRules = vi.fn()
+vi.mock('~/lib/wearable-rules', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/wearable-rules')>()),
+  fetchWearableRules: (urns: string[]) => fetchWearableRules(urns)
+}))
 
 import { fetchItemReel, rankReelPhotos, reelKey, type ReelPhoto } from '~/lib/reel'
 
@@ -41,6 +47,8 @@ function photo(overrides: Partial<ReelPhoto> = {}): ReelPhoto {
     realm: 'main',
     dateTime: '1000',
     people: 1,
+    wearerWearables: [],
+    itemUrn: '',
     ...overrides
   }
 }
@@ -48,6 +56,8 @@ function photo(overrides: Partial<ReelPhoto> = {}): ReelPhoto {
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  fetchWearableRules.mockReset()
+  fetchWearableRules.mockResolvedValue([])
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -126,6 +136,48 @@ describe('when reading the photos of an item', () => {
     expect(photo.wearerName).toBe('')
   })
 
+  it('should leave out a photo where another piece the wearer has on hides the item', async () => {
+    const ITEM_URN = WORN.replace(':7', '')
+    const ROBE = 'urn:decentraland:matic:collections-v2:0xrobe:0'
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [
+          serviceImage(
+            {},
+            [{ userName: 'Robed', userAddress: '0xbbb', wearables: [`${ROBE}:3`, WORN] }],
+            'under-a-robe'
+          ),
+          serviceImage(
+            { scene: { name: 'Elsewhere', location: { x: '1', y: '1' } } },
+            [{ userName: 'Plain', userAddress: '0xccc', wearables: [WORN] }],
+            'on-show'
+          )
+        ]
+      })
+    })
+    fetchWearableRules.mockResolvedValue([
+      { urn: ITEM_URN, category: 'lower_body', hides: [], replaces: [] },
+      { urn: ROBE, category: 'upper_body', hides: ['lower_body'], replaces: [] }
+    ])
+
+    const photos = await fetchItemReel(ITEM)
+
+    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([ITEM_URN, ROBE]))
+    expect(photos.map(p => p.id)).toEqual(['on-show'])
+  })
+
+  it('and the hiding rules cannot be read it should keep the photos', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [serviceImage({}, [{ userName: 'Robed', userAddress: '0xbbb', wearables: [WORN] }])]
+      })
+    })
+
+    await expect(fetchItemReel(ITEM)).resolves.toHaveLength(1)
+  })
+
   it('and the item cannot be identified it should not ask at all', async () => {
     await expect(fetchItemReel({ contractAddress: '', itemId: '2' })).resolves.toEqual([])
     expect(fetchMock).not.toHaveBeenCalled()
@@ -139,14 +191,24 @@ describe('when reading the photos of an item', () => {
 })
 
 describe('when ranking the photos of an item', () => {
-  it('should put the emptiest shots first, because a crowd says nothing about the item', () => {
+  it('should put the emptiest shots first, because the fewer people the easier the item is to see', () => {
     const ranked = rankReelPhotos([
-      photo({ id: 'crowd', people: 12, userAddress: '0x1', place: 'a' }),
+      photo({ id: 'group', people: 4, userAddress: '0x1', place: 'a' }),
       photo({ id: 'solo', people: 1, userAddress: '0x2', place: 'b' }),
       photo({ id: 'pair', people: 2, userAddress: '0x3', place: 'c' })
     ])
 
-    expect(ranked.map(p => p.id)).toEqual(['solo', 'pair', 'crowd'])
+    expect(ranked.map(p => p.id)).toEqual(['solo', 'pair', 'group'])
+  })
+
+  it('should leave crowds out, where the item is a speck', () => {
+    const ranked = rankReelPhotos([
+      photo({ id: 'five', people: 5, userAddress: '0x1', place: 'a' }),
+      photo({ id: 'six', people: 6, userAddress: '0x2', place: 'b' }),
+      photo({ id: 'party', people: 32, userAddress: '0x3', place: 'c' })
+    ])
+
+    expect(ranked.map(p => p.id)).toEqual(['five'])
   })
 
   it('should prefer the newest of two equally empty shots', () => {
