@@ -1,0 +1,189 @@
+name: CDN deploy
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: 'Environment to promote to'
+        required: true
+        default: 'today'
+        options: [zone, today, org]
+      version:
+        description: 'Version to put live. org requires a release (e.g. 1.20.0); zone and today also take a commit build (e.g. 1.19.1-36712345678.commit-1509d74 — copy it from the deploy run you want).'
+        required: true
+      percentage:
+        description: 'Rollout percentage'
+        required: true
+        default: '100'
+
+jobs:
+  dev:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Scoped to pushes. The broker serialises the KV write itself -- it holds a lease per
+    # environment and record, and answers `rollout_in_progress` with a Retry-After that this
+    # action retries -- so a release or a promotion may run alongside this one. Sharing a
+    # single group across all three instead lets a queued release be cancelled outright by
+    # the next push, which deploys nothing and reports no failure.
+    #
+    # Within this group a newer commit does supersede a pending older one, which is the
+    # commit that should end up live.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-push
+      cancel-in-progress: false
+    # zone and today, which is what the `set-rollout` workflow this replaces did on every
+    # push to main. `today` needs an environment claim, and GitHub issues one only to a job
+    # that declares an environment; `zone` needs none, so this one declaration covers both.
+    #
+    # GitHub evaluates this before the job starts. `today` carries no protection rules
+    # today, so nothing waits -- but adding required reviewers to it would make every push
+    # to main queue for approval.
+    environment: today
+    env:
+      # Job level, not step level: the build runs inside a composite action, and composite
+      # steps do not inherit `env:` from the step that calls them.
+      #
+      # app/vite.config.ts only points assets at the CDN when DEPLOY_CDN is exactly 'true';
+      # otherwise it builds them relative to '/', which is correct for a local run and wrong
+      # for anything served from cdn.decentraland.org.
+      DEPLOY_CDN: 'true'
+      # Source maps for Sentry. vite.config gates the upload on this token, then deletes the
+      # .map files so they are never served from the CDN. Absent or empty, the build still
+      # succeeds and stack traces stay minified.
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      # Not secrets — the same org/project slugs that appear in every Sentry URL for this app.
+      SENTRY_ORG: decentraland
+      SENTRY_PROJECT: shop
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+        env:
+          HUSKY: 0
+          # Blanked deliberately. The token has to sit at job level for the build to see it,
+          # and that also hands it to every dependency's install script. A step value wins
+          # over the job value, so the install runs without it.
+          SENTRY_AUTH_TOKEN: ''
+      # The build runs INSIDE the action, which is what keeps the version the bytes were
+      # built for and the prefix they are uploaded to the same value. app/vite.config.ts
+      # builds its asset base as cdn.decentraland.org/<name>/<version>/ from app/package.json,
+      # so a build that runs before the version is settled emits HTML pointing at a prefix
+      # nothing was ever uploaded to.
+      #
+      # This repository has no root package.json, so the action has nothing to write the
+      # version into and says so in a warning. The first line below is what carries it, and
+      # app/package.json is the manifest vite actually reads.
+      #
+      # `package-name` is required for the same reason: with no root manifest there is no
+      # name to infer.
+      - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
+        with:
+          package-name: '@dcl/shop'
+          build-command: |
+            cd app
+            npm version "$CDN_DEPLOY_VERSION" --no-git-tag-version --allow-same-version
+            npm run build
+          dist-path: ./app/dist
+          deployment-environments: '["zone","today"]'
+
+  release:
+    # `release: published` fires for prereleases too. Without the guard an RC would publish
+    # like any other release.
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    # Keyed by tag: two releases published close together both deploy, rather than the
+    # pending one being cancelled when the second arrives.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-release-${{ github.event.release.tag_name }}
+      cancel-in-progress: false
+    environment: today
+    env:
+      DEPLOY_CDN: 'true'
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: decentraland
+      SENTRY_PROJECT: shop
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+        env:
+          HUSKY: 0
+          # Blanked deliberately. The token has to sit at job level for the build to see it,
+          # and that also hands it to every dependency's install script. A step value wins
+          # over the job value, so the install runs without it.
+          SENTRY_AUTH_TOKEN: ''
+      # Rebuilt rather than copied from the commit build: vite bakes the asset base from the
+      # version, so a copy of the commit build would serve /1.20.0/index.html asking for its
+      # assets from /1.20.0-<runId>.commit-<sha7>/. A release serves everything from its own
+      # path, which means building with the tag as the version -- which is what passing
+      # `version` alongside `build-command` does.
+      #
+      # `org` is absent deliberately: production is promoted by hand, naming the version,
+      # from `promote` below.
+      - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
+        with:
+          package-name: '@dcl/shop'
+          build-command: |
+            cd app
+            npm version "$CDN_DEPLOY_VERSION" --no-git-tag-version --allow-same-version
+            npm run build
+          dist-path: ./app/dist
+          version: ${{ github.event.release.tag_name }}
+          deployment-environments: '["zone","today"]'
+
+  promote:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Keyed by environment: a promotion to zone must not queue behind one to org.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-promote-${{ inputs.environment }}
+      cancel-in-progress: false
+    # Required: GitHub evaluates this before the job starts and only then issues the
+    # environment claim the broker checks for today and org.
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+      deployments: write
+      statuses: write
+    steps:
+      # No checkout: nothing is built and the bytes are already in S3, so there is no base
+      # version to compute a commit version from -- the action only demands one when it has
+      # to compute it.
+      #
+      # This is NOT a complete rollback. Records are stored sorted descending by semver and
+      # the worker serves the first one whose percentage covers the user, so naming an older
+      # version here leaves the newer one still serving while this job reports success.
+      # Rolling back also needs the abandoned version set to 0%, which this single-version
+      # dispatch cannot express -- use set-rollout-manual.yml for that.
+      - uses: decentraland/actions/cdn-deploy@cdn-deploy-v1
+        with:
+          package-name: '@dcl/shop'
+          version: ${{ inputs.version }}
+          deployment-environments: ${{ inputs.environment }}
+          percentage: ${{ inputs.percentage }}
