@@ -35,7 +35,7 @@ function expanded(panel: HTMLElement): Keyframe {
 export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelector: string) {
   const leaving = useRef(false)
   const opening = useRef<Animation[]>([])
-  const closing = useRef<Animation | null>(null)
+  const closing = useRef<{ fold: Animation; timer: ReturnType<typeof setTimeout> } | null>(null)
 
   useLayoutEffect(() => {
     const el = panel.current
@@ -66,17 +66,26 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
       )
     )
     opening.current = [grow, lift, ...fades]
+    // Mostly clipped away while it grows, so a press there would fall through to the page behind it.
+    el.style.pointerEvents = 'none'
+    grow.onfinish = () => {
+      el.style.pointerEvents = ''
+    }
     // A rerun measures the panel's resting box, which a still-running grow would have shifted.
-    return () => [grow, lift, ...fades].forEach(animation => animation.cancel())
+    return () => {
+      el.style.pointerEvents = ''
+      ;[grow, lift, ...fades].forEach(animation => animation.cancel())
+    }
   }, [panel, triggerSelector])
 
   // Unmounted some other way mid-fold: drop the fold without running its callback a second time.
   useLayoutEffect(
     () => () => {
-      const fold = closing.current
-      if (!fold) return
-      fold.onfinish = null
-      fold.cancel()
+      const current = closing.current
+      if (!current) return
+      clearTimeout(current.timer)
+      current.fold.onfinish = null
+      current.fold.cancel()
     },
     []
   )
@@ -115,8 +124,17 @@ export function useMorphFrom(panel: RefObject<HTMLElement | null>, triggerSelect
         easing: EASE_IN,
         fill: 'both'
       })
-      closing.current = fold
-      fold.onfinish = then
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        then()
+      }
+      // A hidden tab can hold the fold's finish back; the panel must still go away.
+      const timer = setTimeout(finish, CLOSE_MS * 1.15 + 150)
+      closing.current = { fold, timer }
+      fold.onfinish = finish
     },
     [panel, triggerSelector]
   )

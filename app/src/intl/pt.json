@@ -627,6 +627,7 @@
     "signInBody": "Veja como suas coleções estão vendendo, o que precisa de atenção e os descontos que você tem ativos.",
     "summary": "{collections, plural, one {# coleção} other {# coleções}} · {items, plural, one {# item} other {# itens}}",
     "period": "Período",
+    "periodTrigger": "Período: {period}",
     "period7d": "Últimos 7 dias",
     "period30d": "Últimos 30 dias",
     "periodall": "Tudo",

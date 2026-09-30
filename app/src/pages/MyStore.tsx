@@ -1356,7 +1356,7 @@ export function MyStore() {
                     aria-expanded={rangeOpen}
                     aria-haspopup="dialog"
                     data-range-trigger=""
-                    aria-label={`${t('myStore.period')}: ${periodLabel}`}
+                    aria-label={t('myStore.periodTrigger', { period: periodLabel })}
                     onClick={() => (rangeOpen ? picker.current?.close() : setRangeOpen(true))}
                     data-testid="store-period-trigger"
                   >

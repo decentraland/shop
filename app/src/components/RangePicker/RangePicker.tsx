@@ -101,8 +101,10 @@ export function RangePicker({
   useEffect(() => {
     const panel = ref.current
     const trigger = document.activeElement as HTMLElement | null
+    // The presets come first and are the usual pick, so focus starts on the one in force.
+    const preset = panel?.querySelector<HTMLElement>('[data-testid^="store-period-"][aria-pressed="true"]')
     const day = panel?.querySelector<HTMLElement>('.react-datepicker__day[tabindex="0"]')
-    ;(day ?? panel)?.focus()
+    ;(preset ?? day ?? panel)?.focus()
     return () => {
       // The panel unmounts after its fold, by when a press elsewhere may have focused what it pressed.
       const active = document.activeElement
@@ -131,7 +133,7 @@ export function RangePicker({
     >
       <S.Body>
         {presets?.length ? (
-          <S.Presets role="group" aria-label={t('myStore.period')}>
+          <S.Presets role="group">
             {presets.map(preset => (
               <S.Preset
                 key={preset.key}
