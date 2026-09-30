@@ -21,15 +21,21 @@ on:
         required: true
         default: '100'
 
-# The KV update is read-modify-write, so one deploy at a time per repo.
-concurrency:
-  group: cdn-deploy-${{ github.repository }}
-  cancel-in-progress: false
-
 jobs:
   dev:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Scoped to pushes. The broker serialises the KV write itself -- it holds a lease per
+    # environment and record, and answers `rollout_in_progress` with a Retry-After that this
+    # action retries -- so a release or a promotion may run alongside this one. Sharing a
+    # single group across all three instead lets a queued release be cancelled outright by
+    # the next push, which deploys nothing and reports no failure.
+    #
+    # Within this group a newer commit does supersede a pending older one, which is the
+    # commit that should end up live.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-push
+      cancel-in-progress: false
     # zone and today, which is what the `set-rollout` workflow this replaces did on every
     # push to main. `today` needs an environment claim, and GitHub issues one only to a job
     # that declares an environment; `zone` needs none, so this one declaration covers both.
@@ -69,6 +75,10 @@ jobs:
         working-directory: app
         env:
           HUSKY: 0
+          # Blanked deliberately. The token has to sit at job level for the build to see it,
+          # and that also hands it to every dependency's install script. A step value wins
+          # over the job value, so the install runs without it.
+          SENTRY_AUTH_TOKEN: ''
       # The build runs INSIDE the action, which is what keeps the version the bytes were
       # built for and the prefix they are uploaded to the same value. app/vite.config.ts
       # builds its asset base as cdn.decentraland.org/<name>/<version>/ from app/package.json,
@@ -96,6 +106,11 @@ jobs:
     # like any other release.
     if: github.event_name == 'release' && !github.event.release.prerelease
     runs-on: ubuntu-latest
+    # Keyed by tag: two releases published close together both deploy, rather than the
+    # pending one being cancelled when the second arrives.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-release-${{ github.event.release.tag_name }}
+      cancel-in-progress: false
     environment: today
     env:
       DEPLOY_CDN: 'true'
@@ -118,6 +133,10 @@ jobs:
         working-directory: app
         env:
           HUSKY: 0
+          # Blanked deliberately. The token has to sit at job level for the build to see it,
+          # and that also hands it to every dependency's install script. A step value wins
+          # over the job value, so the install runs without it.
+          SENTRY_AUTH_TOKEN: ''
       # Rebuilt rather than copied from the commit build: vite bakes the asset base from the
       # version, so a copy of the commit build would serve /1.20.0/index.html asking for its
       # assets from /1.20.0-<runId>.commit-<sha7>/. A release serves everything from its own
@@ -140,6 +159,10 @@ jobs:
   promote:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # Keyed by environment: a promotion to zone must not queue behind one to org.
+    concurrency:
+      group: cdn-deploy-${{ github.repository }}-promote-${{ inputs.environment }}
+      cancel-in-progress: false
     # Required: GitHub evaluates this before the job starts and only then issues the
     # environment claim the broker checks for today and org.
     environment: ${{ inputs.environment }}
