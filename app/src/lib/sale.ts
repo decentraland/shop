@@ -29,6 +29,22 @@ export function saleDiscountPct(compareAtCredits: number, priceCredits: number):
   return Math.min(99, Math.max(1, pct))
 }
 
+/**
+ * The badge's percentage: the creator's own discount when a rate coupon priced the sale, else the one the two
+ * prices imply. Prices round up to whole Credits, so on a cheap item "5 → 3" reads as 40% off a sale the
+ * creator set, and the buyer is charged, at 50%.
+ */
+export function saleBadgePct(
+  compareAtCredits: number,
+  priceCredits: number,
+  coupon?: { discountType: number; discount: number } | null
+): number {
+  if (coupon && coupon.discountType === 1 && coupon.discount > 0 && coupon.discount < 1_000_000) {
+    return Math.min(99, Math.max(1, Math.round(coupon.discount / 10_000)))
+  }
+  return saleDiscountPct(compareAtCredits, priceCredits)
+}
+
 // Milliseconds left until the sale ends, floored at 0. Infinity for an open-ended sale (no window).
 export function saleTimeLeft(saleEndsAt: number | undefined, now: number = Date.now()): number {
   if (saleEndsAt == null) return Infinity
