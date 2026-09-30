@@ -262,7 +262,7 @@ let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
 let suggestedForYouFlag = false
-let suggestedConfig: { personalized?: boolean; count?: number } = {}
+let suggestedConfig: { personalized?: boolean; count?: number; trending?: number } = {}
 let myStoreFlag = false
 /** The My Store flag's address-list variant. Undefined means no list, which is 'everyone'. */
 let myStoreAllowed: string | undefined
@@ -473,6 +473,35 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     })
   }
   // Images / builder content.
+  // Photos of people wearing an item (camera reel). Two shots, one of them a crowd, so a spec can see
+  // the rail rank them; the images themselves resolve through the image branch above.
+  const wearableImages = u.hostname.includes('camera-reel') && /^\/api\/wearables\/([^/]+)\/images$/.exec(path)
+  if (wearableImages) {
+    const photo = (id: string, people: number) => ({
+      id,
+      url: `https://camera-reel.example/${id}.jpg`,
+      thumbnailUrl: `https://camera-reel.example/${id}-thumbnail.jpg`,
+      metadata: {
+        userName: `Shooter ${id}`,
+        userAddress: `0x${id.repeat(4)}`,
+        dateTime: '1789615158',
+        realm: 'main',
+        placeId: `place-${id}`,
+        scene: { name: `Scene ${id}`, location: { x: '-3', y: '-2' } },
+        visiblePeople: Array.from({ length: people }, (_, i) => ({
+          userName: `Person ${i}`,
+          userAddress: `0x${id}${i}`,
+          wearables: [
+            `urn:decentraland:matic:collections-v2:${wearableImages[1].split('-')[0]}:${wearableImages[1].split('-')[1]}:${i}`
+          ],
+          isGuest: false,
+          isEmoting: false
+        }))
+      }
+    })
+    return json(req, { images: [photo('aa', 9), photo('bb', 1)], maxImages: 2 })
+  }
+
   if (path.includes('/contents/') || /\.(png|jpe?g|gif|svg|webp|ico)$/.test(path)) {
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
   }
@@ -673,12 +702,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         return i < rows.length ? row : { ...row, tradeId: `${row.tradeId}-s${i}`, itemId: `${100 + i}` }
       })
       const kinds = ['co_owned', 'creator_affinity', 'favorite_similar', 'equipped_similar', 'seed_similar']
+      const trending = suggestedConfig.trending ?? 0
       const data = padded.map((row, i) => ({
         ...row,
         reason:
-          kinds[i % kinds.length] === 'creator_affinity'
-            ? { kind: 'creator_affinity', creator: row.creator }
-            : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
+          i < trending
+            ? { kind: 'trending' }
+            : kinds[i % kinds.length] === 'creator_affinity'
+              ? { kind: 'creator_affinity', creator: row.creator }
+              : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
         score: 1 - i / 100
       }))
       return json(req, {
@@ -1184,7 +1216,8 @@ export async function launchApp(
      * What `/v3/catalog/suggested` answers. Omit for the default: the unified fixture rows, personalised.
      * A spec passes `{ personalized: false }` to exercise the row hiding itself.
      */
-    suggested?: { personalized?: boolean; count?: number }
+    /** `trending`: how many of the rows, from the top, arrive as trending (which the rail leaves out). */
+    suggested?: { personalized?: boolean; count?: number; trending?: number }
     /**
      * Whether the mocked flag file reports the creator's store dashboard as available. Defaults to FALSE,
      * the shipped state; the my-store spec passes true.

@@ -39,6 +39,11 @@ const colors = {
   media: '#ecebed', // Neutrals/Gray 5 — selected/expanded section fill
   panel: '#f5f5f5',
   chip: '#ecebed',
+  // The page field's bottom gradient stop with the standard 20% wash already composited in (#4b1a6b at
+  // 80%). It is what an OPAQUE surface has to be to sit on the field where the field is darkest — the
+  // docked mobile summary bar, which scrolls over content and so cannot be translucent. Named here, and
+  // mirrored in styles/index.css beside the gradient, so it moves with the field rather than drifting.
+  fieldBottomWashed: '#3c1556',
   accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)
@@ -63,6 +68,8 @@ const colors = {
   // The warm stop of `gradients.flare`/`ember`. Named because SVG gradient stops need the raw hex —
   // a CSS gradient string can't be handed to a <stop> (see Icons/CreditMarkIcon).
   flareAmber: '#ffbc5b',
+  // The comparison line on a chart whose current period is dclRed, validated for colour-blind separation on the store's dark panels.
+  chartCompare: '#8f7cf0',
   ok: '#1ea672',
   err: '#d33',
   // Saturated solid-fill variants of ok/err (badges, success checks, toast accents)
@@ -87,6 +94,14 @@ const colors = {
   // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).
   glass: 'rgba(255, 255, 255, 0.2)',
   glassFaint: 'rgba(255, 255, 255, 0.1)',
+  /**
+   * A panel that LIFTS the purple field instead of darkening it — the store editor's card.
+   *
+   * Violet rather than white: sampled either side of the card's edge in the design, the fill raises blue
+   * about twice as much as green (+20, +13, +29 against the background at mid height), which a neutral
+   * white wash cannot do — it lifts all three equally and comes out grey.
+   */
+  cardLift: 'rgba(165, 93, 244, 0.2)',
   glassHover: 'rgba(255, 255, 255, 0.3)'
 } as const
 

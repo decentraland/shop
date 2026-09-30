@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test' } }))
 
-import { countSales, fetchSalesPage, fetchSellerSales, type SaleRow } from '~/lib/sales'
+import { countSales, fetchRoyalties, fetchSalesPage, fetchSellerSales, type SaleRow } from '~/lib/sales'
 
 const SELLER = '0xseller'
 
@@ -134,5 +134,47 @@ describe('when fetching a seller"s sales', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, body: null, json: async () => ({}) }))
 
     await expect(fetchSellerSales({ seller: SELLER })).rejects.toThrow('fetchSales 502')
+  })
+})
+
+describe("when reading the royalties a creator's resales paid", () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  describe('and the server answers', () => {
+    beforeEach(() => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [{ id: 'r1' }], total: 818, royaltiesWei: '189320000000000000000' }), {
+          status: 200
+        })
+      )
+    })
+
+    it('should ask for the window and page and return the rows with the window totals', async () => {
+      const page = await fetchRoyalties({ creator: '0xc', from: 1000, to: 2000, first: 5, skip: 10 })
+
+      expect(page).toEqual({ data: [{ id: 'r1' }], total: 818, royaltiesWei: '189320000000000000000' })
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://mps.test/v1/sales/royalties?creator=0xc&first=5&skip=10&from=1000&to=2000'
+      )
+    })
+  })
+
+  describe('and the server fails', () => {
+    beforeEach(() => {
+      fetchMock.mockResolvedValueOnce(new Response('missing', { status: 404 }))
+    })
+
+    it('should throw', async () => {
+      await expect(fetchRoyalties({ creator: '0xc', first: 5, skip: 0 })).rejects.toThrow('fetchRoyalties 404')
+    })
   })
 })

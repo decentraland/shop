@@ -64,11 +64,18 @@ export type SalesSummary = {
   resales: number
   /** MANA wei. */
   earnedWei: string
-  byCollection: { contractAddress: string; sold: number; earnedWei: string }[]
+  /**
+   * Earnings in USD at each sale's day rate, as a decimal string, and how many sales had no rate. Absent from
+   * a server that predates the daily rates.
+   */
+  earnedUsd?: string
+  unpricedSales?: number
+  byCollection: { contractAddress: string; sold: number; earnedWei: string; earnedUsd?: string }[]
   /** First sales per item over its WHOLE life, not the window — what says how many copies were issued. */
   byItem: { contractAddress: string; itemId: string; soldLifetime: number }[]
   /** Resales of items this address CREATED, by anyone. Traded, not paid out. */
-  royalties: { resales: number; volumeWei: string }
+  /** `royaltiesWei` is what those resales actually paid, from each trade's royalty cut; absent on an older server. */
+  royalties: { resales: number; volumeWei: string; royaltiesWei?: string }
 }
 
 export async function fetchSalesSummary(filters: {
@@ -169,4 +176,40 @@ export async function fetchSellerSales(
     if (page.data.length < first || rows.length >= total) break
   }
   return { rows, total, truncated: total > rows.length }
+}
+
+/** One resale of a creator's item and the royalty it paid, from /v1/sales/royalties. Amounts are MANA wei. */
+export type RoyaltyRow = {
+  id: string
+  /** Milliseconds. */
+  timestamp: number
+  contractAddress: string
+  itemId: string | null
+  tokenId: string
+  priceWei: string
+  royaltyWei: string
+  /** Who received the royalty: the item's beneficiary when one is set, else the creator. Null when not recorded. */
+  collector: string | null
+  buyer: string
+  seller: string
+}
+
+/** A page of a creator's resales, newest first, with how many there are in the window and their royalty total. */
+export async function fetchRoyalties(filters: {
+  creator: string
+  from?: number
+  to?: number
+  first: number
+  skip: number
+}): Promise<{ data: RoyaltyRow[]; total: number; royaltiesWei: string }> {
+  const qs = new URLSearchParams({ creator: filters.creator, first: String(filters.first), skip: String(filters.skip) })
+  if (filters.from != null) qs.set('from', String(filters.from))
+  if (filters.to != null) qs.set('to', String(filters.to))
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/sales/royalties?${qs.toString()}`)
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new Error(`fetchRoyalties ${res.status}`)
+  }
+  const json = (await res.json()) as { data?: RoyaltyRow[]; total?: number; royaltiesWei?: string }
+  return { data: json.data ?? [], total: json.total ?? 0, royaltiesWei: json.royaltiesWei ?? '0' }
 }

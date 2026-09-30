@@ -29,7 +29,6 @@ describe('the sub-nav', () => {
 
     for (const [label, expected] of [
       ['collectibles', '/items'],
-      ['activity', '/activity'],
       ['my items', '/my-items'],
       ['overview', '/overview']
     ] as const) {
@@ -37,6 +36,12 @@ describe('the sub-nav', () => {
       await page.waitForFunction(p => window.location.pathname === p, { timeout: 20000 }, expected)
       expect(await page.evaluate(() => (window as unknown as { __spa?: boolean }).__spa)).toBe(true)
     }
+
+    // Activity left the tab row for an icon beside the cart, so it has no text to click — but it is the
+    // same client-side route and has to stay one, which is the whole point of this spec.
+    await page.click('[data-testid="subnav-activity"]')
+    await page.waitForFunction(() => window.location.pathname === '/activity', { timeout: 20000 })
+    expect(await page.evaluate(() => (window as unknown as { __spa?: boolean }).__spa)).toBe(true)
   })
 
   it('counts what is actually in the cart', async () => {

@@ -16,6 +16,13 @@ export type StoreItem = {
   /** Copies minted, from the item's own supply — not from the sales feed, which only covers the window. */
   minted: number
   sold: number
+  /**
+   * What those first sales brought in over the window, in MANA wei.
+   *
+   * Summed from the rows the feed returned, so it carries the same caveat as `sold` and moves with
+   * `breakdownPartial` — the server's exact aggregate answers per collection, never per item.
+   */
+  earnedWei: bigint
   /** First sales over the item's whole life, when the server can say — not the window's count. */
   lifetimeSold: number | null
   priceCredits: number | null
@@ -38,10 +45,21 @@ export type StoreCollection = {
   sold: number
   /** What first sales of this collection brought in over the window, in MANA wei. */
   earningsWei: bigint
+  /** The same earnings in dollars at each sale's day rate, when the server prices them. */
+  earningsUsd: number | null
   /** The newest item in it, when the source dates them. */
   createdAt: number | null
   /** Sales across the window, oldest first — the sparkline's series. */
   trend: number[]
+  /**
+   * Copies of the whole collection claimed, and the size of the run they came out of.
+   *
+   * Both are lifetime figures read from supply, not from the window: "80 of 250 claimed" answers how much
+   * of a run is gone, which does not change because the period selector moved. The window's story is the
+   * trend beside it.
+   */
+  claimed: number
+  runTotal: number
   /**
    * Every item in it has no copies left.
    *
@@ -60,6 +78,10 @@ export type StoreStats = {
   resales: number
   /** MANA wei, summed from the rows the cap allowed. */
   earningsWei: bigint
+  /** The same earnings in dollars at each sale's day rate, when the server prices them; null otherwise. */
+  earningsUsd: number | null
+  /** Sales in the window on a day with no stored rate, which the dollar figures leave out. */
+  unpricedSales: number
   /** True when the headline sums cover only part of the window, which the server's aggregate never does. */
   partial: boolean
   /**
@@ -81,7 +103,8 @@ export type StoreStats = {
   /** Collections whose listing state could not be read, so their items carry no status. */
   unknownCollections: number
   /** Resales of this creator's items, by anyone. Volume traded, not what they were paid. */
-  royalties: { resales: number; volumeWei: bigint } | null
+  /** `paidWei` is what the resales actually paid in royalties, when the server reports it; null means estimate. */
+  royalties: { resales: number; volumeWei: bigint; paidWei: bigint | null } | null
   /** Days the trend lines span. Shorter than the period when the rows do not reach back that far. */
   trendDays: number
   listed: number
@@ -158,6 +181,7 @@ export function buildStoreStats({
   now: number
 }): StoreStats {
   const soldByItem = new Map<string, number>()
+  const earnedByItem = new Map<string, bigint>()
   const rowsByCollection = new Map<string, SaleRow[]>()
   for (const row of rows) {
     // Only first sales are counted against an item, because that is what these figures measure: how much
@@ -171,6 +195,7 @@ export function buildStoreStats({
     const ca = row.contractAddress.toLowerCase()
     const key = `${ca}-${row.itemId}`
     soldByItem.set(key, (soldByItem.get(key) ?? 0) + 1)
+    earnedByItem.set(key, (earnedByItem.get(key) ?? 0n) + weiOf(row.price))
     const list = rowsByCollection.get(ca) ?? []
     list.push(row)
     rowsByCollection.set(ca, list)
@@ -233,8 +258,11 @@ export function buildStoreStats({
       soldOut: 0,
       sold: 0,
       earningsWei: 0n,
+      earningsUsd: null,
       createdAt: null,
       trend: [],
+      claimed: 0,
+      runTotal: 0,
       exhausted: false
     }
     const sold = soldByItem.get(`${ca}-${item.blockchainItemId}`) ?? 0
@@ -247,6 +275,7 @@ export function buildStoreStats({
       left: item.remainingSupply,
       minted: item.totalSupply,
       sold,
+      earnedWei: earnedByItem.get(`${ca}-${item.blockchainItemId}`) ?? 0n,
       lifetimeSold: lifetimeByItem.get(`${ca}-${item.blockchainItemId}`) ?? null,
       priceCredits: sale?.priceCredits ?? null,
       manaWei: sale?.manaWei ?? null,
@@ -254,6 +283,8 @@ export function buildStoreStats({
       state
     })
     entry.sold += sold
+    entry.claimed += item.totalSupply
+    entry.runTotal += item.totalSupply + item.remainingSupply
     attributedRows += sold
     if (item.createdAt && (entry.createdAt == null || item.createdAt > entry.createdAt)) {
       entry.createdAt = item.createdAt
@@ -272,6 +303,7 @@ export function buildStoreStats({
       ? weiOf(fromSummary.earnedWei)
       : own.reduce((sum, row) => sum + weiOf(row.price), 0n)
     if (fromSummary) entry.sold = fromSummary.sold
+    entry.earningsUsd = fromSummary?.earnedUsd != null ? Number(fromSummary.earnedUsd) : null
     entry.trend = bucketSales(own, trendDays, now)
     entry.exhausted = entry.items.length > 0 && entry.soldOut === entry.items.length
     // Best-selling first: a store's own page should open on what is working.
@@ -297,6 +329,8 @@ export function buildStoreStats({
     mints: summary?.mints ?? mints,
     resales: summary ? summary.resales : total - mints,
     earningsWei: summary ? weiOf(summary.earnedWei) : rows.reduce((sum, row) => sum + weiOf(row.price), 0n),
+    earningsUsd: summary?.earnedUsd != null ? Number(summary.earnedUsd) : null,
+    unpricedSales: summary?.unpricedSales ?? 0,
     // The server's sum covers the whole window whatever its size; only a client-side one can fall short.
     partial: summary ? false : truncated,
     breakdownPartial: truncated,
@@ -304,7 +338,13 @@ export function buildStoreStats({
     unattributed: summary ? summary.total - attributedSold : rows.length - attributedRows,
     trendDays,
     unknownCollections: [...byAddress.keys()].filter(ca => unreadable?.has(ca)).length,
-    royalties: summary ? { resales: summary.royalties.resales, volumeWei: weiOf(summary.royalties.volumeWei) } : null,
+    royalties: summary
+      ? {
+          resales: summary.royalties.resales,
+          volumeWei: weiOf(summary.royalties.volumeWei),
+          paidWei: summary.royalties.royaltiesWei != null ? weiOf(summary.royalties.royaltiesWei) : null
+        }
+      : null,
     listed,
     neverListed,
     classic,

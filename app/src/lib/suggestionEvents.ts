@@ -5,9 +5,9 @@ import type { SuggestedItem, SuggestionReasonKind } from '~/lib/api'
  * numbers with different denominators. */
 export type HiddenReason = 'flag_off' | 'no_signal' | 'not_personalized' | 'too_few' | 'error'
 
-/** Which part of a card was clicked. The reason line sits inside the card's click area, so without
- * this the two would be indistinguishable and the line would look like card interest. */
-export type ClickTarget = 'card' | 'reason'
+/** Which part of a card was clicked. Only the card itself is clickable now; the field stays so the
+ * events keep the shape existing queries filter on. */
+export type ClickTarget = 'card'
 
 export type PagedAction = 'next' | 'prev' | 'dot'
 

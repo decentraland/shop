@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useHref, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { useWallet } from '~/store/wallet'
@@ -47,6 +47,23 @@ export function StoreSettings() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const address = session?.address
+  /**
+   * Where the back arrow goes: whoever opened this page says so, and the public store is the fallback.
+   *
+   * My Store links here with `state.from`, so a creator who came from their dashboard lands back on it
+   * rather than on the page a shopper sees, which is not where they were. Only in-app paths are honoured
+   * — `state` survives a same-tab navigation and is not worth trusting with an arbitrary destination.
+   */
+  const location = useLocation()
+  // The guest link is an anchor (it opens a new tab), so it has to carry the router's basename itself.
+  const guestHref = useHref(address ? `/items/creator/${address}` : '/')
+  const cameFrom = (location.state as { from?: unknown } | null)?.from
+  const backTo =
+    typeof cameFrom === 'string' && cameFrom.startsWith('/') && !cameFrom.startsWith('//')
+      ? cameFrom
+      : address
+        ? `/items/creator/${address}`
+        : null
   const { data: store, isLoading } = useStore(address)
 
   const [draft, setDraft] = useState<StoreDraft>(EMPTY_DRAFT)
@@ -210,144 +227,149 @@ export function StoreSettings() {
 
   return (
     <S.Root aria-label={t('storeSettings.title')}>
-      <S.Head>
-        <S.Heading>
-          {address ? (
-            <S.Back
-              to={`/items/creator/${address}`}
-              title={t('storeSettings.back')}
-              aria-label={t('storeSettings.back')}
-            >
-              <Icon name="arrow-left" />
-            </S.Back>
-          ) : null}
-          <S.Title>{t('storeSettings.title')}</S.Title>
-        </S.Heading>
-        {address ? (
-          <S.Guest href={`/items/creator/${address}`} target="_blank" rel="noopener noreferrer">
-            {t('storeSettings.seeAsGuest')}
-            <Icon name="external-link" />
-          </S.Guest>
-        ) : null}
-      </S.Head>
+      <S.Card>
+        <S.Inner>
+          <S.Head>
+            <S.Heading>
+              {backTo ? (
+                <S.Back
+                  to={backTo}
+                  title={t('storeSettings.back')}
+                  aria-label={t('storeSettings.back')}
+                  data-testid="store-settings-back"
+                >
+                  <Icon name="arrow-left" />
+                </S.Back>
+              ) : null}
+              <S.Title>{t('storeSettings.title')}</S.Title>
+            </S.Heading>
+            {address ? (
+              <S.Guest href={guestHref} target="_blank" rel="noopener noreferrer">
+                {t('storeSettings.seeAsGuest')}
+                <Icon name="external-link" />
+              </S.Guest>
+            ) : null}
+          </S.Head>
 
-      {isLoading ? (
-        <S.Loading size="large" label={t('storeSettings.loading')} />
-      ) : (
-        <>
-          <Field>
-            <span className="field__label">{t('storeSettings.cover')}</span>
-            <S.Picker role="group" aria-label={t('storeSettings.cover')}>
-              {COVER_TEMPLATES.map(tpl => {
-                const selected = selectedTemplate === tpl.name
-                return (
-                  <S.Tile
-                    key={tpl.name}
-                    type="button"
-                    data-testid="cover-picker-tile"
-                    data-selected={selected}
-                    aria-pressed={selected}
-                    onClick={() => pickTemplate(tpl.name, tpl.url)}
-                  >
-                    <img src={tpl.url} alt="" loading="lazy" />
-                  </S.Tile>
-                )
-              })}
+          {isLoading ? (
+            <S.Loading size="large" label={t('storeSettings.loading')} />
+          ) : (
+            <>
+              <Field>
+                <span className="field__label">{t('storeSettings.cover')}</span>
+                <S.Picker role="group" aria-label={t('storeSettings.cover')}>
+                  {COVER_TEMPLATES.map(tpl => {
+                    const selected = selectedTemplate === tpl.name
+                    return (
+                      <S.Tile
+                        key={tpl.name}
+                        type="button"
+                        data-testid="cover-picker-tile"
+                        data-selected={selected}
+                        aria-pressed={selected}
+                        onClick={() => pickTemplate(tpl.name, tpl.url)}
+                      >
+                        <img src={tpl.url} alt="" loading="lazy" />
+                      </S.Tile>
+                    )
+                  })}
 
-              {/* The custom (uploaded) cover tile. Stays around once uploaded so it can be re-selected
+                  {/* The custom (uploaded) cover tile. Stays around once uploaded so it can be re-selected
                   after clicking a template; it's marked selected only while it's the active cover.
                   A saved template is matched above by hash (and dropped from customCover), so it never
                   doubles up here. */}
-              {customCover ? (
-                <S.Tile
-                  type="button"
-                  data-testid="cover-picker-tile"
-                  data-variant="custom"
-                  data-selected={!selectedTemplate}
-                  aria-pressed={!selectedTemplate}
-                  onClick={pickCustom}
-                >
-                  <img src={customCover.url} alt="" />
-                </S.Tile>
-              ) : null}
+                  {customCover ? (
+                    <S.Tile
+                      type="button"
+                      data-testid="cover-picker-tile"
+                      data-variant="custom"
+                      data-selected={!selectedTemplate}
+                      aria-pressed={!selectedTemplate}
+                      onClick={pickCustom}
+                    >
+                      <img src={customCover.url} alt="" />
+                    </S.Tile>
+                  ) : null}
 
-              <S.Tile
-                type="button"
-                data-testid="cover-picker-tile"
-                data-variant="upload"
-                onClick={() => fileInput.current?.click()}
-              >
-                <Icon name="upload" />
-                <span>{t('storeSettings.upload')}</span>
-              </S.Tile>
-              <S.FileInput
-                ref={fileInput}
-                type="file"
-                accept="image/png, image/jpeg, image/webp"
-                data-testid="cover-picker-input"
-                onChange={onUpload}
-              />
-            </S.Picker>
-            {oversize ? (
-              <ErrorNotice
-                message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
-              />
-            ) : null}
-          </Field>
+                  <S.Tile
+                    type="button"
+                    data-testid="cover-picker-tile"
+                    data-variant="upload"
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    <Icon name="upload" />
+                    <span>{t('storeSettings.upload')}</span>
+                  </S.Tile>
+                  <S.FileInput
+                    ref={fileInput}
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp"
+                    data-testid="cover-picker-input"
+                    onChange={onUpload}
+                  />
+                </S.Picker>
+                {oversize ? (
+                  <ErrorNotice
+                    message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
+                  />
+                ) : null}
+              </Field>
 
-          <Field as="label">
-            <span className="field__label">{t('storeSettings.description')}</span>
-            <textarea
-              value={draft.description}
-              rows={4}
-              disabled={saving}
-              onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
-            />
-          </Field>
-
-          <Field as="label">
-            <span className="field__label">{t('storeSettings.website')}</span>
-            <input
-              type="url"
-              value={draft.links.website}
-              placeholder={LINK_PREFIX.website}
-              disabled={saving}
-              onChange={e =>
-                setDraft(d => ({ ...d, links: { ...d.links, website: e.target.value.replace(/\s/g, '') } }))
-              }
-            />
-            {!isValidLink('website', draft.links.website) ? (
-              <ErrorNotice message={t('storeSettings.linkError', { value: LINK_PREFIX.website })} />
-            ) : null}
-          </Field>
-
-          {(['twitter', 'discord', 'facebook'] as const).map(type => (
-            <Field as="label" key={type}>
-              <span className="field__label">{t(`storeSettings.${type}`)}</span>
-              <S.Prefixed>
-                <S.Prefix>{LINK_PREFIX[type]}</S.Prefix>
-                <input
-                  type="text"
-                  value={linkInputValue(type)}
+              <Field as="label">
+                <span className="field__label">{t('storeSettings.description')}</span>
+                <textarea
+                  value={draft.description}
+                  rows={4}
                   disabled={saving}
-                  onChange={e => setLink(type, e.target.value)}
+                  onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
                 />
-              </S.Prefixed>
-            </Field>
-          ))}
+              </Field>
 
-          <S.Actions>
-            <S.SaveBtn
-              variant="white"
-              data-testid="store-settings-save"
-              onClick={() => void save()}
-              disabled={!canSave}
-            >
-              {saving ? t('storeSettings.saving') : t('storeSettings.save')}
-            </S.SaveBtn>
-          </S.Actions>
-        </>
-      )}
+              <Field as="label">
+                <span className="field__label">{t('storeSettings.website')}</span>
+                <input
+                  type="url"
+                  value={draft.links.website}
+                  placeholder={LINK_PREFIX.website}
+                  disabled={saving}
+                  onChange={e =>
+                    setDraft(d => ({ ...d, links: { ...d.links, website: e.target.value.replace(/\s/g, '') } }))
+                  }
+                />
+                {!isValidLink('website', draft.links.website) ? (
+                  <ErrorNotice message={t('storeSettings.linkError', { value: LINK_PREFIX.website })} />
+                ) : null}
+              </Field>
+
+              {(['twitter', 'discord', 'facebook'] as const).map(type => (
+                <Field as="label" key={type}>
+                  <span className="field__label">{t(`storeSettings.${type}`)}</span>
+                  <S.Prefixed>
+                    <S.Prefix>{LINK_PREFIX[type]}</S.Prefix>
+                    <input
+                      type="text"
+                      value={linkInputValue(type)}
+                      disabled={saving}
+                      onChange={e => setLink(type, e.target.value)}
+                    />
+                  </S.Prefixed>
+                </Field>
+              ))}
+
+              <S.Actions>
+                <S.SaveBtn
+                  variant="white"
+                  data-testid="store-settings-save"
+                  onClick={() => void save()}
+                  disabled={!canSave}
+                >
+                  {saving ? t('storeSettings.saving') : t('storeSettings.save')}
+                </S.SaveBtn>
+              </S.Actions>
+            </>
+          )}
+        </S.Inner>
+      </S.Card>
     </S.Root>
   )
 }

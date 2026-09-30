@@ -519,3 +519,73 @@ describe('the search box', () => {
     expect(screen.getByTestId('probe')).toHaveTextContent('POP /overview')
   })
 })
+
+/**
+ * The scrolled state that deepens both bars.
+ *
+ * It used to be one threshold, which flickered: a gesture settling around it re-crossed it several times
+ * in a few frames, each crossing restarting the bars' background transition, so they pumped
+ * half-transparent instead of landing. What these pin is the hysteresis — the gap between entering and
+ * leaving — because a single threshold passes every "does it turn on" test and still flickers.
+ */
+describe('the scrolled state of the bars', () => {
+  const scrollTo = (y: number) => {
+    window.scrollY = y
+    act(() => {
+      fireEvent.scroll(window)
+    })
+  }
+
+  beforeEach(() => {
+    window.scrollY = 0
+    document.body.removeAttribute('data-scrolled')
+  })
+
+  const isOn = () => document.body.hasAttribute('data-scrolled')
+
+  it('stays at rest until the page has actually moved', () => {
+    renderNav()
+    expect(isOn()).toBe(false)
+
+    scrollTo(12)
+    expect(isOn()).toBe(false)
+
+    scrollTo(30)
+    expect(isOn()).toBe(true)
+  })
+
+  it('does not drop back at the first pixel of bounce, which is what flickered', () => {
+    renderNav()
+    scrollTo(30)
+
+    // The jitter measured on a real trackpad gesture: a handful of pixels either way, all of it inside
+    // the old single threshold. None of it may change the bars.
+    for (const y of [13, 26, 6, 18, 9, 22]) {
+      scrollTo(y)
+      expect(isOn()).toBe(true)
+    }
+  })
+
+  it('returns to rest only once the page is back at the top', () => {
+    renderNav()
+    scrollTo(30)
+
+    scrollTo(3)
+    expect(isOn()).toBe(false)
+  })
+
+  it('starts deep when the page loads already scrolled', () => {
+    window.scrollY = 400
+    renderNav()
+    expect(isOn()).toBe(true)
+  })
+
+  it('cleans the attribute off the body when it goes away', () => {
+    const { unmount } = renderNav()
+    scrollTo(30)
+    expect(isOn()).toBe(true)
+
+    unmount()
+    expect(isOn()).toBe(false)
+  })
+})

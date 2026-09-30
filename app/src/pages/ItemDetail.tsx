@@ -49,6 +49,7 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { useCampaignBadge } from '~/hooks/useCampaignBadge'
@@ -57,6 +58,7 @@ import { t } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { PhotoReel } from '~/components/PhotoReel'
 import { ResellersModal } from '~/components/ResellersModal'
 import { MarketplaceRedirectModal } from '~/components/MarketplaceRedirectModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
@@ -299,7 +301,7 @@ export function ItemDetail() {
     isLoading: personal.isLoading,
     isError: personal.isError,
     personalized: personal.result?.personalized,
-    rowCount: personal.result?.data.length ?? 0
+    rowCount: explainedRows(personal.result?.data ?? []).length
   })
 
   // The rail below the fold: this collection's other items, padded with the creator's and then with
@@ -1936,6 +1938,9 @@ export function ItemDetail() {
           }
         />
       )}
+
+      {/* Photos of people wearing it, in world. Renders nothing when there are none. */}
+      <PhotoReel item={current} />
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout

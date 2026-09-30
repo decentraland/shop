@@ -34,6 +34,7 @@
   --black-btn: #242129; /* add-to-cart bg */
   --soft-white: #fcfcfc;
   --dcl-red: #ff2d55;
+  --chart-compare: #8f7cf0;
   --sale-tag: #ffc9d5; /* Figma "Primary Base/Primary Light 2" — the card's sale tag */
   --sale-tag-ink: #ec303a;
   --ok: #1ea672;
@@ -105,6 +106,10 @@ body {
       #32134c 100%
     )
     fixed;
+  /* Mirrors theme.colors.fieldBottomWashed: the #4b1a6b stop above with the standard 20% wash composited
+     in. It is what an opaque surface must be to sit on the field where the field is darkest. Kept beside
+     the gradient so the two move together. */
+  --field-bottom-washed: #3c1556;
   color: var(--text);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -278,11 +283,10 @@ h2 {
 .page[data-route="/event"] {
   padding-top: 0;
 }
-/* The cart is the one route whose LAST section paints its own background (the white cross-sell band). The
-   min-height above is load-bearing — without it a short page's footer rides up above the fold — but its
-   surplus lands after that band and shows as a strip of gray between the cross-sell and the footer. Making
-   the route a flex column lets the band grow into the surplus instead, so the white reaches the footer.
-   See pages/Cart.styles.ts (Checkout / Upsell), which opt into growing. */
+/* The min-height above is load-bearing — without it a short page's footer rides up above the fold — but on
+   these two routes the surplus landed between the last section and the footer. Making the route a flex
+   column lets the last section grow into the surplus instead. See pages/Cart.styles.ts (Checkout / Upsell),
+   which opt into growing. */
 .page[data-route="/cart"],
 .page[data-route="/success"] {
   display: flex;

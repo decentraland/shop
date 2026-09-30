@@ -1,28 +1,24 @@
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { countSales, fetchSalesSummary, fetchSellerSales, weiOf } from '~/lib/sales'
-import {
-  collectorsOf,
-  daysSinceLastSale,
-  deltaOf,
-  deltaOfWei,
-  saleLift,
-  topBuyers,
-  wantedButUnsold
-} from '~/lib/storeMetrics'
+import { countSales, fetchSalesSummary, fetchSellerSales, weiOf, type SaleRow } from '~/lib/sales'
+import { collectorsOf, daysSinceLastSale, deltaOf, deltaOfWei, topBuyers } from '~/lib/storeMetrics'
 import { fetchFavoriteStats } from '~/lib/favorites'
 import { fetchPublishableItems } from '~/lib/builder'
-import { fetchPublicCatalogue } from '~/lib/storePreview'
+import { fetchPublicCatalogue, withMissingCollections } from '~/lib/storeCatalogue'
+import { captureError } from '~/lib/monitoring'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
 import { toSaleableCollections } from '~/lib/saleableCollections'
 import type { Session } from '~/lib/auth'
+import { comparisonRange, type ResolvedRange } from '~/lib/storeRange'
 
-export type StorePeriod = '7d' | '30d' | 'all'
+/** Stable empty map, so a render before the saves land does not hand consumers a new object. */
+const EMPTY_SAVES = new Map<string, number>()
+const EMPTY_ROWS: SaleRow[] = []
+
 export type { StoreItem, StoreCollection, StoreStats } from '~/lib/storeStats'
 
-const DAY_MS = 86_400_000
-const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: null }
+const PUBLIC_CATALOGUE_TIMEOUT_MS = 6_000
 
 /**
  * The reads the store dashboard runs, composed into one figure set.
@@ -36,30 +32,26 @@ const WINDOW: Record<StorePeriod, number | null> = { '7d': 7, '30d': 30, all: nu
  * is why they run unconditionally rather than behind it: a degraded page that reports the most recent
  * sales is worth more than one that reports nothing.
  */
-export function useStoreStats(session: Session | null, period: StorePeriod, viewAs?: string | null) {
-  const address = viewAs ?? session?.address
-  const days = WINDOW[period]
-  // Pinned to the day so the key does not change on every render and refetch the window each time.
-  const now = useMemo(() => Math.floor(Date.now() / DAY_MS) * DAY_MS + DAY_MS - 1, [])
-  const from = days ? now - days * DAY_MS : undefined
+export function useStoreStats(session: Session | null, range: ResolvedRange) {
+  const address = session?.address
+  const { days, from, to: now } = range
+  const period = [from ?? null, now]
 
   const sales = useQuery({
-    queryKey: ['store-sales', address, period],
+    queryKey: ['store-sales', address, ...period],
     enabled: !!address,
-    queryFn: () => fetchSellerSales({ seller: address, from })
+    queryFn: () => fetchSellerSales({ seller: address, from, to: now })
   })
 
-  // Someone else's store can only be read from the public feeds: the builder answers for the signed-in
-  // creator alone.
   /**
    * The server's aggregate for the window: totals, earnings, per-collection and per-item figures, and the
    * royalties that no client-side grouping can reach. Every number in it is exact whatever the size of the
    * store; the reads below stay as the fallback for a server that has not shipped it yet.
    */
   const summary = useQuery({
-    queryKey: ['store-summary', address, period],
+    queryKey: ['store-summary', address, ...period],
     enabled: !!address,
-    queryFn: () => fetchSalesSummary({ seller: address as string, from })
+    queryFn: () => fetchSalesSummary({ seller: address as string, from, to: now })
   })
 
   /**
@@ -69,10 +61,11 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
    * the month before it did, and the creator is the one person who cannot look that up. Skipped for all
    * time, which has nothing before it to compare against.
    */
-  const previousFrom = days != null ? now - 2 * days * DAY_MS : undefined
-  const previousTo = days != null ? now - days * DAY_MS : undefined
+  const before = comparisonRange(range, 'previous')
+  const previousFrom = before?.from
+  const previousTo = before?.to
   const previous = useQuery({
-    queryKey: ['store-summary-previous', address, period],
+    queryKey: ['store-summary-previous', address, ...period],
     enabled: !!address && previousFrom !== undefined,
     queryFn: () => fetchSalesSummary({ seller: address as string, from: previousFrom, to: previousTo })
   })
@@ -80,19 +73,39 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
   // Exact, and one request: the feed counts by kind server-side, so the split never depends on how many
   // rows the cap above let through.
   const mints = useQuery({
-    queryKey: ['store-mints', address, period],
+    queryKey: ['store-mints', address, ...period],
     enabled: !!address,
-    queryFn: () => countSales({ seller: address, from, type: 'mint' })
+    queryFn: () => countSales({ seller: address, from, to: now, type: 'mint' })
   })
 
-  const catalogue = useQuery({
-    queryKey: ['store-catalogue', address, !!viewAs],
-    enabled: !!address && (!!viewAs || !!session),
-    queryFn: () =>
-      viewAs
-        ? fetchPublicCatalogue(viewAs)
-        : fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
+  const builderCatalogue = useQuery({
+    queryKey: ['store-catalogue', address],
+    enabled: !!address && !!session,
+    queryFn: () => fetchPublishableItems(address as string, session!.identity, { includeSoldOut: true })
   })
+
+  // Fail-soft and bounded: the builder's catalogue is enough to run the page, this only fills the collections
+  // it missed, so a slow feed must not hold the page past a few seconds.
+  const publicCatalogue = useQuery({
+    queryKey: ['store-public-catalogue', address],
+    enabled: !!address && !!session,
+    queryFn: () =>
+      Promise.race([
+        fetchPublicCatalogue(address as string),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('public catalogue timed out')), PUBLIC_CATALOGUE_TIMEOUT_MS)
+        )
+      ]).catch((error: unknown) => {
+        captureError(error, { flow: 'my_store', step: 'public_catalogue' })
+        return []
+      })
+  })
+
+  const catalogue = useMemo(() => {
+    if (!builderCatalogue.data) return { data: undefined }
+    if (publicCatalogue.isPending) return { data: undefined }
+    return { data: withMissingCollections(builderCatalogue.data, publicCatalogue.data ?? []) }
+  }, [builderCatalogue.data, publicCatalogue.isPending, publicCatalogue.data])
 
   const addresses = useMemo(
     () => [...new Set((catalogue.data ?? []).map(item => item.contractAddress))],
@@ -168,11 +181,12 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
    * The same collections a discount can run on, from the reads the page already made.
    *
    * Shared with My Creations through `toSaleableCollections` rather than derived twice: which collections
-   * a creator may discount is one rule, and two copies of it would drift.
+   * a creator may discount is one rule, and two copies of it would drift. Only the builder's collections:
+   * one it did not return has none of the builder state a discount needs.
    */
   const saleable = useMemo(
-    () => toSaleableCollections(catalogue.data ?? [], saleState.data?.states),
-    [catalogue.data, saleState.data]
+    () => toSaleableCollections(builderCatalogue.data ?? [], saleState.data?.states),
+    [builderCatalogue.data, saleState.data]
   )
 
   /**
@@ -183,6 +197,8 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
    */
   const trend = useMemo(() => {
     const collectors = collectorsOf(sales.data?.rows ?? [])
+    // Everyone, not a top five: the table pages through them, and a store with hundreds of customers is
+    // exactly the one whose owner wants to scroll past the first screen.
     const buyers = topBuyers(sales.data?.rows ?? [])
     const quietDays = daysSinceLastSale(sales.data?.rows ?? [], now)
     const against = previous.data
@@ -196,60 +212,24 @@ export function useStoreStats(session: Session | null, period: StorePeriod, view
     }
   }, [sales.data, summary.data, previous.data, now])
 
-  /**
-   * Whether a discount moved anything, measured from the rows this hook already holds.
-   *
-   * Handed out as a function rather than a map because the discounts are fetched elsewhere: the page knows
-   * which sales are running, this knows what sold and when, and neither has a reason to learn the other.
-   */
-  const liftFor = useCallback(
-    (sale: { checks: { effective: number; expiration: number }; collections: string[] }) => {
-      const rows = sales.data?.rows ?? []
-      // Measured against the collections the discount actually covers. A creator running one sale on a
-      // quiet capsule and another on their best seller wants two different answers, and the store's whole
-      // feed gives them the same one twice.
-      const scope = new Set(sale.collections.map(address => address.toLowerCase()))
-      const covered = rows.reduce((min, row) => (row.timestamp < min ? row.timestamp : min), now)
-      return saleLift(
-        rows.filter(row => scope.has(row.contractAddress.toLowerCase())),
-        sale.checks,
-        now,
-        covered
-      )
-    },
-    [sales.data, now]
-  )
-
-  /**
-   * Items people saved and nobody ever bought. Empty until the saves land, which is the honest reading.
-   *
-   * Against the item's LIFETIME sales, not the window's. A run that sold out last year has not gone
-   * unwanted because this month was quiet, and counting it here told one creator that 57 of their 63
-   * items had never sold while 37 of them had no copies left.
-   */
-  const wanted = useMemo(
-    () =>
-      wantedButUnsold(
-        (stats?.collections ?? [])
-          .flatMap(c => c.items)
-          .map(item => ({ ...item, sold: item.lifetimeSold ?? item.sold })),
-        saves.data ?? new Map<string, number>()
-      ),
-    [stats, saves.data]
-  )
+  /** How many people saved each item, by `<contract>-<itemId>`. Empty until the reads land. */
+  const savesByKey = saves.data ?? EMPTY_SAVES
 
   return {
     stats,
     trend,
-    wanted,
-    liftFor,
+    savesByKey,
     saleable,
+    /** The period's own sales rows, for the chart: the same read the tables are built from. */
+    sales: { rows: sales.data?.rows ?? EMPTY_ROWS, truncated: !!sales.data?.truncated, isFetching: sales.isFetching },
+    /** The previous window's earnings in dollars, for the delta when the page is written in dollars. */
+    previousEarnedUsd: previous.data?.earnedUsd != null ? Number(previous.data.earnedUsd) : null,
     // The summary counts, because the tiles read from it the moment it lands: leaving it out let the page
     // declare itself ready on the row-derived fallback and then rewrite every headline figure under the
     // creator a beat later. Its ERROR deliberately does not count — a summary that cannot be read leaves a
     // page that still works off the rows, and calling that a failure would replace a good page with a
     // notice.
-    isLoading: catalogue.isLoading || sales.isLoading || summary.isLoading,
-    error: catalogue.error ?? sales.error ?? null
+    isLoading: builderCatalogue.isLoading || publicCatalogue.isLoading || sales.isLoading || summary.isLoading,
+    error: builderCatalogue.error ?? sales.error ?? null
   }
 }

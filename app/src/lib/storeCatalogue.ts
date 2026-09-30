@@ -14,39 +14,33 @@ type RawRow = {
   rarity?: string
   thumbnail?: string
   available?: string | number | null
-  isOnSale?: boolean
   createdAt?: number
 }
 
 /**
- * A creator's catalogue from the PUBLIC feeds, so a store can be looked at without being signed in as it.
+ * The creator's published items from the public catalogue.
  *
- * The dashboard's own catalogue comes from the builder behind a signed fetch, which can only ever answer
- * for the signed-in creator. That leaves the page impossible to judge against a real store: a fresh test
- * account has no sales, no sold-out items and no discount, and that is the one shape a dashboard must not
- * be tuned for. Everything else the page reads — sales, listings, coupons — is already public.
- *
- * Supply comes from the catalogue's `available` against the rarity's cap, which is what the item page shows
- * a buyer and is the real remaining supply rather than a listing's stock — checked against the minted NFTs
- * of a collection whose two items report 0 of 50 and 935 of 1000: the chain holds exactly 50 and 65 of
- * them. Only PUBLISHED items exist here; a draft is precisely what the public feed does not serve.
+ * Supply comes from `available` against the rarity's cap, which is the remaining supply the item page shows
+ * a buyer rather than a listing's stock.
  */
 export async function fetchPublicCatalogue(creator: string): Promise<StoreCatalogueItem[]> {
   const [{ collections }, rows] = await Promise.all([
-    fetchCreatorCollections(creator, { first: 100 }),
+    fetchCreatorCollections(creator, { first: PAGE }),
     fetchCreatorRows(creator)
   ])
   const names = new Map(collections.map(collection => [collection.contractAddress.toLowerCase(), collection.name]))
 
   return rows.map(row => {
+    const contractAddress = row.contractAddress.toLowerCase()
     const rarity = (row.rarity ?? 'common').toLowerCase()
     const max = maxSupplyOf(rarity)
     const remaining = Number(row.available ?? 0)
     return {
       id: row.id,
-      collectionId: row.contractAddress,
-      collectionName: names.get(row.contractAddress.toLowerCase()) ?? row.contractAddress,
-      contractAddress: row.contractAddress,
+      // Empty: the builder id is what its URLs take, and the builder is exactly what did not return these.
+      collectionId: '',
+      collectionName: names.get(contractAddress) ?? row.name,
+      contractAddress,
       blockchainItemId: String(row.itemId ?? ''),
       name: row.name,
       category: row.category,
@@ -62,6 +56,21 @@ export async function fetchPublicCatalogue(creator: string): Promise<StoreCatalo
       minters: []
     }
   })
+}
+
+/**
+ * The builder's catalogue, plus the public items of every collection the builder did not return.
+ *
+ * The builder can leave out collections a creator published and sells (seen on real stores), and a sale
+ * from one of them then has no name, no thumbnail and no collection. Collections the builder does return
+ * are never replaced: its figures are the ones the rest of the page is built on.
+ */
+export function withMissingCollections(
+  builder: StoreCatalogueItem[],
+  publicItems: StoreCatalogueItem[]
+): StoreCatalogueItem[] {
+  const known = new Set(builder.map(item => item.contractAddress.toLowerCase()))
+  return [...builder, ...publicItems.filter(item => !known.has(item.contractAddress.toLowerCase()))]
 }
 
 function maxSupplyOf(rarity: string): number {

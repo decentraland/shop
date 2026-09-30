@@ -72,6 +72,7 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { Icon } from '~/components/Icon'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import type { CatalogItem } from '~/lib/api'
@@ -248,7 +249,7 @@ export function Cart() {
     isLoading: personal.isLoading,
     isError: personal.isError,
     personalized: personal.result?.personalized,
-    rowCount: personal.result?.data.length ?? 0
+    rowCount: explainedRows(personal.result?.data ?? []).length
   })
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
@@ -1324,8 +1325,9 @@ export function Cart() {
           </S.Back>
 
           <S.CartEmpty>
+            {/* Default (dark) variant: the light one is a white card, and on the purple field it was the
+                last white surface left on this page. */}
             <EmptyState
-              variant="light"
               testId="cart-empty"
               icon={cartEmptyIllustration}
               title={t('cart.empty.title')}
@@ -1344,8 +1346,8 @@ export function Cart() {
 
   return (
     <S.Checkout>
-      {/* Top section (breadcrumb + cart/summary panels) sits on the gray band; everything below
-          (the cross-sell) is on the white page — Figma 1182-232377. */}
+      {/* Top section (breadcrumb + cart/summary panels) sits on the band; the cross-sell below it is on
+          the bare field — Figma 1182-232377. */}
       <S.Top>
         <S.Back onClick={() => navigate(-1)} type="button">
           <Icon name="arrow-left" />
@@ -1354,22 +1356,21 @@ export function Cart() {
 
         <S.Body>
           <S.Left>
-            {/* Header card (Figma 1182-216308): "Cart: N Items" + Fitting Room — its own white card. */}
-            <S.HeadCard>
-              <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
-                <Icon name="arrow-left" />
-              </S.PanelBack>
-              <S.PanelTitle>{t('cart.panelTitle', { count: totalUnits })}</S.PanelTitle>
-              {hasWearable ? (
-                <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
-                  <Icon name="fitting-room" />
-                  {t('cart.fittingRoom')}
-                </S.Fitting>
-              ) : null}
-            </S.HeadCard>
-
-            {/* Items card (Figma 1182-216322): the cart lines, p-24, radius 16. */}
+            {/* The cart card: header row + the cart lines, p-24, radius 16. */}
             <S.Panel>
+              <S.PanelHead>
+                <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
+                  <Icon name="arrow-left" />
+                </S.PanelBack>
+                <S.PanelTitle>{t('cart.panelTitle', { count: totalUnits })}</S.PanelTitle>
+                {hasWearable ? (
+                  <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
+                    <Icon name="fitting-room" />
+                    {t('cart.fittingRoom')}
+                  </S.Fitting>
+                ) : null}
+              </S.PanelHead>
+
               <S.List>
                 {items.map(item => {
                   const line = lineById.get(item.id)

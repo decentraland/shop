@@ -353,18 +353,16 @@ export function Overview() {
         />
       ) : null}
 
-      {/* "Suggested for you" sits directly under Trending: the two answer opposite questions — what
-          everyone is buying, and what THIS visitor is likely to want — so they read as a pair, and a
-          visitor the Shop knows nothing about simply sees Trending alone. The row owns its own query,
-          its own flag and its own visibility; it renders nothing unless the server both personalised
-          the answer and returned enough of it. */}
-      <SuggestedForYouRow />
-
-      {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
-          Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings
-          branch below on purpose — it self-fetches from the outfit feed, so on an environment with no
-          shop-server the section is simply absent rather than gated on a query it does not use. */}
+      {/* "Buy the Look" sits right under Trending, per the section order design settled on: Trending →
+          Buy the Look → Suggested for you → New Creations → the promo tiles → creators. Outside the
+          listings branch below on purpose — it self-fetches from the outfit feed, so on an environment
+          with no shop-server the section is simply absent rather than gated on a query it does not use. */}
       <OutfitsRow />
+
+      {/* Under the outfits rather than above them, so a tall personal rail does not push the outfits down
+          the page. The row owns its own query, its own flag and its own visibility; it renders nothing
+          unless the server both personalised the answer and returned enough of it. */}
+      <SuggestedForYouRow />
 
       {isLoading || items.length > 0 ? (
         <>
