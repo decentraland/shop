@@ -190,6 +190,12 @@ export function CreatorSaleModal({
   )
 
   const anchor = useRef<HTMLDivElement>(null)
+  // Leaving the terms unmounts the calendar mid-fold, before it can report itself closed.
+  useEffect(() => {
+    if (step === 'form') return
+    setWhenOpen(false)
+    setWhenAnchor(null)
+  }, [step])
   // A short screen can leave no room under the trigger even after the lift: raise it just enough to fit.
   // Measured from the panel's own height: its position is still mid-grow here, shifted by the animation.
   useLayoutEffect(() => {
@@ -199,7 +205,8 @@ export function CreatorSaleModal({
     setWhenAnchor(at => {
       if (!at) return at
       const over = at.top + at.height + 8 + panel.offsetHeight - (window.innerHeight - 8)
-      return over > 0 ? { ...at, top: at.top - over } : at
+      // Never past the top edge either: a landscape phone cannot fit it, and the panel scrolls instead.
+      return over > 0 ? { ...at, top: Math.max(8 - at.height - 8, at.top - over) } : at
     })
   }, [whenOpen])
 

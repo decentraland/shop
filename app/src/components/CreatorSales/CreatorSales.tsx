@@ -123,7 +123,7 @@ export function CreatorSales({
             </S.Info>
             {running && session ? (
               confirming === sale.id ? (
-                <S.Confirm>
+                <S.Confirm data-part="action">
                   <Button
                     variant="red"
                     size="sm"
@@ -141,6 +141,7 @@ export function CreatorSales({
                 <Button
                   variant="outline"
                   size="sm"
+                  data-part="action"
                   onClick={() => setConfirming(sale.id)}
                   data-testid="creator-sale-end"
                 >

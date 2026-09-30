@@ -176,3 +176,30 @@ describe('when a creator opens the discount flow', () => {
     expect(track).not.toHaveBeenCalled()
   })
 })
+
+describe('when the calendar is open and the creator moves on to the review', () => {
+  // A stand-in for Element.animate whose folds never finish, the way a step change cuts one short.
+  const original = HTMLElement.prototype.animate
+  beforeEach(() => {
+    HTMLElement.prototype.animate = function () {
+      return { onfinish: null, cancel: () => {} } as unknown as Animation
+    }
+    return () => {
+      HTMLElement.prototype.animate = original
+    }
+  })
+
+  it('should come back to the terms with the calendar closed', async () => {
+    open()
+    fireEvent.click(screen.getByTestId('creator-sale-when'))
+    expect(screen.getByTestId('creator-sale-range-picker')).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByTestId('creator-sale-continue'))
+    fireEvent.click(screen.getByTestId('creator-sale-continue'))
+    await screen.findByTestId('creator-sale-review')
+    fireEvent.click(screen.getByTestId('creator-sale-back'))
+
+    await screen.findByTestId('creator-sale-modal')
+    expect(screen.queryByTestId('creator-sale-range-picker')).toBeNull()
+  })
+})

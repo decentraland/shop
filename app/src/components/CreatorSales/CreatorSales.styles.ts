@@ -55,7 +55,7 @@ export const Row = styled.div`
     grid-template-columns: auto minmax(0, 1fr);
 
     /* Only the action wraps under the row; a read-only row keeps its text beside the mosaic. */
-    > :nth-child(3) {
+    > [data-part='action'] {
       grid-column: 1 / -1;
     }
   }
