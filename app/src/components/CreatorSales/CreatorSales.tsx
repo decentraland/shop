@@ -5,7 +5,7 @@ import { endSale, isSaleCapped, liveSaleStatus, type CreatorSale, type CreatorSa
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
-import { formatDateTime } from '~/lib/dates'
+import { formatDateRange, formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
 import { Button } from '~/components/Button'
@@ -35,12 +35,16 @@ function statusCopy(status: CreatorSaleStatus): string {
 export function CreatorSales({
   sales,
   session,
-  names
+  names,
+  tone = 'light'
 }: {
   sales: CreatorSale[]
-  session: Session
+  /** Without one the list is read-only: ending a sale needs the creator's signature. */
+  session: Session | null
   /** Collection names by lowercased address, so a row can say WHICH collection rather than "1 collection". */
   names?: Record<string, string>
+  /** `dark` for the dashboard's dark panels. */
+  tone?: 'light' | 'dark'
 }) {
   const queryClient = useQueryClient()
   // Which row is asking "end it now?", and which ones this session already ended (the server learns of a
@@ -50,6 +54,7 @@ export function CreatorSales({
   const [endedHere, setEndedHere] = useState<string[]>([])
 
   async function end(sale: CreatorSale) {
+    if (!session) return
     setEnding(sale.id)
     try {
       await endSale({ sale, signer: session.signer })
@@ -70,7 +75,7 @@ export function CreatorSales({
   }
 
   return (
-    <S.List data-testid="creator-sales">
+    <S.List data-testid="creator-sales" data-tone={tone}>
       {sales.map(sale => {
         const status = endedHere.includes(sale.id) ? 'cancelled' : liveSaleStatus(sale)
         const running = status === 'active' || status === 'scheduled'
@@ -90,12 +95,12 @@ export function CreatorSales({
             ) : null}
             <S.Info>
               <S.Line>
-                <S.Collections>
+                <S.Collections data-part="name">
                   {name ?? t('creatorSale.successBody', { count: sale.collections.length, pct })}
                 </S.Collections>
                 <S.Pill data-status={status}>{statusCopy(status)}</S.Pill>
               </S.Line>
-              <S.Meta>
+              <S.Meta data-part="meta">
                 {/* Beside the timer rather than in a column of its own: the two are the same kind of chip,
                     and stranded in its own cell the tag centred itself across both lines of the row while
                     the name sat on the first. */}
@@ -105,13 +110,18 @@ export function CreatorSales({
                   <SaleTimer until={sale.checks.expiration} />
                 ) : status === 'scheduled' ? (
                   t('creatorSale.startsOn', { date: formatDateTime(sale.checks.effective) })
-                ) : null}
+                ) : (
+                  // A past sale is only placeable by when it ran.
+                  <span data-testid="creator-sale-dates">
+                    {formatDateRange(sale.checks.effective, sale.checks.expiration)}
+                  </span>
+                )}
                 {isSaleCapped(sale) ? (
                   <span>{t('creatorSale.used', { used: sale.state?.uses ?? 0, total: sale.checks.uses })}</span>
                 ) : null}
               </S.Meta>
             </S.Info>
-            {running ? (
+            {running && session ? (
               confirming === sale.id ? (
                 <S.Confirm>
                   <Button

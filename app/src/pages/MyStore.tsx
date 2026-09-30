@@ -17,7 +17,7 @@ import { useStoreStats, type StoreCollection, type StoreItem } from '~/hooks/use
 import { RANGE_KEYS, resolveRange, type RangeKey, type ResolvedRange, type StoreRange } from '~/lib/storeRange'
 import { StoreSalesPanel } from '~/components/StoreSalesPanel'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
-import { isSaleCapped, type CreatorSale } from '~/lib/coupons'
+import { isSaleCapped, liveSaleStatus, type CreatorSale } from '~/lib/coupons'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useMyStoreAccess } from '~/hooks/useMyStoreEnabled'
 import { CollectionThumb } from '~/components/CollectionThumb'
@@ -32,6 +32,7 @@ import { Button } from '~/components/Button'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
+import { CreatorSales } from '~/components/CreatorSales'
 import { SortHeader } from '~/components/SortHeader'
 import { RewardOwnersModal } from '~/components/RewardOwnersModal'
 import { RangePicker, type RangePickerHandle } from '~/components/RangePicker'
@@ -96,6 +97,7 @@ const BUYERS_PER_PAGE = 5
 const BEST_PER_PAGE = 5
 
 const OWNERS_PER_PAGE = 5
+const DISCOUNTS_PER_PAGE = 5
 
 const ROYALTIES_PER_PAGE = 5
 
@@ -877,6 +879,7 @@ export function MyStore() {
   const [buyerSort, setBuyerSort] = useState<ColumnSort<BuyerColumn> | null>(null)
   const [ownerSort, setOwnerSort] = useState<ColumnSort<TopOwnersSort>>({ key: 'nfts', dir: 'desc' })
   const [ownerPage, setOwnerPage] = useState(0)
+  const [discountPage, setDiscountPage] = useState(0)
   const [royaltiesOpen, setRoyaltiesOpen] = useState(false)
   const [royaltyPage, setRoyaltyPage] = useState(0)
   const [issuing, setIssuing] = useState<{
@@ -1152,7 +1155,12 @@ export function MyStore() {
   )
 
   const heightKey = `${resolved.from ?? 'all'}-${resolved.to}`
-  const collectionsHeight = useStableHeight<HTMLDivElement>(collectionPages > 1, `${heightKey}-${collectionPages}`)
+  // Opening a collection grows the list by its items; the height held for paging must not outlive that.
+  const openKey = [...open].sort().join(',')
+  const collectionsHeight = useStableHeight<HTMLDivElement>(
+    collectionPages > 1,
+    `${heightKey}-${collectionPages}-${openKey}`
+  )
   const bestHeight = useStableHeight<HTMLDivElement>(bestPages > 1, `${heightKey}-${bestPages}`)
   const salesHeight = useStableHeight<HTMLDivElement>((mock ? 1 : sales.pages) > 1, `${heightKey}-${sales.pages}`)
   const buyersHeight = useStableHeight<HTMLDivElement>(buyerPages > 1, `${heightKey}-${buyerPages}`)
@@ -1189,6 +1197,20 @@ export function MyStore() {
   }
 
   const running = (liveDiscounts ?? []).filter(s => s.status === 'active' || s.status === 'scheduled')
+  // Every discount the creator has run, what is still on first and then newest first, so the past ones stay
+  // findable once My Items stops listing them for a creator with this page.
+  const liveNow = (sale: CreatorSale) => {
+    const status = liveSaleStatus(sale)
+    return status === 'active' || status === 'scheduled'
+  }
+  const discountHistory = [...(liveDiscounts ?? [])].sort(
+    (a, b) => Number(liveNow(b)) - Number(liveNow(a)) || b.createdAt - a.createdAt
+  )
+  const discountPages = Math.max(1, Math.ceil(discountHistory.length / DISCOUNTS_PER_PAGE))
+  const discountPageShown = Math.min(discountPage, discountPages - 1)
+  const collectionNames: Record<string, string> = Object.fromEntries(
+    (stats?.collections ?? []).map(c => [c.contractAddress.toLowerCase(), c.name])
+  )
 
   /** How long the chosen window is, where it has a length at all. All time does not. */
   const windowDays = resolved.days
@@ -1690,6 +1712,38 @@ export function MyStore() {
                   ) : null}
                 </S.Panel>
 
+                {(mock || (creatorSalesEnabled && !!session)) && discountHistory.length > 0 ? (
+                  <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
+                    <S.PanelHeadStack>
+                      <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
+                      <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
+                    </S.PanelHeadStack>
+                    <CreatorSales
+                      sales={discountHistory.slice(
+                        discountPageShown * DISCOUNTS_PER_PAGE,
+                        (discountPageShown + 1) * DISCOUNTS_PER_PAGE
+                      )}
+                      session={mock ? null : session}
+                      names={collectionNames}
+                      tone="dark"
+                    />
+                    {discountPages > 1 ? (
+                      <S.ListFoot>
+                        <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
+                        <Pager
+                          page={discountPageShown}
+                          pages={discountPages}
+                          onChange={next => {
+                            trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
+                            setDiscountPage(next)
+                          }}
+                          name="discounts"
+                        />
+                      </S.ListFoot>
+                    ) : null}
+                  </S.Panel>
+                ) : null}
+
                 <S.Duo>
                   <S.Panel aria-labelledby="store-best-h">
                     <S.PanelHeadStack>
@@ -2015,13 +2069,14 @@ export function MyStore() {
                             </S.Info>
                           </Tooltip>
                         </span>
-                        <S.TileMark aria-hidden>🔁</S.TileMark>
+                        <S.TileMark aria-hidden>🤝</S.TileMark>
                       </S.TileKey>
                       <S.TileValue data-testid="store-royalties">
                         {/* Exact once the server reports what each resale paid; an estimate from volume before. */}
                         {stats.royalties.paidWei != null ? null : <S.Approx>≈</S.Approx>}
                         <CurrencyMark kind="mana" />
                         {mana(stats.royalties.paidWei ?? royaltyOf(stats.royalties.volumeWei))}
+                        <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>
                       </S.TileValue>
                       <S.TileFoot>
                         <DeltaTag delta={trend.royalties} period={period} />
