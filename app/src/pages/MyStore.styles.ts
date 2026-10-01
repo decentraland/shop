@@ -670,7 +670,8 @@ export const Panel = styled.section`
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: ${theme.colors.overlayLight};
+  /* The tiles' own depth: at 20% a busy page field (a seasonal theme) showed through the chart and tables. */
+  background: ${theme.colors.overlay};
   color: ${theme.colors.softWhite};
   border-radius: ${theme.radius.banner};
   min-width: 0;
