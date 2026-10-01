@@ -651,7 +651,6 @@
     "tileRoyalties": "Royalties",
     "tileRoyaltiesFoot": "{count, plural, =0 {No resales by others yet} one {# resale · <m>{volume}</m> traded} other {# resales · <m>{volume}</m> traded}}",
     "royaltiesHint": "What collectors paid each other for items you created. You earn about 2.5% of that — the marketplace’s royalty rate — so this figure is an estimate, and a resale settled elsewhere can split it differently.",
-    "tileDiscountsFoot": "Details below",
     "tileDiscountsNone": "None right now",
     "sortBy": "Sort collections",
     "sortSold": "Most sold",
@@ -710,8 +709,6 @@
     "tileSoldFootMintsOnly": "{mints, plural, one {# first sale} other {# first sales}}",
     "tileSoldNone": "Nothing sold in this period",
     "collExhausted": "sold out",
-    "audience": "Your audience",
-    "audienceSub": "Who is buying, and what they are worth to you.",
     "buyers": "Your buyers",
     "buyersHint": "Ranked by what they have spent in this period.",
     "noBuyers": "Nobody has bought in this period yet.",
@@ -745,7 +742,6 @@
     "colClaimed": "Claimed",
     "viewPublicStore": "View public store",
     "editStore": "Edit store",
-    "performance": "Store performance",
     "sortCustom": "Sorted by column",
     "issueCopies": "Issue copies",
     "sortEarned": "Most earned",
@@ -810,7 +806,20 @@
     "royaltiesNone": "None of your items was resold in this period.",
     "colResoldFor": "Resold for",
     "colRoyalty": "Your royalty",
-    "royaltiesCount": "{count, plural, one {# resale} other {# resales}}"
+    "royaltiesCount": "{count, plural, one {# resale} other {# resales}}",
+    "tabsAria": "Store sections",
+    "tab": {
+      "overview": "Overview",
+      "collections": "Collections",
+      "discounts": "Discounts",
+      "audience": "Audience"
+    },
+    "discountsEmpty": "No discounts yet. Start one and it shows up here, with every one after it.",
+    "tileDiscountsOpen": "See your discounts",
+    "tabDiscountsRunning": "{count, plural, one {Discounts, # running} other {Discounts, # running}}",
+    "discountsLoading": "Loading your discounts…",
+    "discountsError": "Your discounts could not be loaded right now. Try again in a moment.",
+    "discountsEmptyNoCredits": "No discounts yet. A discount applies to items priced in Credits, so switch a listing to Credits to start one."
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",

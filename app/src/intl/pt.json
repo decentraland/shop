@@ -651,7 +651,6 @@
     "tileRoyalties": "Royalties",
     "tileRoyaltiesFoot": "{count, plural, =0 {Ninguém revendeu seus itens ainda} one {# revenda · <m>{volume}</m> negociado} other {# revendas · <m>{volume}</m> negociados}}",
     "royaltiesHint": "O que os colecionadores pagaram entre si por itens que você criou. Você ganha cerca de 2,5% disso (a taxa de royalties do marketplace), então este valor é uma estimativa, e uma revenda concluída em outro lugar pode ser dividida de outra forma.",
-    "tileDiscountsFoot": "Detalhes abaixo",
     "tileDiscountsNone": "Nenhum agora",
     "sortBy": "Ordenar coleções",
     "sortSold": "Mais vendidas",
@@ -710,8 +709,6 @@
     "tileSoldFootMintsOnly": "{mints, plural, one {# primeira venda} other {# primeiras vendas}}",
     "tileSoldNone": "Nada vendido neste período",
     "collExhausted": "esgotada",
-    "audience": "Seu público",
-    "audienceSub": "Quem está comprando e quanto isso vale para você.",
     "buyers": "Seus compradores",
     "buyersHint": "Ordenados pelo quanto gastaram neste período.",
     "noBuyers": "Ninguém comprou neste período ainda.",
@@ -745,7 +742,6 @@
     "colClaimed": "Resgatados",
     "viewPublicStore": "Ver loja pública",
     "editStore": "Editar loja",
-    "performance": "Desempenho da loja",
     "sortCustom": "Ordenado por coluna",
     "issueCopies": "Emitir cópias",
     "sortEarned": "Maiores ganhos",
@@ -810,7 +806,20 @@
     "royaltiesNone": "Nenhum dos seus itens foi revendido neste período.",
     "colResoldFor": "Revendido por",
     "colRoyalty": "Seus royalties",
-    "royaltiesCount": "{count, plural, one {# revenda} other {# revendas}}"
+    "royaltiesCount": "{count, plural, one {# revenda} other {# revendas}}",
+    "tabsAria": "Seções da loja",
+    "tab": {
+      "overview": "Visão geral",
+      "collections": "Coleções",
+      "discounts": "Descontos",
+      "audience": "Público"
+    },
+    "discountsEmpty": "Ainda não há descontos. Crie um e ele aparece aqui, junto com todos os próximos.",
+    "tileDiscountsOpen": "Ver seus descontos",
+    "tabDiscountsRunning": "{count, plural, one {Descontos, # ativo} other {Descontos, # ativos}}",
+    "discountsLoading": "Carregando seus descontos…",
+    "discountsError": "Não foi possível carregar seus descontos agora. Tente de novo em instantes.",
+    "discountsEmptyNoCredits": "Ainda não há descontos. Um desconto vale para itens com preço em Créditos, então mude um anúncio para Créditos para criar um."
   },
   "myAssets": {
     "signInTitle": "Entre para ver seus itens",
