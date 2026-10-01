@@ -816,7 +816,7 @@
     },
     "discountsEmpty": "Ainda não há descontos. Crie um e ele aparece aqui, junto com todos os próximos.",
     "tileDiscountsOpen": "Ver seus descontos",
-    "tabDiscountsRunning": "Descontos, {count} ativos",
+    "tabDiscountsRunning": "{count, plural, one {Descontos, # ativo} other {Descontos, # ativos}}",
     "discountsLoading": "Carregando seus descontos…",
     "discountsError": "Não foi possível carregar seus descontos agora. Tente de novo em instantes.",
     "discountsEmptyNoCredits": "Ainda não há descontos. Um desconto vale para itens com preço em Créditos, então mude um anúncio para Créditos para criar um."

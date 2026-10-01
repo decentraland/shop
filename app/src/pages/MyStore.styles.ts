@@ -259,7 +259,7 @@ export const PerfHead = styled.div`
   }
 `
 
-/** The dashboard's sections as tabs, on the row its title used to hold. */
+/** The dashboard's sections as tabs. */
 export const Tabs = styled.div`
   display: flex;
   gap: 4px;
@@ -337,6 +337,10 @@ export const PerfControls = styled.div`
   justify-content: flex-end;
   gap: 8px;
   max-width: 100%;
+
+  &[data-hidden] {
+    display: none;
+  }
 `
 
 export const CurrencySwitch = styled.div`
@@ -1912,6 +1916,12 @@ export const TileAction = styled.button`
   text-transform: uppercase;
   text-decoration: underline;
   cursor: pointer;
+
+  /* A finger's worth to tap on a phone, where this is how the overview reaches the discounts. */
+  ${theme.media.maxWidth('mobile')} {
+    min-height: 44px;
+    margin-bottom: -12px;
+  }
 
   &:hover {
     color: ${theme.colors.navViolet};

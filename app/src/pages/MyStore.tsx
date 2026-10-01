@@ -1367,7 +1367,7 @@ export function MyStore() {
                     to the public page it was reached from before. */}
                 <S.EditStore
                   to={withEnv('/store-settings', env)}
-                  state={{ from: '/my-store' }}
+                  state={{ from: tab === 'overview' ? '/my-store' : `/my-store?tab=${tab}` }}
                   onClick={() => trackStore('Shop Clicked Store Action', { action: 'edit_store' })}
                   data-testid="store-edit"
                 >
@@ -1387,6 +1387,7 @@ export function MyStore() {
                   if (!step) return
                   event.preventDefault()
                   const next = visibleTabs[(visibleTabs.indexOf(tab) + step + visibleTabs.length) % visibleTabs.length]
+                  trackStore('Shop Changed Store Tab', { tab: next, previous_tab: tab, from: 'keyboard' })
                   setTab(next)
                   document.getElementById(`store-tab-${next}`)?.focus()
                 }}
@@ -1419,7 +1420,7 @@ export function MyStore() {
                 ))}
               </S.Tabs>
               {/* A discount is not read over a period: its history has its own dates. */}
-              <S.PerfControls style={tab === 'discounts' ? { display: 'none' } : undefined}>
+              <S.PerfControls data-hidden={tab === 'discounts' ? '' : undefined}>
                 <S.CurrencySwitch role="group" aria-label={t('myStore.currency')}>
                   {(['mana', 'usd'] as StoreCurrency[]).map(option => (
                     <S.Period
@@ -1498,11 +1499,66 @@ export function MyStore() {
 
             <ErrorNotice message={statsError ? t('myStore.error') : null} testId="my-store-error" />
 
-            {isLoading || !stats ? (
-              <StoreSkeleton />
-            ) : (
-              <>
-                <div role="tabpanel" id="store-tab-panel" aria-labelledby={`store-tab-${tab}`}>
+            <div role="tabpanel" id="store-tab-panel" aria-labelledby={`store-tab-${tab}`}>
+              {/* Its own read with its own states: the store's figures loading are no reason to wait. */}
+              {tab === 'discounts' ? (
+                <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
+                  <S.ListHead>
+                    <div>
+                      <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
+                      <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
+                    </div>
+                    {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
+                      <Button
+                        variant="red"
+                        size="sm"
+                        onClick={() => setSaleOpen(true)}
+                        data-testid="store-tab-new-discount"
+                      >
+                        <span aria-hidden>🔥</span>
+                        {t('myStore.newDiscount')}
+                      </Button>
+                    ) : null}
+                  </S.ListHead>
+                  {!mock && discountsRead.isLoading ? (
+                    <S.Empty data-testid="store-discounts-loading">{t('myStore.discountsLoading')}</S.Empty>
+                  ) : !mock && discountsRead.isError && !discounts ? (
+                    <S.Empty data-testid="store-discounts-error">{t('myStore.discountsError')}</S.Empty>
+                  ) : discountHistory.length === 0 ? (
+                    <S.Empty data-testid="store-discounts-empty">
+                      {saleable.length > 0 ? t('myStore.discountsEmpty') : t('myStore.discountsEmptyNoCredits')}
+                    </S.Empty>
+                  ) : (
+                    <CreatorSales
+                      sales={discountHistory.slice(
+                        discountPageShown * DISCOUNTS_PER_PAGE,
+                        (discountPageShown + 1) * DISCOUNTS_PER_PAGE
+                      )}
+                      session={mock ? null : session}
+                      names={collectionNames}
+                      tone="dark"
+                    />
+                  )}
+                  {discountPages > 1 ? (
+                    <S.ListFoot>
+                      <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
+                      <Pager
+                        page={discountPageShown}
+                        pages={discountPages}
+                        onChange={next => {
+                          trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
+                          setDiscountPage(next)
+                        }}
+                        name="discounts"
+                      />
+                    </S.ListFoot>
+                  ) : null}
+                </S.Panel>
+              ) : null}
+              {tab === 'discounts' ? null : isLoading || !stats ? (
+                <StoreSkeleton />
+              ) : (
+                <>
                   {tab === 'overview' ? (
                     <>
                       <S.Tiles aria-label={t('myStore.summaryAria')}>
@@ -2088,61 +2144,6 @@ export function MyStore() {
                     </>
                   ) : null}
 
-                  {tab === 'discounts' ? (
-                    <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
-                      <S.ListHead>
-                        <div>
-                          <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
-                          <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
-                        </div>
-                        {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
-                          <Button
-                            variant="red"
-                            size="sm"
-                            onClick={() => setSaleOpen(true)}
-                            data-testid="store-tab-new-discount"
-                          >
-                            <span aria-hidden>🔥</span>
-                            {t('myStore.newDiscount')}
-                          </Button>
-                        ) : null}
-                      </S.ListHead>
-                      {!mock && discountsRead.isLoading ? (
-                        <S.Empty data-testid="store-discounts-loading">{t('myStore.discountsLoading')}</S.Empty>
-                      ) : !mock && discountsRead.isError && !discounts ? (
-                        <S.Empty data-testid="store-discounts-error">{t('myStore.discountsError')}</S.Empty>
-                      ) : discountHistory.length === 0 ? (
-                        <S.Empty data-testid="store-discounts-empty">
-                          {saleable.length > 0 ? t('myStore.discountsEmpty') : t('myStore.discountsEmptyNoCredits')}
-                        </S.Empty>
-                      ) : (
-                        <CreatorSales
-                          sales={discountHistory.slice(
-                            discountPageShown * DISCOUNTS_PER_PAGE,
-                            (discountPageShown + 1) * DISCOUNTS_PER_PAGE
-                          )}
-                          session={mock ? null : session}
-                          names={collectionNames}
-                          tone="dark"
-                        />
-                      )}
-                      {discountPages > 1 ? (
-                        <S.ListFoot>
-                          <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
-                          <Pager
-                            page={discountPageShown}
-                            pages={discountPages}
-                            onChange={next => {
-                              trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
-                              setDiscountPage(next)
-                            }}
-                            name="discounts"
-                          />
-                        </S.ListFoot>
-                      ) : null}
-                    </S.Panel>
-                  ) : null}
-
                   {tab === 'audience' ? (
                     <>
                       <S.AudienceTiles>
@@ -2609,9 +2610,9 @@ export function MyStore() {
                       ) : null}
                     </>
                   ) : null}
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </S.Root>
         </CurrencyContext.Provider>
       </A.Main>
