@@ -767,6 +767,12 @@ export const CardChip = styled(Chip)`
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }
+  &[data-variant='paused'] {
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.flareAmber};
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
   &[data-variant='market'] {
     background: ${colors.rarityBg};
     color: ${colors.accent};

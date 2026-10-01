@@ -436,7 +436,7 @@ export function ItemDetail() {
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
-  const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
+  const { data: resolvedTrade, isLoading: resolvingTrade } = useQuery({
     queryKey: ['detail-trade', current.id, current.tradeId, current.contractAddress, current.itemId],
     enabled: !!current.contractAddress,
     // Money-sensitive: buyability can flip when a 3rd party buys/lists/cancels. Always revalidate on
@@ -444,19 +444,20 @@ export function ItemDetail() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: async (): Promise<string | null> => {
-      if (current.tradeId) return current.tradeId
+    queryFn: async (): Promise<{ id: string; paused: boolean } | null> => {
+      if (current.tradeId) return { id: current.tradeId, paused: !!current.paused }
       // Item route only: resolve the cheapest open listing by itemId. On a TOKEN route the buyable trade
       // is the token's OWN listing (carried on current.tradeId from ownedAsset/publicToken) — never the
       // item-level fallback, which would resurrect a stale "for sale" after the token's listing is
       // cancelled (the stale-price / stuck-listed bug).
       if (!isTokenRoute && current.itemId) {
         const trade = await fetchTradeForItem(current.contractAddress, current.itemId)
-        return trade?.id ?? null
+        return trade ? { id: trade.id, paused: trade.paused } : null
       }
       return null
     }
   })
+  const resolvedTradeId = resolvedTrade?.id ?? null
 
   /**
    * Smart-wearable traits, from the v1 items endpoint — the only one that carries `utility` (the v3 catalog
@@ -567,6 +568,8 @@ export function ItemDetail() {
    */
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
   const forSale = !!buyableTradeId || isStoreMint
+  // Still listed and priced, but its marketplace version no longer accepts purchases.
+  const listingPaused = !!buyableTradeId && !isStoreMint && (!!current.paused || !!resolvedTrade?.paused)
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
@@ -758,7 +761,7 @@ export function ItemDetail() {
   }, [routeKey])
 
   function handleAddToCart() {
-    if (!forSale || own || resolvingTrade) return
+    if (!forSale || own || resolvingTrade || listingPaused) return
     // Secondary: only ever one copy of a unique token. Primary: don't exceed remaining stock.
     if (!isPrimary && inCart) return
     if (atStockCap) return
@@ -980,6 +983,9 @@ export function ItemDetail() {
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
   const managePriceCredits = justListedCredits ?? (manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0)
+  // A just-published listing is on the current marketplace, so only an older one can be paused.
+  const managePaused =
+    manageListed && justListedCredits == null && (manageAsSecondary ? !!ownedAsset?.listingPaused : listingPaused)
 
   // Item route only: how many copies of THIS item the viewer owns, for the "You own N of this" note.
   // The item page never manages a token, so this replaces the (removed) secondary-manage leak with a
@@ -1173,6 +1179,9 @@ export function ItemDetail() {
   // price block and let the buyer buy the cheapest resale, instead of the plain out-of-stock/notify state.
   const soldOutWithResale = outOfStock && !manage && !!cheapestResaleItem
   const resaleInCart = !!cheapestResaleItem && cartItems.some(i => i.id === cheapestResaleItem.id)
+  const resalePaused = soldOutWithResale && !!cheapestResaleItem?.paused
+  // Whether the buyer is looking at a purchase that is on hold, so the reason is spelled out under the CTAs.
+  const buyerPaused = !manage && (isMarket ? !!marketListing?.paused : forSale ? listingPaused : resalePaused)
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
   const dualCta = !manage && forSale && !isMarket
@@ -1681,6 +1690,20 @@ export function ItemDetail() {
                               </Tooltip>
                             </S.Price>
                           )}
+                          {buyerPaused || (manage && managePaused) ? (
+                            <S.PausedTag data-testid="item-paused">
+                              <span>{t('itemDetail.paused')}</span>
+                              <Tooltip content={t(manage ? 'itemDetail.pausedSellerHint' : 'itemDetail.pausedHint')}>
+                                <S.PriceInfo
+                                  tabIndex={0}
+                                  role="img"
+                                  aria-label={t(manage ? 'itemDetail.pausedSellerHint' : 'itemDetail.pausedHint')}
+                                >
+                                  <Icon name="info" size={14} />
+                                </S.PriceInfo>
+                              </Tooltip>
+                            </S.PausedTag>
+                          ) : null}
                         </S.PriceCol>
                         {showStock ? (
                           <S.StockCol>
@@ -1752,7 +1775,9 @@ export function ItemDetail() {
                                 data-testid="edit-price"
                               >
                                 <Icon name="pen" className="ico" />
-                                <span>{t('itemDetail.manageUpdatePrice')}</span>
+                                <span>
+                                  {managePaused ? t('itemDetail.manageRelist') : t('itemDetail.manageUpdatePrice')}
+                                </span>
                               </S.SoftCta>
                             ) : null}
                             <S.ScrimCta onClick={() => setRemoving(true)} data-testid="remove-listing">
@@ -1809,7 +1834,12 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                        <S.DetailCta
+                          variant="purple"
+                          onClick={handleBuyNow}
+                          disabled={resolvingTrade || listingPaused}
+                          data-testid="detail-buy-now"
+                        >
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
@@ -1818,8 +1848,9 @@ export function ItemDetail() {
                         </S.DetailCta>
                         <S.AddCart
                           onClick={handleAddToCart}
-                          disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
+                          disabled={resolvingTrade || listingPaused || (isPrimary ? atStockCap : inCart)}
                           aria-label={addLabel}
+                          data-testid="detail-add-cart"
                         >
                           <Icon name="cart" />
                           <S.AddCartLabel>{addLabel}</S.AddCartLabel>
@@ -1831,6 +1862,7 @@ export function ItemDetail() {
                         <S.DetailCta
                           variant="purple"
                           onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
+                          disabled={resalePaused}
                         >
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
@@ -1842,7 +1874,7 @@ export function ItemDetail() {
                           onClick={() => {
                             if (!resaleInCart) add(cheapestResaleItem, 'item_detail')
                           }}
-                          disabled={resaleInCart}
+                          disabled={resaleInCart || resalePaused}
                           aria-label={resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
                         >
                           <Icon name="cart" />
@@ -1880,6 +1912,13 @@ export function ItemDetail() {
                       </>
                     )}
                   </S.Ctas>
+
+                  {buyerPaused || (manage && managePaused) ? (
+                    <S.PausedNote data-testid="paused-notice" role="status">
+                      <Icon name="info" size={16} />
+                      <span>{t(manage ? 'itemDetail.pausedSellerHint' : 'itemDetail.pausedHint')}</span>
+                    </S.PausedNote>
+                  ) : null}
 
                   {/* Lowest resale price + the trigger for the Other Resellers modal (Figma 1524-297513).
                   Only when there's at least one resale to show, and not for your own managed item (the

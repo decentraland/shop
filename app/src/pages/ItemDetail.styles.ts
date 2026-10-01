@@ -739,6 +739,34 @@ export const Approx = styled.span`
   margin-right: -2px;
 `
 
+export const PausedTag = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: ${colors.flareAmber};
+`
+
+export const PausedNote = styled.p`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: ${colors.gray5};
+
+  & .ico {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: ${colors.flareAmber};
+  }
+`
+
 export const MarketNote = styled.div`
   font-size: 13px;
   margin-top: 6px;

@@ -426,6 +426,12 @@ export const OwnChip = styled.span`
   white-space: nowrap;
 `
 
+export const PausedChip = styled(OwnChip)`
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  cursor: help;
+`
+
 export const Pager = styled.div`
   flex: none;
   display: flex;

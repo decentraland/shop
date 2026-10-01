@@ -355,6 +355,11 @@ export const Chip = styled(BaseChip)`
     width: 14.605px;
     height: 14.605px;
   }
+  &[data-variant='paused'] {
+    background: ${colors.promptAmber};
+    color: ${colors.text};
+    text-transform: uppercase;
+  }
 `
 
 export const Price = styled.div`

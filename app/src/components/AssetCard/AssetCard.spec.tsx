@@ -723,3 +723,37 @@ describe('AssetCard note', () => {
     expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
   })
 })
+
+describe('when the card shows a paused listing', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    ;({ container } = renderCard(makeItem({ paused: true, priceCredits: 7 })))
+  })
+
+  it('should keep showing the price', () => {
+    expect(container.querySelector('[data-testid="card-price"]')?.textContent).toContain('7')
+  })
+
+  it('should flag the listing as on hold', () => {
+    expect(container.querySelector('[data-testid="chip-paused"]')).not.toBeNull()
+  })
+
+  it('should disable adding it to the cart', () => {
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="card-cart"]')?.disabled).toBe(true)
+  })
+
+  it('should disable the compact add button too', () => {
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="card-add-round"]')?.disabled).toBe(true)
+  })
+
+  describe('and the buyer clicks the disabled action anyway', () => {
+    beforeEach(() => {
+      fireEvent.click(container.querySelector('[data-testid="card-cart"]')!)
+    })
+
+    it('should leave the cart empty', () => {
+      expect(useCart.getState().items).toHaveLength(0)
+    })
+  })
+})

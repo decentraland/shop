@@ -239,3 +239,26 @@ describe('ResellersModal', () => {
     expect(screen.queryByTestId('resale-row')).toBeNull()
   })
 })
+
+describe('when a resale sits on a paused marketplace version', () => {
+  let row: HTMLElement
+
+  beforeEach(async () => {
+    fetchItemResales.mockResolvedValue([resale({ tradeId: 't-paused', tokenId: '10', priceCredits: 12, paused: true })])
+    fetchResaleTokenInfos.mockResolvedValue({ '10': { seller: '0xaaaa00000000000000000000000000000000aaaa' } })
+    renderModal()
+    row = await screen.findByTestId('resale-row')
+  })
+
+  it('should keep showing its price', () => {
+    expect(row.textContent).toContain('12')
+  })
+
+  it('should flag the row as on hold', () => {
+    expect(within(row).getByTestId('resale-paused')).toBeTruthy()
+  })
+
+  it('should offer neither Buy nor Add to cart', () => {
+    expect([within(row).queryByTestId('resale-buy'), within(row).queryByTestId('resale-add')]).toEqual([null, null])
+  })
+})
