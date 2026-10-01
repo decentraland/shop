@@ -542,7 +542,7 @@ export const Tiles = styled.section`
 `
 
 export const Tile = styled.div`
-  background: ${theme.colors.overlayStrong};
+  background: ${theme.colors.overlay};
   color: ${theme.colors.softWhite};
   border-radius: ${theme.radius.modal};
   padding: 12px 24px;
@@ -670,8 +670,7 @@ export const Panel = styled.section`
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  /* The heavier wash: at 20% a busy page field (a seasonal theme) showed through the chart and tables. */
-  background: ${theme.colors.overlayStrong};
+  background: ${theme.colors.overlayLight};
   color: ${theme.colors.softWhite};
   border-radius: ${theme.radius.banner};
   min-width: 0;

@@ -135,13 +135,19 @@ export function AliasRedirect({ to }: { to: string }) {
   return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
 }
 
+/**
+ * Pages that keep the plain field while a campaign skin is on. A creator's dashboard is read, not browsed:
+ * its charts and tables sit on translucent panels, and a seasonal pattern under them is noise.
+ */
+const UNTHEMED_ROUTES = new Set(['/my-store'])
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
   useDialogScrollLock()
-  // Paints the running event's skin onto <html>; a no-op the rest of the year.
-  const campaignTheme = useCampaignThemeAttribute()
   const location = useLocation()
+  // Paints the running event's skin onto <html>; a no-op the rest of the year.
+  const campaignTheme = useCampaignThemeAttribute(!UNTHEMED_ROUTES.has(location.pathname))
 
   // Start the silent wallet restore HERE, not only in the navbar. The navbar used to be the only caller,
   // which made every consumer of the session depend on that one component staying mounted. The store
