@@ -143,7 +143,7 @@ type RawCatalogItem = {
   tradeId?: string | null
   /** Remaining mintable supply. */
   available?: number
-  paused?: boolean
+  isPaused?: boolean
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
     emote?: { category?: string; description?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
@@ -233,7 +233,7 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     // (AssetCard reads it as an unbounded stock cap) instead of silently reading as sold out.
     available: r.available,
     hasPrimaryListing: !!mintWei,
-    paused: r.paused === true
+    paused: r.isPaused === true
   }
 }
 
@@ -351,7 +351,7 @@ export async function fetchPeggedPrimaryPrices(contractAddress: string): Promise
       map[String(l.itemId)] = {
         priceCredits: l.priceCredits,
         ...(l.tradeId ? { tradeId: l.tradeId } : {}),
-        ...(l.paused ? { paused: true } : {}),
+        ...(l.isPaused ? { paused: true } : {}),
         /*
          * The running sale, so the creator's own grid can draw what a buyer sees.
          *
@@ -388,7 +388,7 @@ export async function fetchCreatorPeggedPrimaryPrices(creator: string): Promise<
       map[`${l.contractAddress.toLowerCase()}-${l.itemId}`] = {
         priceCredits: l.priceCredits,
         ...(l.tradeId ? { tradeId: l.tradeId } : {}),
-        ...(l.paused ? { paused: true } : {}),
+        ...(l.isPaused ? { paused: true } : {}),
         // Same two corrections the per-collection read makes: the kill switch lives in the mapping these
         // raw rows skip, and `saleEndsAt` arrives in seconds while every consumer works in milliseconds.
         ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
@@ -414,7 +414,7 @@ export async function fetchSecondarySaleState(
   for (const l of listings) {
     // A row with no tradeId has nothing to cancel, so it is not this map's subject.
     if (l.listingType !== 'secondary' || l.tokenId == null || !l.tradeId) continue
-    map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId, paused: l.paused === true }
+    map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId, paused: l.isPaused === true }
   }
   return map
 }
@@ -486,7 +486,7 @@ type ShopListingRaw = {
   coupon?: ListingCoupon | null
   /** Units still buyable at the sale price — see CatalogItem.saleUnitsLeft. Null when not on sale. */
   saleUnitsLeft?: number | null
-  paused?: boolean
+  isPaused?: boolean
 }
 
 /**
@@ -580,7 +580,7 @@ function shopListingToItem(raw: ShopListingRaw): CatalogItem {
     saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
     coupon: l.coupon ?? undefined,
     saleUnitsLeft: l.saleUnitsLeft ?? undefined,
-    paused: l.paused === true
+    paused: l.isPaused === true
   }
 }
 
@@ -881,7 +881,7 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
     // omits the field describes trades. Defaulting the other way would route real trades down the mint path.
     acquisition: l.acquisition ?? 'trade',
     manaWei: l.manaWei ?? null,
-    paused: l.paused === true
+    paused: l.isPaused === true
   }
 }
 
@@ -1158,10 +1158,11 @@ export type LegacyListing = {
   paused: boolean
 }
 
-type LegacyListingRaw = Partial<LegacyListing> & {
+type LegacyListingRaw = Partial<Omit<LegacyListing, 'paused'>> & {
   tradeId: string
   contractAddress: string
   manaWei: string
+  isPaused?: boolean
 }
 
 function toLegacyListing(l: LegacyListingRaw): LegacyListing {
@@ -1181,7 +1182,7 @@ function toLegacyListing(l: LegacyListingRaw): LegacyListing {
     network: l.network ?? 'MATIC',
     chainId: l.chainId ?? config.chainId,
     createdAt: l.createdAt ?? 0,
-    paused: l.paused === true
+    paused: l.isPaused === true
   }
 }
 
@@ -1248,7 +1249,7 @@ type NFTResult = {
     chainId: number
     data?: { wearable?: { rarity?: string }; emote?: { rarity?: string } }
   }
-  order: { price?: string | null; tradeId?: string; paused?: boolean } | null
+  order: { price?: string | null; tradeId?: string; isPaused?: boolean } | null
 }
 
 // Maps one indexer NFT row to the flattened MyAsset shape the UI consumes. Shared by fetchMyAssets
@@ -1270,7 +1271,7 @@ function toMyAsset(r: NFTResult): MyAsset {
     isOnSale: r.order != null,
     listingPrice: r.order ? toCredits(r.order.price) : undefined,
     tradeId: r.order?.tradeId,
-    listingPaused: r.order?.paused === true
+    listingPaused: r.order?.isPaused === true
   }
 }
 
@@ -1501,7 +1502,7 @@ export class TradeNotFoundError extends Error {
  */
 export type ShopTrade = Trade & { paused: boolean; status?: string }
 
-type TradeRaw = Trade & { paused?: boolean; status?: string }
+type TradeRaw = Trade & { isPaused?: boolean; status?: string }
 
 // Full signed Trade (signer, signature, checks, sent, received) needed to execute a purchase.
 // The endpoint wraps the trade in `{ ok, data }` — unwrap it (otherwise received/sent are undefined).
@@ -1516,7 +1517,8 @@ export async function fetchTrade(tradeId: string): Promise<ShopTrade> {
   if (!res.ok) throw new Error(`fetchTrade ${res.status}`)
   const json = (await res.json()) as { ok?: boolean; data?: TradeRaw } | TradeRaw
   const raw = ((json as { data?: TradeRaw }).data ?? json) as TradeRaw
-  return { ...raw, paused: raw.paused === true }
+  const { isPaused, ...trade } = raw
+  return { ...trade, paused: isPaused === true }
 }
 
 /** Whether a trade's marketplace version has stopped accepting purchases. Missing means no. */

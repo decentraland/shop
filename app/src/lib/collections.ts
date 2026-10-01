@@ -90,13 +90,13 @@ function toSaleState(row: RawCollectionItem, peg: PeggedPrimaryPrice | undefined
         ...(peg.tradeId ? { tradeId: peg.tradeId } : {}),
         ...(peg.compareAtCredits != null ? { compareAtCredits: peg.compareAtCredits } : {}),
         ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {}),
-        ...(peg.paused || row.paused ? { paused: true } : {})
+        ...(peg.paused || row.isPaused ? { paused: true } : {})
       }
     : {
         isOnSale: true,
         priceCredits: row.priceCredits ?? 0,
         ...(row.price ? { manaWei: row.price } : {}),
-        ...(row.paused ? { paused: true } : {})
+        ...(row.isPaused ? { paused: true } : {})
       }
 }
 

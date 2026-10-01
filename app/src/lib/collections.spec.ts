@@ -31,6 +31,7 @@ type RawItem = {
   urn?: string
   // Server-computed whole credits (asset-aware). The client no longer converts.
   priceCredits?: number
+  isPaused?: boolean
   data?: {
     wearable?: { category?: string; bodyShapes?: string[] }
     emote?: { category?: string }
@@ -443,6 +444,19 @@ describe('when mapping optional catalog fields', () => {
   })
 })
 
+describe('when the catalogue flags an item as paused', () => {
+  let items: Awaited<ReturnType<typeof fetchCollectionItems>>['items']
+
+  beforeEach(async () => {
+    mockFetchOk([rawItem({ isPaused: true }), rawItem({ id: 'item-2' })])
+    ;({ items } = await fetchCollectionItems('0xcollection'))
+  })
+
+  it('should read isPaused into the paused flag and default a missing one to false', () => {
+    expect(items.map(i => i.paused)).toEqual([true, false])
+  })
+})
+
 describe('when fetching the full catalog (browse "All" / "Not for Sale")', () => {
   it('should hit /v3/catalog/items with the shared filters and forward isWearableSmart + isOnSale', async () => {
     const fetchMock = mockFetchOk([rawItem({ priceCredits: 0 })])
@@ -699,6 +713,44 @@ describe("when resolving a collection's primary sale state", () => {
     )
     await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchCollectionSaleState 500')
     expect(cancel).toHaveBeenCalled()
+  })
+})
+
+describe("when a collection's listing is paused", () => {
+  let map: Awaited<ReturnType<typeof fetchCollectionSaleState>>
+
+  beforeEach(async () => {
+    const body = (url: string) =>
+      String(url).includes('/v3/catalog/shop')
+        ? {
+            data: [{ listingType: 'primary', itemId: '2', priceCredits: 1, tradeId: 't-pegged', isPaused: true }],
+            total: 1
+          }
+        : {
+            data: [
+              rawItem({ itemId: '2', isOnSale: true, priceCredits: 1, price: '1' }),
+              rawItem({ itemId: '3', isOnSale: true, priceCredits: 14, price: '5', isPaused: true }),
+              rawItem({ itemId: '4', isOnSale: true, priceCredits: 14, price: '5' })
+            ],
+            total: 3
+          }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => ({ ok: true, status: 200, json: async () => body(url) }))
+    )
+    map = await fetchCollectionSaleState('0xcol')
+  })
+
+  it('should flag a USD-pegged listing the shop feed reports as paused', () => {
+    expect(map['2'].paused).toBe(true)
+  })
+
+  it('should flag a MANA listing the catalogue reports as paused', () => {
+    expect(map['3'].paused).toBe(true)
+  })
+
+  it('should leave a listing with no flag unpaused', () => {
+    expect(map['4'].paused).toBeUndefined()
   })
 })
 

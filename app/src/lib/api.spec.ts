@@ -41,6 +41,7 @@ import {
   fetchSecondarySaleState,
   fetchShopListingForItem,
   fetchListings,
+  fetchLegacyListings,
   fetchUnified,
   fetchShopItems,
   fetchTrendingItems,
@@ -1979,7 +1980,7 @@ describe('when a listing sits on a paused marketplace version', () => {
     let items: Awaited<ReturnType<typeof fetchUnified>>['items']
 
     beforeEach(async () => {
-      fetchMock.mockResolvedValueOnce(jsonOk({ total: 2, data: [{ ...pausedRow, paused: true }, pausedRow] }))
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 2, data: [{ ...pausedRow, isPaused: true }, pausedRow] }))
       ;({ items } = await fetchUnified())
     })
 
@@ -1988,11 +1989,74 @@ describe('when a listing sits on a paused marketplace version', () => {
     })
   })
 
+  describe('and the shop feed flags the row', () => {
+    let items: Awaited<ReturnType<typeof fetchListings>>['items']
+
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonOk({
+          total: 2,
+          data: [
+            { ...pausedRow, isPaused: true },
+            { ...pausedRow, tradeId: 'u-live' }
+          ]
+        })
+      )
+      ;({ items } = await fetchListings())
+    })
+
+    it('should map the flag onto the item and default a missing one to false', () => {
+      expect(items.map(i => i.paused)).toEqual([true, false])
+    })
+  })
+
+  describe('and the legacy feed flags the row', () => {
+    let items: Awaited<ReturnType<typeof fetchLegacyListings>>['items']
+
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonOk({
+          total: 2,
+          data: [
+            { tradeId: 'l-held', contractAddress: '0x1', manaWei: MANA1, isPaused: true },
+            { tradeId: 'l-live', contractAddress: '0x1', manaWei: MANA1 }
+          ]
+        })
+      )
+      ;({ items } = await fetchLegacyListings())
+    })
+
+    it('should map the flag onto the listing and default a missing one to false', () => {
+      expect(items.map(i => i.paused)).toEqual([true, false])
+    })
+  })
+
+  describe('and the catalog flags the item', () => {
+    let items: Awaited<ReturnType<typeof fetchCatalog>>['items']
+
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonOk({
+          total: 2,
+          data: [
+            { id: '0x1-1', contractAddress: '0x1', itemId: '1', price: MANA1, isPaused: true },
+            { id: '0x1-2', contractAddress: '0x1', itemId: '2', price: MANA1 }
+          ]
+        })
+      )
+      ;({ items } = await fetchCatalog())
+    })
+
+    it('should map the flag onto the item and default a missing one to false', () => {
+      expect(items.map(i => i.paused)).toEqual([true, false])
+    })
+  })
+
   describe('and the signed trade is fetched', () => {
     let trade: Awaited<ReturnType<typeof fetchTrade>>
 
     beforeEach(async () => {
-      fetchMock.mockResolvedValueOnce(jsonOk({ ok: true, data: { id: 'tr-paused', paused: true } }))
+      fetchMock.mockResolvedValueOnce(jsonOk({ ok: true, data: { id: 'tr-paused', isPaused: true } }))
       trade = await fetchTrade('tr-paused')
     })
 
@@ -2021,7 +2085,7 @@ describe('when a listing sits on a paused marketplace version', () => {
                 network: 'MATIC',
                 chainId: 80002
               },
-              order: { price: USD1, tradeId: 'trade-x', paused: true }
+              order: { price: USD1, tradeId: 'trade-x', isPaused: true }
             }
           ]
         })
@@ -2076,7 +2140,7 @@ describe('when resolving a cart line whose known trade is paused', () => {
   describe('and the line is a mint whose creator listed it again', () => {
     beforeEach(async () => {
       fetchMock
-        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', paused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
         .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-new', itemId: '4', source: 'native' }] }))
         .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-new' } }))
       trade = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' })
@@ -2090,9 +2154,9 @@ describe('when resolving a cart line whose known trade is paused', () => {
   describe('and the line is a mint with nothing listed again', () => {
     beforeEach(async () => {
       fetchMock
-        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', paused: true } }))
-        .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-old', itemId: '4', source: 'native', paused: true }] }))
-        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', paused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-old', itemId: '4', source: 'native', isPaused: true }] }))
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
       trade = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' })
     })
 
@@ -2103,7 +2167,7 @@ describe('when resolving a cart line whose known trade is paused', () => {
 
   describe('and the line is a resale', () => {
     beforeEach(async () => {
-      fetchMock.mockResolvedValueOnce(jsonOk({ data: { id: 'tr-token', paused: true } }))
+      fetchMock.mockResolvedValueOnce(jsonOk({ data: { id: 'tr-token', isPaused: true } }))
       trade = await resolveLiveTrade({ tradeId: 'tr-token', tokenId: '9', contractAddress: '0xc', itemId: '4' })
     })
 

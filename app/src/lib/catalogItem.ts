@@ -26,7 +26,7 @@ export type RawCollectionItem = {
   tradeId?: string | null
   available?: string | number | null
   isOnSale?: boolean
-  paused?: boolean
+  isPaused?: boolean
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
     emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
@@ -75,7 +75,7 @@ export function toCatalogItem(r: RawCollectionItem): CatalogItem {
      */
     ...(r.tradeId == null && r.isOnSale && r.price ? { manaWei: r.price, available: toAvailable(r.available) } : {}),
     gender: toGender(r.data?.wearable?.bodyShapes),
-    paused: r.paused === true
+    paused: r.isPaused === true
   }
 }
 
