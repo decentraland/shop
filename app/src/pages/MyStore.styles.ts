@@ -259,75 +259,118 @@ export const PerfHead = styled.div`
   }
 `
 
-/** The dashboard's sections as tabs. */
+/** The dashboard's sections as the Builder's filter pills: white when picked, a translucent pill otherwise. */
 export const Tabs = styled.div`
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 12px;
   min-width: 0;
 
+  &[hidden] {
+    display: none;
+  }
   ${theme.media.maxWidth('mobile')} {
     flex: 1 1 100%;
-    gap: 0;
-  }
-
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
+    gap: 8px;
   }
 `
 
 export const Tab = styled.button`
+  position: relative;
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 14px;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
   border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: ${theme.colors.gray4};
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 
-  &:hover {
-    color: ${theme.colors.white};
+  &:hover:not([aria-selected='true']) {
+    background: rgba(255, 255, 255, 0.28);
   }
   &[aria-selected='true'] {
-    color: ${theme.colors.white};
-    border-bottom-color: ${theme.colors.dclRed};
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.softWhite};
-    /* Inside the tab: the row scrolls sideways, which clips anything drawn past its edges. */
-    outline-offset: -2px;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 
-  /* Four across a phone without scrolling: the label shrinks before the row overflows. */
   ${theme.media.maxWidth('mobile')} {
-    flex: 1 1 auto;
-    justify-content: center;
-    gap: 4px;
-    padding: 0 4px;
-    font-size: 14px;
+    padding: 0 12px;
   }
 `
 
+/** The count on a tab, pinned to its corner the way the Builder marks a filter with something waiting. */
 export const TabCount = styled.span`
-  display: inline-grid;
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  display: grid;
   place-items: center;
   min-width: 20px;
   height: 20px;
-  padding: 0 6px;
-  border-radius: ${theme.radius.pill};
+  padding: 2px;
+  border-radius: 100px;
   background: ${theme.colors.dclRed};
   color: ${theme.colors.white};
   font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+`
+
+/** The tab's panel: the same stack and spacing the page itself lays its sections out with. */
+export const TabPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+`
+
+export const PerfTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: ${theme.colors.white};
+`
+
+/** The audience band's title, when the page lays every section out at once. */
+export const SectionHead = styled.div`
+  margin: 10px 0 -4px;
+`
+
+export const SectionTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: ${theme.colors.softWhite};
+`
+
+export const SectionSub = styled.p`
+  margin: 4px 0 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: rgba(252, 252, 252, 0.62);
 `
 
 export const PerfControls = styled.div`

@@ -819,7 +819,11 @@
     "tabDiscountsRunning": "{count, plural, one {Rabatte, # läuft} other {Rabatte, # laufen}}",
     "discountsLoading": "Deine Rabatte werden geladen…",
     "discountsError": "Deine Rabatte konnten gerade nicht geladen werden. Versuch es gleich noch einmal.",
-    "discountsEmptyNoCredits": "Noch keine Rabatte. Ein Rabatt gilt für Artikel mit Preis in Credits, stell also ein Angebot auf Credits um, um einen zu starten."
+    "discountsEmptyNoCredits": "Noch keine Rabatte. Ein Rabatt gilt für Artikel mit Preis in Credits, stell also ein Angebot auf Credits um, um einen zu starten.",
+    "performance": "Store-Performance",
+    "audience": "Deine Zielgruppe",
+    "audienceSub": "Wer kauft und was diese Käufer dir wert sind.",
+    "tileDiscountsFoot": "Details unten"
   },
   "myAssets": {
     "signInTitle": "Melde dich an, um deine Artikel zu sehen",

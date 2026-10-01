@@ -819,7 +819,11 @@
     "tabDiscountsRunning": "{count, plural, one {Discounts, # running} other {Discounts, # running}}",
     "discountsLoading": "Loading your discounts…",
     "discountsError": "Your discounts could not be loaded right now. Try again in a moment.",
-    "discountsEmptyNoCredits": "No discounts yet. A discount applies to items priced in Credits, so switch a listing to Credits to start one."
+    "discountsEmptyNoCredits": "No discounts yet. A discount applies to items priced in Credits, so switch a listing to Credits to start one.",
+    "performance": "Store performance",
+    "audience": "Your audience",
+    "audienceSub": "Who is buying, and what they are worth to you.",
+    "tileDiscountsFoot": "Details below"
   },
   "myAssets": {
     "signInTitle": "Sign In to view your items",
