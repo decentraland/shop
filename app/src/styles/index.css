@@ -150,7 +150,7 @@ body::before {
    top of it was drawn against that falloff — and only moves its stops down into a darker, colder purple,
    with a second layer banking warm light up from the bottom edge like a pumpkin sitting below the fold.
    Two layers, so `fixed` is written per layer: in the multi-layer shorthand it does not apply to all. */
-:root[data-campaign-theme="halloween"] body {
+:root[data-campaign-theme="halloween"]:not([data-campaign-field="plain"]) body {
   background:
     radial-gradient(
         70% 46% at 50% 104%,
@@ -167,7 +167,7 @@ body::before {
    The opacity is NOT: this sheet's field is near-black and fully opaque, so at 0.03 it reads as a wash
    with no glyphs in it. Raised until the bats and webs are legible, which the inverse vignette then keeps
    to the rim — and a darkened rim is what a Halloween page wants anyway. */
-:root[data-campaign-theme="halloween"] body::before {
+:root[data-campaign-theme="halloween"]:not([data-campaign-field="plain"]) body::before {
   background-image: url("../images/background/DCL_LogoPattern_Halloween.png");
   opacity: 0.12;
 }

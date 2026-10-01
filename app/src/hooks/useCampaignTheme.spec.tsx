@@ -108,16 +108,6 @@ describe('useCampaignThemeAttribute', () => {
     expect(document.documentElement.dataset.campaignTheme).toBeUndefined()
   })
 
-  it('leaves the root plain and hands nothing back on a page that opts out, while the campaign runs', () => {
-    arrange({ variant: 'halloween' })
-    const { result, rerender } = renderHook(({ on }) => useCampaignThemeAttribute(on), { initialProps: { on: false } })
-    expect(result.current).toBeNull()
-    expect(document.documentElement.dataset.campaignTheme).toBeUndefined()
-    // Leaving that page puts the skin back.
-    rerender({ on: true })
-    expect(document.documentElement.dataset.campaignTheme).toBe('halloween')
-  })
-
   it('takes the skin off when the hook unmounts', () => {
     arrange({ variant: 'halloween' })
     renderHook(() => useCampaignThemeAttribute()).unmount()

@@ -58,10 +58,8 @@ export function useCampaignTheme(): CampaignTheme | null {
  * with a `:root[data-campaign-theme='…'] &` selector and needs no new prop, and the whole feature stays a
  * single attribute that can be set by hand in devtools to preview a theme.
  */
-export function useCampaignThemeAttribute(enabled = true): CampaignTheme | null {
-  const running = useCampaignTheme()
-  // Off where a page asks for its own field, the campaign still running everywhere else.
-  const theme = enabled ? running : null
+export function useCampaignThemeAttribute(): CampaignTheme | null {
+  const theme = useCampaignTheme()
 
   useEffect(() => {
     if (!theme) return
