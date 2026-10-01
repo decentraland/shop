@@ -203,3 +203,13 @@ describe('when the calendar is open and the creator moves on to the review', () 
     expect(screen.queryByTestId('creator-sale-range-picker')).toBeNull()
   })
 })
+
+describe('when the creator types a decimal custom discount', () => {
+  it('should keep the whole percentage rather than running the digits together', () => {
+    open()
+    fireEvent.click(screen.getByTestId('creator-sale-custom-pct-chip'))
+    const input = screen.getByLabelText<HTMLInputElement>(/discount percentage/i)
+    fireEvent.change(input, { target: { value: '7.5' } })
+    expect(input.value).toBe('7')
+  })
+})

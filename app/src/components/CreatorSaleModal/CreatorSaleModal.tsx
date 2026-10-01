@@ -320,6 +320,16 @@ export function CreatorSaleModal({
       return
     }
     setBusy(true)
+    // The window from the moment of signing: a preset measured when the terms last changed would sign short.
+    const signedAt = Date.now()
+    const window = windowOf(when, signedAt)
+    try {
+      validateSaleTerms({ ...terms, ...window }, signedAt)
+    } catch (e) {
+      setError(problemCopy(e instanceof SaleInputError ? e.problem : 'window'))
+      setBusy(false)
+      return
+    }
     try {
       setStatus(isManaged ? t('creatorSale.starting') : t('creatorSale.confirm'))
       const payload = await createCollectionSale({
@@ -327,8 +337,8 @@ export function CreatorSaleModal({
         chainId: config.chainId,
         collections: terms.collections,
         discountPct: terms.discountPct,
-        startsAtMs: terms.startsAtMs,
-        endsAtMs: terms.endsAtMs,
+        startsAtMs: window.startsAtMs,
+        endsAtMs: window.endsAtMs,
         uses: terms.uses
       })
       setStatus(t('creatorSale.finishing'))
@@ -807,8 +817,9 @@ export function CreatorSaleModal({
                   aria-label={t('creatorSale.pctLabel')}
                   onChange={e => {
                     setTouched(true)
-                    // Every valid discount is two digits; a third only ever reads as a typo in a narrow segment.
-                    setCustomPct(e.target.value.replace(/\D/g, '').slice(0, 2))
+                    // Whole percentages only, at most two digits: the part before a decimal point, never its
+                    // digits run together ("7.5" must not become 75).
+                    setCustomPct(e.target.value.split(/[.,]/)[0].replace(/\D/g, '').slice(0, 2))
                   }}
                 />
                 <span aria-hidden>%</span>
