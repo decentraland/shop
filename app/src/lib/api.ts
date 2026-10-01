@@ -109,6 +109,11 @@ export type CatalogItem = {
    * minimum is the stock, which is the true answer anyway.
    */
   saleUnitsLeft?: number
+  /**
+   * The open listing sits on a marketplace version that no longer accepts purchases. Still shown and still
+   * priced; only buying is blocked. Optional because the cart persists rows saved before this existed.
+   */
+  paused?: boolean
 }
 
 type RawCatalogItem = {
@@ -138,6 +143,7 @@ type RawCatalogItem = {
   tradeId?: string | null
   /** Remaining mintable supply. */
   available?: number
+  paused?: boolean
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
     emote?: { category?: string; description?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
@@ -226,7 +232,8 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     // through undefined rather than defaulted, so a feed that omits supply keeps meaning "unknown"
     // (AssetCard reads it as an unbounded stock cap) instead of silently reading as sold out.
     available: r.available,
-    hasPrimaryListing: !!mintWei
+    hasPrimaryListing: !!mintWei,
+    paused: r.paused === true
   }
 }
 
@@ -319,13 +326,16 @@ export async function fetchItemDescription(contractAddress: string, itemId: stri
 // The shop feed carries ONLY credit-priced rows, so a MANA-denominated listing is simply absent here.
 // That is why this is not a complete answer to "is it on sale": lib/collections' fetchCollectionSaleState
 // layers the collection catalogue on top to find the rows this feed omits.
-export async function fetchPeggedPrimaryPrices(
-  contractAddress: string
-): Promise<Record<string, { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }>> {
-  const map: Record<
-    string,
-    { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }
-  > = {}
+export type PeggedPrimaryPrice = {
+  priceCredits: number
+  tradeId?: string
+  compareAtCredits?: number
+  saleEndsAt?: number
+  paused?: boolean
+}
+
+export async function fetchPeggedPrimaryPrices(contractAddress: string): Promise<Record<string, PeggedPrimaryPrice>> {
+  const map: Record<string, PeggedPrimaryPrice> = {}
   // Paged to the end on purpose: a pegged row missing from this map is read as MANA-denominated by
   // fetchCollectionSaleState, which would then convert its USD-wei price as if it were MANA.
   const PAGE = 200
@@ -341,6 +351,7 @@ export async function fetchPeggedPrimaryPrices(
       map[String(l.itemId)] = {
         priceCredits: l.priceCredits,
         ...(l.tradeId ? { tradeId: l.tradeId } : {}),
+        ...(l.paused ? { paused: true } : {}),
         /*
          * The running sale, so the creator's own grid can draw what a buyer sees.
          *
@@ -362,13 +373,8 @@ export async function fetchPeggedPrimaryPrices(
 // The same map for EVERY collection a creator sells, keyed by `contract-itemId`. One paged read for the
 // whole catalogue instead of one per collection: My Creations used to fan this out per collection, which
 // put one heavy catalogue query on the server for each collection the creator had.
-export async function fetchCreatorPeggedPrimaryPrices(
-  creator: string
-): Promise<Record<string, { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }>> {
-  const map: Record<
-    string,
-    { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number }
-  > = {}
+export async function fetchCreatorPeggedPrimaryPrices(creator: string): Promise<Record<string, PeggedPrimaryPrice>> {
+  const map: Record<string, PeggedPrimaryPrice> = {}
   const PAGE = 200
   for (let skip = 0; ; skip += PAGE) {
     const { listings, total, creatorSalesLive } = await fetchShopListingsRaw({
@@ -382,6 +388,7 @@ export async function fetchCreatorPeggedPrimaryPrices(
       map[`${l.contractAddress.toLowerCase()}-${l.itemId}`] = {
         priceCredits: l.priceCredits,
         ...(l.tradeId ? { tradeId: l.tradeId } : {}),
+        ...(l.paused ? { paused: true } : {}),
         // Same two corrections the per-collection read makes: the kill switch lives in the mapping these
         // raw rows skip, and `saleEndsAt` arrives in seconds while every consumer works in milliseconds.
         ...(creatorSalesLive && l.compareAtCredits != null ? { compareAtCredits: l.compareAtCredits } : {}),
@@ -401,13 +408,13 @@ export async function fetchCreatorPeggedPrimaryPrices(
 // USD-pegged (credit-buyable) listings appear in THIS feed, which is why that one cannot use it.
 export async function fetchSecondarySaleState(
   contractAddress: string
-): Promise<Record<string, { priceCredits: number; tradeId: string }>> {
+): Promise<Record<string, { priceCredits: number; tradeId: string; paused: boolean }>> {
   const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
-  const map: Record<string, { priceCredits: number; tradeId: string }> = {}
+  const map: Record<string, { priceCredits: number; tradeId: string; paused: boolean }> = {}
   for (const l of listings) {
     // A row with no tradeId has nothing to cancel, so it is not this map's subject.
     if (l.listingType !== 'secondary' || l.tokenId == null || !l.tradeId) continue
-    map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId }
+    map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId, paused: l.paused === true }
   }
   return map
 }
@@ -479,6 +486,7 @@ type ShopListingRaw = {
   coupon?: ListingCoupon | null
   /** Units still buyable at the sale price — see CatalogItem.saleUnitsLeft. Null when not on sale. */
   saleUnitsLeft?: number | null
+  paused?: boolean
 }
 
 /**
@@ -571,7 +579,8 @@ function shopListingToItem(raw: ShopListingRaw): CatalogItem {
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
     saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
     coupon: l.coupon ?? undefined,
-    saleUnitsLeft: l.saleUnitsLeft ?? undefined
+    saleUnitsLeft: l.saleUnitsLeft ?? undefined,
+    paused: l.paused === true
   }
 }
 
@@ -750,9 +759,11 @@ export function pickItemListing(items: UnifiedListing[]): UnifiedListing | null 
   // Lower sorts first. Written as two named tiers rather than packed arithmetic so a third one can be added
   // without decoding the encoding: the resale penalty has to outweigh the legacy penalty, hence 2 vs 1.
   const rank = (l: UnifiedListing) => {
+    // A paused listing cannot be bought, so any live one outranks it.
+    const isPaused = l.paused ? 4 : 0
     const isResale = l.tokenId ? 2 : 0
     const isLegacy = l.source === 'native' ? 0 : 1
-    return isResale + isLegacy
+    return isPaused + isResale + isLegacy
   }
   return [...items].sort((a, b) => rank(a) - rank(b))[0] ?? null
 }
@@ -848,6 +859,7 @@ export type ListingSource = 'native' | 'legacy'
 export type ListingAcquisition = 'trade' | 'store'
 
 export type UnifiedListing = CatalogItem & {
+  paused: boolean
   source: ListingSource
   acquisition: ListingAcquisition
   // Raw MANA wei price for legacy rows (converted to fluctuating credits in the UI); null for native.
@@ -868,7 +880,8 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
     // Fall back to 'trade': every row was a trade before the store branch existed, so an older server that
     // omits the field describes trades. Defaulting the other way would route real trades down the mint path.
     acquisition: l.acquisition ?? 'trade',
-    manaWei: l.manaWei ?? null
+    manaWei: l.manaWei ?? null,
+    paused: l.paused === true
   }
 }
 
@@ -1142,6 +1155,7 @@ export type LegacyListing = {
   network: string
   chainId: number
   createdAt: number
+  paused: boolean
 }
 
 type LegacyListingRaw = Partial<LegacyListing> & {
@@ -1166,7 +1180,8 @@ function toLegacyListing(l: LegacyListingRaw): LegacyListing {
     available: l.available ?? 0,
     network: l.network ?? 'MATIC',
     chainId: l.chainId ?? config.chainId,
-    createdAt: l.createdAt ?? 0
+    createdAt: l.createdAt ?? 0,
+    paused: l.paused === true
   }
 }
 
@@ -1215,6 +1230,8 @@ export type MyAsset = {
   listingPrice?: number
   // The open listing's trade id (present when isOnSale) — used to take the listing down.
   tradeId?: string
+  // The open listing can no longer be bought and has to be listed again; it can still be taken down.
+  listingPaused: boolean
 }
 
 type NFTResult = {
@@ -1231,7 +1248,7 @@ type NFTResult = {
     chainId: number
     data?: { wearable?: { rarity?: string }; emote?: { rarity?: string } }
   }
-  order: { price?: string | null; tradeId?: string } | null
+  order: { price?: string | null; tradeId?: string; paused?: boolean } | null
 }
 
 // Maps one indexer NFT row to the flattened MyAsset shape the UI consumes. Shared by fetchMyAssets
@@ -1252,7 +1269,8 @@ function toMyAsset(r: NFTResult): MyAsset {
     chainId: r.nft.chainId,
     isOnSale: r.order != null,
     listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId
+    tradeId: r.order?.tradeId,
+    listingPaused: r.order?.paused === true
   }
 }
 
@@ -1477,9 +1495,17 @@ export class TradeNotFoundError extends Error {
   }
 }
 
+/**
+ * A signed trade as the Shop reads it. `paused` means its marketplace version no longer accepts purchases;
+ * `status` is passed through only when the server reports one.
+ */
+export type ShopTrade = Trade & { paused: boolean; status?: string }
+
+type TradeRaw = Trade & { paused?: boolean; status?: string }
+
 // Full signed Trade (signer, signature, checks, sent, received) needed to execute a purchase.
 // The endpoint wraps the trade in `{ ok, data }` — unwrap it (otherwise received/sent are undefined).
-export async function fetchTrade(tradeId: string): Promise<Trade> {
+export async function fetchTrade(tradeId: string): Promise<ShopTrade> {
   const res = await fetch(`${config.marketplaceServerUrl}/v1/trades/${tradeId}`)
   // Consume/cancel the body before throwing: 404 is the expected fast-path for stale trade IDs (a cart
   // with several stale lines hits it repeatedly), so an unread stream would leak connections (Jarvis P2).
@@ -1488,8 +1514,24 @@ export async function fetchTrade(tradeId: string): Promise<Trade> {
     throw new TradeNotFoundError(tradeId)
   }
   if (!res.ok) throw new Error(`fetchTrade ${res.status}`)
-  const json = (await res.json()) as { ok?: boolean; data?: Trade } | Trade
-  return ((json as { data?: Trade }).data ?? json) as Trade
+  const json = (await res.json()) as { ok?: boolean; data?: TradeRaw } | TradeRaw
+  const raw = ((json as { data?: TradeRaw }).data ?? json) as TradeRaw
+  return { ...raw, paused: raw.paused === true }
+}
+
+/** Whether a trade's marketplace version has stopped accepting purchases. Missing means no. */
+export function isTradePaused(trade: Trade): boolean {
+  return (trade as Partial<ShopTrade>).paused === true
+}
+
+/**
+ * A trade that can still be bought from, for the purchase paths. A trade the server reports as anything
+ * but open (sold, cancelled, invalidated) reads exactly like a 404, so every "sold or removed" path applies.
+ */
+export async function fetchOpenTrade(tradeId: string): Promise<ShopTrade> {
+  const trade = await fetchTrade(tradeId)
+  if (trade.status != null && trade.status !== 'open') throw new TradeNotFoundError(tradeId)
+  return trade
 }
 
 // Resolve an item's CURRENT signed trade, tolerant of a stale/expired tradeId. Tries the known
@@ -1500,15 +1542,24 @@ export async function fetchTrade(tradeId: string): Promise<Trade> {
 // null when the item has no live listing at all (never listed / sold out / cancelled).
 export async function resolveLiveTrade(item: {
   tradeId?: string
+  tokenId?: string
   contractAddress: string
   itemId?: string | null
-}): Promise<Trade | null> {
+}): Promise<ShopTrade | null> {
   if (item.tradeId) {
+    let known: ShopTrade | undefined
     try {
-      return await fetchTrade(item.tradeId)
+      known = await fetchOpenTrade(item.tradeId)
     } catch (e) {
       if (!(e instanceof TradeNotFoundError) || !item.itemId) throw e
       // fall through: the cached trade is gone — re-resolve the item's current listing.
+    }
+    if (known) {
+      // A creator who listed again leaves the paused trade open beside the new one, so a stored mint line
+      // looks for that successor. Never for a resale: re-resolving by item would swap the token being bought.
+      if (!known.paused || item.tokenId || !item.itemId) return known
+      const successor = await fetchTradeForItem(item.contractAddress, item.itemId).catch(() => null)
+      return successor && !successor.paused ? successor : known
     }
   }
   if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
@@ -1667,11 +1718,11 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
 
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
 // the tradeId via the v3 shop feed (the v1 /orders endpoint doesn't index primary item orders).
-export async function fetchTradeForItem(contractAddress: string, itemId: string): Promise<Trade | null> {
+export async function fetchTradeForItem(contractAddress: string, itemId: string): Promise<ShopTrade | null> {
   // UNIFIED, not shop: a legacy MANA listing is absent from the shop feed, and resolving through it is what
   // made a MANA-listed item unbuyable on its own page. See fetchUnifiedListingForItem.
   const listing = await fetchUnifiedListingForItem(contractAddress, itemId)
-  return listing?.tradeId ? fetchTrade(listing.tradeId) : null
+  return listing?.tradeId ? fetchOpenTrade(listing.tradeId) : null
 }
 
 // Name + thumbnail for a sold asset (a secondary sale carries a tokenId; a primary/mint sale an

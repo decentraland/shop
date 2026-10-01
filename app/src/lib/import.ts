@@ -37,6 +37,8 @@ export type ImportListing = {
   available: number
   network: string
   chainId: number
+  // The old listing can no longer be bought, so moving it is the only way to keep selling it.
+  paused?: boolean
 }
 
 // With the auto-converted (rounded-up) suggested price in credits.

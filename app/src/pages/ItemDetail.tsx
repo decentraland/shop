@@ -659,10 +659,11 @@ export function ItemDetail() {
       available: 1,
       network: it.network,
       chainId: it.chainId,
-      createdAt: 0
+      createdAt: 0,
+      paused: !!it.paused
     }
   }, [isMarket, state?.item])
-  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing
+  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing && !marketListing.paused
   // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
   // Kept up here with the other hooks so it's never called after an early return.
   const saleActive = useSaleActive({

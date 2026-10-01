@@ -212,6 +212,7 @@ describe('useOutfitCart', () => {
     id: 'trade-9',
     tradeId: 'trade-9',
     acquisition: 'store',
+    paused: false,
     available: 5,
     source: 'native',
     manaWei: null

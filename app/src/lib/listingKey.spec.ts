@@ -8,6 +8,7 @@ function listing(over: Partial<UnifiedListing>): UnifiedListing {
     // Defaults to a trade: that is what every row was before CollectionStore mints entered the feed, and
     // the cases below are all about trades. A store case overrides it explicitly.
     acquisition: 'trade',
+    paused: false,
     id: '',
     name: '',
     creator: '',

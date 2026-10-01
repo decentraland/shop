@@ -97,7 +97,8 @@ function resaleToLegacyListing(r: UnifiedListing): LegacyListing {
     available: 1,
     network: r.network,
     chainId: r.chainId,
-    createdAt: 0
+    createdAt: 0,
+    paused: r.paused
   }
 }
 

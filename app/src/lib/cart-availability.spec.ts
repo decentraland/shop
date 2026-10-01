@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Trade } from '@dcl/schemas'
-import type { CatalogItem } from '~/lib/api'
+import type { CatalogItem, ShopTrade } from '~/lib/api'
 
 // Only resolveLiveTrade is stubbed; usdWeiToCents + TradeNotFoundError stay real so the classifier and
 // the not-found branch exercise the production code paths.
@@ -23,13 +22,14 @@ const AMOY = 80002
 
 // A USD-pegged trade on the Amoy V2 marketplace: received amount is USD wei (1e18 = $1), so $2 → 2e18 wei.
 // Optional expiration is epoch ms (the shape fetchTrade returns).
-const trade = (dollars: number, expiration?: number): Trade =>
+const trade = (dollars: number, expiration?: number): ShopTrade =>
   ({
+    paused: false,
     contract: MARKETPLACE_V2_AMOY,
     chainId: AMOY,
     received: [{ amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString() }],
     ...(expiration != null ? { checks: { expiration } } : {})
-  }) as unknown as Trade
+  }) as unknown as ShopTrade
 
 const primary = { itemId: 'item-1', contractAddress: '0xc', tradeId: 'trade-1' } as Partial<CatalogItem>
 const secondary = { tokenId: '42', contractAddress: '0xc', tradeId: 'trade-2' } as Partial<CatalogItem>

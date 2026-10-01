@@ -160,7 +160,8 @@ describe('when fetching a collection carousel', () => {
       chainId: 137,
       thumbnail: 'http://img.test/hat.png',
       priceCredits: 10,
-      gender: 'male'
+      gender: 'male',
+      paused: false
     })
   })
 

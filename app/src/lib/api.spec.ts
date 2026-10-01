@@ -50,6 +50,7 @@ import {
   fetchResaleTokenInfos,
   fetchTokenById,
   fetchTrade,
+  fetchOpenTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
   pickItemListing,
@@ -373,7 +374,7 @@ describe('when resolving a secondary sale state from the shop feed', () => {
     )
     const map = await fetchSecondarySaleState('0xcol')
     expect(Object.keys(map)).toEqual(['42'])
-    expect(map['42']).toEqual({ priceCredits: 135, tradeId: 't1' })
+    expect(map['42']).toEqual({ priceCredits: 135, tradeId: 't1', paused: false })
     expect(lastUrl()).toContain('https://market.test/v3/catalog/shop?')
     expect(lastUrl()).toContain('contractAddress=0xcol')
   })
@@ -1393,14 +1394,14 @@ describe('when fetching a single signed trade', () => {
   it('should unwrap the { ok, data } envelope', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ ok: true, data: { id: 'wrapped' } }))
     const trade = await fetchTrade('t1')
-    expect(trade).toEqual({ id: 'wrapped' })
+    expect(trade).toEqual({ id: 'wrapped', paused: false })
     expect(lastUrl()).toBe('https://market.test/v1/trades/t1')
   })
 
   it('should return the body as-is when there is no data envelope', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ id: 'raw' }))
     const trade = await fetchTrade('t2')
-    expect(trade).toEqual({ id: 'raw' })
+    expect(trade).toEqual({ id: 'raw', paused: false })
   })
 
   it('should throw a TradeNotFoundError when the trade is gone (404)', async () => {
@@ -1557,7 +1558,7 @@ describe('when resolving the open trade for a catalog item', () => {
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-1' } }))
 
     const trade = await fetchTradeForItem('0xc', '3')
-    expect(trade).toEqual({ id: 'tr-1' })
+    expect(trade).toEqual({ id: 'tr-1', paused: false })
     expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/unified?')
     expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-1')
   })
@@ -1576,7 +1577,7 @@ describe('when resolving the open trade for a catalog item', () => {
       )
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-legacy' } }))
 
-    expect(await fetchTradeForItem('0xc', '0')).toEqual({ id: 'tr-legacy' })
+    expect(await fetchTradeForItem('0xc', '0')).toEqual({ id: 'tr-legacy', paused: false })
     const url = String(fetchMock.mock.calls[0][0])
     expect(url).toContain('v3/catalog/unified?')
     // BOTH kinds are asked for: filtering the server call to primaries hid the live price of an item whose
@@ -1600,7 +1601,7 @@ describe('when resolving the open trade for a catalog item', () => {
       )
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-mint' } }))
 
-    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-mint' })
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-mint', paused: false })
     expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-mint')
   })
 
@@ -1610,7 +1611,7 @@ describe('when resolving the open trade for a catalog item', () => {
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-resale', itemId: '3', tokenId: '7' }] }))
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-resale' } }))
 
-    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-resale' })
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-resale', paused: false })
   })
 
   it('should return null when no listing exists for the item', async () => {
@@ -1625,7 +1626,7 @@ describe('when resolving an item to its live trade', () => {
   it('should use the known tradeId directly when it still exists', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: { id: 'tr-known' } }))
     const trade = await resolveLiveTrade({ tradeId: 'tr-known', contractAddress: '0xc', itemId: '4' })
-    expect(trade).toEqual({ id: 'tr-known' })
+    expect(trade).toEqual({ id: 'tr-known', paused: false })
     // one call only — no re-resolution when the trade is live.
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-known')
@@ -1637,7 +1638,7 @@ describe('when resolving an item to its live trade', () => {
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-fresh', itemId: '4' }] })) // shop feed
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-fresh' } })) // fresh trade
     const trade = await resolveLiveTrade({ tradeId: 'tr-stale', contractAddress: '0xc', itemId: '4' })
-    expect(trade).toEqual({ id: 'tr-fresh' })
+    expect(trade).toEqual({ id: 'tr-fresh', paused: false })
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-stale')
     expect(String(fetchMock.mock.calls[1][0])).toContain('https://market.test/v3/catalog/unified?')
     expect(String(fetchMock.mock.calls[2][0])).toBe('https://market.test/v1/trades/tr-fresh')
@@ -1672,7 +1673,7 @@ describe('when resolving an item to its live trade', () => {
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-feed', itemId: '4' }] }))
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-feed' } }))
     const trade = await resolveLiveTrade({ contractAddress: '0xc', itemId: '4' })
-    expect(trade).toEqual({ id: 'tr-feed' })
+    expect(trade).toEqual({ id: 'tr-feed', paused: false })
     expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/unified?')
   })
 
@@ -1950,5 +1951,168 @@ describe('when reading the remaining supply off an item row', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))
 
     expect((await fetchItemMeta('0xabc', '1'))?.available).toBeNull()
+  })
+})
+
+describe('when a listing sits on a paused marketplace version', () => {
+  const pausedRow = {
+    tradeId: 'u-paused',
+    listingType: 'primary',
+    contractAddress: '0x1',
+    itemId: '1',
+    tokenId: null,
+    name: 'Paused Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xa',
+    priceCredits: 270,
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'native',
+    manaWei: null
+  }
+
+  describe('and the unified feed flags the row', () => {
+    let items: Awaited<ReturnType<typeof fetchUnified>>['items']
+
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 2, data: [{ ...pausedRow, paused: true }, pausedRow] }))
+      ;({ items } = await fetchUnified())
+    })
+
+    it('should map the flag onto the listing and default a missing one to false', () => {
+      expect(items.map(i => i.paused)).toEqual([true, false])
+    })
+  })
+
+  describe('and the signed trade is fetched', () => {
+    let trade: Awaited<ReturnType<typeof fetchTrade>>
+
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ ok: true, data: { id: 'tr-paused', paused: true } }))
+      trade = await fetchTrade('tr-paused')
+    })
+
+    it('should carry the flag on the trade', () => {
+      expect(trade.paused).toBe(true)
+    })
+  })
+
+  describe('and the owner reads their listed token', () => {
+    let assets: Awaited<ReturnType<typeof fetchMyAssets>>['assets']
+
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(
+        jsonOk({
+          total: 1,
+          data: [
+            {
+              nft: {
+                id: 'n1',
+                contractAddress: '0xc',
+                tokenId: '1',
+                itemId: '5',
+                name: 'Held',
+                category: 'wearable',
+                image: '',
+                network: 'MATIC',
+                chainId: 80002
+              },
+              order: { price: USD1, tradeId: 'trade-x', paused: true }
+            }
+          ]
+        })
+      )
+      ;({ assets } = await fetchMyAssets('0xowner'))
+    })
+
+    it('should flag the listing as paused while keeping it on sale', () => {
+      expect(assets[0]).toMatchObject({ isOnSale: true, tradeId: 'trade-x', listingPaused: true })
+    })
+  })
+
+  describe('and the item also has a live listing', () => {
+    const paused = { source: 'native', tokenId: undefined, paused: true } as never
+    const live = { source: 'legacy', tokenId: undefined, paused: false } as never
+
+    it('should prefer the live listing even over a USD-pegged paused one', () => {
+      expect(pickItemListing([paused, live])).toBe(live)
+    })
+  })
+})
+
+describe('when the server reports a trade that is no longer open', () => {
+  let error: unknown
+
+  beforeEach(async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ ok: true, data: { id: 'tr-gone', status: 'cancelled' } }))
+    error = await fetchOpenTrade('tr-gone').catch(e => e)
+  })
+
+  it('should read it as not found, so the sold-or-removed paths apply', () => {
+    expect(error).toBeInstanceOf(TradeNotFoundError)
+  })
+})
+
+describe('when the server reports a trade that is still open', () => {
+  let trade: Awaited<ReturnType<typeof fetchOpenTrade>>
+
+  beforeEach(async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ ok: true, data: { id: 'tr-open', status: 'open' } }))
+    trade = await fetchOpenTrade('tr-open')
+  })
+
+  it('should return it', () => {
+    expect(trade).toEqual({ id: 'tr-open', status: 'open', paused: false })
+  })
+})
+
+describe('when resolving a cart line whose known trade is paused', () => {
+  let trade: Awaited<ReturnType<typeof resolveLiveTrade>>
+
+  describe('and the line is a mint whose creator listed it again', () => {
+    beforeEach(async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', paused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-new', itemId: '4', source: 'native' }] }))
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-new' } }))
+      trade = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' })
+    })
+
+    it('should settle on the new listing', () => {
+      expect(trade).toEqual({ id: 'tr-new', paused: false })
+    })
+  })
+
+  describe('and the line is a mint with nothing listed again', () => {
+    beforeEach(async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', paused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-old', itemId: '4', source: 'native', paused: true }] }))
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', paused: true } }))
+      trade = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' })
+    })
+
+    it('should keep the paused trade so the line reads as on hold', () => {
+      expect(trade).toEqual({ id: 'tr-old', paused: true })
+    })
+  })
+
+  describe('and the line is a resale', () => {
+    beforeEach(async () => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ data: { id: 'tr-token', paused: true } }))
+      trade = await resolveLiveTrade({ tradeId: 'tr-token', tokenId: '9', contractAddress: '0xc', itemId: '4' })
+    })
+
+    it('should keep the paused trade', () => {
+      expect(trade).toEqual({ id: 'tr-token', paused: true })
+    })
+
+    it('should not look the item up, which could swap the token being bought', () => {
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
   })
 })
