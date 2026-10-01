@@ -1534,9 +1534,7 @@
     "liftNoBaseline": "nada foi vendido antes dele",
     "liftHint": "Vendas por dia enquanto o desconto esteve ativo, comparadas com o mesmo período logo antes de ele começar.",
     "continue": "Continuar",
-    "previewStays": "Atenção: {name} continua a <c>{price}</c> com {pct}% off, porque os preços são arredondados para Créditos inteiros. Tente <b>{min}% ou mais</b> para baixá-lo.",
-    "previewStaysMore": "Atenção: {name} e {others, plural, one {mais #} other {mais #}} continuam no preço com {pct}% off, porque os preços são arredondados para Créditos inteiros. Tente <b>{min}% ou mais</b> para baixar {name}.",
-    "previewFloor": "Atenção: {name} já está a <c>1</c>, o menor preço possível, então nenhum desconto o baixa."
+    "previewRounding": "Como os Créditos são números inteiros, os preços com desconto são arredondados e podem não corresponder exatamente à porcentagem de desconto."
   },
   "listingEdit": {
     "title": "Editar preço",

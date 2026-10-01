@@ -619,29 +619,9 @@ export function CreatorSaleModal({
   const inlineProblem = touched && terms.problem ? problemCopy(terms.problem) : null
   // A percentage the terms refuse is not a price anyone will see, so the preview shows none.
   const previewPct = terms.problem === 'pct' ? 0 : pct
-  /**
-   * The first listed item the chosen discount leaves at its price, named with the smallest discount that
-   * lowers it. Prices are whole Credits, so a cheap item can round straight back to where it was.
-   */
-  const stuck = (() => {
-    if (previewPct <= 0) return null
-    const held = previewItems.filter(
-      i => salePriceOf(i.priceCredits as number, previewPct) >= (i.priceCredits as number)
-    )
-    if (held.length === 0) return null
-    const first = held[held.length - 1]
-    const price = first.priceCredits as number
-    let min: number | null = null
-    for (let candidate = previewPct + 1; candidate <= MAX_SALE_PCT; candidate++) {
-      if (salePriceOf(price, candidate) < price) {
-        min = candidate
-        break
-      }
-    }
-    // Rounded up to a step of five, the way the presets read; never past the largest discount allowed.
-    const shown = min === null ? null : Math.min(MAX_SALE_PCT, Math.ceil(min / 5) * 5)
-    return { name: first.name, price, others: held.length - 1, min: shown, lowest: shown === null }
-  })()
+  // Whether any price shown rounds away from the exact cut: Credits are whole, so the badge and the price can disagree.
+  const rounded =
+    previewPct > 0 && previewItems.some(i => ((i.priceCredits as number) * (100 - previewPct)) % 100 !== 0)
   const customPctOpen = pctPreset === 'custom'
   const dateFormat = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric' })
   const whenLabel =
@@ -885,7 +865,7 @@ export function CreatorSaleModal({
               data-testid="creator-sale-when"
             >
               <span>{whenLabel}</span>
-              <Icon name="chevron-down" size={24} aria-hidden data-open={whenOpen ? '' : undefined} />
+              <Icon name="arrow-drop-down" size={24} aria-hidden data-open={whenOpen ? '' : undefined} />
             </S.WhenTrigger>
             {whenOpen && whenAnchor
               ? createPortal(
@@ -1019,20 +999,8 @@ export function CreatorSaleModal({
                 )
               })}
             </S.PreviewStrip>
-            {stuck ? (
-              <S.FieldHint data-testid="creator-sale-preview-stuck">
-                {stuck.lowest
-                  ? tNode('creatorSale.previewFloor', { name: stuck.name, c: marked, b: bold })
-                  : tNode(stuck.others > 0 ? 'creatorSale.previewStaysMore' : 'creatorSale.previewStays', {
-                      name: stuck.name,
-                      others: stuck.others,
-                      price: stuck.price,
-                      pct: previewPct,
-                      min: stuck.min ?? MAX_SALE_PCT,
-                      c: marked,
-                      b: bold
-                    })}
-              </S.FieldHint>
+            {rounded ? (
+              <S.FieldHint data-testid="creator-sale-preview-rounding">{t('creatorSale.previewRounding')}</S.FieldHint>
             ) : null}
           </S.Field>
         ) : null}
@@ -1065,7 +1033,7 @@ export function CreatorSaleModal({
             disabled={busy || (touched && !!terms.problem)}
           >
             {t('creatorSale.continue')}
-            <Icon name="arrow-right" size={18} aria-hidden />
+            <Icon name="chevron-right" size={22} aria-hidden />
           </S.ActionBtn>
         </S.Actions>
       </S.Card>

@@ -120,9 +120,9 @@ export const Field = styled.div`
 `
 
 export const FieldLabel = styled.span`
-  font-size: 13px;
-  line-height: 1.5;
-  color: ${colors.gray4};
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${colors.softWhite};
 `
 
 export const FieldHint = styled.p`
@@ -617,9 +617,13 @@ export const PrimaryBtn = styled(Button)`
   min-height: 48px;
 `
 
+/** The modal's foot: ruled off from the form, the way out on the left and the way on at the right. */
 export const Actions = styled.div`
   display: flex;
+  justify-content: space-between;
   gap: 12px;
+  padding-top: 24px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.3);
 
   ${media.maxWidth('mobile')} {
     flex-direction: column-reverse;
@@ -627,12 +631,32 @@ export const Actions = styled.div`
 `
 
 export const ActionBtn = styled(Button)`
-  flex: 1 1 0;
+  flex: 0 1 242px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 48px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+
+  /* The secondary action is an outline on this card, not a white slab. */
+  &[data-variant='white'] {
+    border: 0.5px solid ${colors.softWhite};
+    background: transparent;
+    color: ${colors.softWhite};
+  }
+  &[data-variant='white']:hover:not(:disabled),
+  &[data-variant='white']:active:not(:disabled) {
+    background: ${colors.glassFaint};
+  }
+
+  ${media.maxWidth('mobile')} {
+    flex: 1 1 auto;
+  }
 `
 
 export const SuccessBanner = styled.div`

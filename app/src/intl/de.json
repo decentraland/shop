@@ -1534,9 +1534,7 @@
     "liftNoBaseline": "vorher wurde nichts verkauft",
     "liftHint": "Verkäufe pro Tag, seit der Rabatt live ist, verglichen mit dem gleichen Zeitraum direkt vor dem Start.",
     "continue": "Weiter",
-    "previewStays": "Achtung: {name} bleibt bei <c>{price}</c> mit {pct} % Rabatt, weil Preise auf ganze Credits gerundet werden. Versuch es mit <b>{min} % oder mehr</b>, um ihn zu senken.",
-    "previewStaysMore": "Achtung: {name} und {others, plural, one {# weiterer} other {# weitere}} bleiben mit {pct} % Rabatt beim selben Preis, weil Preise auf ganze Credits gerundet werden. Versuch es mit <b>{min} % oder mehr</b>, um {name} zu senken.",
-    "previewFloor": "Achtung: {name} steht schon bei <c>1</c>, dem niedrigsten möglichen Preis, also senkt ihn kein Rabatt."
+    "previewRounding": "Da Credits ganze Zahlen sind, werden rabattierte Preise gerundet und entsprechen möglicherweise nicht genau dem Rabattprozentsatz."
   },
   "listingEdit": {
     "title": "Preis ändern",

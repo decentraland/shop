@@ -1534,9 +1534,7 @@
     "liftNoBaseline": "nothing sold before it",
     "liftHint": "Sales per day while the discount has been live, against the same stretch of time right before it started.",
     "continue": "Continue",
-    "previewStays": "Heads up: {name} stays at <c>{price}</c> with {pct}% off, because prices round to whole Credits. Try <b>{min}% or more</b> to lower it.",
-    "previewStaysMore": "Heads up: {name} and {others, plural, one {# more} other {# more}} stay at their price with {pct}% off, because prices round to whole Credits. Try <b>{min}% or more</b> to lower {name}.",
-    "previewFloor": "Heads up: {name} is already at <c>1</c>, the lowest a price can go, so no discount lowers it."
+    "previewRounding": "Since Credits use whole numbers, discounted prices are rounded and may not match the exact discount percentage."
   },
   "listingEdit": {
     "title": "Edit price",

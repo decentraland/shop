@@ -1534,9 +1534,7 @@
     "liftNoBaseline": "antes no se vendía nada",
     "liftHint": "Ventas por día mientras el descuento estuvo activo, frente al mismo lapso justo antes de que empezara.",
     "continue": "Continuar",
-    "previewStays": "Ojo: {name} sigue a <c>{price}</c> con {pct}% off, porque los precios se redondean a Créditos enteros. Prueba con <b>{min}% o más</b> para bajarlo.",
-    "previewStaysMore": "Ojo: {name} y {others, plural, one {# más} other {# más}} siguen a su precio con {pct}% off, porque los precios se redondean a Créditos enteros. Prueba con <b>{min}% o más</b> para bajar {name}.",
-    "previewFloor": "Ojo: {name} ya está a <c>1</c>, el precio más bajo posible, así que ningún descuento lo baja."
+    "previewRounding": "Como los Créditos son números enteros, los precios con descuento se redondean y pueden no coincidir exactamente con el porcentaje de descuento."
   },
   "listingEdit": {
     "title": "Editar precio",
