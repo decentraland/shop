@@ -176,3 +176,69 @@ describe('when a creator opens the discount flow', () => {
     expect(track).not.toHaveBeenCalled()
   })
 })
+
+describe('when the calendar is open and the creator moves on to the review', () => {
+  // A stand-in for Element.animate whose folds never finish, the way a step change cuts one short.
+  const original = HTMLElement.prototype.animate
+  beforeEach(() => {
+    HTMLElement.prototype.animate = function () {
+      return { onfinish: null, cancel: () => {} } as unknown as Animation
+    }
+    return () => {
+      HTMLElement.prototype.animate = original
+    }
+  })
+
+  it('should come back to the terms with the calendar closed', async () => {
+    open()
+    fireEvent.click(screen.getByTestId('creator-sale-when'))
+    expect(screen.getByTestId('creator-sale-range-picker')).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByTestId('creator-sale-continue'))
+    fireEvent.click(screen.getByTestId('creator-sale-continue'))
+    await screen.findByTestId('creator-sale-review')
+    fireEvent.click(screen.getByTestId('creator-sale-back'))
+
+    await screen.findByTestId('creator-sale-modal')
+    expect(screen.queryByTestId('creator-sale-range-picker')).toBeNull()
+  })
+})
+
+describe('when the creator types a decimal custom discount', () => {
+  it('should refuse anything but a whole percentage rather than rewrite it into another one', () => {
+    open()
+    fireEvent.click(screen.getByTestId('creator-sale-custom-pct-chip'))
+    const input = screen.getByLabelText<HTMLInputElement>(/discount percentage/i)
+    fireEvent.change(input, { target: { value: '30' } })
+    for (const typo of ['5.5', '1e1', '123']) {
+      fireEvent.change(input, { target: { value: typo } })
+      expect(input.value).toBe('30')
+    }
+  })
+})
+
+describe('when the creator lingers on the review before signing', () => {
+  it('should sign the window the review showed, not one measured at the click', async () => {
+    const opened = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(opened)
+    createCollectionSale.mockResolvedValue({ payload: true })
+    postCoupon.mockResolvedValue({
+      id: 'sale-1',
+      collections: [collection.contractAddress],
+      status: 'active',
+      discount: 200_000,
+      checks: { expiration: opened + 72 * 3_600_000, effective: opened, uses: 0 }
+    })
+    open()
+    fireEvent.click(screen.getByTestId('creator-sale-continue'))
+    clock.mockReturnValue(opened + 20 * 60_000)
+    fireEvent.click(screen.getByTestId('creator-sale-submit'))
+
+    await waitFor(() => expect(createCollectionSale).toHaveBeenCalled())
+    expect(createCollectionSale.mock.calls[0][0]).toMatchObject({
+      startsAtMs: undefined,
+      endsAtMs: opened + 72 * 3_600_000
+    })
+    clock.mockRestore()
+  })
+})

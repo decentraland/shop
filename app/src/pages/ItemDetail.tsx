@@ -74,7 +74,7 @@ import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
 import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
-import { saleDiscountPct } from '~/lib/sale'
+import { saleBadgePct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { track, itemProps, creditsToUsd } from '~/lib/analytics'
@@ -1333,7 +1333,7 @@ export function ItemDetail() {
                   row it was a third chip arguing with the number it describes. */}
               {onSale && current.compareAtCredits != null ? (
                 <S.DetailSaleTag
-                  pct={saleDiscountPct(current.compareAtCredits, current.priceCredits)}
+                  pct={saleBadgePct(current.compareAtCredits, current.priceCredits, current.coupon)}
                   size="lg"
                   testId="detail-sale-badge"
                 />

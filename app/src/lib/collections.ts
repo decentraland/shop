@@ -253,12 +253,18 @@ async function withRunningSales(
     // The kill switch lives in the mapping this overlay skips, so it has to be honoured here or a flag
     // turned off would leave the discount standing on exactly these two pages.
     if (!creatorSalesLive) return items
-    const sales = new Map<string, { compareAtCredits: number; saleEndsAt?: number; priceCredits: number }>()
+    const sales = new Map<
+      string,
+      { compareAtCredits: number; saleEndsAt?: number; priceCredits: number; coupon?: CatalogItem['coupon'] }
+    >()
     for (const l of listings) {
       if (l.itemId == null || l.compareAtCredits == null) continue
       sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
         compareAtCredits: l.compareAtCredits,
         priceCredits: l.priceCredits,
+        // Carried for two readers: the badge takes the creator's own % off it, and the cart settles a line
+        // added from these pages through it, so the sale price shown is the one charged.
+        ...(l.coupon ? { coupon: l.coupon } : {}),
         // SECONDS on the wire, milliseconds everywhere a CatalogItem is read. The mapping this overlay
         // bypasses is where that conversion normally happens.
         ...(l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})

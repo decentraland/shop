@@ -13,7 +13,7 @@ import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
-import { saleDiscountPct } from '~/lib/sale'
+import { saleBadgePct } from '~/lib/sale'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { track } from '~/lib/analytics'
@@ -186,7 +186,7 @@ export function AssetCard(props: AssetCardProps) {
     saleEndsAt: item.saleEndsAt
   })
   const onSale = saleActive
-  const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
+  const discountPct = onSale ? saleBadgePct(item.compareAtCredits!, item.priceCredits, item.coupon) : 0
 
   // A browse card can hold an item with nothing to buy (a favourite whose listing ended, a collection
   // sibling that was never listed, a mint that has run out): the price becomes the NOT FOR SALE tag and

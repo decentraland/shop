@@ -2,6 +2,7 @@ import type { RoyaltyRow, SaleRow } from '~/lib/sales'
 import type { StoreCollection, StoreItem, StoreStats } from '~/lib/storeStats'
 import type { Buyer, Collectors } from '~/lib/storeMetrics'
 import type { TopOwner, TopOwnersSort } from '~/lib/owners'
+import type { CreatorSaleStatus } from '~/lib/coupons'
 
 /**
  * A store invented for looking at, reachable at `/my-store?mock=1`.
@@ -216,7 +217,15 @@ export function mockTopOwners(
  * source. They used to be fed separately, and the panel announced that nothing was running while two rows
  * above it wore a discount chip.
  */
-const sale = (n: number, contract: string, discount: number, startedAgo: number, endsIn: number, used: number) => ({
+const sale = (
+  n: number,
+  contract: string,
+  discount: number,
+  startedAgo: number,
+  endsIn: number,
+  used: number,
+  status: CreatorSaleStatus = 'active'
+) => ({
   id: `mock-coupon-${n}`,
   signer: '0xmockcreator0000000000000000000000000001',
   chainId: 137,
@@ -241,13 +250,16 @@ const sale = (n: number, contract: string, discount: number, startedAgo: number,
   signature: `0x${'cd'.repeat(65)}`,
   proof: [],
   createdAt: NOW - startedAgo,
-  state: { uses: used, cancelled: false, revoked: false, checkedAt: NOW },
-  status: 'active' as const
+  state: { uses: used, cancelled: status === 'cancelled', revoked: false, checkedAt: NOW },
+  status
 })
 
 export const mockSales = [
   sale(1, `0xmock${'0'.repeat(36)}`, 25, 3 * DAY, 3 * DAY, 18),
-  sale(2, `0xmock${'1'.padStart(36, '0')}`, 15, 12 * 3_600_000, 9 * DAY, 0)
+  sale(2, `0xmock${'1'.padStart(36, '0')}`, 15, 12 * 3_600_000, 9 * DAY, 0),
+  sale(3, `0xmock${'2'.padStart(36, '0')}`, 40, 30 * DAY, -23 * DAY, 42, 'ended'),
+  sale(4, `0xmock${'0'.repeat(36)}`, 50, 45 * DAY, -40 * DAY, 50, 'exhausted'),
+  sale(5, `0xmock${'3'.padStart(36, '0')}`, 20, 60 * DAY, -57 * DAY, 3, 'cancelled')
 ]
 
 /** Saves per item, so the column beside "sold" has the pair that makes it a reading rather than a number. */

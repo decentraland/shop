@@ -42,15 +42,30 @@ export type RangePickerHandle = { close: () => void }
 export function RangePicker({
   from,
   to,
+  min = EARLIEST.getTime(),
   max,
   presets,
   handle,
+  stretch = false,
+  label = t('myStore.period'),
+  triggerSelector = '[data-range-trigger]',
+  testId = 'store-range',
+  presetTestId = 'store-period',
   onApply,
   onClose
 }: {
   from: number | undefined
   to: number | undefined
-  max: number
+  /** The first and last days that can be picked; with no `max` the calendar runs into the future. */
+  min?: number
+  max?: number
+  /** Spans its anchor's width with a single month, for a trigger too narrow for two months beside the presets. */
+  stretch?: boolean
+  label?: string
+  /** The one element that opens this picker, which it grows out of and hands focus back to. */
+  triggerSelector?: string
+  testId?: string
+  presetTestId?: string
   /** Ready-made ranges listed beside the calendar; picking one applies it straight away. */
   presets?: { key: string; label: string; active: boolean; onPick: () => void }[]
   handle?: Ref<RangePickerHandle>
@@ -61,7 +76,8 @@ export function RangePicker({
   const [end, setEnd] = useState<Date | null>(to != null ? new Date(to) : null)
   const ref = useRef<HTMLDivElement>(null)
   const wide = useWide()
-  const leave = useMorphFrom(ref, '[data-range-trigger]')
+  const twoMonths = wide && !stretch
+  const leave = useMorphFrom(ref, triggerSelector)
   const close = useCallback(() => leave(onClose), [leave, onClose])
   useImperativeHandle(handle, () => ({ close }), [close])
 
@@ -70,7 +86,7 @@ export function RangePicker({
       const target = event.target as Node
       if (ref.current?.contains(target)) return
       // The trigger closes the picker from its own click; closing here too would let that click reopen it.
-      if ((target as Element).closest?.('[data-range-trigger]')) return
+      if ((target as Element).closest?.(triggerSelector)) return
       close()
     }
     function onKey(event: KeyboardEvent) {
@@ -95,7 +111,7 @@ export function RangePicker({
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [close])
+  }, [close, triggerSelector])
 
   // Focus goes in on open and back to the trigger on the way out, so a keyboard user is never left behind.
   useEffect(() => {
@@ -110,10 +126,10 @@ export function RangePicker({
       const active = document.activeElement
       if (active && active !== document.body && !panel?.contains(active)) return
       // Safari does not focus a button on click, so the element focused at open may not be the trigger.
-      const fallback = document.querySelector<HTMLElement>('[data-range-trigger]')
-      ;(trigger?.isConnected && trigger.matches('[data-range-trigger]') ? trigger : fallback)?.focus()
+      const fallback = document.querySelector<HTMLElement>(triggerSelector)
+      ;(trigger?.isConnected && trigger.matches(triggerSelector) ? trigger : fallback)?.focus()
     }
-  }, [])
+  }, [triggerSelector])
 
   const format = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
   const summary = start
@@ -127,9 +143,10 @@ export function RangePicker({
       ref={ref}
       role="dialog"
       aria-modal="true"
-      aria-label={t('myStore.period')}
+      aria-label={label}
       tabIndex={-1}
-      data-testid="store-range-picker"
+      data-stretch={stretch ? '' : undefined}
+      data-testid={`${testId}-picker`}
     >
       <S.Body>
         {presets?.length ? (
@@ -141,7 +158,7 @@ export function RangePicker({
                 aria-pressed={preset.active}
                 data-preset=""
                 onClick={() => leave(preset.onPick)}
-                data-testid={`store-period-${preset.key}`}
+                data-testid={`${presetTestId}-${preset.key}`}
               >
                 {preset.label}
               </S.Preset>
@@ -157,15 +174,15 @@ export function RangePicker({
             setStart(nextStart)
             setEnd(nextEnd)
           }}
-          maxDate={new Date(max)}
-          minDate={EARLIEST}
-          monthsShown={wide ? 2 : 1}
-          openToDate={openOn(end ?? start ?? new Date(max), wide)}
+          maxDate={max != null ? new Date(max) : undefined}
+          minDate={new Date(min)}
+          monthsShown={twoMonths ? 2 : 1}
+          openToDate={openOn(end ?? start ?? new Date(max ?? Date.now()), twoMonths)}
           calendarStartDay={1}
         />
       </S.Body>
       <S.Foot>
-        <span data-testid="store-range-summary">{summary}</span>
+        <span data-testid={`${testId}-summary`}>{summary}</span>
         <S.Actions>
           <S.Btn type="button" onClick={close}>
             {t('myStore.rangeCancel')}
@@ -175,7 +192,7 @@ export function RangePicker({
             data-variant="primary"
             disabled={!start || !end}
             onClick={() => start && end && leave(() => onApply(start.getTime(), end.getTime()))}
-            data-testid="store-range-apply"
+            data-testid={`${testId}-apply`}
           >
             {t('myStore.rangeApply')}
           </S.Btn>

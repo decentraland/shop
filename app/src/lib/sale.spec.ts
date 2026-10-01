@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  saleBadgePct,
   isSaleActive,
   saleDiscountPct,
   saleTimeLeft,
@@ -152,5 +153,21 @@ describe('when deciding whether to tell the buyer how few units are left', () =>
     it('should floor it, so the buyer is never promised a unit that is not there', () => {
       expect(saleUnitsHint(2.9)).toBe(2)
     })
+  })
+})
+
+describe('when a creator coupon priced the sale', () => {
+  it("should show the coupon's own percentage, not the one the rounded prices imply", () => {
+    expect(saleBadgePct(5, 3, { discountType: 1, discount: 500_000 })).toBe(50)
+  })
+
+  it('should fall back to the prices for a flat coupon or none at all', () => {
+    expect(saleBadgePct(5, 3, { discountType: 2, discount: 500_000 })).toBe(40)
+    expect(saleBadgePct(5, 3)).toBe(40)
+  })
+
+  it('should ignore a rate outside what a discount can be', () => {
+    expect(saleBadgePct(10, 5, { discountType: 1, discount: 0 })).toBe(50)
+    expect(saleBadgePct(10, 5, { discountType: 1, discount: 1_000_000 })).toBe(50)
   })
 })

@@ -1829,9 +1829,9 @@ export const SectionSub = styled.p`
  */
 export const AudienceTiles = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 300px));
+  /* Shares the row evenly and at one height, so two tiles never sit as a short and a tall one in a corner. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
-  align-items: start;
 
   ${theme.media.maxWidth('mobile')} {
     grid-template-columns: minmax(0, 1fr);
@@ -1863,7 +1863,8 @@ export const TileAction = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 2px -4px -6px;
+  /* Auto on top pins it to the tile's foot when its neighbour in the row is taller. */
+  margin: auto -4px -6px;
   padding: 6px 4px;
   border: 0;
   background: none;

@@ -17,6 +17,19 @@ export const Root = styled.div`
 
   ${calendarPopup}
 
+  &[data-stretch] {
+    left: 0;
+    right: 0;
+    /* A screen shorter than the calendar scrolls it rather than cutting its presets off. */
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+
+    /* One month in a panel wider than it: centred in the space beside the presets. */
+    .react-datepicker {
+      flex: 1;
+    }
+  }
+
   .react-datepicker {
     border: 0;
     box-shadow: none;
