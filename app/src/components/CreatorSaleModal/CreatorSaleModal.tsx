@@ -63,10 +63,10 @@ const DAY_MS = 24 * HOUR_MS
 /** The longest a sale can run, so the calendar never offers a day the terms would then refuse. */
 const MAX_DAYS = 30
 const WHEN_TRIGGER = '[data-sale-when-trigger]'
+/** From how many collections the picker offers a search. */
+const SEARCH_FROM = 8
 /** Roughly what the calendar needs under its trigger, presets stacked above the month on a phone. */
 const CALENDAR_ROOM = 460
-/** How many of the collection's items the buyer's-eye preview shows. */
-const PREVIEW_ITEMS = 3
 
 /** When the sale runs: a length from now, or two calendar days picked on the Shop's calendar. */
 type When =
@@ -119,35 +119,6 @@ function problemCopy(problem: SaleInputProblem): string {
   }
 }
 
-/**
- * A chip that stands in for its own field until it is picked, then hands the space over.
- *
- * Both halves stay mounted so the swap can animate both ways; the collapsed one is taken out of the
- * accessibility tree and stops catching clicks (its inner control also drops out of the tab order).
- */
-function MorphField({
-  id,
-  open,
-  chip,
-  field
-}: {
-  id: string
-  open: boolean
-  chip: React.ReactNode
-  field: React.ReactNode
-}) {
-  return (
-    <S.Morph data-open={open || undefined} data-testid={id}>
-      <S.MorphCell data-off={open || undefined} aria-hidden={open || undefined} data-testid={`${id}-chip`}>
-        {chip}
-      </S.MorphCell>
-      <S.MorphCell data-off={!open || undefined} aria-hidden={!open || undefined} data-testid={`${id}-field`}>
-        {field}
-      </S.MorphCell>
-    </S.Morph>
-  )
-}
-
 export function CreatorSaleModal({
   session,
   collection,
@@ -181,6 +152,9 @@ export function CreatorSaleModal({
   const [customPct, setCustomPct] = useState('15')
   const [when, setWhen] = useState<When>({ kind: 'preset', key: '3d', hours: 72 })
   const [whenOpen, setWhenOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const strip = useRef<HTMLDivElement>(null)
+  const [stripEdges, setStripEdges] = useState({ start: true, end: true })
   const whenPicker = useRef<RangePickerHandle>(null)
   const card = useRef<HTMLDivElement>(null)
   const whenTrigger = useRef<HTMLButtonElement>(null)
@@ -309,10 +283,23 @@ export function CreatorSaleModal({
     () =>
       current.items
         .filter(i => i.state === 'discounted' && i.priceCredits != null)
-        .sort((a, b) => (b.priceCredits as number) - (a.priceCredits as number))
-        .slice(0, PREVIEW_ITEMS),
+        .sort((a, b) => (b.priceCredits as number) - (a.priceCredits as number)),
     [current]
   )
+
+  /** Whether the strip can scroll either way, so its arrows show only when there is somewhere to go. */
+  function measureStrip() {
+    const el = strip.current
+    if (!el) return
+    const start = el.scrollLeft <= 1
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1
+    setStripEdges(prev => (prev.start === start && prev.end === end ? prev : { start, end }))
+  }
+  function scrollStrip(direction: 1 | -1) {
+    const el = strip.current
+    if (el) el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' })
+  }
+  useEffect(measureStrip, [previewItems, step])
 
   /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
   const review = useMemo(() => {
@@ -614,6 +601,8 @@ export function CreatorSaleModal({
   }
 
   const inlineProblem = touched && terms.problem ? problemCopy(terms.problem) : null
+  // A percentage the terms refuse is not a price anyone will see, so the preview shows none.
+  const previewPct = terms.problem === 'pct' ? 0 : pct
   const customPctOpen = pctPreset === 'custom'
   const dateFormat = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric' })
   const whenLabel =
@@ -629,6 +618,11 @@ export function CreatorSaleModal({
    * afterwards would mean re-reading all of it.
    */
   if (step === 'pick') {
+    const needle = query.trim().toLowerCase()
+    // What can take a discount first: a collection with nothing in Credits only leads to the MANA notice.
+    const shownChoices = [...choices]
+      .filter(c => !needle || c.name.toLowerCase().includes(needle))
+      .sort((a, b) => b.listedCount - a.listedCount)
     return (
       <S.Scrim onClick={onClose} role="presentation">
         <S.Card
@@ -645,8 +639,34 @@ export function CreatorSaleModal({
             </S.Close>
           </S.Head>
           <S.Subtitle>{t('creatorSale.pickBody')}</S.Subtitle>
+          {choices.length >= SEARCH_FROM ? (
+            <S.Search>
+              <Icon name="search" size={16} aria-hidden />
+              <input
+                type="search"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder={t('creatorSale.searchCollections')}
+                aria-label={t('creatorSale.searchCollections')}
+                data-testid="creator-sale-pick-search"
+              />
+            </S.Search>
+          ) : null}
+          {choices.length >= SEARCH_FROM ? (
+            <S.FieldHint>
+              {t('creatorSale.pickCount', {
+                count: choices.length,
+                credits: choices.filter(c => c.listedCount > 0).length
+              })}
+            </S.FieldHint>
+          ) : null}
           <S.PickList>
-            {choices.map(choice => (
+            {shownChoices.length === 0 ? (
+              <S.FieldHint data-testid="creator-sale-pick-empty">
+                {t('creatorSale.pickNoMatch', { query: query.trim() })}
+              </S.FieldHint>
+            ) : null}
+            {shownChoices.map(choice => (
               <S.PickRow
                 key={choice.contractAddress}
                 type="button"
@@ -764,47 +784,48 @@ export function CreatorSaleModal({
                 }}
                 data-testid={`creator-sale-pct-${p}`}
               >
-                <SaleTag pct={p} />
+                {pctPreset === p ? <span aria-hidden>🔥</span> : null}
+                {t('creatorSale.pctTag', { pct: p })}
               </S.Chip>
             ))}
-            <MorphField
-              id="creator-sale-custom-pct"
-              open={customPctOpen}
-              chip={
-                <S.Chip
-                  type="button"
-                  tabIndex={customPctOpen ? -1 : undefined}
+            {customPctOpen ? (
+              <S.InlineInput
+                data-selected
+                aria-invalid={touched && terms.problem === 'pct' ? true : undefined}
+                data-testid="creator-sale-custom-pct-field"
+              >
+                <span aria-hidden>-</span>
+                <input
+                  type="number"
+                  min={MIN_SALE_PCT}
+                  max={MAX_SALE_PCT}
+                  step="1"
+                  inputMode="numeric"
+                  value={customPct}
                   disabled={busy}
-                  onClick={() => {
+                  autoFocus
+                  aria-label={t('creatorSale.pctLabel')}
+                  onChange={e => {
                     setTouched(true)
-                    setPctPreset('custom')
+                    // Every valid discount is two digits; a third only ever reads as a typo in a narrow segment.
+                    setCustomPct(e.target.value.replace(/\D/g, '').slice(0, 2))
                   }}
-                >
-                  {t('creatorSale.customPct')}
-                </S.Chip>
-              }
-              field={
-                <S.InlineInput aria-invalid={touched && terms.problem === 'pct' ? true : undefined}>
-                  <span aria-hidden>🔥 -</span>
-                  <input
-                    type="number"
-                    min={MIN_SALE_PCT}
-                    max={MAX_SALE_PCT}
-                    step="1"
-                    inputMode="numeric"
-                    value={customPct}
-                    disabled={busy}
-                    tabIndex={customPctOpen ? undefined : -1}
-                    aria-label={t('creatorSale.pctLabel')}
-                    onChange={e => {
-                      setTouched(true)
-                      setCustomPct(e.target.value)
-                    }}
-                  />
-                  <span aria-hidden>%</span>
-                </S.InlineInput>
-              }
-            />
+                />
+                <span aria-hidden>%</span>
+              </S.InlineInput>
+            ) : (
+              <S.Chip
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setTouched(true)
+                  setPctPreset('custom')
+                }}
+                data-testid="creator-sale-custom-pct-chip"
+              >
+                {t('creatorSale.customPct')}
+              </S.Chip>
+            )}
           </S.Chips>
         </S.Field>
 
@@ -907,16 +928,42 @@ export function CreatorSaleModal({
         {/* The collection as a buyer will meet it: the same tag and struck price the Shop's cards wear. */}
         {previewItems.length > 0 ? (
           <S.Field>
-            <S.FieldLabel>{t('creatorSale.previewTitle')}</S.FieldLabel>
-            <S.PreviewGrid data-testid="creator-sale-preview">
+            <S.PreviewHead>
+              <S.FieldLabel>
+                {t('creatorSale.previewTitle')} · {t('creatorSale.previewCount', { count: previewItems.length })}
+              </S.FieldLabel>
+              {stripEdges.start && stripEdges.end ? null : (
+                <S.StripArrows>
+                  <S.StripArrow
+                    type="button"
+                    aria-label={t('creatorSale.previewPrev')}
+                    disabled={stripEdges.start}
+                    onClick={() => scrollStrip(-1)}
+                    data-testid="creator-sale-preview-prev"
+                  >
+                    <Icon name="chevron-down" size={16} aria-hidden style={{ transform: 'rotate(90deg)' }} />
+                  </S.StripArrow>
+                  <S.StripArrow
+                    type="button"
+                    aria-label={t('creatorSale.previewNext')}
+                    disabled={stripEdges.end}
+                    onClick={() => scrollStrip(1)}
+                    data-testid="creator-sale-preview-next"
+                  >
+                    <Icon name="chevron-down" size={16} aria-hidden style={{ transform: 'rotate(-90deg)' }} />
+                  </S.StripArrow>
+                </S.StripArrows>
+              )}
+            </S.PreviewHead>
+            <S.PreviewStrip ref={strip} onScroll={measureStrip} data-testid="creator-sale-preview">
               {previewItems.map(item => {
                 const price = item.priceCredits as number
-                const sale = salePriceOf(price, pct)
+                const sale = salePriceOf(price, previewPct)
                 return (
                   <S.PreviewCard key={item.key} data-testid="creator-sale-preview-item">
                     <S.PreviewMedia>
                       {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                      {sale < price ? <S.PreviewTag pct={pct} /> : null}
+                      {sale < price ? <S.PreviewTag pct={previewPct} /> : null}
                     </S.PreviewMedia>
                     <S.PreviewName>{item.name}</S.PreviewName>
                     <S.PreviewPrices>
@@ -931,8 +978,9 @@ export function CreatorSaleModal({
                   </S.PreviewCard>
                 )
               })}
-            </S.PreviewGrid>
-            {previewItems.some(i => salePriceOf(i.priceCredits as number, pct) >= (i.priceCredits as number)) ? (
+            </S.PreviewStrip>
+            {previewPct > 0 &&
+            previewItems.some(i => salePriceOf(i.priceCredits as number, previewPct) >= (i.priceCredits as number)) ? (
               <S.FieldHint>{tNode('creatorSale.previewRounds', { c: marked })}</S.FieldHint>
             ) : null}
           </S.Field>

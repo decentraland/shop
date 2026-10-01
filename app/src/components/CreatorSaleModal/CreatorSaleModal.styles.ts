@@ -44,6 +44,16 @@ export const Card = styled.div`
     color: ${colors.softWhite};
   }
 
+  /* The shared notice is drawn for white surfaces: dark red text that disappears on this card. */
+  [data-testid='creator-sale-error'] {
+    border-color: rgba(255, 45, 85, 0.5);
+    background: rgba(255, 45, 85, 0.16);
+    color: ${colors.dclRed};
+  }
+  [data-testid='creator-sale-error'] > span {
+    color: ${colors.white};
+  }
+
   ${media.maxWidth('mobile')} {
     padding: 14px 16px 16px;
     gap: 16px;
@@ -120,7 +130,7 @@ export const FieldLabel = styled.span`
 
 export const FieldHint = styled.p`
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   color: ${colors.gray4};
 `
@@ -143,6 +153,36 @@ export const RowThumb = styled.span`
   border-radius: ${radius.btn};
   overflow: hidden;
   background: ${colors.media};
+`
+
+export const Search = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid ${hairline};
+  border-radius: ${radius.card};
+  background: ${raised};
+  color: ${colors.gray4};
+
+  &:focus-within {
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font-family: ${font.sans};
+    font-size: 15px;
+    color: ${colors.white};
+
+    &::placeholder {
+      color: ${colors.gray4};
+    }
+  }
 `
 
 /** The choose-a-collection step: the same row, made clickable. */
@@ -209,44 +249,46 @@ export const RowMeta = styled.span`
   color: ${colors.gray4};
 `
 
+/** The discounts as one segmented control, like My Store's currency switch: the picked one lights up white. */
 export const Chips = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid ${hairline};
+  border-radius: ${radius.pill};
+  background: rgba(0, 0, 0, 0.25);
 `
 
-/** A preset: the Shop's own sale tag on a dark pill, ringed in white once picked. Tall enough to tap. */
 export const Chip = styled.button`
+  /* Shares the bar by content, so "Custom" and an open field get the room a percentage does not need. */
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid ${hairline};
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
   border-radius: ${radius.pill};
-  background: ${raised};
-  color: ${colors.softWhite};
+  background: transparent;
+  color: ${colors.gray4};
   font-family: ${font.sans};
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    color 0.15s ease;
 
-  /* The sale tag hugs the top of a column by default; in a pill it belongs in the middle. */
-  > span {
-    align-self: center;
-  }
   &:hover:not(:disabled):not([data-selected]) {
-    border-color: rgba(255, 255, 255, 0.32);
+    color: ${colors.white};
   }
   &[data-selected] {
-    border-color: ${colors.softWhite};
-    background: rgba(255, 255, 255, 0.14);
-    box-shadow: 0 0 0 2px ${colors.softWhite};
+    background: ${colors.white};
+    color: ${colors.dclRed};
   }
   &:disabled {
     opacity: 0.5;
@@ -254,7 +296,10 @@ export const Chip = styled.button`
   }
   &:focus-visible {
     outline: 2px solid ${colors.softWhite};
-    outline-offset: 3px;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 `
 
@@ -278,6 +323,20 @@ export const InlineInput = styled.span`
   }
   &[aria-invalid='true'] {
     border-color: ${colors.dclRed};
+  }
+  /* The custom discount open in its segment: lit like a picked one. */
+  &[data-selected] {
+    flex: 1 1 auto;
+    justify-content: center;
+    width: auto;
+    height: 40px;
+    border-color: ${colors.white};
+    background: ${colors.white};
+    color: ${colors.dclRed};
+
+    input {
+      color: ${colors.dclRed};
+    }
   }
 
   input {
@@ -402,19 +461,65 @@ export const CapLabel = styled.label`
   cursor: pointer;
 `
 
-/** What buyers will see: the collection's priciest listed items, drawn the way the Shop's cards draw them. */
-export const PreviewGrid = styled.div`
-  display: grid;
-  /* Card-sized tracks: one item keeps the size of one card instead of stretching across the modal. */
-  grid-template-columns: repeat(auto-fill, minmax(150px, 170px));
-  gap: 10px;
+/** What buyers will see: every listed item, priciest first, in a row that scrolls sideways. */
+export const PreviewHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
 
+export const StripArrows = styled.div`
+  display: flex;
+  gap: 6px;
+
+  /* A phone swipes the row; the arrows are for a pointer. */
   ${media.maxWidth('mobile')} {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: none;
+  }
+`
+
+export const StripArrow = styled.button`
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid ${hairline};
+  border-radius: 50%;
+  background: ${raised};
+  color: ${colors.softWhite};
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.softWhite};
+    outline-offset: 2px;
+  }
+`
+
+export const PreviewStrip = styled.div`
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+
+  &::-webkit-scrollbar {
+    display: none;
   }
 `
 
 export const PreviewCard = styled.div`
+  flex: none;
+  width: 148px;
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -446,7 +551,7 @@ export const PreviewTag = styled(SaleTag)`
 `
 
 export const PreviewName = styled.span`
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: ${colors.white};
   overflow: hidden;
@@ -579,28 +684,7 @@ export const SuccessDetail = styled.p`
   color: ${colors.gray4};
 `
 
-/**
- * A chip that becomes its own input.
- *
- * Two grid columns swapping between 0fr and 1fr: the chip collapses while the field opens in its place, and
- * because both tracks stay content-sized the animation survives translation.
- */
-export const Morph = styled.div`
-  display: inline-grid;
-  grid-template-columns: 1fr 0fr;
-  align-items: center;
-  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
-
-  &[data-open] {
-    grid-template-columns: 0fr 1fr;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-/** Morph's sibling for a field with no chip to swap with — a checkbox opens it in place instead. */
+/** A field that opens in place beside the checkbox that turns it on. */
 export const Reveal = styled.div`
   /* Its own width, not what the label beside it leaves over: shrunk by the row it clipped its own field. */
   flex: none;
@@ -817,7 +901,7 @@ export const ReviewFoot = styled.p`
 /** The one line that says what to do about a group the discount cannot reach. */
 export const ReviewFootNote = styled.p`
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
   color: ${colors.gray4};
 `

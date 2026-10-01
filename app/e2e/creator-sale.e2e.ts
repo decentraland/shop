@@ -444,7 +444,7 @@ describe('creator sales', () => {
     expect(why).toMatch(/Activity . Listings/)
   })
 
-  it('offers the discounts as the tag buyers see, and opens the custom one in its chip', async () => {
+  it('offers the discounts as one segmented control, and opens the custom one in its segment', async () => {
     app = await launchApp({
       path: '/my-items?section=creations',
       creatorSales: true,
@@ -461,31 +461,15 @@ describe('creator sales', () => {
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
 
-    // Each preset wears the card's own sale tag, so the creator picks the badge a buyer will read.
+    // One segment per preset, lettered the way the card's tag reads.
     const tags = await page.$$eval('[data-testid^="creator-sale-pct-"]', els => els.map(e => e.textContent?.trim()))
     expect(tags.map(t => t?.replace(/[^\d%-]/g, ''))).toEqual(['-10%', '-20%', '-30%', '-50%'])
 
-    // The chip IS the field: picking Custom collapses the button away and opens the input in its place.
-    const width = (sel: string) => page.$eval(sel, el => (el as HTMLElement).getBoundingClientRect().width)
-    const settled = (sel: string, open: boolean) =>
-      page.waitForFunction(
-        (s: string, o: boolean) => {
-          const el = document.querySelector(s)
-          if (!el) return false
-          const w = el.getBoundingClientRect().width
-          return o ? w > 0 : w === 0
-        },
-        { timeout: 5000 },
-        sel,
-        open
-      )
-
-    expect(await width('[data-testid="creator-sale-custom-pct-chip"]')).toBeGreaterThan(0)
-    expect(await width('[data-testid="creator-sale-custom-pct-field"]')).toBe(0)
-
-    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^custom$/i)).toBe(true)
-    await settled('[data-testid="creator-sale-custom-pct-chip"]', false)
-    expect(await width('[data-testid="creator-sale-custom-pct-field"]')).toBeGreaterThan(0)
+    // Custom is a segment of its own that turns into the field when picked.
+    expect(await page.$('[data-testid="creator-sale-custom-pct-field"]')).toBeNull()
+    await page.click('[data-testid="creator-sale-custom-pct-chip"]')
+    await page.waitForSelector('[data-testid="creator-sale-custom-pct-field"] input')
+    expect(await page.$('[data-testid="creator-sale-custom-pct-chip"]')).toBeNull()
   })
 
   it('picks how long it runs on the Shop calendar, floating over the modal rather than growing it', async () => {
