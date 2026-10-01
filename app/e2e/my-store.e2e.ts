@@ -251,6 +251,19 @@ describe('when a creator opens their store', () => {
     await page.waitForSelector('[data-testid="store-tab-discounts"][aria-selected="true"]')
     await page.waitForSelector('[data-testid="creator-sale"]')
   })
+
+  it('should lay every section out on one page when tabs are switched off', async () => {
+    app = await launchApp({ path: '/my-store?tabs=off', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+
+    // The single page, for comparing with the tabbed one: no tab bar, and every section at once.
+    await page.waitForSelector('[data-testid="store-collection"]')
+    expect(await page.$eval('[role="tablist"]', el => getComputedStyle(el).display)).toBe('none')
+    for (const id of ['store-sold', 'store-best', 'store-discounts-panel', 'store-buyer']) {
+      await page.waitForSelector(`[data-testid="${id}"]`)
+    }
+  })
 })
 
 /**

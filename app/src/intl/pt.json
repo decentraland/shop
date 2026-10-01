@@ -819,7 +819,11 @@
     "tabDiscountsRunning": "{count, plural, one {Descontos, # ativo} other {Descontos, # ativos}}",
     "discountsLoading": "Carregando seus descontos…",
     "discountsError": "Não foi possível carregar seus descontos agora. Tente de novo em instantes.",
-    "discountsEmptyNoCredits": "Ainda não há descontos. Um desconto vale para itens com preço em Créditos, então mude um anúncio para Créditos para criar um."
+    "discountsEmptyNoCredits": "Ainda não há descontos. Um desconto vale para itens com preço em Créditos, então mude um anúncio para Créditos para criar um.",
+    "performance": "Desempenho da loja",
+    "audience": "Seu público",
+    "audienceSub": "Quem está comprando e quanto isso vale para você.",
+    "tileDiscountsFoot": "Detalhes abaixo"
   },
   "myAssets": {
     "signInTitle": "Entre para ver seus itens",

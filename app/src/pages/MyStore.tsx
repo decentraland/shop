@@ -1106,6 +1106,8 @@ export function MyStore() {
   // The tab lives in the URL, so a refresh, the back button and a shared link all land on it. A creator
   // without discounts has no Discounts tab, and a link to it opens the overview.
   const visibleTabs = STORE_TABS.filter(key => key !== 'discounts' || mock || creatorSalesEnabled)
+  // `?tabs=off` lays every section out on one page, so the two layouts can be compared side by side.
+  const tabbed = params.get('tabs') !== 'off'
   const chosenTab = storedTab(params.get('tab'))
   const tab: StoreTab = visibleTabs.includes(chosenTab) ? chosenTab : 'overview'
   function setTab(next: StoreTab) {
@@ -1245,6 +1247,57 @@ export function MyStore() {
 
   const items = (stats?.collections ?? []).reduce((n, c) => n + c.items.length, 0)
 
+  // One panel, two homes: its own tab, or its place in the page laid out without tabs.
+  const discountsPanel = (
+    <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
+      <S.ListHead>
+        <div>
+          <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
+          <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
+        </div>
+        {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
+          <Button variant="red" size="sm" onClick={() => setSaleOpen(true)} data-testid="store-tab-new-discount">
+            <span aria-hidden>🔥</span>
+            {t('myStore.newDiscount')}
+          </Button>
+        ) : null}
+      </S.ListHead>
+      {!mock && discountsRead.isLoading ? (
+        <S.Empty data-testid="store-discounts-loading">{t('myStore.discountsLoading')}</S.Empty>
+      ) : !mock && discountsRead.isError && !discounts ? (
+        <S.Empty data-testid="store-discounts-error">{t('myStore.discountsError')}</S.Empty>
+      ) : discountHistory.length === 0 ? (
+        <S.Empty data-testid="store-discounts-empty">
+          {saleable.length > 0 ? t('myStore.discountsEmpty') : t('myStore.discountsEmptyNoCredits')}
+        </S.Empty>
+      ) : (
+        <CreatorSales
+          sales={discountHistory.slice(
+            discountPageShown * DISCOUNTS_PER_PAGE,
+            (discountPageShown + 1) * DISCOUNTS_PER_PAGE
+          )}
+          session={mock ? null : session}
+          names={collectionNames}
+          tone="dark"
+        />
+      )}
+      {discountPages > 1 ? (
+        <S.ListFoot>
+          <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
+          <Pager
+            page={discountPageShown}
+            pages={discountPages}
+            onChange={next => {
+              trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
+              setDiscountPage(next)
+            }}
+            name="discounts"
+          />
+        </S.ListFoot>
+      ) : null}
+    </S.Panel>
+  )
+
   return (
     <A.Root>
       <A.Main>
@@ -1378,7 +1431,9 @@ export function MyStore() {
             </S.Masthead>
 
             <S.PerfHead>
+              {tabbed ? null : <S.PerfTitle>{t('myStore.performance')}</S.PerfTitle>}
               <S.Tabs
+                hidden={!tabbed}
                 role="tablist"
                 aria-label={t('myStore.tabsAria')}
                 onKeyDown={event => {
@@ -1420,7 +1475,7 @@ export function MyStore() {
                 ))}
               </S.Tabs>
               {/* A discount is not read over a period: its history has its own dates. */}
-              <S.PerfControls data-hidden={tab === 'discounts' ? '' : undefined}>
+              <S.PerfControls data-hidden={tabbed && tab === 'discounts' ? '' : undefined}>
                 <S.CurrencySwitch role="group" aria-label={t('myStore.currency')}>
                   {(['mana', 'usd'] as StoreCurrency[]).map(option => (
                     <S.Period
@@ -1499,67 +1554,18 @@ export function MyStore() {
 
             <ErrorNotice message={statsError ? t('myStore.error') : null} testId="my-store-error" />
 
-            <div role="tabpanel" id="store-tab-panel" aria-labelledby={`store-tab-${tab}`}>
+            <S.TabPanel
+              role={tabbed ? 'tabpanel' : undefined}
+              id="store-tab-panel"
+              aria-labelledby={tabbed ? `store-tab-${tab}` : undefined}
+            >
               {/* Its own read with its own states: the store's figures loading are no reason to wait. */}
-              {tab === 'discounts' ? (
-                <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
-                  <S.ListHead>
-                    <div>
-                      <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
-                      <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
-                    </div>
-                    {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
-                      <Button
-                        variant="red"
-                        size="sm"
-                        onClick={() => setSaleOpen(true)}
-                        data-testid="store-tab-new-discount"
-                      >
-                        <span aria-hidden>🔥</span>
-                        {t('myStore.newDiscount')}
-                      </Button>
-                    ) : null}
-                  </S.ListHead>
-                  {!mock && discountsRead.isLoading ? (
-                    <S.Empty data-testid="store-discounts-loading">{t('myStore.discountsLoading')}</S.Empty>
-                  ) : !mock && discountsRead.isError && !discounts ? (
-                    <S.Empty data-testid="store-discounts-error">{t('myStore.discountsError')}</S.Empty>
-                  ) : discountHistory.length === 0 ? (
-                    <S.Empty data-testid="store-discounts-empty">
-                      {saleable.length > 0 ? t('myStore.discountsEmpty') : t('myStore.discountsEmptyNoCredits')}
-                    </S.Empty>
-                  ) : (
-                    <CreatorSales
-                      sales={discountHistory.slice(
-                        discountPageShown * DISCOUNTS_PER_PAGE,
-                        (discountPageShown + 1) * DISCOUNTS_PER_PAGE
-                      )}
-                      session={mock ? null : session}
-                      names={collectionNames}
-                      tone="dark"
-                    />
-                  )}
-                  {discountPages > 1 ? (
-                    <S.ListFoot>
-                      <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
-                      <Pager
-                        page={discountPageShown}
-                        pages={discountPages}
-                        onChange={next => {
-                          trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
-                          setDiscountPage(next)
-                        }}
-                        name="discounts"
-                      />
-                    </S.ListFoot>
-                  ) : null}
-                </S.Panel>
-              ) : null}
-              {tab === 'discounts' ? null : isLoading || !stats ? (
+              {tabbed && tab === 'discounts' ? discountsPanel : null}
+              {tabbed && tab === 'discounts' ? null : isLoading || !stats ? (
                 <StoreSkeleton />
               ) : (
                 <>
-                  {tab === 'overview' ? (
+                  {!tabbed || tab === 'overview' ? (
                     <>
                       <S.Tiles aria-label={t('myStore.summaryAria')}>
                         <S.Tile>
@@ -1625,7 +1631,9 @@ export function MyStore() {
                             <S.TileMark aria-hidden>🔥</S.TileMark>
                           </S.TileKey>
                           <S.TileValue data-testid="store-discounts">{running.length}</S.TileValue>
-                          {running.length > 0 ? (
+                          {running.length > 0 && !tabbed ? (
+                            <S.TileFoot>{t('myStore.tileDiscountsFoot')}</S.TileFoot>
+                          ) : running.length > 0 ? (
                             <S.TileAction
                               type="button"
                               onClick={() => {
@@ -1949,7 +1957,7 @@ export function MyStore() {
                     </>
                   ) : null}
 
-                  {tab === 'collections' ? (
+                  {!tabbed || tab === 'collections' ? (
                     <>
                       {/* The standing nudge, above the list it is about. Only the copy differs from the one the
                  migration tool shows: here the reason to switch is that a discount cannot re-price a
@@ -2144,8 +2152,16 @@ export function MyStore() {
                     </>
                   ) : null}
 
-                  {tab === 'audience' ? (
+                  {!tabbed && (mock || creatorSalesEnabled) ? discountsPanel : null}
+
+                  {!tabbed || tab === 'audience' ? (
                     <>
+                      {tabbed ? null : (
+                        <S.SectionHead>
+                          <S.SectionTitle id="store-audience-h">{t('myStore.audience')}</S.SectionTitle>
+                          <S.SectionSub>{t('myStore.audienceSub')}</S.SectionSub>
+                        </S.SectionHead>
+                      )}
                       <S.AudienceTiles>
                         <S.Tile>
                           <S.TileKey>
@@ -2612,7 +2628,7 @@ export function MyStore() {
                   ) : null}
                 </>
               )}
-            </div>
+            </S.TabPanel>
           </S.Root>
         </CurrencyContext.Provider>
       </A.Main>

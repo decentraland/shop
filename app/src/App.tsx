@@ -135,13 +135,29 @@ export function AliasRedirect({ to }: { to: string }) {
   return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
 }
 
+/**
+ * Pages that keep the plain page field while a campaign skin is on. A creator's dashboard is read, not
+ * browsed: its charts and tables sit on translucent panels, and a seasonal pattern under them is noise.
+ */
+const PLAIN_FIELD_ROUTES = new Set(['/my-store'])
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
   useDialogScrollLock()
+  const location = useLocation()
   // Paints the running event's skin onto <html>; a no-op the rest of the year.
   const campaignTheme = useCampaignThemeAttribute()
-  const location = useLocation()
+  // The skin stays on (the nav's event tab still wears it); only the page field and its decorations go.
+  const plainField = PLAIN_FIELD_ROUTES.has(location.pathname)
+  useEffect(() => {
+    if (!plainField) return
+    const root = document.documentElement
+    root.dataset.campaignField = 'plain'
+    return () => {
+      delete root.dataset.campaignField
+    }
+  }, [plainField])
 
   // Start the silent wallet restore HERE, not only in the navbar. The navbar used to be the only caller,
   // which made every consumer of the session depend on that one component staying mounted. The store
@@ -199,7 +215,7 @@ export function App() {
           the main ErrorBoundary, and a rejected lazy import (chunk 404, ad blocker, a drop in coverage
           mid-navigation) is NOT caught by Suspense. Without this, a decoration failing to download takes
           the nav, the cart and the checkout down with it — on the busiest days of the campaign. */}
-      {campaignTheme === 'halloween' ? (
+      {campaignTheme === 'halloween' && !plainField ? (
         <Sentry.ErrorBoundary fallback={<></>}>
           <BatFlight />
           <SpiderDrop />
