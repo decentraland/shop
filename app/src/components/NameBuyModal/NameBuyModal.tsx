@@ -9,9 +9,11 @@ import {
   NameRouteCostTooHighError,
   NameSettlementUnknownError,
   registerNameWithUsdCredits,
+  registerNameWithEthereumMana,
+  NameGasNotPayableError,
   NAME_PRICE_IN_WEI
 } from '~/lib/names'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { showsWalletConfirmations, canPayGasItself } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
@@ -23,6 +25,9 @@ import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payme
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { useManaBalances } from '~/hooks/useManaBalance'
 import { computePaymentOptions } from '~/lib/payment-options'
+import { formatMana } from '~/lib/mana-format'
+import { isWrongNetworkError, switchChain } from '~/lib/network'
+import manaEthereum from '~/assets/mana-ethereum.svg'
 import { USD_CENTS_PER_CREDIT } from '~/lib/currency'
 import { CreditPackPicker } from '~/components/CreditPackPicker'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
@@ -83,10 +88,15 @@ export function NameBuyModal({
    * see the question — there is nothing to choose.
    */
   const [chosen, setChosen] = useState<{
-    rail: 'credits' | 'combined'
+    rail: 'credits' | 'combined' | 'ethereum'
     creditsCents?: number
     manaWei?: bigint
   } | null>(null)
+  /**
+   * The Ethereum rail needs the wallet ON Ethereum, and the switch has to come from the buyer's own click:
+   * fired from anywhere else the wallet answers `-32006` and the real reason never reaches them.
+   */
+  const [needsEthereumChain, setNeedsEthereumChain] = useState(false)
   const rail = chosen?.rail ?? 'credits'
   const [error, setError] = useState<string | null>(null)
   // Whether the credit is spent or may be, which decides if a retry is offered at all. Retrying on either
@@ -141,6 +151,7 @@ export function NameBuyModal({
    */
   const { data: manaBalances } = useManaBalances(session)
   const polygonManaWei = manaBalances?.matic ?? 0n
+  const ethereumManaWei = manaBalances?.ethereum ?? 0n
   const paymentOptions = computePaymentOptions({
     priceCents: priceCredits != null ? priceCredits * USD_CENTS_PER_CREDIT : 0,
     priceManaWei: BigInt(NAME_PRICE_IN_WEI),
@@ -148,8 +159,20 @@ export function NameBuyModal({
     manaBalanceWei: polygonManaWei,
     manaOnlyRail: false
   })
+  /**
+   * The whole 100 MANA on Ethereum, spending no credits at all — the only rail that serves a buyer holding
+   * none, and the only one the shop cannot make gasless.
+   *
+   * Two separate questions. SHOWN to any wallet that could ever use it, so a short L1 balance renders the
+   * row disabled rather than vanishing while its balance is on screen. USABLE only when that balance
+   * covers the fixed price. A managed wallet is asked neither: it cannot pay for an Ethereum transaction,
+   * so the row would be noise it has no way to act on.
+   */
+  const ethereumRailShown = canPayGasItself(session?.providerType) && ethereumManaWei > 0n && !isIapMode()
+  const ethereumRailUsable = ethereumRailShown && ethereumManaWei >= BigInt(NAME_PRICE_IN_WEI)
+
   // A buyer with a rail of their own is not stuck, so the pack picker is not what they need to see.
-  const hasOwnRail = paymentOptions.options.some(o => o.method !== 'credits')
+  const hasOwnRail = paymentOptions.options.some(o => o.method !== 'credits') || ethereumRailUsable
   const combinedOption = paymentOptions.options.find(o => o.method === 'combined')
   // Nothing to ask when credits are the only way to pay.
   const askForMethod = chosen == null && hasOwnRail && !priceUnavailable
@@ -195,22 +218,37 @@ export function NameBuyModal({
     if (rail === 'credits' && insufficient) return
     startedRef.current = true
     // Whole credits, so it matches what the reservation actually charges.
+    // Zero on the Ethereum rail: it spends no credits at all, so booking the price here would report the
+    // buyer's own MANA as credit revenue.
     const creditsSpent =
-      rail === 'combined' ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT) : (priceCredits ?? null)
+      rail === 'ethereum'
+        ? 0
+        : rail === 'combined'
+          ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT)
+          : (priceCredits ?? null)
     setPhase('completing')
     setError(null)
     setStage('preparing')
     try {
-      const result = await registerNameWithUsdCredits({
-        name,
-        identity: session.identity,
-        signer: session.signer,
-        // The mixed rail reserves only the credits leg; the rest is pulled from the buyer's MANA.
-        // Both figures are the ones the buyer agreed to, not today's re-derivation.
-        creditsCents: chosen?.creditsCents,
-        maxManaWei: chosen?.manaWei,
-        onProgress: setStage
-      })
+      const result =
+        rail === 'ethereum'
+          ? await registerNameWithEthereumMana({
+              name,
+              signer: session.signer,
+              web3Provider: session.web3Provider,
+              providerType: session.providerType,
+              onProgress: setStage
+            })
+          : await registerNameWithUsdCredits({
+              name,
+              identity: session.identity,
+              signer: session.signer,
+              // The mixed rail reserves only the credits leg; the rest is pulled from the buyer's MANA.
+              // Both figures are the ones the buyer agreed to, not today's re-derivation.
+              creditsCents: chosen?.creditsCents,
+              maxManaWei: chosen?.manaWei,
+              onProgress: setStage
+            })
       // The money left the balance in both outcomes, so both refresh it and both count as a completed
       // purchase for analytics — what differs is only whether the NAME exists yet.
       track('Shop Completed Purchase', {
@@ -235,7 +273,7 @@ export function NameBuyModal({
          * `value_credits` is the credits LEG, not the price: on the mixed rail the rest came out of the
          * buyer's own MANA and was never credit spend.
          */
-        payment_type: rail === 'combined' ? 'credits_and_mana' : 'credits',
+        payment_type: rail === 'ethereum' ? 'ethereum_mana' : rail === 'combined' ? 'credits_and_mana' : 'credits',
         value_credits: creditsSpent,
         value_usd: creditsToUsd(creditsSpent ?? 0),
         transaction_hash: result.originTxHash ?? null,
@@ -247,6 +285,17 @@ export function NameBuyModal({
       void qc.invalidateQueries({ queryKey: ['my-assets'] })
       setPhase(result.status === 'registered' ? 'success' : 'pending')
     } catch (e) {
+      /**
+       * A wallet on the wrong chain is not a failed purchase — nothing was signed and nothing was spent.
+       * It gets its own screen with a button, because the switch has to come from the buyer's own click:
+       * fired from anywhere else the wallet answers `-32006` and the real reason never reaches them.
+       */
+      if (isWrongNetworkError(e)) {
+        startedRef.current = false
+        setNeedsEthereumChain(true)
+        setPhase('confirm')
+        return
+      }
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e),
@@ -261,13 +310,17 @@ export function NameBuyModal({
       const notRegistered = e instanceof NameNotRegisteredError
       const unknown = e instanceof NameSettlementUnknownError
       setError(
-        e instanceof NameRouteCostTooHighError
-          ? t('names.errorRouteCost')
-          : notRegistered
-            ? t('names.errorNotRegistered')
-            : unknown
-              ? t('names.errorSettlementUnknown')
-              : (e as { message?: string })?.message || t('names.errorGeneric')
+        // The wallet cannot pay for an Ethereum transaction. Typed by the lib precisely so its raw message
+        // — English, and naming things the shop never says — does not reach the buyer.
+        e instanceof NameGasNotPayableError
+          ? t('names.ethereumNeedsOwnWallet')
+          : e instanceof NameRouteCostTooHighError
+            ? t('names.errorRouteCost')
+            : notRegistered
+              ? t('names.errorNotRegistered')
+              : unknown
+                ? t('names.errorSettlementUnknown')
+                : (e as { message?: string })?.message || t('names.errorGeneric')
       )
       setRetryUnsafe(notRegistered || unknown)
       setPhase('error')
@@ -533,6 +586,10 @@ export function NameBuyModal({
             onBuy={method => {
               /* Latched WITH its amounts: the options are re-derived from live balances every render, so
                  reading them again at submit could spend a different rail than the one agreed to. */
+              if (method === 'alt') {
+                setChosen({ rail: 'ethereum' })
+                return
+              }
               setChosen(
                 method === 'combined' && combinedOption
                   ? { rail: 'combined', creditsCents: combinedOption.creditsCents, manaWei: combinedOption.manaWei }
@@ -541,10 +598,57 @@ export function NameBuyModal({
             }}
             onClose={onClose}
             busy={busy}
+            /* Exclusive: it settles on its own chain and spends no credits, so it can never be ticked
+               alongside the rows above. Its price is the FIXED 100 MANA, not a remainder. */
+            altRail={
+              ethereumRailShown
+                ? {
+                    label: `${t('buyModal.chainEthereum')} ${t('buyModal.methodMana')}`,
+                    icon: manaEthereum,
+                    usable: ethereumRailUsable,
+                    balanceLabel: (
+                      <>
+                        {t('buyModal.manaBalanceLabel')}
+                        <S.AltMark src={manaEthereum} alt="" aria-hidden />
+                        <S.AltBalance>{formatMana(ethereumManaWei)}</S.AltBalance>
+                      </>
+                    ),
+                    priceLabel: (
+                      <>
+                        <S.AltPriceMark src={manaEthereum} alt="" aria-hidden />
+                        <span>{formatMana(BigInt(NAME_PRICE_IN_WEI))}</span>
+                      </>
+                    )
+                  }
+                : undefined
+            }
           />
         )}
 
-        {(phase === 'confirm' || phase === 'error') && !shortOnCredits && !askForMethod && (
+        {phase === 'confirm' && needsEthereumChain && (
+          <>
+            <S.ChainNotice data-testid="name-switch-chain">{t('names.switchToEthereum')}</S.ChainNotice>
+            <S.PrimaryBtn
+              data-testid="name-switch-chain-cta"
+              onClick={() => {
+                // Fired from the buyer's OWN click on purpose: a switch requested from anywhere else comes
+                // back `-32006` and the wallet never shows them the prompt.
+                void (async () => {
+                  try {
+                    await switchChain(session!.web3Provider, config.ethereumChainId)
+                    setNeedsEthereumChain(false)
+                  } catch {
+                    /* they declined or the wallet refused — the notice stays, nothing else changed */
+                  }
+                })()
+              }}
+            >
+              {t('names.switchToEthereumCta')}
+            </S.PrimaryBtn>
+          </>
+        )}
+
+        {(phase === 'confirm' || phase === 'error') && !shortOnCredits && !askForMethod && !needsEthereumChain && (
           <>
             <S.NameRow>
               <S.Thumb aria-hidden>@</S.Thumb>
