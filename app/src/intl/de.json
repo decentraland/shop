@@ -507,6 +507,8 @@
     "becauseYouOwn": "Passend zu dem, was du besitzt",
     "paused": "Pausiert",
     "pausedHint": "Käufe dieses Angebots sind vorerst pausiert. Der Verkäufer muss es neu einstellen.",
+    "pausedResaleHint": "Das Angebot des Creators ist pausiert, deshalb ist dies ein Wiederverkauf von einem anderen Besitzer.",
+    "resaleSeller": "Verkauft von {name}",
     "pausedSellerHint": "Käufer können dieses Angebot gerade nicht kaufen. Stell es neu ein, um weiter zu verkaufen – entfernen kannst du es weiterhin.",
     "manageRelist": "Neu einstellen"
   },

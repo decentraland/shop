@@ -507,6 +507,8 @@
     "becauseYouOwn": "Por lo que ya tienes",
     "paused": "En pausa",
     "pausedHint": "Las compras de esta publicación están en pausa por ahora. El vendedor necesita publicarla de nuevo.",
+    "pausedResaleHint": "La publicación del creador está en pausa, así que esta oferta es una reventa de otro dueño.",
+    "resaleSeller": "Vendido por {name}",
     "pausedSellerHint": "Los compradores no pueden comprar esta publicación por ahora. Publícala de nuevo para seguir vendiendo; aún puedes quitarla.",
     "manageRelist": "Publicar de nuevo"
   },

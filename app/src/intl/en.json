@@ -507,6 +507,8 @@
     "becauseYouOwn": "Because of what you own",
     "paused": "On hold",
     "pausedHint": "Purchases of this listing are on hold for now. The seller needs to list it again.",
+    "pausedResaleHint": "The creator's listing is on hold, so this offer is a resale from another owner.",
+    "resaleSeller": "Sold by {name}",
     "pausedSellerHint": "Buyers can't purchase this listing right now. List it again to keep selling — you can still remove it.",
     "manageRelist": "List again"
   },

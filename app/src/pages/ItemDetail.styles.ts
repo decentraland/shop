@@ -1468,6 +1468,12 @@ export const SoStock = styled.span`
   color: ${colors.text2};
 `
 
+export const SoSeller = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.text2};
+`
+
 export const SoInfo = styled.span`
   display: inline-flex;
   width: 12px;

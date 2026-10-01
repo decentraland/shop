@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
@@ -53,11 +54,12 @@ vi.mock('~/lib/analytics', async importOriginal => ({
   track: vi.fn()
 }))
 
-const { fetchShopListingForItem, fetchTradeForItem, fetchTrade, fetchItemMeta } = vi.hoisted(() => ({
+const { fetchShopListingForItem, fetchTradeForItem, fetchTrade, fetchItemMeta, fetchItemResales } = vi.hoisted(() => ({
   fetchShopListingForItem: vi.fn(),
   fetchTradeForItem: vi.fn(),
   fetchTrade: vi.fn(),
-  fetchItemMeta: vi.fn()
+  fetchItemMeta: vi.fn(),
+  fetchItemResales: vi.fn()
 }))
 vi.mock('~/lib/api', () => ({
   fetchShopListingForItem,
@@ -65,7 +67,7 @@ vi.mock('~/lib/api', () => ({
   fetchTradeForItem,
   fetchTrade,
   fetchItemMeta,
-  fetchItemResales: vi.fn().mockResolvedValue([]),
+  fetchItemResales,
   fetchItemDescription: vi.fn().mockResolvedValue(''),
   fetchOwnedToken: vi.fn().mockResolvedValue(null),
   fetchOwnedItemCount: vi.fn().mockResolvedValue(0),
@@ -102,7 +104,13 @@ const { manaRate } = vi.hoisted(() => ({
 vi.mock('~/hooks/useManaRate', () => ({
   useManaRate: () => ({ data: manaRate.value, isError: false, isPending: manaRate.value === undefined })
 }))
-vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
+const { secondarySales } = vi.hoisted(() => ({ secondarySales: { value: false } }))
+vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales.value }))
+vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: { name: 'reseller' } }) }))
+// The modal's own flow is covered by its spec; here it only reports which listing it was opened for.
+vi.mock('~/components/BuyModal', () => ({
+  BuyModal: ({ item }: { item: CatalogItem }) => <div data-testid="buy-modal" data-trade={item.tradeId} />
+}))
 
 import { ItemDetail } from '~/pages/ItemDetail'
 
@@ -147,9 +155,24 @@ function renderCold() {
   )
 }
 
+function renderSeeded(seed: CatalogItem) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[{ pathname: `/item/${CONTRACT}/2`, state: { item: seed } }]}>
+        <Routes>
+          <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   manaRate.value = undefined
+  secondarySales.value = false
+  fetchItemResales.mockResolvedValue([])
   fetchTrade.mockResolvedValue({ id: 'paused-trade', signer: OTHER, paused: true })
   fetchTradeForItem.mockResolvedValue({ id: 'paused-trade', paused: true })
   fetchItemMeta.mockResolvedValue(null)
@@ -212,5 +235,99 @@ describe('when the creator opens their own paused listing', () => {
 
   it('should offer to list it again instead of editing the price', () => {
     expect(screen.getByTestId('edit-price').textContent).toBe(t('itemDetail.manageRelist'))
+  })
+})
+
+const RESELLER = '0xres00000000000000000000000000000000000res'
+
+function resale(over: Partial<CatalogItem> = {}) {
+  return listing({
+    id: 'resale-trade',
+    tradeId: 'resale-trade',
+    tokenId: '9',
+    seller: RESELLER,
+    priceCredits: 55,
+    paused: false,
+    ...over
+  })
+}
+
+describe("when a buyer opens an item whose creator's listing is paused and a resale is live", () => {
+  beforeEach(async () => {
+    secondarySales.value = true
+    fetchShopListingForItem.mockResolvedValue(listing())
+    fetchItemResales.mockResolvedValue([resale()])
+    renderCold()
+    await screen.findByTestId('paused-resale')
+  })
+
+  it('should show the resale price as the offer', () => {
+    expect(screen.getByTestId('resale-offer-price').textContent).toContain('55')
+  })
+
+  it('should name the reseller', () => {
+    expect(screen.getByTestId('resale-offer-seller').textContent).toBe(
+      t('itemDetail.resaleSeller', { name: 'Reseller' })
+    )
+  })
+
+  it("should mark the creator's listing as on hold", () => {
+    expect(screen.getByTestId('item-paused').textContent).toBe(t('itemDetail.paused'))
+  })
+
+  it('should explain that the offer is a resale', () => {
+    expect(screen.getByTestId('paused-resale-notice').textContent).toBe(t('itemDetail.pausedResaleHint'))
+  })
+
+  it('should not offer to buy from the creator', () => {
+    expect(screen.queryByTestId('buy-from-creator')).not.toBeInTheDocument()
+  })
+
+  it('should price Buy now at the resale', () => {
+    expect(screen.getByTestId('resale-buy-now').textContent).toContain('55')
+  })
+
+  it("should not offer the paused listing's Buy now", () => {
+    expect(screen.queryByTestId('detail-buy-now')).not.toBeInTheDocument()
+  })
+
+  describe('and the buyer clicks Buy now', () => {
+    beforeEach(async () => {
+      await userEvent.click(screen.getByTestId('resale-buy-now'))
+    })
+
+    it('should open checkout for the resale', () => {
+      expect(screen.getByTestId('buy-modal')).toHaveAttribute('data-trade', 'resale-trade')
+    })
+  })
+})
+
+describe("when a buyer opens an item whose creator's listing and every resale are paused", () => {
+  beforeEach(async () => {
+    secondarySales.value = true
+    fetchShopListingForItem.mockResolvedValue(listing())
+    fetchItemResales.mockResolvedValue([resale({ paused: true })])
+    renderCold()
+    await screen.findByTestId('paused-notice')
+  })
+
+  it('should keep Buy now disabled', () => {
+    expect(screen.getByTestId('detail-buy-now')).toBeDisabled()
+  })
+
+  it('should not present a resale offer', () => {
+    expect(screen.queryByTestId('paused-resale')).not.toBeInTheDocument()
+  })
+})
+
+describe('when the page opens from a paused card but the creator has listed again', () => {
+  beforeEach(async () => {
+    fetchShopListingForItem.mockResolvedValue(listing({ id: 'new-trade', tradeId: 'new-trade', paused: false }))
+    renderSeeded(listing())
+    await waitFor(() => expect(screen.getByTestId('detail-buy-now')).not.toBeDisabled())
+  })
+
+  it('should show no paused notice', () => {
+    expect(screen.queryByTestId('paused-notice')).not.toBeInTheDocument()
   })
 })
