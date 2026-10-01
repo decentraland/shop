@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { LegacyListing } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
 import { t } from '~/intl/i18n'
+import { cartAvailabilityKey } from '~/lib/cart-availability'
+import { PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 
 // MarketCheckout is a Buy-Now modal for a legacy (MANA-priced) listing. These specs cover the branches
 // with no e2e coverage: WHEN the dollars get reserved (on the confirm click, never on open), the price
@@ -115,8 +117,11 @@ const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
 /** A real marketplace, but Polygon mainnet's: valid nowhere for a listing on Amoy. */
 const MARKETPLACE_V3_POLYGON = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
 
+let queryClient: QueryClient
+
 function renderModal() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  queryClient = qc
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -748,5 +753,26 @@ describe('when the listing sits on a paused marketplace version', () => {
       await screen.findByText(t('errors.purchasesPaused'))
       expect(screen.queryByRole('button', { name: /get credits/i })).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('when the purchase reverts because the marketplace is paused', () => {
+  beforeEach(async () => {
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    buyWithCredits.mockRejectedValue(new Error('execution reverted: Pausable: paused'))
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await userEvent.setup().click(cta)
+    await screen.findByText(t('errors.purchasesPaused'))
+  })
+
+  it('should remember the listing as paused for the item page', () => {
+    expect(queryClient.getQueryData(PAUSED_LISTINGS_KEY)).toEqual(['trade-1'])
+  })
+
+  it('should show the listing on hold in the cart', () => {
+    expect(queryClient.getQueryData(cartAvailabilityKey({ ...listing, id: listing.tradeId }))).toBe('paused')
   })
 })

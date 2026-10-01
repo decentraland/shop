@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { useCart } from '~/store/cart'
 import { t } from '~/intl/i18n'
+import { cartAvailabilityKey } from '~/lib/cart-availability'
 
 /**
  * THE WIRING OF A FAILED CART CHECKOUT — the money decisions, asserted through the page.
@@ -65,10 +66,7 @@ const { mana } = vi.hoisted(() => ({ mana: { wei: 0n } }))
 vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: mana.wei }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: { rate: 50_000_000n, decimals: 8 } }) }))
 // Every line buyable: availability is a different concern with its own specs.
-vi.mock('~/hooks/useCartAvailability', () => ({
-  useCartAvailability: () => ({}),
-  cartAvailabilityKey: (i: { id: string }) => ['cart-availability', i.id]
-}))
+vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) }))
 // The per-line "Creator" chip is gated on this; `secondarySales` lets a test pick the state it needs.
 const secondarySales = { on: false }
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales.on }))
@@ -229,6 +227,8 @@ const lineInOwnGroup = (i: CatalogItem, index: number) => ({
   trade: { id: i.tradeId, chainId: 80002, contract: `0xmarket-${index}`, signer: '0xseller' }
 })
 
+let queryClient: QueryClient
+
 function renderCart(items: CatalogItem[], toLine: (i: CatalogItem, index: number) => unknown = line) {
   useCart.setState({ items: items.map(i => ({ ...i, quantity: 1 })), open: false })
   const review = {
@@ -241,6 +241,7 @@ function renderCart(items: CatalogItem[], toLine: (i: CatalogItem, index: number
   }
   reviewCart.mockResolvedValue(review)
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  queryClient = qc
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -313,9 +314,11 @@ describe('the Purchase Summary CTA', () => {
 })
 
 describe('when a line is paused by the time the checkout reviews the cart', () => {
+  let b: CatalogItem
+
   beforeEach(async () => {
     const a = item('a')
-    const b = item('b')
+    b = item('b')
     renderCart([a, b])
     reviewCart.mockResolvedValueOnce({
       buyable: [line(a)],
@@ -335,6 +338,10 @@ describe('when a line is paused by the time the checkout reviews the cart', () =
 
   it('should keep the paused line in the cart', () => {
     expect(useCart.getState().items.map(i => i.id)).toEqual(['a', 'b'])
+  })
+
+  it('should mark the line paused under the key the availability query reads', () => {
+    expect(queryClient.getQueryData(cartAvailabilityKey(b))).toBe('paused')
   })
 })
 

@@ -1,4 +1,5 @@
 import type { Trade } from '@dcl/schemas'
+import type { QueryClient } from '@tanstack/react-query'
 import {
   resolveLiveTrade,
   fetchStoreMintState,
@@ -8,6 +9,7 @@ import {
   type CatalogItem
 } from '~/lib/api'
 import { getMarketplaceForTrade } from '~/lib/marketplace'
+import { markListingPaused } from '~/lib/dead-listings'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable
@@ -18,6 +20,26 @@ import { getMarketplaceForTrade } from '~/lib/marketplace'
 // so a non-available state is only ever reported once the line's live trade has actually resolved (or
 // definitively failed to resolve).
 export type CartLineAvailability = 'available' | 'sold-out' | 'unavailable' | 'paused'
+
+// Keyed on the identity that determines the trade to resolve: a re-priced/re-signed line (new tradeId)
+// revalidates, while an unchanged line reuses its cached result across reopens.
+export function cartAvailabilityKey(item: Pick<CatalogItem, 'id' | 'tradeId' | 'itemId' | 'contractAddress'>) {
+  return ['cart-availability', item.id, item.tradeId ?? null, item.itemId ?? null, item.contractAddress] as const
+}
+
+/**
+ * Record a purchase that reverted because the listing is paused, so the item page and the cart show it on
+ * hold before the feed reports it.
+ */
+export function notePausedPurchase(
+  qc: QueryClient,
+  item: Pick<CatalogItem, 'id' | 'tradeId' | 'itemId' | 'contractAddress'>,
+  tradeIds: (string | null | undefined)[]
+): void {
+  for (const id of tradeIds) if (id) markListingPaused(qc, id)
+  qc.setQueryData(cartAvailabilityKey(item), 'paused')
+  void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+}
 
 // Can this line still be bought? Anything other than 'available' (and the optimistic "not yet known"
 // undefined) is excluded from the total and from checkout. Kept as one predicate so the cart UI and

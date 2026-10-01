@@ -9,7 +9,16 @@ vi.mock('~/lib/api', async importActual => {
 })
 
 import { resolveLiveTrade, fetchStoreMintState, TradeNotFoundError } from '~/lib/api'
-import { classifyTrade, classifyStoreMint, isLineBuyable, resolveLineAvailability } from '~/lib/cart-availability'
+import {
+  cartAvailabilityKey,
+  classifyTrade,
+  classifyStoreMint,
+  isLineBuyable,
+  notePausedPurchase,
+  resolveLineAvailability
+} from '~/lib/cart-availability'
+import { QueryClient } from '@tanstack/react-query'
+import { PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 
 const resolveMock = vi.mocked(resolveLiveTrade)
 const storeMock = vi.mocked(fetchStoreMintState)
@@ -241,5 +250,24 @@ describe('when a line resolves to a paused trade', () => {
     it('should leave it out of the buyable lines', () => {
       expect(isLineBuyable('paused')).toBe(false)
     })
+  })
+})
+
+describe('when a purchase reverts because the listing is paused', () => {
+  let qc: QueryClient
+  let line: Pick<CatalogItem, 'id' | 'tradeId' | 'itemId' | 'contractAddress'>
+
+  beforeEach(() => {
+    qc = new QueryClient()
+    line = { id: 'line-1', tradeId: 'tr-1', itemId: '4', contractAddress: '0xc' }
+    notePausedPurchase(qc, line, ['tr-1', null, 'tr-2'])
+  })
+
+  it('should remember every trade it was given as paused', () => {
+    expect(qc.getQueryData(PAUSED_LISTINGS_KEY)).toEqual(['tr-1', 'tr-2'])
+  })
+
+  it("should write paused into the line's cart availability", () => {
+    expect(qc.getQueryData(cartAvailabilityKey(line))).toBe('paused')
   })
 })

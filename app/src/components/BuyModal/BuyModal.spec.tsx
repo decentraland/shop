@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { WrongNetworkError } from '~/lib/network'
 import { t } from '~/intl/i18n'
+import { cartAvailabilityKey } from '~/lib/cart-availability'
+import { PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 
 /**
  * THE RESERVATION DECISIONS in the PDP buy flow — when a credit is minted, and when it is handed back.
@@ -217,8 +219,11 @@ function Location() {
   return <span data-testid="location">{`${pathname}${search}`}</span>
 }
 
+let queryClient: QueryClient
+
 function renderModal({ resume, over }: { resume: boolean; over?: Partial<CatalogItem> }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  queryClient = qc
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -1247,5 +1252,21 @@ describe('when the relayer refuses the purchase because the marketplace is pause
 
   it('should release the reservation', async () => {
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+})
+
+describe('when the purchase reverts at submit because the marketplace is paused', () => {
+  beforeEach(async () => {
+    buyOneWithCredits.mockRejectedValue(new Error('execution reverted: EnforcedPause()'))
+    renderResuming()
+    await waitFor(() => expect(screen.getByTestId('buy-modal').textContent).toContain(t('errors.purchasesPaused')))
+  })
+
+  it('should remember the listing as paused for the item page', () => {
+    expect(queryClient.getQueryData(PAUSED_LISTINGS_KEY)).toContain(item.tradeId)
+  })
+
+  it('should show the line on hold in the cart', () => {
+    expect(queryClient.getQueryData(cartAvailabilityKey(item))).toBe('paused')
   })
 })

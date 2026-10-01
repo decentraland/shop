@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { t } from '~/intl/i18n'
+import { markListingPaused } from '~/lib/dead-listings'
 
 // ItemDetail pulls checkout, the builder client and the wallet transitively, and those reach
 // decentraland-transactions' ESM directory imports that vitest's node resolver cannot follow (same
@@ -142,8 +143,7 @@ function listing(over: Partial<CatalogItem> = {}) {
   } as CatalogItem
 }
 
-function renderCold() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderCold(qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/item/${CONTRACT}/2`]}>
@@ -329,5 +329,20 @@ describe('when the page opens from a paused card but the creator has listed agai
 
   it('should show no paused notice', () => {
     expect(screen.queryByTestId('paused-notice')).not.toBeInTheDocument()
+  })
+})
+
+describe('when a purchase on this session already reverted because the listing is paused', () => {
+  beforeEach(async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    markListingPaused(qc, 'paused-trade')
+    fetchShopListingForItem.mockResolvedValue(listing({ paused: false }))
+    fetchTradeForItem.mockResolvedValue({ id: 'paused-trade', paused: false })
+    renderCold(qc)
+    await screen.findByTestId('paused-notice')
+  })
+
+  it('should disable Buy now even though the feed still reports it live', () => {
+    expect(screen.getByTestId('detail-buy-now')).toBeDisabled()
   })
 })

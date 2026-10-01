@@ -26,7 +26,7 @@ import {
 import { couponUsedWith, useCouponUses } from '~/store/couponUses'
 import { itemIdFromTokenId } from '~/lib/token-id'
 import { routeSegment } from '~/lib/routes'
-import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
+import { liveTradeId, markListingCancelled, PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
@@ -579,6 +579,13 @@ export function ItemDetail() {
   }, [current, siblings, pageItemId])
 
   const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
+  // Listings a purchase this session saw revert as paused, ahead of the feed (see lib/dead-listings).
+  const { data: pausedByRevert = [] } = useQuery<string[]>({
+    queryKey: PAUSED_LISTINGS_KEY,
+    queryFn: () => [],
+    enabled: false
+  })
+  const revertedPaused = (tradeId?: string | null) => !!tradeId && pausedByRevert.includes(tradeId)
   /**
    * A COLLECTION-STORE MINT is for sale and has no trade — it is minted straight from the store contract,
    * so no tradeId will ever exist for it. Defining "for sale" as "has a trade" is what made this page say
@@ -592,7 +599,8 @@ export function ItemDetail() {
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
   const forSale = !!buyableTradeId || isStoreMint
   // Still listed and priced, but its marketplace version no longer accepts purchases.
-  const listingPaused = !!buyableTradeId && !isStoreMint && (!!current.paused || !!resolvedTrade?.paused)
+  const listingPaused =
+    !!buyableTradeId && !isStoreMint && (!!current.paused || !!resolvedTrade?.paused || revertedPaused(buyableTradeId))
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
@@ -628,9 +636,9 @@ export function ItemDetail() {
   )
   // The cheapest resale that can be bought now, for when the creator's own listing is on hold.
   const cheapestLiveResaleItem: CatalogItem | null = useMemo(() => {
-    const r = resales.find(x => !x.paused)
+    const r = resales.find(x => !x.paused && !(x.tradeId && pausedByRevert.includes(x.tradeId)))
     return r ? withItemDisplay(r, current) : null
-  }, [resales, current])
+  }, [resales, current, pausedByRevert])
   const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
   const [showResellers, setShowResellers] = useState(false)
   // The resale hand-off (see MarketplaceRedirectModal). Separate from `showResellers`, which is the BUYER's
@@ -685,7 +693,8 @@ export function ItemDetail() {
       paused: !!it.paused
     }
   }, [isMarket, state?.item])
-  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing && !marketListing.paused
+  const marketPaused = !!marketListing && (marketListing.paused || revertedPaused(marketListing.tradeId))
+  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing && !marketPaused
   // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
   // Kept up here with the other hooks so it's never called after an early return.
   const saleActive = useSaleActive({
@@ -1203,10 +1212,9 @@ export function ItemDetail() {
     !manage && !isMarket && !current.tokenId && listingPaused && secondarySales && !!cheapestLiveResaleItem
   const resaleOffer = soldOutWithResale ? cheapestResaleItem : pausedWithResale ? cheapestLiveResaleItem : null
   const resaleInCart = !!resaleOffer && cartItems.some(i => i.id === resaleOffer.id)
-  const resalePaused = !!resaleOffer?.paused
+  const resalePaused = !!resaleOffer && (!!resaleOffer.paused || revertedPaused(resaleOffer.tradeId))
   // Whether the buyer is looking at a purchase that is on hold, so the reason is spelled out under the CTAs.
-  const buyerPaused =
-    !manage && (isMarket ? !!marketListing?.paused : forSale && !pausedWithResale ? listingPaused : resalePaused)
+  const buyerPaused = !manage && (isMarket ? marketPaused : forSale && !pausedWithResale ? listingPaused : resalePaused)
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
   const dualCta = !manage && forSale && !isMarket && !pausedWithResale

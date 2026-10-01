@@ -20,6 +20,7 @@ import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
 import { isPausedError, isRejection, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { captureError } from '~/lib/monitoring'
+import { notePausedPurchase } from '~/lib/cart-availability'
 import { createSpendGuard } from '~/lib/spend-guard'
 import * as S from './MarketCheckout.styles'
 import type { SuccessNavState } from '~/pages/Success'
@@ -90,6 +91,12 @@ export function MarketCheckout({
   const { data: balance, isError: balanceError } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
+
+  // Every failure lands here; a pause the purchase itself hit also marks the listing on hold everywhere.
+  function failWith(e: unknown) {
+    if (isPausedError(e)) notePausedPurchase(qc, toCatalogItem(listing), [listing.tradeId])
+    setError(friendlyError(e))
+  }
 
   const [phase, setPhase] = useState<Phase>('confirm')
   const [status, setStatus] = useState<string>(t('marketCheckout.checkingListing'))
@@ -179,7 +186,7 @@ export function MarketCheckout({
           value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100
         })
         setPhase('error')
-        setError(friendlyError(e))
+        failWith(e)
       }
     }
 
@@ -282,7 +289,7 @@ export function MarketCheckout({
           value_usd: quote.usdCents / 100
         })
         setStatus('')
-        setError(friendlyError(e))
+        failWith(e)
         setPhase('error')
         return
       }
@@ -374,7 +381,7 @@ export function MarketCheckout({
         value_usd: reserved.usdCents / 100
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e))
+      failWith(e)
       setPhase('error')
       const raw = ((e as { message?: string }).message ?? '').toLowerCase()
       if (raw.includes('not found') || raw.includes('no active listing') || raw.includes('404')) onSold()

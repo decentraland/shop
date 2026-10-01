@@ -48,7 +48,8 @@ import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payme
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
-import { friendlyError, isInsufficient, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
+import { friendlyError, isInsufficient, isPausedError, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
+import { notePausedPurchase } from '~/lib/cart-availability'
 import { Confetti } from '~/components/Confetti'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
@@ -937,6 +938,9 @@ export function BuyModal({
    * check then refines it. For a managed wallet that check short-circuits without a network call.
    */
   function failWith(e: unknown) {
+    if (isPausedError(e)) {
+      notePausedPurchase(qc, item, [item.tradeId, resolvedSale?.kind === 'trade' ? resolvedSale.trade.id : null])
+    }
     setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
     setPhase('error')
     if (!isWrongNetworkError(e) || !session) return
