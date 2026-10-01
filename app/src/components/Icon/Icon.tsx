@@ -54,6 +54,7 @@ export type IconName =
   | 'category-eyewear'
   | 'chevron-down'
   | 'chevron-right'
+  | 'circle-warning'
   | 'chevron-up-line'
   | 'clock'
   | 'clock-filled'

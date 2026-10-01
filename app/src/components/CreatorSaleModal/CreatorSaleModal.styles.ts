@@ -433,28 +433,56 @@ export const WhenTrigger = styled.button`
   }
 `
 
-export const CapRow = styled.div`
+export const CapLabel = styled.label`
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${colors.softWhite};
+`
+
+export const CapInput = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  font-size: 14px;
-  color: ${colors.softWhite};
+  gap: 8px;
+  height: 54px;
+  padding: 8px;
+  border: 1.5px solid ${colors.white};
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
 
-  /* Only the checkbox, not the number field the row can open. */
-  > label > input {
-    width: 20px;
-    height: 20px;
-    accent-color: ${colors.dclRed};
-    cursor: pointer;
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: ${colors.softWhite};
+    font-family: ${font.sans};
+    font-size: 16px;
+    outline: 0;
+  }
+  input::placeholder {
+    color: ${colors.gray5};
+    opacity: 1;
+  }
+  > span {
+    flex: none;
+    font-size: 14px;
+    color: ${colors.gray5};
+    font-variant-numeric: tabular-nums;
+  }
+  &[data-disabled] {
+    opacity: 0.6;
   }
 `
 
-export const CapLabel = styled.label`
-  display: inline-flex;
+export const CapHint = styled.p`
+  display: flex;
   align-items: center;
-  gap: 10px;
-  cursor: pointer;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  color: ${colors.muted2};
 `
 
 /** What buyers will see: every listed item, priciest first, in a row that scrolls sideways. */
@@ -702,34 +730,6 @@ export const SuccessDetail = styled.p`
   gap: 6px;
   font-size: 15px;
   color: ${colors.gray4};
-`
-
-/** A field that opens in place beside the checkbox that turns it on. */
-export const Reveal = styled.div`
-  /* Its own width, not what the label beside it leaves over: shrunk by the row it clipped its own field. */
-  flex: none;
-  display: inline-grid;
-  grid-template-columns: 0fr;
-  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
-
-  &[data-open] {
-    grid-template-columns: 1fr;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-export const MorphCell = styled.div`
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-
-  /* The collapsed half is still in the DOM (it has to be, to animate back), so stop it catching clicks. */
-  &[data-off] {
-    pointer-events: none;
-  }
 `
 
 /** The review step: what the sale will do, item by item, before anything is signed. */

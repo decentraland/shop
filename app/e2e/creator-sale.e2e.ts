@@ -553,7 +553,7 @@ describe('creator sales', () => {
       await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-range-picker"]'))
       heights.push(await height())
     }
-    await page.click('[data-testid="creator-sale-cap-toggle"]')
+    await page.type('[data-testid="creator-sale-cap"]', '5')
     heights.push(await height())
 
     // One height, every combination. The cap field used to arrive as a whole new row and the calendar

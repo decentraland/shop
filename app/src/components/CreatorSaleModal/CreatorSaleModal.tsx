@@ -217,8 +217,9 @@ export function CreatorSaleModal({
     setWhenAnchor({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
     setWhenOpen(true)
   }
-  const [capOn, setCapOn] = useState(false)
-  const [cap, setCap] = useState('50')
+  // Empty means no limit: the sale then covers every listed copy.
+  const [cap, setCap] = useState('')
+  const capOn = cap !== ''
   const [touched, setTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
@@ -691,6 +692,7 @@ export function CreatorSaleModal({
                 type="button"
                 onClick={() => {
                   setPicked(choice)
+                  setCap('')
                   setStep('form')
                 }}
                 data-testid="creator-sale-pick-row"
@@ -911,40 +913,39 @@ export function CreatorSaleModal({
           ) : null}
         </S.Field>
 
-        <S.CapRow>
-          <S.CapLabel>
+        <S.Field>
+          <S.CapLabel htmlFor="creator-sale-cap">{t('creatorSale.capLabel')}</S.CapLabel>
+          <S.CapInput data-disabled={busy || undefined}>
             <input
-              type="checkbox"
-              checked={capOn}
+              id="creator-sale-cap"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={cap}
               disabled={busy}
-              data-testid="creator-sale-cap-toggle"
-              onChange={e => setCapOn(e.target.checked)}
+              placeholder={t('creatorSale.capPlaceholder')}
+              aria-describedby={review.supply > 0 ? 'creator-sale-cap-hint' : undefined}
+              data-testid="creator-sale-cap"
+              onChange={e => {
+                const v = e.target.value
+                if (!/^\d*$/.test(v)) return
+                setTouched(true)
+                setCap(review.supply > 0 && Number(v) > review.supply ? String(review.supply) : v)
+              }}
             />
-            <span>{t('creatorSale.cap')}</span>
-          </S.CapLabel>
-          {/* Opens in the row rather than below it: a two-character number does not need a field the
-              width of the modal, and adding a row resized the card. */}
-          <S.Reveal data-open={capOn || undefined} data-testid="creator-sale-cap">
-            <S.MorphCell data-off={!capOn || undefined} aria-hidden={!capOn || undefined}>
-              <S.InlineInput>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  inputMode="numeric"
-                  value={cap}
-                  disabled={busy}
-                  tabIndex={capOn ? undefined : -1}
-                  aria-label={t('creatorSale.capLabel')}
-                  onChange={e => {
-                    setTouched(true)
-                    setCap(e.target.value)
-                  }}
-                />
-              </S.InlineInput>
-            </S.MorphCell>
-          </S.Reveal>
-        </S.CapRow>
+            {review.supply > 0 ? (
+              <span aria-hidden data-testid="creator-sale-cap-count">
+                {cap || 0}/{review.supply}
+              </span>
+            ) : null}
+          </S.CapInput>
+          {review.supply > 0 ? (
+            <S.CapHint id="creator-sale-cap-hint">
+              <Icon name="circle-warning" size={15} aria-hidden />
+              <span>{t('creatorSale.capHint', { count: review.supply })}</span>
+            </S.CapHint>
+          ) : null}
+        </S.Field>
 
         {/* The collection as a buyer will meet it: the same tag and struck price the Shop's cards wear. */}
         {previewItems.length > 0 ? (
