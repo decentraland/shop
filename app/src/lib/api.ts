@@ -736,7 +736,7 @@ export async function fetchPrimaryListingForItem(
   itemId: string
 ): Promise<UnifiedListing | null> {
   const { items } = await fetchUnified({ contractAddress, itemId, first: 5, listingType: 'primary' })
-  return items.find(l => !l.tokenId) ?? null
+  return pickItemListing(items.filter(l => !l.tokenId))
 }
 
 /**
@@ -752,18 +752,18 @@ export async function fetchPrimaryListingForItem(
  *
  *  1. The MINT over a resale — while the creator is still selling, the page is about THEIR listing; a resale
  *     answering here prices it off someone else's. A secondary row is the one scoped to a single token.
- *  2. Then USD-PEGGED over legacy — the creator's current intent, and its price is exact rather than
+ *  2. Then a LIVE listing over a paused one — a paused one cannot be bought. Below the mint tier on purpose:
+ *     a paused mint must not hand the page, or a cart's mint line, over to someone else's resale.
+ *  3. Then USD-PEGGED over legacy — the creator's current intent, and its price is exact rather than
  *     oracle-derived, so it is also the number the grid collapses to.
  */
 export function pickItemListing(items: UnifiedListing[]): UnifiedListing | null {
-  // Lower sorts first. Written as two named tiers rather than packed arithmetic so a third one can be added
-  // without decoding the encoding: the resale penalty has to outweigh the legacy penalty, hence 2 vs 1.
+  // Lower sorts first. Each tier's penalty outweighs every tier below it combined, hence 4, 2 and 1.
   const rank = (l: UnifiedListing) => {
-    // A paused listing cannot be bought, so any live one outranks it.
-    const isPaused = l.paused ? 4 : 0
-    const isResale = l.tokenId ? 2 : 0
+    const isResale = l.tokenId ? 4 : 0
+    const isPaused = l.paused ? 2 : 0
     const isLegacy = l.source === 'native' ? 0 : 1
-    return isPaused + isResale + isLegacy
+    return isResale + isPaused + isLegacy
   }
   return [...items].sort((a, b) => rank(a) - rank(b))[0] ?? null
 }
@@ -1560,12 +1560,24 @@ export async function resolveLiveTrade(item: {
       // A creator who listed again leaves the paused trade open beside the new one, so a stored mint line
       // looks for that successor. Never for a resale: re-resolving by item would swap the token being bought.
       if (!known.paused || item.tokenId || !item.itemId) return known
-      const successor = await fetchTradeForItem(item.contractAddress, item.itemId).catch(() => null)
+      const successor = await fetchPrimaryTradeForItem(item.contractAddress, item.itemId).catch(e => {
+        if (e instanceof TradeNotFoundError) return null
+        throw e
+      })
       return successor && !successor.paused ? successor : known
     }
   }
-  if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
-  return null
+  if (!item.itemId) return null
+  // A mint line re-resolves to the creator's listing only, never to someone's resale of the item.
+  return item.tokenId
+    ? fetchTradeForItem(item.contractAddress, item.itemId)
+    : fetchPrimaryTradeForItem(item.contractAddress, item.itemId)
+}
+
+/** The creator's open trade for an item, or null when no primary trade is listed. */
+async function fetchPrimaryTradeForItem(contractAddress: string, itemId: string): Promise<ShopTrade | null> {
+  const listing = await fetchPrimaryListingForItem(contractAddress, itemId)
+  return listing?.tradeId ? fetchOpenTrade(listing.tradeId) : null
 }
 
 /**

@@ -62,7 +62,8 @@ import {
   fetchUserSales,
   TradeNotFoundError,
   postTrade,
-  fetchItemMeta
+  fetchItemMeta,
+  type UnifiedListing
 } from '~/lib/api'
 
 // $1 in USD wei.
@@ -2178,5 +2179,83 @@ describe('when resolving a cart line whose known trade is paused', () => {
     it('should not look the item up, which could swap the token being bought', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
+  })
+
+  describe('and the line is a mint next to a live resale of the item', () => {
+    beforeEach(async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-old', itemId: '4', source: 'native', isPaused: true }] }))
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
+      trade = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' })
+    })
+
+    it('should stay on the paused primary rather than switch to the resale', () => {
+      expect(trade).toEqual({ id: 'tr-old', paused: true })
+    })
+
+    it('should look the successor up among primary listings only', () => {
+      expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('listingType')).toBe('primary')
+    })
+  })
+
+  describe('and the successor lookup fails', () => {
+    let error: unknown
+
+    beforeEach(async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
+        .mockResolvedValueOnce(httpError(503))
+      error = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' }).catch(e => e)
+    })
+
+    it('should propagate the failure instead of reading the line as on hold', () => {
+      expect(error).toBeInstanceOf(Error)
+    })
+  })
+
+  describe("and the successor's trade is already gone", () => {
+    beforeEach(async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-old', isPaused: true } }))
+        .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-new', itemId: '4', source: 'native' }] }))
+        .mockResolvedValueOnce(httpError(404))
+      trade = await resolveLiveTrade({ tradeId: 'tr-old', contractAddress: '0xc', itemId: '4' })
+    })
+
+    it('should keep the paused trade', () => {
+      expect(trade).toEqual({ id: 'tr-old', paused: true })
+    })
+  })
+})
+
+describe('when a mint line whose trade is gone is resolved again', () => {
+  let trade: Awaited<ReturnType<typeof resolveLiveTrade>>
+
+  beforeEach(async () => {
+    fetchMock.mockResolvedValueOnce(httpError(404)).mockResolvedValueOnce(jsonOk({ data: [] }))
+    trade = await resolveLiveTrade({ tradeId: 'tr-sold', contractAddress: '0xc', itemId: '4' })
+  })
+
+  it('should find no live listing rather than settle on a resale', () => {
+    expect(trade).toBeNull()
+  })
+
+  it('should ask the feed for primary listings only', () => {
+    expect(new URL(lastUrl()).searchParams.get('listingType')).toBe('primary')
+  })
+})
+
+describe('when an item has a paused mint and a live resale', () => {
+  let mint: UnifiedListing
+  let resale: UnifiedListing
+
+  beforeEach(() => {
+    mint = { source: 'native', tokenId: undefined, paused: true } as unknown as UnifiedListing
+    resale = { source: 'native', tokenId: '9', paused: false } as unknown as UnifiedListing
+  })
+
+  it('should still pick the mint', () => {
+    expect(pickItemListing([resale, mint])).toBe(mint)
   })
 })
