@@ -6,7 +6,7 @@ import { useFavorites, favoriteKey } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import { detailRouteFor } from '~/lib/routes'
-import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } from '~/lib/credits'
 import type { Session } from '~/lib/auth'
@@ -65,7 +65,7 @@ import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
-import { isRejection, isInsufficient, isPausedError } from '~/lib/errors'
+import { isRejection, isInsufficient, isPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -576,13 +576,11 @@ export function Cart() {
             throw gaslessErr
           } else {
             if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-            // A paused marketplace refuses the direct rail just the same.
-            if (isPausedError(gaslessErr)) throw gaslessErr
             // The gas-paying rail is only a route for a SELF-CUSTODY wallet. A managed (web2) wallet holds no
             // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
             // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
             // to surface the relayer being down as what it is: something to try again shortly.
-            if (!canPayGasItself(session.providerType)) throw gaslessErr
+            if (!mayFallBackToDirect(gaslessErr, session.providerType)) throw gaslessErr
             hashes = await buyManyWithCredits({
               purchases,
               buyer: session.address,

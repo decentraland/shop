@@ -13,9 +13,8 @@ import { buyOneWithCredits, type AnyPurchase, type SpendableCredit } from '~/lib
 import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { captureError } from '~/lib/monitoring'
-import { isPausedError } from '~/lib/errors'
+import { mayFallBackToDirect } from '~/lib/errors'
 import { requireChain } from '~/lib/network'
-import { canPayGasItself } from '~/lib/wallet-kind'
 import {
   amoyGasOverrides,
   buildAcceptCalldata,
@@ -493,9 +492,7 @@ async function payGapWithMana(opts: {
        * offering it produces `INSUFFICIENT_FUNDS` after a prompt the buyer cannot act on — and it is what put
        * this bug in front of a real buyer twice.
        */
-      if (!canPayGasItself(providerType)) throw e
-      // A paused marketplace refuses the direct rail just the same.
-      if (isPausedError(e)) throw e
+      if (!mayFallBackToDirect(e, providerType)) throw e
       captureError(e, { flow: 'buy_credits_and_mana', step: 'gasless_fallback' })
     }
   }

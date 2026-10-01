@@ -14,12 +14,11 @@ import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { getMarketplaceForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
-import { isPausedError, isRejection, ListingPausedError } from '~/lib/errors'
+import { isPausedError, isRejection, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { captureError } from '~/lib/monitoring'
 import { createSpendGuard } from '~/lib/spend-guard'
 import * as S from './MarketCheckout.styles'
@@ -338,9 +337,7 @@ export function MarketCheckout({
              * POL, so it would revert with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on — and gas
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
-            if (!canPayGasItself(session.providerType)) throw gaslessErr
-            // A paused marketplace refuses the direct rail just the same.
-            if (isPausedError(gaslessErr)) throw gaslessErr
+            if (!mayFallBackToDirect(gaslessErr, session.providerType)) throw gaslessErr
             txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
           } else {
             /**

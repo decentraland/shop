@@ -43,13 +43,12 @@ import {
   type PurchaseTarget
 } from '~/lib/buy-mana'
 import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
-import { friendlyError, isInsufficient, isPausedError, ListingPausedError } from '~/lib/errors'
+import { friendlyError, isInsufficient, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { Confetti } from '~/components/Confetti'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
@@ -593,9 +592,7 @@ export function BuyModal({
              * POL, so it would revert with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on — and gas
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
-            if (!canPayGasItself(session.providerType)) throw gaslessErr
-            // A paused marketplace refuses the direct rail just the same.
-            if (isPausedError(gaslessErr)) throw gaslessErr
+            if (!mayFallBackToDirect(gaslessErr, session.providerType)) throw gaslessErr
             txHash = await buyOneWithCredits(buyArgs)
           } else {
             /**

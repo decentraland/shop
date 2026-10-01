@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { ChainId } from '@dcl/schemas'
+import { ChainId, ProviderType } from '@dcl/schemas'
 import { t } from '~/intl/i18n'
-import { friendlyError, isPausedError, isRejection, ListingPausedError } from '~/lib/errors'
+import { friendlyError, isPausedError, isRejection, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { WrongNetworkError } from '~/lib/network'
 
 const FALLBACK = "Couldn't complete checkout."
@@ -121,5 +121,65 @@ describe('when a purchase fails for an unrelated reason', () => {
 
   it('should not be recognised as a pause', () => {
     expect(isPausedError(error)).toBe(false)
+  })
+})
+
+describe('when the revert data is exactly the EnforcedPause selector', () => {
+  let error: unknown
+
+  beforeEach(() => {
+    error = { message: 'execution reverted', data: '0xD93C0665' }
+  })
+
+  it('should be recognised as a pause', () => {
+    expect(isPausedError(error)).toBe(true)
+  })
+})
+
+describe.each([
+  ['Pausable: not paused', new Error('execution reverted: Pausable: not paused')],
+  ['an unpaused message', new Error('marketplace unpaused')],
+  ['a relayer message that mentions paused', new Error('relayer-rejected: queue paused, retry later')],
+  ['an ExpectedPause revert', new Error('execution reverted: ExpectedPause()')],
+  ['the selector inside longer data', new Error('reverted with 0xd93c0665ab')],
+  ['the selector inside another word', new Error('reverted with 0x12d93c0665')],
+  ['revert data that only starts with the selector', { message: 'execution reverted', data: '0xd93c06650001' }]
+])('when the error is %s', (_label, error) => {
+  it('should not be recognised as a pause', () => {
+    expect(isPausedError(error)).toBe(false)
+  })
+})
+
+describe('when deciding whether a failed gasless purchase may go direct', () => {
+  let error: unknown
+
+  describe('and the wallet is self-custody and the failure is unrelated', () => {
+    beforeEach(() => {
+      error = new Error('relayer-rejected: nonce too low')
+    })
+
+    it('should allow the direct rail', () => {
+      expect(mayFallBackToDirect(error, ProviderType.INJECTED)).toBe(true)
+    })
+  })
+
+  describe('and the wallet is managed', () => {
+    beforeEach(() => {
+      error = new Error('relayer-rejected: nonce too low')
+    })
+
+    it('should not allow the direct rail', () => {
+      expect(mayFallBackToDirect(error, ProviderType.MAGIC)).toBe(false)
+    })
+  })
+
+  describe('and the failure is a pause revert', () => {
+    beforeEach(() => {
+      error = new Error('execution reverted: Pausable: paused')
+    })
+
+    it('should not allow the direct rail', () => {
+      expect(mayFallBackToDirect(error, ProviderType.INJECTED)).toBe(false)
+    })
   })
 })
