@@ -152,6 +152,8 @@ export function CreatorSaleModal({
   const [customPct, setCustomPct] = useState('15')
   const [when, setWhen] = useState<When>({ kind: 'preset', key: '3d', hours: 72 })
   const [whenOpen, setWhenOpen] = useState(false)
+  // The window as the review showed it, fixed on the way in so the signature is exactly what was read.
+  const [reviewed, setReviewed] = useState<{ startsAtMs: number | undefined; endsAtMs: number } | null>(null)
   const [query, setQuery] = useState('')
   const strip = useRef<HTMLDivElement>(null)
   const [stripEdges, setStripEdges] = useState({ start: true, end: true })
@@ -319,17 +321,20 @@ export function CreatorSaleModal({
       setError(problemCopy(terms.problem))
       return
     }
-    setBusy(true)
-    // The window from the moment of signing: a preset measured when the terms last changed would sign short.
+    const signedWindow = reviewed ?? windowOf(when, Date.now())
     const signedAt = Date.now()
-    const window = windowOf(when, signedAt)
-    try {
-      validateSaleTerms({ ...terms, ...window }, signedAt)
-    } catch (e) {
-      setError(problemCopy(e instanceof SaleInputError ? e.problem : 'window'))
-      setBusy(false)
+    // A start the review promised that has since gone by would sign a live sale under a "Schedule" button.
+    if (signedWindow.startsAtMs !== undefined && signedWindow.startsAtMs <= signedAt) {
+      setError(t('creatorSale.errorStartPassed'))
       return
     }
+    try {
+      validateSaleTerms({ ...terms, ...signedWindow }, signedAt)
+    } catch (e) {
+      setError(problemCopy(e instanceof SaleInputError ? e.problem : 'window'))
+      return
+    }
+    setBusy(true)
     try {
       setStatus(isManaged ? t('creatorSale.starting') : t('creatorSale.confirm'))
       const payload = await createCollectionSale({
@@ -337,8 +342,8 @@ export function CreatorSaleModal({
         chainId: config.chainId,
         collections: terms.collections,
         discountPct: terms.discountPct,
-        startsAtMs: window.startsAtMs,
-        endsAtMs: window.endsAtMs,
+        startsAtMs: signedWindow.startsAtMs,
+        endsAtMs: signedWindow.endsAtMs,
         uses: terms.uses
       })
       setStatus(t('creatorSale.finishing'))
@@ -350,7 +355,7 @@ export function CreatorSaleModal({
         sale_id: sale.id,
         collections: sale.collections.length,
         discount_pct: terms.discountPct,
-        duration_h: Math.round((terms.endsAtMs - (terms.startsAtMs ?? Date.now())) / HOUR_MS),
+        duration_h: Math.round((signedWindow.endsAtMs - (signedWindow.startsAtMs ?? signedAt)) / HOUR_MS),
         scheduled,
         capped: terms.uses !== undefined
       })
@@ -462,6 +467,7 @@ export function CreatorSaleModal({
       : tNode('creatorSale.reviewNoCap', { b: bold, count: review.supply })
 
   if (step === 'review') {
+    const shown = reviewed ?? terms
     return (
       <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
         <S.Card
@@ -491,14 +497,14 @@ export function CreatorSaleModal({
             <S.ReviewWhenRow data-testid="creator-sale-review-starts">
               <S.ReviewWhenLabel>{t('creatorSale.reviewStarts')}</S.ReviewWhenLabel>
               <S.ReviewWhenValue>
-                {terms.startsAtMs ? formatDateTime(terms.startsAtMs) : t('creatorSale.reviewStartsNow')}
+                {shown.startsAtMs ? formatDateTime(shown.startsAtMs) : t('creatorSale.reviewStartsNow')}
               </S.ReviewWhenValue>
-              {terms.startsAtMs ? <S.ReviewWhenLeft until={terms.startsAtMs} /> : null}
+              {shown.startsAtMs ? <S.ReviewWhenLeft until={shown.startsAtMs} /> : null}
             </S.ReviewWhenRow>
             <S.ReviewWhenRow data-testid="creator-sale-review-ends">
               <S.ReviewWhenLabel>{t('creatorSale.reviewEnds')}</S.ReviewWhenLabel>
-              <S.ReviewWhenValue>{formatDateTime(terms.endsAtMs)}</S.ReviewWhenValue>
-              <S.ReviewWhenLeft until={terms.endsAtMs} />
+              <S.ReviewWhenValue>{formatDateTime(shown.endsAtMs)}</S.ReviewWhenValue>
+              <S.ReviewWhenLeft until={shown.endsAtMs} />
             </S.ReviewWhenRow>
           </S.ReviewSummary>
 
@@ -600,7 +606,7 @@ export function CreatorSaleModal({
               ) : (
                 <>
                   <span aria-hidden>🔥</span>
-                  {terms.startsAtMs ? t('creatorSale.submitScheduled') : t('creatorSale.submit')}
+                  {shown.startsAtMs ? t('creatorSale.submitScheduled') : t('creatorSale.submit')}
                 </>
               )}
             </S.ActionBtn>
@@ -1009,6 +1015,7 @@ export function CreatorSaleModal({
             if (terms.problem) setError(problemCopy(terms.problem))
             else {
               setError(null)
+              setReviewed(windowOf(when, Date.now()))
               setStep('review')
               trackSale('Shop Reviewed Sale', {
                 discount_pct: terms.discountPct,

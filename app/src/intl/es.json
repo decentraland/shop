@@ -1479,6 +1479,7 @@
     "errorGeneric": "No pudimos iniciar tu descuento. Inténtalo de nuevo.",
     "errorPct": "Elige un descuento entre 5% y 70%.",
     "errorWindow": "La oferta tiene que terminar después de empezar.",
+    "errorStartPassed": "La fecha de inicio ya pasó. Vuelve y elige las fechas de nuevo.",
     "errorDuration": "Una oferta puede durar hasta 30 días.",
     "errorCollections": "Elige al menos una colección.",
     "errorUses": "Introduce un número entero de unidades, al menos 1.",

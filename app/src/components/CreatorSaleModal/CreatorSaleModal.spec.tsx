@@ -216,3 +216,29 @@ describe('when the creator types a decimal custom discount', () => {
     }
   })
 })
+
+describe('when the creator lingers on the review before signing', () => {
+  it('should sign the window the review showed, not one measured at the click', async () => {
+    const opened = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(opened)
+    createCollectionSale.mockResolvedValue({ payload: true })
+    postCoupon.mockResolvedValue({
+      id: 'sale-1',
+      collections: [collection.contractAddress],
+      status: 'active',
+      discount: 200_000,
+      checks: { expiration: opened + 72 * 3_600_000, effective: opened, uses: 0 }
+    })
+    open()
+    fireEvent.click(screen.getByTestId('creator-sale-continue'))
+    clock.mockReturnValue(opened + 20 * 60_000)
+    fireEvent.click(screen.getByTestId('creator-sale-submit'))
+
+    await waitFor(() => expect(createCollectionSale).toHaveBeenCalled())
+    expect(createCollectionSale.mock.calls[0][0]).toMatchObject({
+      startsAtMs: undefined,
+      endsAtMs: opened + 72 * 3_600_000
+    })
+    clock.mockRestore()
+  })
+})

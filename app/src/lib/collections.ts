@@ -262,7 +262,8 @@ async function withRunningSales(
       sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
         compareAtCredits: l.compareAtCredits,
         priceCredits: l.priceCredits,
-        // The badge reads the creator's own % off it; without it the rounded prices imply a different one.
+        // Carried for two readers: the badge takes the creator's own % off it, and the cart settles a line
+        // added from these pages through it, so the sale price shown is the one charged.
         ...(l.coupon ? { coupon: l.coupon } : {}),
         // SECONDS on the wire, milliseconds everywhere a CatalogItem is read. The mapping this overlay
         // bypasses is where that conversion normally happens.

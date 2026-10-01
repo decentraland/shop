@@ -1479,6 +1479,7 @@
     "errorGeneric": "Couldn’t start your discount. Please try again.",
     "errorPct": "Choose a discount between 5% and 70%.",
     "errorWindow": "The sale has to end after it starts.",
+    "errorStartPassed": "The start date has passed. Go back and pick the dates again.",
     "errorDuration": "A sale can run for up to 30 days.",
     "errorCollections": "Pick at least one collection.",
     "errorUses": "Enter a whole number of units, at least 1.",

@@ -1479,6 +1479,7 @@
     "errorGeneric": "Dein Rabatt konnte nicht gestartet werden. Bitte versuch es noch mal.",
     "errorPct": "Wähle einen Rabatt zwischen 5 % und 70 %.",
     "errorWindow": "Die Aktion muss nach ihrem Start enden.",
+    "errorStartPassed": "Das Startdatum ist vorbei. Geh zurück und wähle die Daten neu.",
     "errorDuration": "Eine Aktion kann bis zu 30 Tage laufen.",
     "errorCollections": "Wähle mindestens eine Kollektion.",
     "errorUses": "Gib eine ganze Stückzahl ein, mindestens 1.",
