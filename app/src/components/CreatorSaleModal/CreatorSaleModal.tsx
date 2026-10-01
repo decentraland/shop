@@ -864,6 +864,7 @@ export function CreatorSaleModal({
               onClick={() => (whenOpen ? whenPicker.current?.close() : openWhen())}
               data-testid="creator-sale-when"
             >
+              <Icon name="calendar" size={20} aria-hidden />
               <span>{whenLabel}</span>
               <Icon name="arrow-drop-down" size={24} aria-hidden data-open={whenOpen ? '' : undefined} />
             </S.WhenTrigger>
