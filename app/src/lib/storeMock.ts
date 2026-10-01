@@ -3,6 +3,7 @@ import type { StoreCollection, StoreItem, StoreStats } from '~/lib/storeStats'
 import type { Buyer, Collectors } from '~/lib/storeMetrics'
 import type { TopOwner, TopOwnersSort } from '~/lib/owners'
 import type { CreatorSaleStatus } from '~/lib/coupons'
+import type { SaleableCollection } from '~/lib/saleableCollections'
 
 /**
  * A store invented for looking at, reachable at `/my-store?mock=1`.
@@ -362,3 +363,32 @@ export function mockRoyalties(
   const total = rows.reduce((sum, row) => sum + BigInt(row.royaltyWei), 0n)
   return { data: rows.slice(page * perPage, (page + 1) * perPage), total: rows.length, royaltiesWei: String(total) }
 }
+
+/**
+ * The invented store's collections as the discount flow sees them, so a preview can walk the whole flow.
+ * One item is priced low enough that a small cut rounds back to its price.
+ */
+export const mockSaleable: SaleableCollection[] = mockStats.collections.map((collection, c) => {
+  const items = collection.items.map((entry, i) => ({
+    key: entry.key,
+    name: entry.name,
+    thumbnail: entry.thumbnail,
+    priceCredits:
+      entry.state === 'classic' ? null : c === 0 && i === collection.items.length - 1 ? 5 : (entry.priceCredits ?? 20),
+    state:
+      entry.state === 'classic'
+        ? ('classic' as const)
+        : entry.state === 'discounted'
+          ? ('discounted' as const)
+          : ('unlisted' as const),
+    remainingSupply: entry.left
+  }))
+  const listed = items.filter(i => i.state === 'discounted')
+  return {
+    contractAddress: collection.contractAddress,
+    name: collection.name,
+    listedCount: listed.length,
+    examplePriceCredits: listed.length ? Math.max(...listed.map(i => i.priceCredits as number)) : null,
+    items
+  }
+})

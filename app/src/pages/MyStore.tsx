@@ -11,6 +11,7 @@ import {
   type ReactNode
 } from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
+import type { Session } from '~/lib/auth'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
 import { useStoreStats, type StoreCollection, type StoreItem } from '~/hooks/useStoreStats'
@@ -69,6 +70,7 @@ import {
   mockRoyalties,
   mockSaleRows,
   mockSales,
+  mockSaleable,
   mockSaves,
   mockStats
 } from '~/lib/storeMock'
@@ -328,6 +330,9 @@ function buyerName(address: string, profiles?: Map<string, ProfileAvatar>): stri
  * rebuilt from public feeds, but the page is what makes that effortless — and it includes who bought
  * from the creator and how much each of them spent. A store is its owner's to read.
  */
+/** A stand-in for the invented store's modal; never reaches a signature, which the preview cannot make. */
+const MOCK_SESSION = { address: '0xmockcreator0000000000000000000000000001', chainId: 80002 } as unknown as Session
+
 function previewMock(raw: string | null): boolean {
   return config.previewHost && raw === '1'
 }
@@ -1349,10 +1354,11 @@ export function MyStore() {
                 }}
               />
             ) : null}
-            {saleOpen && session ? (
+            {saleOpen && (session || mock) ? (
               <CreatorSaleModal
-                session={session}
-                collections={saleable}
+                // The invented store has nobody signed in: the flow can be walked, only signing it fails.
+                session={session ?? MOCK_SESSION}
+                collections={mock ? mockSaleable : saleable}
                 onClose={() => setSaleOpen(false)}
                 source="my_store"
                 silent={preview}
