@@ -119,12 +119,9 @@ export const Field = styled.div`
   gap: 10px;
 `
 
-/** Lettered like the dashboard's tile keys, so the modal reads as part of the page it opened from. */
 export const FieldLabel = styled.span`
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 13px;
+  line-height: 1.5;
   color: ${colors.gray4};
 `
 
@@ -249,34 +246,32 @@ export const RowMeta = styled.span`
   color: ${colors.gray4};
 `
 
-/** The discounts as one segmented control, like My Store's currency switch: the picked one lights up white. */
+/** The discounts as separate pills, the Builder's filter chips: soft white once picked. */
 export const Chips = styled.div`
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid ${hairline};
-  border-radius: ${radius.pill};
-  background: rgba(0, 0, 0, 0.25);
+  flex-wrap: wrap;
+  gap: 12px;
+
+  ${media.maxWidth('mobile')} {
+    gap: 8px;
+  }
 `
 
 export const Chip = styled.button`
-  /* Shares the bar by content, so "Custom" and an open field get the room a percentage does not need. */
-  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 0;
-  width: 100%;
   height: 40px;
-  padding: 0 10px;
+  padding: 0 16px;
   border: 0;
-  border-radius: ${radius.pill};
-  background: transparent;
-  color: ${colors.gray4};
+  border-radius: 20px;
+  background: ${colors.glass};
+  color: ${colors.white};
   font-family: ${font.sans};
-  font-weight: 700;
+  font-weight: 600;
   font-size: 14px;
+  letter-spacing: 0.46px;
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -284,11 +279,11 @@ export const Chip = styled.button`
     color 0.15s ease;
 
   &:hover:not(:disabled):not([data-selected]) {
-    color: ${colors.white};
+    background: ${colors.glassHover};
   }
   &[data-selected] {
-    background: ${colors.white};
-    color: ${colors.dclRed};
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
   &:disabled {
     opacity: 0.5;
@@ -324,19 +319,21 @@ export const InlineInput = styled.span`
   &[aria-invalid='true'] {
     border-color: ${colors.dclRed};
   }
-  /* The custom discount open in its segment: lit like a picked one. */
+  /* The custom discount, open in its own pill: lit like a picked one. */
   &[data-selected] {
-    flex: 1 1 auto;
-    justify-content: center;
-    width: auto;
     height: 40px;
-    border-color: ${colors.white};
-    background: ${colors.white};
-    color: ${colors.dclRed};
+    padding: 0 16px;
+    border-color: ${colors.softWhite};
+    border-radius: 20px;
+    background: ${colors.softWhite};
+    color: ${colors.text};
 
     input {
-      color: ${colors.dclRed};
+      color: ${colors.text};
     }
+  }
+  &[data-selected][aria-invalid='true'] {
+    border-color: ${colors.dclRed};
   }
 
   input {
@@ -382,21 +379,25 @@ export const WhenAnchor = styled.div`
   }
 `
 
+/** Drawn like the Builder's Select trigger: an outlined field whose border turns white while it is open. */
 export const WhenTrigger = styled.button`
   position: relative;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 16px;
-  border: 1px solid ${hairline};
-  border-radius: ${radius.card};
-  background: ${raised};
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border: 1px solid ${colors.muted2};
+  border-radius: 6px;
+  background: transparent;
   color: ${colors.softWhite};
   font-family: ${font.sans};
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
+  line-height: 24px;
   text-align: left;
   cursor: pointer;
 
@@ -407,28 +408,23 @@ export const WhenTrigger = styled.button`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .ico {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    transition: transform 0.15s ease;
+  }
   .ico[data-open] {
     transform: rotate(180deg);
   }
-  .ico {
-    transition: transform 0.2s ease;
-  }
-  &:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.32);
-  }
-  /* Opaque while open: the calendar slides out from behind it. */
+  &:focus-visible,
   &[aria-expanded='true'] {
-    background: ${colors.softWhite};
-    border-color: ${colors.softWhite};
-    color: ${colors.text};
+    border-color: ${colors.white};
+    outline: 0;
   }
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: default;
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.softWhite};
-    outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
     .ico {
@@ -744,9 +740,6 @@ export const ReviewWhenRow = styled.div`
 export const ReviewWhenLabel = styled.span`
   color: ${colors.gray4};
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 `
 
 export const ReviewWhenValue = styled.b`

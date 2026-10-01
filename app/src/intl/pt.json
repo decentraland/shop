@@ -1459,7 +1459,6 @@
     "durationHours": "{count, plural, one {# hora} other {# horas}}",
     "durationDays": "{count, plural, one {# dia} other {# dias}}",
     "previewTitle": "O que os compradores veem",
-    "previewRounds": "Os preços são em <c>Créditos</c> inteiros, então um desconto pequeno pode deixar um item barato com o mesmo preço. Escolha um desconto maior para mudá-lo.",
     "pctTag": "-{pct}%",
     "searchCollections": "Busque suas coleções",
     "pickCount": "{count, plural, one {# coleção} other {# coleções}} · {credits} com itens em Créditos",
@@ -1471,7 +1470,6 @@
     "capLabel": "Unidades com preço de desconto",
     "submit": "Iniciar desconto",
     "submitScheduled": "Agendar desconto",
-    "review": "Revisar desconto",
     "back": "Voltar",
     "reviewTitle": "Revise seu desconto",
     "reviewStarts": "Começa",
@@ -1534,7 +1532,11 @@
     "liftDown": "vendendo {amount} mais devagar",
     "liftFlat": "mesmo ritmo de antes",
     "liftNoBaseline": "nada foi vendido antes dele",
-    "liftHint": "Vendas por dia enquanto o desconto esteve ativo, comparadas com o mesmo período logo antes de ele começar."
+    "liftHint": "Vendas por dia enquanto o desconto esteve ativo, comparadas com o mesmo período logo antes de ele começar.",
+    "continue": "Continuar",
+    "previewStays": "Atenção: {name} continua a <c>{price}</c> com {pct}% off, porque os preços são arredondados para Créditos inteiros. Tente <b>{min}% ou mais</b> para baixá-lo.",
+    "previewStaysMore": "Atenção: {name} e {others, plural, one {mais #} other {mais #}} continuam no preço com {pct}% off, porque os preços são arredondados para Créditos inteiros. Tente <b>{min}% ou mais</b> para baixar {name}.",
+    "previewFloor": "Atenção: {name} já está a <c>1</c>, o menor preço possível, então nenhum desconto o baixa."
   },
   "listingEdit": {
     "title": "Editar preço",

@@ -1459,7 +1459,6 @@
     "durationHours": "{count, plural, one {# hour} other {# hours}}",
     "durationDays": "{count, plural, one {# day} other {# days}}",
     "previewTitle": "What buyers see",
-    "previewRounds": "Prices are whole <c>Credits</c>, so a small cut can leave a cheap item at the same price. Pick a bigger discount to move it.",
     "pctTag": "-{pct}%",
     "searchCollections": "Search your collections",
     "pickCount": "{count, plural, one {# collection} other {# collections}} · {credits} with items in Credits",
@@ -1471,7 +1470,6 @@
     "capLabel": "Units at the discounted price",
     "submit": "Start discount",
     "submitScheduled": "Schedule discount",
-    "review": "Review discount",
     "back": "Back",
     "reviewTitle": "Review your discount",
     "reviewStarts": "Starts",
@@ -1534,7 +1532,11 @@
     "liftDown": "selling {amount} slower",
     "liftFlat": "same pace as before",
     "liftNoBaseline": "nothing sold before it",
-    "liftHint": "Sales per day while the discount has been live, against the same stretch of time right before it started."
+    "liftHint": "Sales per day while the discount has been live, against the same stretch of time right before it started.",
+    "continue": "Continue",
+    "previewStays": "Heads up: {name} stays at <c>{price}</c> with {pct}% off, because prices round to whole Credits. Try <b>{min}% or more</b> to lower it.",
+    "previewStaysMore": "Heads up: {name} and {others, plural, one {# more} other {# more}} stay at their price with {pct}% off, because prices round to whole Credits. Try <b>{min}% or more</b> to lower {name}.",
+    "previewFloor": "Heads up: {name} is already at <c>1</c>, the lowest a price can go, so no discount lowers it."
   },
   "listingEdit": {
     "title": "Edit price",
