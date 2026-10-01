@@ -99,6 +99,14 @@ const BEST_PER_PAGE = 5
 const OWNERS_PER_PAGE = 5
 const DISCOUNTS_PER_PAGE = 5
 
+const STORE_TABS = ['overview', 'collections', 'discounts', 'audience'] as const
+type StoreTab = (typeof STORE_TABS)[number]
+
+/** A link straight to a tab (`?tab=audience`) opens it; anything else opens the overview. */
+function storedTab(raw: string | null): StoreTab {
+  return (STORE_TABS as readonly string[]).includes(raw ?? '') ? (raw as StoreTab) : 'overview'
+}
+
 const ROYALTIES_PER_PAGE = 5
 
 const EMPTY_RATES: RateBook = new Map()
@@ -853,7 +861,7 @@ function StoreSkeleton() {
 export function MyStore() {
   useSeo({ title: t('myStore.title'), noindex: true })
   const { session, error, signIn } = useWallet()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [range, setRange] = useState<StoreRange>({ key: '30d' })
   const [rangeOpen, setRangeOpen] = useState(false)
   const picker = useRef<RangePickerHandle>(null)
@@ -1090,7 +1098,27 @@ export function MyStore() {
   }, [ownerPage, ownerPages])
   const ownerAddresses = useMemo(() => (owners?.data ?? []).map(o => o.address).sort(), [owners])
   const { data: ownerProfiles } = useBuyerNames(ownerAddresses)
-  const { data: discounts } = useCreatorSales(session?.address, creatorSalesEnabled && !!session)
+  const discountsRead = useCreatorSales(session?.address, creatorSalesEnabled && !!session)
+  const discounts = discountsRead.data
+  useEffect(() => {
+    if (discountsRead.error) captureError(discountsRead.error, { flow: 'my_store', step: 'discounts' })
+  }, [discountsRead.error])
+  // The tab lives in the URL, so a refresh, the back button and a shared link all land on it. A creator
+  // without discounts has no Discounts tab, and a link to it opens the overview.
+  const visibleTabs = STORE_TABS.filter(key => key !== 'discounts' || mock || creatorSalesEnabled)
+  const chosenTab = storedTab(params.get('tab'))
+  const tab: StoreTab = visibleTabs.includes(chosenTab) ? chosenTab : 'overview'
+  function setTab(next: StoreTab) {
+    setParams(
+      prev => {
+        const query = new URLSearchParams(prev)
+        if (next === 'overview') query.delete('tab')
+        else query.set('tab', next)
+        return query
+      },
+      { replace: true }
+    )
+  }
 
   // The flag closes the page, not just the nav entry — otherwise the link is off and the URL is still live.
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
@@ -1350,8 +1378,48 @@ export function MyStore() {
             </S.Masthead>
 
             <S.PerfHead>
-              <S.PerfTitle>{t('myStore.performance')}</S.PerfTitle>
-              <S.PerfControls>
+              <S.Tabs
+                role="tablist"
+                aria-label={t('myStore.tabsAria')}
+                onKeyDown={event => {
+                  // Arrows move between tabs, the way a tab list is operated from the keyboard.
+                  const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+                  if (!step) return
+                  event.preventDefault()
+                  const next = visibleTabs[(visibleTabs.indexOf(tab) + step + visibleTabs.length) % visibleTabs.length]
+                  setTab(next)
+                  document.getElementById(`store-tab-${next}`)?.focus()
+                }}
+              >
+                {visibleTabs.map(key => (
+                  <S.Tab
+                    key={key}
+                    type="button"
+                    role="tab"
+                    id={`store-tab-${key}`}
+                    aria-selected={tab === key}
+                    aria-controls="store-tab-panel"
+                    tabIndex={tab === key ? 0 : -1}
+                    aria-label={
+                      key === 'discounts' && running.length > 0
+                        ? t('myStore.tabDiscountsRunning', { count: running.length })
+                        : undefined
+                    }
+                    onClick={() => {
+                      if (key !== tab) trackStore('Shop Changed Store Tab', { tab: key, previous_tab: tab })
+                      setTab(key)
+                    }}
+                    data-testid={`store-tab-${key}`}
+                  >
+                    {t(`myStore.tab.${key}`)}
+                    {key === 'discounts' && running.length > 0 ? (
+                      <S.TabCount aria-hidden>{running.length}</S.TabCount>
+                    ) : null}
+                  </S.Tab>
+                ))}
+              </S.Tabs>
+              {/* A discount is not read over a period: its history has its own dates. */}
+              <S.PerfControls style={tab === 'discounts' ? { display: 'none' } : undefined}>
                 <S.CurrencySwitch role="group" aria-label={t('myStore.currency')}>
                   {(['mana', 'usd'] as StoreCurrency[]).map(option => (
                     <S.Period
@@ -1434,1035 +1502,1114 @@ export function MyStore() {
               <StoreSkeleton />
             ) : (
               <>
-                <S.Tiles aria-label={t('myStore.summaryAria')}>
-                  <S.Tile>
-                    <S.TileKey>
-                      {t('myStore.tileSold')}
-                      <S.TileMark aria-hidden>🛍️</S.TileMark>
-                    </S.TileKey>
-                    <S.TileValue>
-                      <span data-testid="store-sold">{stats.sold.toLocaleString()}</span>
-                    </S.TileValue>
-                    {/* The bottom line is the movement where there is one. A store with nothing to compare
-                      against keeps the breakdown there instead, so the tile never ends on its figure. */}
-                    <S.TileFoot>
-                      <DeltaTag delta={trend.sold} period={period} />
-                      {!hasDelta(trend.sold) &&
-                        (stats.sold === 0
-                          ? t('myStore.tileSoldNone')
-                          : stats.resales === 0
-                            ? // "0 resold by you" is a fact about nothing. Most stores never resell, so for
-                              // most of them that clause was half the line and all of it noise.
-                              t('myStore.tileSoldFootMintsOnly', { mints: stats.mints })
-                            : t('myStore.tileSoldFoot', { mints: stats.mints, resales: stats.resales }))}
-                    </S.TileFoot>
-                  </S.Tile>
-                  <S.Tile>
-                    <S.TileKey>
-                      {t('myStore.tileEarnings')}
-                      <S.TileMark aria-hidden>💰</S.TileMark>
-                    </S.TileKey>
-                    <S.TileValue data-testid="store-earnings">
-                      <Amount wei={stats.earningsWei} usd={stats.earningsUsd} />
-                      {currency === 'usd' ? null : <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>}
-                    </S.TileValue>
-                    <S.TileFoot>
-                      <DeltaTag delta={earningsDelta} period={period} />
-                      {stats.partial ? (
-                        <>
-                          <S.Estimate>{t('myStore.estimate')}</S.Estimate> {t('myStore.tileEarningsPartial')}
-                        </>
-                      ) : hasDelta(earningsDelta) ? null : (
-                        t('myStore.tileEarningsFoot')
-                      )}
-                    </S.TileFoot>
-                  </S.Tile>
-                  <S.Tile>
-                    <S.TileKey>
-                      {t('myStore.tileListed')}
-                      <S.TileMark aria-hidden>🏷️</S.TileMark>
-                    </S.TileKey>
-                    <S.TileValue>
-                      {stats.listed + stats.classic}
-                      <S.TileUnit>{t('myStore.ofTotal', { n: items })}</S.TileUnit>
-                    </S.TileValue>
-                    <S.TileFoot>
-                      {items === 0
-                        ? t('myStore.tileListedNone')
-                        : t('myStore.tileListedFoot', { count: stats.neverListed })}
-                    </S.TileFoot>
-                  </S.Tile>
-                  <S.Tile>
-                    <S.TileKey>
-                      {t('myStore.tileDiscounts')}
-                      <S.TileMark aria-hidden>🔥</S.TileMark>
-                    </S.TileKey>
-                    <S.TileValue data-testid="store-discounts">{running.length}</S.TileValue>
-                    <S.TileFoot>
-                      {running.length > 0 ? t('myStore.tileDiscountsFoot') : t('myStore.tileDiscountsNone')}
-                    </S.TileFoot>
-                  </S.Tile>
-                </S.Tiles>
-
-                <S.Panel aria-labelledby="store-chart-h" data-testid="store-chart-panel">
-                  <StoreSalesPanel
-                    heading={
-                      <div>
-                        <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
-                        <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
-                      </div>
-                    }
-                    address={session?.address}
-                    range={resolved}
-                    rows={chartRows}
-                    truncated={liveSales.truncated}
-                    // The rates count too: until they land every sale would read as unpriced and the line as zero.
-                    fetching={liveSales.isFetching || (currency === 'usd' && !mock && ratesRead.isFetching)}
-                    collections={stats.collections}
-                    onTrack={trackStore}
-                    comparisonRows={mock ? mockChartRows : undefined}
-                    currency={currency}
-                    rateBook={rateBook}
-                  />
-                </S.Panel>
-
-                {/* The standing nudge, above the list it is about. Only the copy differs from the one the
-                 migration tool shows: here the reason to switch is that a discount cannot re-price a
-                 listing quoted in MANA. */}
-                {stats.classic > 0 && !pricingDismissed ? (
-                  <ManaPricingBanner
-                    count={stats.classic}
-                    reason="discounts"
-                    to={withEnv('/activity?section=listings', env)}
-                    onDismiss={() => {
-                      trackStore('Shop Clicked Store Action', {
-                        action: 'dismiss_pricing_banner',
-                        classic_items: stats.classic
-                      })
-                      setPricingDismissed(true)
-                    }}
-                    onCta={() =>
-                      trackStore('Shop Clicked Store Action', { action: 'update_prices', classic_items: stats.classic })
-                    }
-                  />
-                ) : null}
-
-                <S.Panel aria-labelledby="store-coll-h">
-                  <S.ListHead>
-                    <S.PanelTitle id="store-coll-h">
-                      {t('myStore.collectionsCount', { count: stats.collections.length })}
-                    </S.PanelTitle>
-                    <S.HeadActions>
-                      {stats.collections.length > 1 ? (
-                        <S.Sort
-                          options={[
-                            { value: 'sold', label: t('myStore.sortSold') },
-                            { value: 'earned', label: t('myStore.sortEarned') },
-                            ...(stats.collections.some(c => c.createdAt)
-                              ? [{ value: 'newest', label: t('myStore.sortNewest') }]
-                              : []),
-                            { value: 'name', label: t('myStore.sortName') }
-                          ]}
-                          value={collectionSort ? undefined : sort}
-                          placeholder={t('myStore.sortCustom')}
-                          onChange={value => {
-                            trackStore('Shop Sorted Store Collections', { sort: value })
-                            setSort(value as Sort)
-                            setCollectionSort(null)
-                            setCollectionPage(0)
-                            rememberSort(value as Sort)
-                          }}
-                          align="right"
-                          ariaLabel={t('myStore.sortBy')}
-                          className="store-sort"
-                        />
-                      ) : null}
-                      {/* The list's own call to action, where the design puts it: a creator who has just
-                        read how their collections are doing is the one deciding to discount one. */}
-                      {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
-                        <Button
-                          variant="red"
-                          size="sm"
-                          onClick={() => setSaleOpen(true)}
-                          data-testid="store-new-discount"
-                        >
-                          {/* Decorative, and hidden from the accessible name: a reader announcing "fire,
-                            create a discount" is worse than one that just says what the button does. */}
-                          <span aria-hidden>🔥</span>
-                          {t('myStore.newDiscount')}
-                        </Button>
-                      ) : null}
-                    </S.HeadActions>
-                  </S.ListHead>
-                  {stats.collections.length === 0 ? (
-                    <S.Empty>{t('myStore.noCollections')}</S.Empty>
-                  ) : (
+                <div role="tabpanel" id="store-tab-panel" aria-labelledby={`store-tab-${tab}`}>
+                  {tab === 'overview' ? (
                     <>
-                      <S.List ref={collectionsHeight.ref} style={collectionsHeight.style}>
-                        <S.ColHead>
-                          <span />
-                          <span />
-                          {(
-                            [
-                              ['name', t('myStore.colCollection'), 'asc'],
-                              null,
-                              ['claimed', t('myStore.colClaimed'), 'desc'],
-                              ['earnings', t('myStore.colEarnings'), 'desc'],
-                              [
-                                'sold',
-                                windowDays ? t('myStore.colTrend', { days: windowDays }) : t('myStore.colTrendAll'),
-                                'desc'
-                              ]
-                            ] as ([CollectionColumn, string, SortDir] | null)[]
-                          ).map((column, index) =>
-                            column ? (
-                              <span key={column[0]}>
-                                <SortHeader
-                                  label={column[1]}
-                                  dir={dirOf(collectionSort, column[0])}
-                                  testId={`store-sort-collections-${column[0]}`}
-                                  onSort={() => {
-                                    const next = nextSort(collectionSort, column[0], column[2])
-                                    trackStore('Shop Sorted Store Table', {
-                                      table: 'collections',
-                                      column: next.key,
-                                      direction: next.dir
-                                    })
-                                    setCollectionSort(next)
-                                    setCollectionPage(0)
-                                  }}
-                                />
-                              </span>
-                            ) : (
-                              <span key={`plain-${index}`}>{t('myStore.colDiscounts')}</span>
-                            )
-                          )}
-                          <span>{t('myStore.colActions')}</span>
-                        </S.ColHead>
-                        {collectionsShown.map(collection => (
-                          <CollectionRow
-                            key={collection.contractAddress}
-                            collection={collection}
-                            discount={discountByCollection.get(collection.contractAddress) ?? null}
-                            savesByKey={savesByKey}
-                            env={env}
-                            open={open.has(collection.contractAddress)}
-                            onToggle={() => {
-                              // Opening only: a collapse says nothing about what the creator went looking for.
-                              if (!open.has(collection.contractAddress)) {
-                                trackStore('Shop Expanded Store Collection', {
-                                  contract_address: collection.contractAddress,
-                                  items: collection.items.length,
-                                  exhausted: collection.exhausted,
-                                  has_discount: discountByCollection.has(collection.contractAddress)
+                      <S.Tiles aria-label={t('myStore.summaryAria')}>
+                        <S.Tile>
+                          <S.TileKey>
+                            {t('myStore.tileSold')}
+                            <S.TileMark aria-hidden>🛍️</S.TileMark>
+                          </S.TileKey>
+                          <S.TileValue>
+                            <span data-testid="store-sold">{stats.sold.toLocaleString()}</span>
+                          </S.TileValue>
+                          {/* The bottom line is the movement where there is one. A store with nothing to compare
+                      against keeps the breakdown there instead, so the tile never ends on its figure. */}
+                          <S.TileFoot>
+                            <DeltaTag delta={trend.sold} period={period} />
+                            {!hasDelta(trend.sold) &&
+                              (stats.sold === 0
+                                ? t('myStore.tileSoldNone')
+                                : stats.resales === 0
+                                  ? // "0 resold by you" is a fact about nothing. Most stores never resell, so for
+                                    // most of them that clause was half the line and all of it noise.
+                                    t('myStore.tileSoldFootMintsOnly', { mints: stats.mints })
+                                  : t('myStore.tileSoldFoot', { mints: stats.mints, resales: stats.resales }))}
+                          </S.TileFoot>
+                        </S.Tile>
+                        <S.Tile>
+                          <S.TileKey>
+                            {t('myStore.tileEarnings')}
+                            <S.TileMark aria-hidden>💰</S.TileMark>
+                          </S.TileKey>
+                          <S.TileValue data-testid="store-earnings">
+                            <Amount wei={stats.earningsWei} usd={stats.earningsUsd} />
+                            {currency === 'usd' ? null : <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>}
+                          </S.TileValue>
+                          <S.TileFoot>
+                            <DeltaTag delta={earningsDelta} period={period} />
+                            {stats.partial ? (
+                              <>
+                                <S.Estimate>{t('myStore.estimate')}</S.Estimate> {t('myStore.tileEarningsPartial')}
+                              </>
+                            ) : hasDelta(earningsDelta) ? null : (
+                              t('myStore.tileEarningsFoot')
+                            )}
+                          </S.TileFoot>
+                        </S.Tile>
+                        <S.Tile>
+                          <S.TileKey>
+                            {t('myStore.tileListed')}
+                            <S.TileMark aria-hidden>🏷️</S.TileMark>
+                          </S.TileKey>
+                          <S.TileValue>
+                            {stats.listed + stats.classic}
+                            <S.TileUnit>{t('myStore.ofTotal', { n: items })}</S.TileUnit>
+                          </S.TileValue>
+                          <S.TileFoot>
+                            {items === 0
+                              ? t('myStore.tileListedNone')
+                              : t('myStore.tileListedFoot', { count: stats.neverListed })}
+                          </S.TileFoot>
+                        </S.Tile>
+                        <S.Tile>
+                          <S.TileKey>
+                            {t('myStore.tileDiscounts')}
+                            <S.TileMark aria-hidden>🔥</S.TileMark>
+                          </S.TileKey>
+                          <S.TileValue data-testid="store-discounts">{running.length}</S.TileValue>
+                          {running.length > 0 ? (
+                            <S.TileAction
+                              type="button"
+                              onClick={() => {
+                                trackStore('Shop Changed Store Tab', {
+                                  tab: 'discounts',
+                                  previous_tab: tab,
+                                  from: 'tile'
                                 })
-                              }
-                              setOpen(current => {
-                                const next = new Set(current)
-                                if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
-                                return next
-                              })
-                            }}
-                            onManage={() =>
-                              trackStore('Shop Clicked Store Action', {
-                                action: 'manage_collection',
-                                contract_address: collection.contractAddress
-                              })
-                            }
-                            onIssue={
-                              session
-                                ? item => {
-                                    trackStore('Shop Clicked Store Action', {
-                                      action: 'issue_copies',
-                                      contract_address: collection.contractAddress
-                                    })
-                                    setIssuing({ item, contractAddress: collection.contractAddress })
-                                  }
-                                : undefined
-                            }
-                          />
-                        ))}
-                      </S.List>
-                    </>
-                  )}
-                  {stats.collections.length > 0 ? (
-                    <S.ListFoot>
-                      <span data-testid="store-showing">
-                        {t('myStore.showingOf', {
-                          shown: collectionsShown.length.toLocaleString(),
-                          total: stats.collections.length.toLocaleString()
-                        })}
-                        {/* The seam the old panel hint carried. A store past the fetch cap has trends and
-                          per-collection figures built from part of the window, and saying so belongs
-                          next to the count rather than nowhere. */}
-                        {stats.breakdownPartial ? (
-                          <> · {t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })}</>
-                        ) : null}
-                      </span>
-                      <Pager
-                        page={collectionPageShown}
-                        pages={collectionPages}
-                        onChange={next => {
-                          trackStore('Shop Paged Store Table', { table: 'collections', page: next + 1 })
-                          setCollectionPage(next)
-                        }}
-                        name="collections"
-                      />
-                    </S.ListFoot>
-                  ) : null}
-                </S.Panel>
+                                setTab('discounts')
+                              }}
+                              data-testid="store-discounts-open"
+                            >
+                              {t('myStore.tileDiscountsOpen')}
+                              <Icon name="chevron-down" size={14} aria-hidden style={{ transform: 'rotate(-90deg)' }} />
+                            </S.TileAction>
+                          ) : (
+                            <S.TileFoot>{t('myStore.tileDiscountsNone')}</S.TileFoot>
+                          )}
+                        </S.Tile>
+                      </S.Tiles>
 
-                {(mock || (creatorSalesEnabled && !!session)) && discountHistory.length > 0 ? (
-                  <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
-                    <S.PanelHeadStack>
-                      <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
-                      <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
-                    </S.PanelHeadStack>
-                    <CreatorSales
-                      sales={discountHistory.slice(
-                        discountPageShown * DISCOUNTS_PER_PAGE,
-                        (discountPageShown + 1) * DISCOUNTS_PER_PAGE
-                      )}
-                      session={mock ? null : session}
-                      names={collectionNames}
-                      tone="dark"
-                    />
-                    {discountPages > 1 ? (
-                      <S.ListFoot>
-                        <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
-                        <Pager
-                          page={discountPageShown}
-                          pages={discountPages}
-                          onChange={next => {
-                            trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
-                            setDiscountPage(next)
-                          }}
-                          name="discounts"
+                      <S.Panel aria-labelledby="store-chart-h" data-testid="store-chart-panel">
+                        <StoreSalesPanel
+                          heading={
+                            <div>
+                              <S.PanelTitle id="store-chart-h">{t('myStore.chart.title')}</S.PanelTitle>
+                              <S.PanelSub>{t('myStore.chart.sub')}</S.PanelSub>
+                            </div>
+                          }
+                          address={session?.address}
+                          range={resolved}
+                          rows={chartRows}
+                          truncated={liveSales.truncated}
+                          // The rates count too: until they land every sale would read as unpriced and the line as zero.
+                          fetching={liveSales.isFetching || (currency === 'usd' && !mock && ratesRead.isFetching)}
+                          collections={stats.collections}
+                          onTrack={trackStore}
+                          comparisonRows={mock ? mockChartRows : undefined}
+                          currency={currency}
+                          rateBook={rateBook}
                         />
-                      </S.ListFoot>
-                    ) : null}
-                  </S.Panel>
-                ) : null}
+                      </S.Panel>
 
-                <S.Duo>
-                  <S.Panel aria-labelledby="store-best-h">
-                    <S.PanelHeadStack>
-                      <div>
-                        <S.PanelTitle id="store-best-h">{t('myStore.bestSellers')}</S.PanelTitle>
-                        <S.PanelSub>
-                          {t('myStore.bestSellersSub', { n: best.length })}
-                          {/* Earnings here are summed from the rows the cap allowed, never from the server's
+                      <S.Duo>
+                        <S.Panel aria-labelledby="store-best-h">
+                          <S.PanelHeadStack>
+                            <div>
+                              <S.PanelTitle id="store-best-h">{t('myStore.bestSellers')}</S.PanelTitle>
+                              <S.PanelSub>
+                                {t('myStore.bestSellersSub', { n: best.length })}
+                                {/* Earnings here are summed from the rows the cap allowed, never from the server's
                             exact aggregate, which answers per collection and not per item. The list below
                             carries the same seam and must not be the only place that admits it. */}
-                          {stats.breakdownPartial ? (
-                            <> · {t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })}</>
+                                {stats.breakdownPartial ? (
+                                  <> · {t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })}</>
+                                ) : null}
+                              </S.PanelSub>
+                            </div>
+                          </S.PanelHeadStack>
+                          {best.length === 0 ? (
+                            <S.Empty>{t('myStore.noBestSellers')}</S.Empty>
+                          ) : (
+                            <S.FeedWrap ref={bestHeight.ref} style={bestHeight.style}>
+                              <S.BestFeed>
+                                <thead>
+                                  <tr>
+                                    <th scope="col" aria-sort={ariaSort(dirOf(bestSortInForce, 'name'))}>
+                                      <S.RankCell>
+                                        <S.Rank aria-hidden>#</S.Rank>
+                                        <SortHeader
+                                          label={t('myStore.colItem')}
+                                          dir={dirOf(bestSortInForce, 'name')}
+                                          testId="store-sort-best-name"
+                                          onSort={() => sortBest('name', 'asc')}
+                                        />
+                                      </S.RankCell>
+                                    </th>
+                                    <th scope="col" aria-sort={ariaSort(dirOf(bestSortInForce, 'collection'))}>
+                                      <SortHeader
+                                        label={t('myStore.colCollection')}
+                                        dir={dirOf(bestSortInForce, 'collection')}
+                                        testId="store-sort-best-collection"
+                                        onSort={() => sortBest('collection', 'asc')}
+                                      />
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      style={{ textAlign: 'center' }}
+                                      aria-sort={ariaSort(dirOf(bestSortInForce, 'sold'))}
+                                    >
+                                      <SortHeader
+                                        label={t('myStore.colSold')}
+                                        dir={dirOf(bestSortInForce, 'sold')}
+                                        testId="store-sort-best-sold"
+                                        onSort={() => sortBest('sold', 'desc')}
+                                      />
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      style={{ textAlign: 'right' }}
+                                      aria-sort={ariaSort(dirOf(bestSortInForce, 'earnings'))}
+                                    >
+                                      <SortHeader
+                                        label={t('myStore.colEarnings')}
+                                        dir={dirOf(bestSortInForce, 'earnings')}
+                                        align="right"
+                                        testId="store-sort-best-earnings"
+                                        onSort={() => sortBest('earnings', 'desc')}
+                                      />
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {bestShown.map(entry => (
+                                    <tr key={entry.key} data-testid="store-best">
+                                      <td>
+                                        <S.RankCell>
+                                          <S.Rank>{entry.rank}</S.Rank>
+                                          <S.SaleItem
+                                            as="a"
+                                            {...{
+                                              href: appHref(itemHref(entry.contractAddress, entry.itemId, env)),
+                                              target: '_blank',
+                                              rel: 'noopener noreferrer',
+                                              onClick: () =>
+                                                trackStore('Shop Clicked Store Action', {
+                                                  action: 'open_item',
+                                                  table: 'best_sellers',
+                                                  rank: entry.rank
+                                                }),
+                                              'data-testid': 'store-best-item'
+                                            }}
+                                          >
+                                            <S.SaleThumb style={{ backgroundImage: rarityMedia(entry.rarity) }}>
+                                              {entry.thumbnail ? (
+                                                <img src={entry.thumbnail} alt="" loading="lazy" />
+                                              ) : null}
+                                            </S.SaleThumb>
+                                            <span>{entry.name}</span>
+                                          </S.SaleItem>
+                                        </S.RankCell>
+                                      </td>
+                                      <td data-dim>{entry.collectionName}</td>
+                                      <td
+                                        style={{ textAlign: 'center', fontWeight: 600 }}
+                                        data-testid="store-best-sold"
+                                      >
+                                        {entry.sold.toLocaleString()}
+                                      </td>
+                                      <td data-money>
+                                        <S.Money>
+                                          <Amount
+                                            wei={entry.earnedWei}
+                                            usd={itemUsd.get(entry.key.toLowerCase()) ?? null}
+                                          />
+                                        </S.Money>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </S.BestFeed>
+                            </S.FeedWrap>
+                          )}
+                          {bestPages > 1 ? (
+                            <S.ListFoot>
+                              <span />
+                              <Pager
+                                page={bestPageShown}
+                                pages={bestPages}
+                                onChange={next => {
+                                  trackStore('Shop Paged Store Table', { table: 'best_sellers', page: next + 1 })
+                                  setBestPage(next)
+                                }}
+                                name="best"
+                              />
+                            </S.ListFoot>
                           ) : null}
-                        </S.PanelSub>
-                      </div>
-                    </S.PanelHeadStack>
-                    {best.length === 0 ? (
-                      <S.Empty>{t('myStore.noBestSellers')}</S.Empty>
-                    ) : (
-                      <S.FeedWrap ref={bestHeight.ref} style={bestHeight.style}>
-                        <S.BestFeed>
-                          <thead>
-                            <tr>
-                              <th scope="col" aria-sort={ariaSort(dirOf(bestSortInForce, 'name'))}>
-                                <S.RankCell>
-                                  <S.Rank aria-hidden>#</S.Rank>
-                                  <SortHeader
-                                    label={t('myStore.colItem')}
-                                    dir={dirOf(bestSortInForce, 'name')}
-                                    testId="store-sort-best-name"
-                                    onSort={() => sortBest('name', 'asc')}
-                                  />
-                                </S.RankCell>
-                              </th>
-                              <th scope="col" aria-sort={ariaSort(dirOf(bestSortInForce, 'collection'))}>
-                                <SortHeader
-                                  label={t('myStore.colCollection')}
-                                  dir={dirOf(bestSortInForce, 'collection')}
-                                  testId="store-sort-best-collection"
-                                  onSort={() => sortBest('collection', 'asc')}
-                                />
-                              </th>
-                              <th
-                                scope="col"
-                                style={{ textAlign: 'center' }}
-                                aria-sort={ariaSort(dirOf(bestSortInForce, 'sold'))}
-                              >
-                                <SortHeader
-                                  label={t('myStore.colSold')}
-                                  dir={dirOf(bestSortInForce, 'sold')}
-                                  testId="store-sort-best-sold"
-                                  onSort={() => sortBest('sold', 'desc')}
-                                />
-                              </th>
-                              <th
-                                scope="col"
-                                style={{ textAlign: 'right' }}
-                                aria-sort={ariaSort(dirOf(bestSortInForce, 'earnings'))}
-                              >
-                                <SortHeader
-                                  label={t('myStore.colEarnings')}
-                                  dir={dirOf(bestSortInForce, 'earnings')}
-                                  align="right"
-                                  testId="store-sort-best-earnings"
-                                  onSort={() => sortBest('earnings', 'desc')}
-                                />
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {bestShown.map(entry => (
-                              <tr key={entry.key} data-testid="store-best">
-                                <td>
-                                  <S.RankCell>
-                                    <S.Rank>{entry.rank}</S.Rank>
-                                    <S.SaleItem
-                                      as="a"
-                                      {...{
-                                        href: appHref(itemHref(entry.contractAddress, entry.itemId, env)),
-                                        target: '_blank',
-                                        rel: 'noopener noreferrer',
-                                        onClick: () =>
-                                          trackStore('Shop Clicked Store Action', {
-                                            action: 'open_item',
-                                            table: 'best_sellers',
-                                            rank: entry.rank
-                                          }),
-                                        'data-testid': 'store-best-item'
-                                      }}
-                                    >
-                                      <S.SaleThumb style={{ backgroundImage: rarityMedia(entry.rarity) }}>
-                                        {entry.thumbnail ? <img src={entry.thumbnail} alt="" loading="lazy" /> : null}
-                                      </S.SaleThumb>
-                                      <span>{entry.name}</span>
-                                    </S.SaleItem>
-                                  </S.RankCell>
-                                </td>
-                                <td data-dim>{entry.collectionName}</td>
-                                <td style={{ textAlign: 'center', fontWeight: 600 }} data-testid="store-best-sold">
-                                  {entry.sold.toLocaleString()}
-                                </td>
-                                <td data-money>
-                                  <S.Money>
-                                    <Amount wei={entry.earnedWei} usd={itemUsd.get(entry.key.toLowerCase()) ?? null} />
-                                  </S.Money>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </S.BestFeed>
-                      </S.FeedWrap>
-                    )}
-                    {bestPages > 1 ? (
-                      <S.ListFoot>
-                        <span />
-                        <Pager
-                          page={bestPageShown}
-                          pages={bestPages}
-                          onChange={next => {
-                            trackStore('Shop Paged Store Table', { table: 'best_sellers', page: next + 1 })
-                            setBestPage(next)
-                          }}
-                          name="best"
-                        />
-                      </S.ListFoot>
-                    ) : null}
-                  </S.Panel>
+                        </S.Panel>
 
-                  <S.Panel aria-labelledby="store-feed-h">
-                    <S.PanelHeadStack>
-                      <div>
-                        <S.PanelTitle id="store-feed-h">{t('myStore.recentSales')}</S.PanelTitle>
-                        <S.PanelSub>{t('myStore.recentSalesSub')}</S.PanelSub>
-                      </div>
-                      <S.ViewAll
-                        to="/activity"
-                        onClick={() => trackStore('Shop Clicked Store Action', { action: 'view_all_sales' })}
-                      >
-                        {t('myStore.viewAll')}
-                        <Icon name="arrow-up-right" size={14} aria-hidden />
-                      </S.ViewAll>
-                    </S.PanelHeadStack>
-                    {salesRows.length === 0 ? (
-                      <S.Empty>{t('myStore.noSales')}</S.Empty>
-                    ) : (
-                      <S.FeedWrap ref={salesHeight.ref} style={salesHeight.style}>
-                        <S.SaleFeed>
-                          <thead>
-                            <tr>
-                              <th scope="col">{t('myStore.colItem')}</th>
-                              <th scope="col">{t('myStore.colCollection')}</th>
-                              <th scope="col" style={{ textAlign: 'right' }}>
-                                {t('myStore.colPrice')}
-                              </th>
-                              <th scope="col">{t('myStore.colBuyer')}</th>
-                              <th scope="col">{t('myStore.colDate')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {salesRows.map(row => {
-                              const collection = stats.collections.find(
-                                c => c.contractAddress === row.contractAddress.toLowerCase()
-                              )
-                              const item = collection?.items.find(i => i.itemId === row.itemId)
-                              const buyer = buyers?.get(row.buyer.toLowerCase())
-                              const face = buyer?.avatar?.snapshots?.face256
-                              return (
-                                <tr key={row.id} data-testid="store-sale">
-                                  <td>
-                                    <S.SaleItem
-                                      as={row.itemId ? 'a' : 'span'}
-                                      {...(row.itemId
-                                        ? {
-                                            href: appHref(itemHref(row.contractAddress, row.itemId, env)),
-                                            target: '_blank',
-                                            rel: 'noopener noreferrer',
-                                            onClick: () =>
-                                              trackStore('Shop Clicked Store Action', {
-                                                action: 'open_item',
-                                                table: 'recent_sales'
-                                              }),
-                                            'data-testid': 'store-sale-item'
-                                          }
-                                        : {})}
-                                    >
-                                      <S.SaleThumb style={{ backgroundImage: rarityMedia(item?.rarity) }}>
-                                        {item?.thumbnail ? <img src={item.thumbnail} alt="" loading="lazy" /> : null}
-                                      </S.SaleThumb>
-                                      <S.SaleLines>
-                                        <span>
-                                          {item?.name ?? collection?.name ?? row.itemId ?? t('myStore.unknownItem')}
-                                        </span>
-                                        {/* The kind lost its own column to the collection, and it is the one fact
+                        <S.Panel aria-labelledby="store-feed-h">
+                          <S.PanelHeadStack>
+                            <div>
+                              <S.PanelTitle id="store-feed-h">{t('myStore.recentSales')}</S.PanelTitle>
+                              <S.PanelSub>{t('myStore.recentSalesSub')}</S.PanelSub>
+                            </div>
+                            <S.ViewAll
+                              to="/activity"
+                              onClick={() => trackStore('Shop Clicked Store Action', { action: 'view_all_sales' })}
+                            >
+                              {t('myStore.viewAll')}
+                              <Icon name="arrow-up-right" size={14} aria-hidden />
+                            </S.ViewAll>
+                          </S.PanelHeadStack>
+                          {salesRows.length === 0 ? (
+                            <S.Empty>{t('myStore.noSales')}</S.Empty>
+                          ) : (
+                            <S.FeedWrap ref={salesHeight.ref} style={salesHeight.style}>
+                              <S.SaleFeed>
+                                <thead>
+                                  <tr>
+                                    <th scope="col">{t('myStore.colItem')}</th>
+                                    <th scope="col">{t('myStore.colCollection')}</th>
+                                    <th scope="col" style={{ textAlign: 'right' }}>
+                                      {t('myStore.colPrice')}
+                                    </th>
+                                    <th scope="col">{t('myStore.colBuyer')}</th>
+                                    <th scope="col">{t('myStore.colDate')}</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {salesRows.map(row => {
+                                    const collection = stats.collections.find(
+                                      c => c.contractAddress === row.contractAddress.toLowerCase()
+                                    )
+                                    const item = collection?.items.find(i => i.itemId === row.itemId)
+                                    const buyer = buyers?.get(row.buyer.toLowerCase())
+                                    const face = buyer?.avatar?.snapshots?.face256
+                                    return (
+                                      <tr key={row.id} data-testid="store-sale">
+                                        <td>
+                                          <S.SaleItem
+                                            as={row.itemId ? 'a' : 'span'}
+                                            {...(row.itemId
+                                              ? {
+                                                  href: appHref(itemHref(row.contractAddress, row.itemId, env)),
+                                                  target: '_blank',
+                                                  rel: 'noopener noreferrer',
+                                                  onClick: () =>
+                                                    trackStore('Shop Clicked Store Action', {
+                                                      action: 'open_item',
+                                                      table: 'recent_sales'
+                                                    }),
+                                                  'data-testid': 'store-sale-item'
+                                                }
+                                              : {})}
+                                          >
+                                            <S.SaleThumb style={{ backgroundImage: rarityMedia(item?.rarity) }}>
+                                              {item?.thumbnail ? (
+                                                <img src={item.thumbnail} alt="" loading="lazy" />
+                                              ) : null}
+                                            </S.SaleThumb>
+                                            <S.SaleLines>
+                                              <span>
+                                                {item?.name ??
+                                                  collection?.name ??
+                                                  row.itemId ??
+                                                  t('myStore.unknownItem')}
+                                              </span>
+                                              {/* The kind lost its own column to the collection, and it is the one fact
                                           about a row that nothing else on the page can answer. */}
-                                        <Tooltip content={t('myStore.kindHint')}>
-                                          <S.Kind data-kind={row.type} data-testid="store-kind-hint">
-                                            {row.type === 'mint' ? t('myStore.kindMint') : t('myStore.kindResale')}
-                                          </S.Kind>
-                                        </Tooltip>
-                                      </S.SaleLines>
-                                    </S.SaleItem>
-                                  </td>
-                                  <td data-dim>{collection?.name ?? '—'}</td>
-                                  <td data-money>
-                                    <S.Money>
-                                      <Amount wei={weiOf(row.price)} usd={usdOfSale(row, rateBook)} />
-                                    </S.Money>
-                                  </td>
-                                  <td>
-                                    {/* A shortened address is the ANSWER for a buyer with no profile name, not a
+                                              <Tooltip content={t('myStore.kindHint')}>
+                                                <S.Kind data-kind={row.type} data-testid="store-kind-hint">
+                                                  {row.type === 'mint'
+                                                    ? t('myStore.kindMint')
+                                                    : t('myStore.kindResale')}
+                                                </S.Kind>
+                                              </Tooltip>
+                                            </S.SaleLines>
+                                          </S.SaleItem>
+                                        </td>
+                                        <td data-dim>{collection?.name ?? '—'}</td>
+                                        <td data-money>
+                                          <S.Money>
+                                            <Amount wei={weiOf(row.price)} usd={usdOfSale(row, rateBook)} />
+                                          </S.Money>
+                                        </td>
+                                        <td>
+                                          {/* A shortened address is the ANSWER for a buyer with no profile name, not a
                                       loading state — writing it first and swapping it for the real name reads
                                       as a glitch, so the row holds its place until the lookup answers. */}
-                                    {buyersLoading ? (
-                                      <S.FaceSkeleton aria-hidden>
-                                        <i />
-                                        <b />
-                                      </S.FaceSkeleton>
-                                    ) : (
-                                      <S.Buyer
-                                        href={accountHref(row.buyer)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={() =>
-                                          trackStore('Shop Clicked Store Action', {
-                                            action: 'open_buyer',
-                                            table: 'recent_sales'
-                                          })
-                                        }
-                                        data-testid="store-sale-buyer"
-                                      >
-                                        <S.Face
-                                          style={face ? { backgroundImage: `url(${face})` } : undefined}
-                                          aria-hidden
-                                        />
-                                        {buyerName(row.buyer, buyers)}
-                                      </S.Buyer>
-                                    )}
-                                  </td>
-                                  <td data-dim>{ago(row.timestamp)}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </S.SaleFeed>
-                      </S.FeedWrap>
-                    )}
-                    {sales.pages > 1 ? (
-                      <S.ListFoot>
-                        <span />
-                        <Pager
-                          page={page}
-                          pages={sales.pages}
-                          onChange={next => {
-                            trackStore('Shop Paged Store Table', { table: 'recent_sales', page: next + 1 })
-                            setPage(next)
-                          }}
-                          name="sales"
-                        />
-                      </S.ListFoot>
-                    ) : null}
-                  </S.Panel>
-                </S.Duo>
-
-                <S.SectionHead>
-                  <S.SectionTitle id="store-audience-h">{t('myStore.audience')}</S.SectionTitle>
-                  <S.SectionSub>{t('myStore.audienceSub')}</S.SectionSub>
-                </S.SectionHead>
-
-                <S.AudienceTiles>
-                  <S.Tile>
-                    <S.TileKey>
-                      <span>
-                        {t('myStore.tileCollectors')}
-                        <Tooltip content={t('myStore.collectorsHint')}>
-                          <S.Info
-                            type="button"
-                            aria-label={t('myStore.tileCollectors')}
-                            data-testid="store-collectors-hint"
-                          >
-                            <Icon name="info" className="ico" aria-hidden />
-                          </S.Info>
-                        </Tooltip>
-                      </span>
-                      <S.TileMark aria-hidden>👥</S.TileMark>
-                    </S.TileKey>
-                    <S.TileValue data-testid="store-collectors">{trend.collectors.total.toLocaleString()}</S.TileValue>
-                    <S.TileFoot>
-                      {trend.collectors.total === 0 ? (
-                        t('myStore.tileCollectorsNone')
-                      ) : (
-                        <>
-                          {stats.breakdownPartial ? (
-                            <>
-                              <S.Estimate>{t('myStore.estimate')}</S.Estimate>{' '}
-                            </>
+                                          {buyersLoading ? (
+                                            <S.FaceSkeleton aria-hidden>
+                                              <i />
+                                              <b />
+                                            </S.FaceSkeleton>
+                                          ) : (
+                                            <S.Buyer
+                                              href={accountHref(row.buyer)}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              onClick={() =>
+                                                trackStore('Shop Clicked Store Action', {
+                                                  action: 'open_buyer',
+                                                  table: 'recent_sales'
+                                                })
+                                              }
+                                              data-testid="store-sale-buyer"
+                                            >
+                                              <S.Face
+                                                style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                                aria-hidden
+                                              />
+                                              {buyerName(row.buyer, buyers)}
+                                            </S.Buyer>
+                                          )}
+                                        </td>
+                                        <td data-dim>{ago(row.timestamp)}</td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </S.SaleFeed>
+                            </S.FeedWrap>
+                          )}
+                          {sales.pages > 1 ? (
+                            <S.ListFoot>
+                              <span />
+                              <Pager
+                                page={page}
+                                pages={sales.pages}
+                                onChange={next => {
+                                  trackStore('Shop Paged Store Table', { table: 'recent_sales', page: next + 1 })
+                                  setPage(next)
+                                }}
+                                name="sales"
+                              />
+                            </S.ListFoot>
                           ) : null}
-                          {trend.collectors.topSharePct >= 50
-                            ? t('myStore.tileCollectorsConcentrated', {
-                                // Rounded DOWN: a store where one address took 2,202 of 2,206 sales is not
-                                // "100% of your sales" while four other people are standing right there.
-                                pct: Math.floor(trend.collectors.topSharePct)
-                              })
-                            : t('myStore.tileCollectorsFoot', {
-                                repeat: trend.collectors.repeat,
-                                pct: Math.round(trend.collectors.repeatPct)
-                              })}
-                        </>
-                      )}
-                    </S.TileFoot>
-                  </S.Tile>
-                  {stats.royalties ? (
-                    <S.Tile>
-                      <S.TileKey>
-                        <span>
-                          {t('myStore.tileRoyalties')}
-                          <Tooltip content={t('myStore.royaltiesHint')}>
-                            <S.Info
-                              type="button"
-                              aria-label={t('myStore.tileRoyalties')}
-                              data-testid="store-royalties-hint"
-                            >
-                              <Icon name="info" className="ico" aria-hidden />
-                            </S.Info>
-                          </Tooltip>
-                        </span>
-                        <S.TileMark aria-hidden>🤝</S.TileMark>
-                      </S.TileKey>
-                      <S.TileValue data-testid="store-royalties">
-                        {/* Exact once the server reports what each resale paid; an estimate from volume before. */}
-                        {stats.royalties.paidWei != null ? null : <S.Approx>≈</S.Approx>}
-                        <CurrencyMark kind="mana" />
-                        {mana(stats.royalties.paidWei ?? royaltyOf(stats.royalties.volumeWei))}
-                        <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>
-                      </S.TileValue>
-                      <S.TileFoot>
-                        <DeltaTag delta={trend.royalties} period={period} />
-                        {hasDelta(trend.royalties) ? null : (
-                          <span>
-                            {tNode('myStore.tileRoyaltiesFoot', {
-                              m: (c: ReactNode) => (
-                                <>
-                                  <CurrencyMark kind="mana" />
-                                  {c}
-                                </>
-                              ),
-                              count: stats.royalties.resales,
-                              volume: mana(stats.royalties.volumeWei)
-                            })}
-                          </span>
-                        )}
-                      </S.TileFoot>
-                      {stats.royalties.resales > 0 ? (
-                        <S.TileAction
-                          type="button"
-                          aria-expanded={royaltiesOpen}
-                          aria-controls="store-royalties-panel"
-                          onClick={() => {
-                            if (!royaltiesOpen) trackStore('Shop Clicked Store Action', { action: 'open_royalties' })
-                            setRoyaltiesOpen(open => !open)
-                            setRoyaltyPage(0)
-                          }}
-                          data-testid="store-royalties-open"
-                        >
-                          {t(royaltiesOpen ? 'myStore.royaltiesHide' : 'myStore.royaltiesShow')}
-                          <Icon
-                            name="chevron-down"
-                            size={14}
-                            aria-hidden
-                            style={{ transform: royaltiesOpen ? 'rotate(180deg)' : undefined }}
-                          />
-                        </S.TileAction>
-                      ) : null}
-                    </S.Tile>
+                        </S.Panel>
+                      </S.Duo>
+                    </>
                   ) : null}
-                </S.AudienceTiles>
 
-                {royaltiesOpen ? (
-                  <S.Panel
-                    id="store-royalties-panel"
-                    aria-labelledby="store-royalties-h"
-                    data-testid="store-royalties-panel"
-                  >
-                    <S.PanelHead>
-                      <S.PanelTitle id="store-royalties-h">{t('myStore.royaltiesTitle')}</S.PanelTitle>
-                      <S.PanelHint>{t('myStore.royaltiesSub')}</S.PanelHint>
-                    </S.PanelHead>
-                    {!royalties ? (
-                      royaltiesRead.isError ? (
-                        <S.Empty data-testid="store-royalties-error">{t('myStore.royaltiesError')}</S.Empty>
-                      ) : (
-                        <S.Empty>{t('myStore.royaltiesLoading')}</S.Empty>
-                      )
-                    ) : royalties.total === 0 ? (
-                      <S.Empty data-testid="store-royalties-none">{t('myStore.royaltiesNone')}</S.Empty>
-                    ) : (
-                      <S.FeedWrap ref={royaltiesHeight.ref} style={royaltiesHeight.style}>
-                        <S.RoyaltyFeed>
-                          <thead>
-                            <tr>
-                              <th scope="col">{t('myStore.colItem')}</th>
-                              <th scope="col">{t('myStore.colDate')}</th>
-                              <th scope="col">{t('myStore.colBuyer')}</th>
-                              <th scope="col" style={{ textAlign: 'right' }}>
-                                {t('myStore.colResoldFor')}
-                              </th>
-                              <th scope="col" style={{ textAlign: 'right' }}>
-                                {t('myStore.colRoyalty')}
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {royalties.data.map(row => {
-                              const found =
-                                row.itemId === null
-                                  ? undefined
-                                  : itemsByKey.get(`${row.contractAddress.toLowerCase()}-${row.itemId}`)
-                              const face = royaltyProfiles?.get(row.buyer.toLowerCase())?.avatar?.snapshots?.face256
-                              const at = { timestamp: row.timestamp }
-                              return (
-                                <tr key={row.id} data-testid="store-royalty">
-                                  <td>
-                                    <S.SaleItem
-                                      as="a"
-                                      {...(row.itemId
-                                        ? {
-                                            href: appHref(itemHref(row.contractAddress, row.itemId, env)),
-                                            target: '_blank',
-                                            rel: 'noopener noreferrer'
-                                          }
-                                        : {})}
-                                    >
-                                      <S.SaleThumb style={{ backgroundImage: rarityMedia(found?.item.rarity) }}>
-                                        {found?.item.thumbnail ? (
-                                          <img src={found.item.thumbnail} alt="" loading="lazy" />
-                                        ) : null}
-                                      </S.SaleThumb>
-                                      <S.SaleLines>
-                                        <span>{found?.item.name ?? t('myStore.unknownItem')}</span>
-                                        {found ? <small>{found.collection}</small> : null}
-                                      </S.SaleLines>
-                                    </S.SaleItem>
-                                  </td>
-                                  <td data-dim>{ago(row.timestamp)}</td>
-                                  <td>
-                                    <S.Buyer href={accountHref(row.buyer)} target="_blank" rel="noopener noreferrer">
-                                      <S.Face
-                                        style={face ? { backgroundImage: `url(${face})` } : undefined}
-                                        aria-hidden
-                                      />
-                                      {buyerName(row.buyer, royaltyProfiles)}
-                                    </S.Buyer>
-                                  </td>
-                                  <td data-money data-dim>
-                                    <S.Money>
-                                      <Amount
-                                        wei={weiOf(row.priceWei)}
-                                        usd={usdOfSale({ ...at, price: row.priceWei }, rateBook)}
-                                      />
-                                    </S.Money>
-                                  </td>
-                                  <td data-money data-testid="store-royalty-amount">
-                                    <S.Money>
-                                      <Amount
-                                        wei={weiOf(row.royaltyWei)}
-                                        usd={usdOfSale({ ...at, price: row.royaltyWei }, rateBook)}
-                                      />
-                                    </S.Money>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </S.RoyaltyFeed>
-                      </S.FeedWrap>
-                    )}
-                    {royalties && royaltyPages > 1 ? (
-                      <S.ListFoot>
-                        <span>
-                          {t('myStore.royaltiesCount', { count: royalties.total })}
-                          {' · '}
-                          <CurrencyMark kind="mana" />
-                          {mana(weiOf(royalties.royaltiesWei))}
-                        </span>
-                        <Pager
-                          page={Math.min(royaltyPage, royaltyPages - 1)}
-                          pages={royaltyPages}
-                          onChange={next => {
-                            trackStore('Shop Paged Store Table', { table: 'royalties', page: next + 1 })
-                            setRoyaltyPage(next)
+                  {tab === 'collections' ? (
+                    <>
+                      {/* The standing nudge, above the list it is about. Only the copy differs from the one the
+                 migration tool shows: here the reason to switch is that a discount cannot re-price a
+                 listing quoted in MANA. */}
+                      {stats.classic > 0 && !pricingDismissed ? (
+                        <ManaPricingBanner
+                          count={stats.classic}
+                          reason="discounts"
+                          to={withEnv('/activity?section=listings', env)}
+                          onDismiss={() => {
+                            trackStore('Shop Clicked Store Action', {
+                              action: 'dismiss_pricing_banner',
+                              classic_items: stats.classic
+                            })
+                            setPricingDismissed(true)
                           }}
-                          name="royalties"
+                          onCta={() =>
+                            trackStore('Shop Clicked Store Action', {
+                              action: 'update_prices',
+                              classic_items: stats.classic
+                            })
+                          }
                         />
-                      </S.ListFoot>
-                    ) : null}
-                  </S.Panel>
-                ) : null}
+                      ) : null}
 
-                <S.Panel aria-labelledby="store-buyers-h">
-                  <S.PanelHead>
-                    <S.PanelTitle id="store-buyers-h">{t('myStore.buyers')}</S.PanelTitle>
-                    <S.PanelHint>{t('myStore.buyersHint')}</S.PanelHint>
-                  </S.PanelHead>
-                  {trend.buyers.length === 0 ? (
-                    <S.Empty data-testid="store-buyers-none">{t('myStore.noBuyers')}</S.Empty>
-                  ) : (
-                    <S.FeedWrap ref={buyersHeight.ref} style={buyersHeight.style}>
-                      <S.BuyerFeed>
-                        <thead>
-                          <tr>
-                            <th scope="col">{t('myStore.colBuyer')}</th>
-                            {(
-                              [
-                                ['items', t('myStore.colItems'), 'desc'],
-                                ['collections', t('myStore.colCollections'), 'desc'],
-                                ['last', t('myStore.colLast'), 'desc'],
-                                ['spent', t('myStore.colSpent'), 'desc']
-                              ] as [BuyerColumn, string, SortDir][]
-                            ).map(([key, label, first]) => (
-                              <th
-                                key={key}
-                                scope="col"
-                                style={key === 'spent' ? { textAlign: 'right' } : undefined}
-                                aria-sort={ariaSort(dirOf(buyerSort, key))}
+                      <S.Panel aria-labelledby="store-coll-h">
+                        <S.ListHead>
+                          <S.PanelTitle id="store-coll-h">
+                            {t('myStore.collectionsCount', { count: stats.collections.length })}
+                          </S.PanelTitle>
+                          <S.HeadActions>
+                            {stats.collections.length > 1 ? (
+                              <S.Sort
+                                options={[
+                                  { value: 'sold', label: t('myStore.sortSold') },
+                                  { value: 'earned', label: t('myStore.sortEarned') },
+                                  ...(stats.collections.some(c => c.createdAt)
+                                    ? [{ value: 'newest', label: t('myStore.sortNewest') }]
+                                    : []),
+                                  { value: 'name', label: t('myStore.sortName') }
+                                ]}
+                                value={collectionSort ? undefined : sort}
+                                placeholder={t('myStore.sortCustom')}
+                                onChange={value => {
+                                  trackStore('Shop Sorted Store Collections', { sort: value })
+                                  setSort(value as Sort)
+                                  setCollectionSort(null)
+                                  setCollectionPage(0)
+                                  rememberSort(value as Sort)
+                                }}
+                                align="right"
+                                ariaLabel={t('myStore.sortBy')}
+                                className="store-sort"
+                              />
+                            ) : null}
+                            {/* The list's own call to action, where the design puts it: a creator who has just
+                        read how their collections are doing is the one deciding to discount one. */}
+                            {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
+                              <Button
+                                variant="red"
+                                size="sm"
+                                onClick={() => setSaleOpen(true)}
+                                data-testid="store-new-discount"
                               >
-                                <SortHeader
-                                  label={label}
-                                  dir={dirOf(buyerSort, key)}
-                                  align={key === 'spent' ? 'right' : 'left'}
-                                  testId={`store-sort-buyers-${key}`}
-                                  onSort={() => {
-                                    const next = nextSort(buyerSort, key, first)
-                                    trackStore('Shop Sorted Store Table', {
-                                      table: 'buyers',
-                                      column: next.key,
-                                      direction: next.dir
-                                    })
-                                    setBuyerSort(next)
-                                    setBuyerPage(0)
-                                  }}
-                                />
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {buyersShown.map(buyer => {
-                            const face = audience?.get(buyer.address)?.avatar?.snapshots?.face256
-                            return (
-                              <tr key={buyer.address} data-testid="store-buyer">
-                                <td>
-                                  <S.Buyer
-                                    href={accountHref(buyer.address)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() =>
-                                      trackStore('Shop Clicked Store Action', { action: 'open_buyer', table: 'buyers' })
+                                {/* Decorative, and hidden from the accessible name: a reader announcing "fire,
+                            create a discount" is worse than one that just says what the button does. */}
+                                <span aria-hidden>🔥</span>
+                                {t('myStore.newDiscount')}
+                              </Button>
+                            ) : null}
+                          </S.HeadActions>
+                        </S.ListHead>
+                        {stats.collections.length === 0 ? (
+                          <S.Empty>{t('myStore.noCollections')}</S.Empty>
+                        ) : (
+                          <>
+                            <S.List ref={collectionsHeight.ref} style={collectionsHeight.style}>
+                              <S.ColHead>
+                                <span />
+                                <span />
+                                {(
+                                  [
+                                    ['name', t('myStore.colCollection'), 'asc'],
+                                    null,
+                                    ['claimed', t('myStore.colClaimed'), 'desc'],
+                                    ['earnings', t('myStore.colEarnings'), 'desc'],
+                                    [
+                                      'sold',
+                                      windowDays
+                                        ? t('myStore.colTrend', { days: windowDays })
+                                        : t('myStore.colTrendAll'),
+                                      'desc'
+                                    ]
+                                  ] as ([CollectionColumn, string, SortDir] | null)[]
+                                ).map((column, index) =>
+                                  column ? (
+                                    <span key={column[0]}>
+                                      <SortHeader
+                                        label={column[1]}
+                                        dir={dirOf(collectionSort, column[0])}
+                                        testId={`store-sort-collections-${column[0]}`}
+                                        onSort={() => {
+                                          const next = nextSort(collectionSort, column[0], column[2])
+                                          trackStore('Shop Sorted Store Table', {
+                                            table: 'collections',
+                                            column: next.key,
+                                            direction: next.dir
+                                          })
+                                          setCollectionSort(next)
+                                          setCollectionPage(0)
+                                        }}
+                                      />
+                                    </span>
+                                  ) : (
+                                    <span key={`plain-${index}`}>{t('myStore.colDiscounts')}</span>
+                                  )
+                                )}
+                                <span>{t('myStore.colActions')}</span>
+                              </S.ColHead>
+                              {collectionsShown.map(collection => (
+                                <CollectionRow
+                                  key={collection.contractAddress}
+                                  collection={collection}
+                                  discount={discountByCollection.get(collection.contractAddress) ?? null}
+                                  savesByKey={savesByKey}
+                                  env={env}
+                                  open={open.has(collection.contractAddress)}
+                                  onToggle={() => {
+                                    // Opening only: a collapse says nothing about what the creator went looking for.
+                                    if (!open.has(collection.contractAddress)) {
+                                      trackStore('Shop Expanded Store Collection', {
+                                        contract_address: collection.contractAddress,
+                                        items: collection.items.length,
+                                        exhausted: collection.exhausted,
+                                        has_discount: discountByCollection.has(collection.contractAddress)
+                                      })
                                     }
-                                    data-testid="store-buyer-name"
-                                  >
-                                    <S.Face
-                                      style={face ? { backgroundImage: `url(${face})` } : undefined}
-                                      aria-hidden
-                                    />
-                                    {buyerName(buyer.address, audience)}
-                                  </S.Buyer>
-                                </td>
-                                {/* Distinct items and collections, not sales: nine copies of one item and
-                                    one thing from each of nine collections are different customers, and the
-                                    count of sales reads them the same. */}
-                                <td data-dim>{t('myStore.buyerItems', { count: buyer.items })}</td>
-                                <td data-dim>{t('myStore.buyerCollections', { count: buyer.collections })}</td>
-                                <td data-dim>{ago(buyer.lastAt)}</td>
-                                <td data-money>
-                                  <S.Money>
-                                    <Amount wei={buyer.spentWei} usd={buyerUsd(buyer)} />
-                                  </S.Money>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </S.BuyerFeed>
-                    </S.FeedWrap>
-                  )}
-                  {buyerPages > 1 ? (
-                    <S.ListFoot>
-                      <span />
-                      <Pager
-                        page={buyerPageShown}
-                        pages={buyerPages}
-                        onChange={next => {
-                          trackStore('Shop Paged Store Table', { table: 'buyers', page: next + 1 })
-                          setBuyerPage(next)
-                        }}
-                        name="buyers"
-                      />
-                    </S.ListFoot>
+                                    setOpen(current => {
+                                      const next = new Set(current)
+                                      if (!next.delete(collection.contractAddress)) next.add(collection.contractAddress)
+                                      return next
+                                    })
+                                  }}
+                                  onManage={() =>
+                                    trackStore('Shop Clicked Store Action', {
+                                      action: 'manage_collection',
+                                      contract_address: collection.contractAddress
+                                    })
+                                  }
+                                  onIssue={
+                                    session
+                                      ? item => {
+                                          trackStore('Shop Clicked Store Action', {
+                                            action: 'issue_copies',
+                                            contract_address: collection.contractAddress
+                                          })
+                                          setIssuing({ item, contractAddress: collection.contractAddress })
+                                        }
+                                      : undefined
+                                  }
+                                />
+                              ))}
+                            </S.List>
+                          </>
+                        )}
+                        {stats.collections.length > 0 ? (
+                          <S.ListFoot>
+                            <span data-testid="store-showing">
+                              {t('myStore.showingOf', {
+                                shown: collectionsShown.length.toLocaleString(),
+                                total: stats.collections.length.toLocaleString()
+                              })}
+                              {/* The seam the old panel hint carried. A store past the fetch cap has trends and
+                          per-collection figures built from part of the window, and saying so belongs
+                          next to the count rather than nowhere. */}
+                              {stats.breakdownPartial ? (
+                                <> · {t('myStore.soldPartial', { n: stats.fetched.toLocaleString() })}</>
+                              ) : null}
+                            </span>
+                            <Pager
+                              page={collectionPageShown}
+                              pages={collectionPages}
+                              onChange={next => {
+                                trackStore('Shop Paged Store Table', { table: 'collections', page: next + 1 })
+                                setCollectionPage(next)
+                              }}
+                              name="collections"
+                            />
+                          </S.ListFoot>
+                        ) : null}
+                      </S.Panel>
+                    </>
                   ) : null}
-                </S.Panel>
 
-                {/* Hidden when the read fails for any reason other than size: before the server ships the
-                  endpoint there is nothing to show, and a panel that only ever says "unavailable" is noise. */}
-                {owners || ownersRead.error instanceof TopOwnersUnavailableError ? (
-                  <S.Panel aria-labelledby="store-owners-h" data-testid="store-owners-panel">
-                    <S.PanelHead>
-                      <S.PanelTitle id="store-owners-h">{t('myStore.owners')}</S.PanelTitle>
-                      <S.HeadRight>
-                        <S.PanelHint>{t('myStore.ownersHint')}</S.PanelHint>
-                        {(session || mock) && owners && owners.total > 0 ? (
+                  {tab === 'discounts' ? (
+                    <S.Panel aria-labelledby="store-discounts-h" data-testid="store-discounts-panel">
+                      <S.ListHead>
+                        <div>
+                          <S.PanelTitle id="store-discounts-h">{t('myStore.discountsTitle')}</S.PanelTitle>
+                          <S.PanelSub>{t('myStore.discountsHint')}</S.PanelSub>
+                        </div>
+                        {mock || (creatorSalesEnabled && session && saleable.length > 0) ? (
                           <Button
                             variant="red"
                             size="sm"
-                            onClick={() => {
-                              trackStore('Shop Clicked Store Action', { action: 'reward_owners' })
-                              setRewardOpen(true)
-                            }}
-                            data-testid="store-reward-owners"
+                            onClick={() => setSaleOpen(true)}
+                            data-testid="store-tab-new-discount"
                           >
-                            <span aria-hidden>🎁</span>
-                            {t('myStore.rewardOwners')}
+                            <span aria-hidden>🔥</span>
+                            {t('myStore.newDiscount')}
                           </Button>
                         ) : null}
-                      </S.HeadRight>
-                    </S.PanelHead>
-                    {!owners ? (
-                      <S.Empty data-testid="store-owners-unavailable">{t('myStore.ownersUnavailable')}</S.Empty>
-                    ) : owners.total === 0 ? (
-                      <S.Empty data-testid="store-owners-none">{t('myStore.noOwners')}</S.Empty>
-                    ) : (
-                      <S.FeedWrap ref={ownersHeight.ref} style={ownersHeight.style}>
-                        <S.OwnerFeed>
-                          <thead>
-                            <tr>
-                              <th scope="col">{t('myStore.colOwner')}</th>
-                              {OWNER_COLUMNS.map(({ key, label, first }) => (
-                                <th
-                                  key={key}
-                                  scope="col"
-                                  style={key === 'spent' ? { textAlign: 'right' } : undefined}
-                                  aria-sort={ariaSort(dirOf(ownerSort, key))}
-                                >
-                                  <SortHeader
-                                    label={t(label)}
-                                    dir={dirOf(ownerSort, key)}
-                                    align={key === 'spent' ? 'right' : 'left'}
-                                    testId={`store-sort-owners-${key}`}
-                                    onSort={() => {
-                                      const next = nextSort(ownerSort, key, first)
-                                      trackStore('Shop Sorted Store Table', {
-                                        table: 'owners',
-                                        column: next.key,
-                                        direction: next.dir
-                                      })
-                                      setOwnerSort(next)
-                                      setOwnerPage(0)
-                                    }}
-                                  />
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {owners.data.map(owner => {
-                              const face = ownerProfiles?.get(owner.address)?.avatar?.snapshots?.face256
-                              return (
-                                <tr key={owner.address} data-testid="store-owner">
-                                  <td>
-                                    <S.Buyer
-                                      href={accountHref(owner.address)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={() =>
-                                        trackStore('Shop Clicked Store Action', {
-                                          action: 'open_owner',
-                                          table: 'owners'
-                                        })
-                                      }
-                                      data-testid="store-owner-name"
-                                    >
-                                      <S.Face
-                                        style={face ? { backgroundImage: `url(${face})` } : undefined}
-                                        aria-hidden
-                                      />
-                                      {buyerName(owner.address, ownerProfiles)}
-                                    </S.Buyer>
-                                  </td>
-                                  <td data-testid="store-owner-nfts">{owner.nfts.toLocaleString()}</td>
-                                  <td data-dim>{t('myStore.buyerItems', { count: owner.items })}</td>
-                                  <td data-dim>{t('myStore.buyerCollections', { count: owner.collections })}</td>
-                                  <td data-dim>{ago(owner.lastAcquiredAt)}</td>
-                                  <td data-money>
-                                    <S.Money>
-                                      <CurrencyMark kind="mana" />
-                                      {mana(weiOf(owner.spentWei))}
-                                    </S.Money>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </S.OwnerFeed>
-                      </S.FeedWrap>
-                    )}
-                    {owners && ownerPages > 1 ? (
-                      <S.ListFoot>
-                        <span>{t('myStore.ownersCount', { count: owners.total })}</span>
-                        <Pager
-                          page={ownerPage}
-                          pages={ownerPages}
-                          onChange={next => {
-                            trackStore('Shop Paged Store Table', { table: 'owners', page: next + 1 })
-                            setOwnerPage(next)
-                          }}
-                          name="owners"
+                      </S.ListHead>
+                      {!mock && discountsRead.isLoading ? (
+                        <S.Empty data-testid="store-discounts-loading">{t('myStore.discountsLoading')}</S.Empty>
+                      ) : !mock && discountsRead.isError && !discounts ? (
+                        <S.Empty data-testid="store-discounts-error">{t('myStore.discountsError')}</S.Empty>
+                      ) : discountHistory.length === 0 ? (
+                        <S.Empty data-testid="store-discounts-empty">
+                          {saleable.length > 0 ? t('myStore.discountsEmpty') : t('myStore.discountsEmptyNoCredits')}
+                        </S.Empty>
+                      ) : (
+                        <CreatorSales
+                          sales={discountHistory.slice(
+                            discountPageShown * DISCOUNTS_PER_PAGE,
+                            (discountPageShown + 1) * DISCOUNTS_PER_PAGE
+                          )}
+                          session={mock ? null : session}
+                          names={collectionNames}
+                          tone="dark"
                         />
-                      </S.ListFoot>
-                    ) : null}
-                  </S.Panel>
-                ) : null}
+                      )}
+                      {discountPages > 1 ? (
+                        <S.ListFoot>
+                          <span>{t('myStore.discountsCount', { count: discountHistory.length })}</span>
+                          <Pager
+                            page={discountPageShown}
+                            pages={discountPages}
+                            onChange={next => {
+                              trackStore('Shop Paged Store Table', { table: 'discounts', page: next + 1 })
+                              setDiscountPage(next)
+                            }}
+                            name="discounts"
+                          />
+                        </S.ListFoot>
+                      ) : null}
+                    </S.Panel>
+                  ) : null}
+
+                  {tab === 'audience' ? (
+                    <>
+                      <S.AudienceTiles>
+                        <S.Tile>
+                          <S.TileKey>
+                            <span>
+                              {t('myStore.tileCollectors')}
+                              <Tooltip content={t('myStore.collectorsHint')}>
+                                <S.Info
+                                  type="button"
+                                  aria-label={t('myStore.tileCollectors')}
+                                  data-testid="store-collectors-hint"
+                                >
+                                  <Icon name="info" className="ico" aria-hidden />
+                                </S.Info>
+                              </Tooltip>
+                            </span>
+                            <S.TileMark aria-hidden>👥</S.TileMark>
+                          </S.TileKey>
+                          <S.TileValue data-testid="store-collectors">
+                            {trend.collectors.total.toLocaleString()}
+                          </S.TileValue>
+                          <S.TileFoot>
+                            {trend.collectors.total === 0 ? (
+                              t('myStore.tileCollectorsNone')
+                            ) : (
+                              <>
+                                {stats.breakdownPartial ? (
+                                  <>
+                                    <S.Estimate>{t('myStore.estimate')}</S.Estimate>{' '}
+                                  </>
+                                ) : null}
+                                {trend.collectors.topSharePct >= 50
+                                  ? t('myStore.tileCollectorsConcentrated', {
+                                      // Rounded DOWN: a store where one address took 2,202 of 2,206 sales is not
+                                      // "100% of your sales" while four other people are standing right there.
+                                      pct: Math.floor(trend.collectors.topSharePct)
+                                    })
+                                  : t('myStore.tileCollectorsFoot', {
+                                      repeat: trend.collectors.repeat,
+                                      pct: Math.round(trend.collectors.repeatPct)
+                                    })}
+                              </>
+                            )}
+                          </S.TileFoot>
+                        </S.Tile>
+                        {stats.royalties ? (
+                          <S.Tile>
+                            <S.TileKey>
+                              <span>
+                                {t('myStore.tileRoyalties')}
+                                <Tooltip content={t('myStore.royaltiesHint')}>
+                                  <S.Info
+                                    type="button"
+                                    aria-label={t('myStore.tileRoyalties')}
+                                    data-testid="store-royalties-hint"
+                                  >
+                                    <Icon name="info" className="ico" aria-hidden />
+                                  </S.Info>
+                                </Tooltip>
+                              </span>
+                              <S.TileMark aria-hidden>🤝</S.TileMark>
+                            </S.TileKey>
+                            <S.TileValue data-testid="store-royalties">
+                              {/* Exact once the server reports what each resale paid; an estimate from volume before. */}
+                              {stats.royalties.paidWei != null ? null : <S.Approx>≈</S.Approx>}
+                              <CurrencyMark kind="mana" />
+                              {mana(stats.royalties.paidWei ?? royaltyOf(stats.royalties.volumeWei))}
+                              <S.TileUnit>{t('myStore.manaUnit')}</S.TileUnit>
+                            </S.TileValue>
+                            <S.TileFoot>
+                              <DeltaTag delta={trend.royalties} period={period} />
+                              {hasDelta(trend.royalties) ? null : (
+                                <span>
+                                  {tNode('myStore.tileRoyaltiesFoot', {
+                                    m: (c: ReactNode) => (
+                                      <>
+                                        <CurrencyMark kind="mana" />
+                                        {c}
+                                      </>
+                                    ),
+                                    count: stats.royalties.resales,
+                                    volume: mana(stats.royalties.volumeWei)
+                                  })}
+                                </span>
+                              )}
+                            </S.TileFoot>
+                            {stats.royalties.resales > 0 ? (
+                              <S.TileAction
+                                type="button"
+                                aria-expanded={royaltiesOpen}
+                                aria-controls="store-royalties-panel"
+                                onClick={() => {
+                                  if (!royaltiesOpen)
+                                    trackStore('Shop Clicked Store Action', { action: 'open_royalties' })
+                                  setRoyaltiesOpen(open => !open)
+                                  setRoyaltyPage(0)
+                                }}
+                                data-testid="store-royalties-open"
+                              >
+                                {t(royaltiesOpen ? 'myStore.royaltiesHide' : 'myStore.royaltiesShow')}
+                                <Icon
+                                  name="chevron-down"
+                                  size={14}
+                                  aria-hidden
+                                  style={{ transform: royaltiesOpen ? 'rotate(180deg)' : undefined }}
+                                />
+                              </S.TileAction>
+                            ) : null}
+                          </S.Tile>
+                        ) : null}
+                      </S.AudienceTiles>
+
+                      {royaltiesOpen ? (
+                        <S.Panel
+                          id="store-royalties-panel"
+                          aria-labelledby="store-royalties-h"
+                          data-testid="store-royalties-panel"
+                        >
+                          <S.PanelHead>
+                            <S.PanelTitle id="store-royalties-h">{t('myStore.royaltiesTitle')}</S.PanelTitle>
+                            <S.PanelHint>{t('myStore.royaltiesSub')}</S.PanelHint>
+                          </S.PanelHead>
+                          {!royalties ? (
+                            royaltiesRead.isError ? (
+                              <S.Empty data-testid="store-royalties-error">{t('myStore.royaltiesError')}</S.Empty>
+                            ) : (
+                              <S.Empty>{t('myStore.royaltiesLoading')}</S.Empty>
+                            )
+                          ) : royalties.total === 0 ? (
+                            <S.Empty data-testid="store-royalties-none">{t('myStore.royaltiesNone')}</S.Empty>
+                          ) : (
+                            <S.FeedWrap ref={royaltiesHeight.ref} style={royaltiesHeight.style}>
+                              <S.RoyaltyFeed>
+                                <thead>
+                                  <tr>
+                                    <th scope="col">{t('myStore.colItem')}</th>
+                                    <th scope="col">{t('myStore.colDate')}</th>
+                                    <th scope="col">{t('myStore.colBuyer')}</th>
+                                    <th scope="col" style={{ textAlign: 'right' }}>
+                                      {t('myStore.colResoldFor')}
+                                    </th>
+                                    <th scope="col" style={{ textAlign: 'right' }}>
+                                      {t('myStore.colRoyalty')}
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {royalties.data.map(row => {
+                                    const found =
+                                      row.itemId === null
+                                        ? undefined
+                                        : itemsByKey.get(`${row.contractAddress.toLowerCase()}-${row.itemId}`)
+                                    const face = royaltyProfiles?.get(row.buyer.toLowerCase())?.avatar?.snapshots
+                                      ?.face256
+                                    const at = { timestamp: row.timestamp }
+                                    return (
+                                      <tr key={row.id} data-testid="store-royalty">
+                                        <td>
+                                          <S.SaleItem
+                                            as="a"
+                                            {...(row.itemId
+                                              ? {
+                                                  href: appHref(itemHref(row.contractAddress, row.itemId, env)),
+                                                  target: '_blank',
+                                                  rel: 'noopener noreferrer'
+                                                }
+                                              : {})}
+                                          >
+                                            <S.SaleThumb style={{ backgroundImage: rarityMedia(found?.item.rarity) }}>
+                                              {found?.item.thumbnail ? (
+                                                <img src={found.item.thumbnail} alt="" loading="lazy" />
+                                              ) : null}
+                                            </S.SaleThumb>
+                                            <S.SaleLines>
+                                              <span>{found?.item.name ?? t('myStore.unknownItem')}</span>
+                                              {found ? <small>{found.collection}</small> : null}
+                                            </S.SaleLines>
+                                          </S.SaleItem>
+                                        </td>
+                                        <td data-dim>{ago(row.timestamp)}</td>
+                                        <td>
+                                          <S.Buyer
+                                            href={accountHref(row.buyer)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          >
+                                            <S.Face
+                                              style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                              aria-hidden
+                                            />
+                                            {buyerName(row.buyer, royaltyProfiles)}
+                                          </S.Buyer>
+                                        </td>
+                                        <td data-money data-dim>
+                                          <S.Money>
+                                            <Amount
+                                              wei={weiOf(row.priceWei)}
+                                              usd={usdOfSale({ ...at, price: row.priceWei }, rateBook)}
+                                            />
+                                          </S.Money>
+                                        </td>
+                                        <td data-money data-testid="store-royalty-amount">
+                                          <S.Money>
+                                            <Amount
+                                              wei={weiOf(row.royaltyWei)}
+                                              usd={usdOfSale({ ...at, price: row.royaltyWei }, rateBook)}
+                                            />
+                                          </S.Money>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </S.RoyaltyFeed>
+                            </S.FeedWrap>
+                          )}
+                          {royalties && royaltyPages > 1 ? (
+                            <S.ListFoot>
+                              <span>
+                                {t('myStore.royaltiesCount', { count: royalties.total })}
+                                {' · '}
+                                <CurrencyMark kind="mana" />
+                                {mana(weiOf(royalties.royaltiesWei))}
+                              </span>
+                              <Pager
+                                page={Math.min(royaltyPage, royaltyPages - 1)}
+                                pages={royaltyPages}
+                                onChange={next => {
+                                  trackStore('Shop Paged Store Table', { table: 'royalties', page: next + 1 })
+                                  setRoyaltyPage(next)
+                                }}
+                                name="royalties"
+                              />
+                            </S.ListFoot>
+                          ) : null}
+                        </S.Panel>
+                      ) : null}
+
+                      <S.Panel aria-labelledby="store-buyers-h">
+                        <S.PanelHead>
+                          <S.PanelTitle id="store-buyers-h">{t('myStore.buyers')}</S.PanelTitle>
+                          <S.PanelHint>{t('myStore.buyersHint')}</S.PanelHint>
+                        </S.PanelHead>
+                        {trend.buyers.length === 0 ? (
+                          <S.Empty data-testid="store-buyers-none">{t('myStore.noBuyers')}</S.Empty>
+                        ) : (
+                          <S.FeedWrap ref={buyersHeight.ref} style={buyersHeight.style}>
+                            <S.BuyerFeed>
+                              <thead>
+                                <tr>
+                                  <th scope="col">{t('myStore.colBuyer')}</th>
+                                  {(
+                                    [
+                                      ['items', t('myStore.colItems'), 'desc'],
+                                      ['collections', t('myStore.colCollections'), 'desc'],
+                                      ['last', t('myStore.colLast'), 'desc'],
+                                      ['spent', t('myStore.colSpent'), 'desc']
+                                    ] as [BuyerColumn, string, SortDir][]
+                                  ).map(([key, label, first]) => (
+                                    <th
+                                      key={key}
+                                      scope="col"
+                                      style={key === 'spent' ? { textAlign: 'right' } : undefined}
+                                      aria-sort={ariaSort(dirOf(buyerSort, key))}
+                                    >
+                                      <SortHeader
+                                        label={label}
+                                        dir={dirOf(buyerSort, key)}
+                                        align={key === 'spent' ? 'right' : 'left'}
+                                        testId={`store-sort-buyers-${key}`}
+                                        onSort={() => {
+                                          const next = nextSort(buyerSort, key, first)
+                                          trackStore('Shop Sorted Store Table', {
+                                            table: 'buyers',
+                                            column: next.key,
+                                            direction: next.dir
+                                          })
+                                          setBuyerSort(next)
+                                          setBuyerPage(0)
+                                        }}
+                                      />
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {buyersShown.map(buyer => {
+                                  const face = audience?.get(buyer.address)?.avatar?.snapshots?.face256
+                                  return (
+                                    <tr key={buyer.address} data-testid="store-buyer">
+                                      <td>
+                                        <S.Buyer
+                                          href={accountHref(buyer.address)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={() =>
+                                            trackStore('Shop Clicked Store Action', {
+                                              action: 'open_buyer',
+                                              table: 'buyers'
+                                            })
+                                          }
+                                          data-testid="store-buyer-name"
+                                        >
+                                          <S.Face
+                                            style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                            aria-hidden
+                                          />
+                                          {buyerName(buyer.address, audience)}
+                                        </S.Buyer>
+                                      </td>
+                                      {/* Distinct items and collections, not sales: nine copies of one item and
+                                    one thing from each of nine collections are different customers, and the
+                                    count of sales reads them the same. */}
+                                      <td data-dim>{t('myStore.buyerItems', { count: buyer.items })}</td>
+                                      <td data-dim>{t('myStore.buyerCollections', { count: buyer.collections })}</td>
+                                      <td data-dim>{ago(buyer.lastAt)}</td>
+                                      <td data-money>
+                                        <S.Money>
+                                          <Amount wei={buyer.spentWei} usd={buyerUsd(buyer)} />
+                                        </S.Money>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </S.BuyerFeed>
+                          </S.FeedWrap>
+                        )}
+                        {buyerPages > 1 ? (
+                          <S.ListFoot>
+                            <span />
+                            <Pager
+                              page={buyerPageShown}
+                              pages={buyerPages}
+                              onChange={next => {
+                                trackStore('Shop Paged Store Table', { table: 'buyers', page: next + 1 })
+                                setBuyerPage(next)
+                              }}
+                              name="buyers"
+                            />
+                          </S.ListFoot>
+                        ) : null}
+                      </S.Panel>
+
+                      {/* Hidden when the read fails for any reason other than size: before the server ships the
+                  endpoint there is nothing to show, and a panel that only ever says "unavailable" is noise. */}
+                      {owners || ownersRead.error instanceof TopOwnersUnavailableError ? (
+                        <S.Panel aria-labelledby="store-owners-h" data-testid="store-owners-panel">
+                          <S.PanelHead>
+                            <S.PanelTitle id="store-owners-h">{t('myStore.owners')}</S.PanelTitle>
+                            <S.HeadRight>
+                              <S.PanelHint>{t('myStore.ownersHint')}</S.PanelHint>
+                              {(session || mock) && owners && owners.total > 0 ? (
+                                <Button
+                                  variant="red"
+                                  size="sm"
+                                  onClick={() => {
+                                    trackStore('Shop Clicked Store Action', { action: 'reward_owners' })
+                                    setRewardOpen(true)
+                                  }}
+                                  data-testid="store-reward-owners"
+                                >
+                                  <span aria-hidden>🎁</span>
+                                  {t('myStore.rewardOwners')}
+                                </Button>
+                              ) : null}
+                            </S.HeadRight>
+                          </S.PanelHead>
+                          {!owners ? (
+                            <S.Empty data-testid="store-owners-unavailable">{t('myStore.ownersUnavailable')}</S.Empty>
+                          ) : owners.total === 0 ? (
+                            <S.Empty data-testid="store-owners-none">{t('myStore.noOwners')}</S.Empty>
+                          ) : (
+                            <S.FeedWrap ref={ownersHeight.ref} style={ownersHeight.style}>
+                              <S.OwnerFeed>
+                                <thead>
+                                  <tr>
+                                    <th scope="col">{t('myStore.colOwner')}</th>
+                                    {OWNER_COLUMNS.map(({ key, label, first }) => (
+                                      <th
+                                        key={key}
+                                        scope="col"
+                                        style={key === 'spent' ? { textAlign: 'right' } : undefined}
+                                        aria-sort={ariaSort(dirOf(ownerSort, key))}
+                                      >
+                                        <SortHeader
+                                          label={t(label)}
+                                          dir={dirOf(ownerSort, key)}
+                                          align={key === 'spent' ? 'right' : 'left'}
+                                          testId={`store-sort-owners-${key}`}
+                                          onSort={() => {
+                                            const next = nextSort(ownerSort, key, first)
+                                            trackStore('Shop Sorted Store Table', {
+                                              table: 'owners',
+                                              column: next.key,
+                                              direction: next.dir
+                                            })
+                                            setOwnerSort(next)
+                                            setOwnerPage(0)
+                                          }}
+                                        />
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {owners.data.map(owner => {
+                                    const face = ownerProfiles?.get(owner.address)?.avatar?.snapshots?.face256
+                                    return (
+                                      <tr key={owner.address} data-testid="store-owner">
+                                        <td>
+                                          <S.Buyer
+                                            href={accountHref(owner.address)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={() =>
+                                              trackStore('Shop Clicked Store Action', {
+                                                action: 'open_owner',
+                                                table: 'owners'
+                                              })
+                                            }
+                                            data-testid="store-owner-name"
+                                          >
+                                            <S.Face
+                                              style={face ? { backgroundImage: `url(${face})` } : undefined}
+                                              aria-hidden
+                                            />
+                                            {buyerName(owner.address, ownerProfiles)}
+                                          </S.Buyer>
+                                        </td>
+                                        <td data-testid="store-owner-nfts">{owner.nfts.toLocaleString()}</td>
+                                        <td data-dim>{t('myStore.buyerItems', { count: owner.items })}</td>
+                                        <td data-dim>{t('myStore.buyerCollections', { count: owner.collections })}</td>
+                                        <td data-dim>{ago(owner.lastAcquiredAt)}</td>
+                                        <td data-money>
+                                          <S.Money>
+                                            <CurrencyMark kind="mana" />
+                                            {mana(weiOf(owner.spentWei))}
+                                          </S.Money>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </S.OwnerFeed>
+                            </S.FeedWrap>
+                          )}
+                          {owners && ownerPages > 1 ? (
+                            <S.ListFoot>
+                              <span>{t('myStore.ownersCount', { count: owners.total })}</span>
+                              <Pager
+                                page={ownerPage}
+                                pages={ownerPages}
+                                onChange={next => {
+                                  trackStore('Shop Paged Store Table', { table: 'owners', page: next + 1 })
+                                  setOwnerPage(next)
+                                }}
+                                name="owners"
+                              />
+                            </S.ListFoot>
+                          ) : null}
+                        </S.Panel>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
               </>
             )}
           </S.Root>

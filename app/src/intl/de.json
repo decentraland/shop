@@ -651,7 +651,6 @@
     "tileRoyalties": "Lizenzgebühren",
     "tileRoyaltiesFoot": "{count, plural, =0 {Noch keine Weiterverkäufe durch andere} one {# Weiterverkauf · <m>{volume}</m> Umsatz} other {# Weiterverkäufe · <m>{volume}</m> Umsatz}}",
     "royaltiesHint": "Was Sammler einander für Artikel gezahlt haben, die du erstellt hast. Du verdienst etwa 2,5 % davon – die Lizenzgebühr des Marketplace –, daher ist dieser Wert eine Schätzung, und ein anderswo abgewickelter Weiterverkauf kann anders aufgeteilt werden.",
-    "tileDiscountsFoot": "Details unten",
     "tileDiscountsNone": "Gerade keine",
     "sortBy": "Kollektionen sortieren",
     "sortSold": "Meistverkauft",
@@ -710,8 +709,6 @@
     "tileSoldFootMintsOnly": "{mints, plural, one {# Erstverkauf} other {# Erstverkäufe}}",
     "tileSoldNone": "In diesem Zeitraum nichts verkauft",
     "collExhausted": "ausverkauft",
-    "audience": "Deine Zielgruppe",
-    "audienceSub": "Wer kauft und was diese Käufer dir wert sind.",
     "buyers": "Deine Käufer",
     "buyersHint": "Sortiert danach, wie viel sie in diesem Zeitraum ausgegeben haben.",
     "noBuyers": "In diesem Zeitraum hat noch niemand gekauft.",
@@ -745,7 +742,6 @@
     "colClaimed": "Vergeben",
     "viewPublicStore": "Öffentlichen Store ansehen",
     "editStore": "Store bearbeiten",
-    "performance": "Store-Performance",
     "sortCustom": "Nach Spalte sortiert",
     "issueCopies": "Exemplare ausgeben",
     "sortEarned": "Höchste Einnahmen",
@@ -810,7 +806,20 @@
     "royaltiesNone": "In diesem Zeitraum wurde keiner deiner Artikel weiterverkauft.",
     "colResoldFor": "Weiterverkauft für",
     "colRoyalty": "Deine Lizenzgebühr",
-    "royaltiesCount": "{count, plural, one {# Weiterverkauf} other {# Weiterverkäufe}}"
+    "royaltiesCount": "{count, plural, one {# Weiterverkauf} other {# Weiterverkäufe}}",
+    "tabsAria": "Bereiche des Shops",
+    "tab": {
+      "overview": "Übersicht",
+      "collections": "Kollektionen",
+      "discounts": "Rabatte",
+      "audience": "Publikum"
+    },
+    "discountsEmpty": "Noch keine Rabatte. Starte einen, dann erscheint er hier, mit allen folgenden.",
+    "tileDiscountsOpen": "Deine Rabatte ansehen",
+    "tabDiscountsRunning": "Rabatte, {count} laufen",
+    "discountsLoading": "Deine Rabatte werden geladen…",
+    "discountsError": "Deine Rabatte konnten gerade nicht geladen werden. Versuch es gleich noch einmal.",
+    "discountsEmptyNoCredits": "Noch keine Rabatte. Ein Rabatt gilt für Artikel mit Preis in Credits, stell also ein Angebot auf Credits um, um einen zu starten."
   },
   "myAssets": {
     "signInTitle": "Melde dich an, um deine Artikel zu sehen",

@@ -259,13 +259,75 @@ export const PerfHead = styled.div`
   }
 `
 
-export const PerfTitle = styled.h2`
-  margin: 0;
+/** The dashboard's sections as tabs, on the row its title used to hold. */
+export const Tabs = styled.div`
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+
+  ${theme.media.maxWidth('mobile')} {
+    flex: 1 1 100%;
+    gap: 0;
+  }
+
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
+export const Tab = styled.button`
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: ${theme.colors.gray4};
   font-family: ${theme.font.sans};
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 1.2;
+  cursor: pointer;
+
+  &:hover {
+    color: ${theme.colors.white};
+  }
+  &[aria-selected='true'] {
+    color: ${theme.colors.white};
+    border-bottom-color: ${theme.colors.dclRed};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    /* Inside the tab: the row scrolls sideways, which clips anything drawn past its edges. */
+    outline-offset: -2px;
+  }
+
+  /* Four across a phone without scrolling: the label shrinks before the row overflows. */
+  ${theme.media.maxWidth('mobile')} {
+    flex: 1 1 auto;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 4px;
+    font-size: 14px;
+  }
+`
+
+export const TabCount = styled.span`
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.colors.dclRed};
   color: ${theme.colors.white};
+  font-size: 12px;
 `
 
 export const PerfControls = styled.div`
@@ -1792,32 +1854,6 @@ export const Delta = styled.span`
     font-size: 10px;
     line-height: 1;
   }
-`
-
-/**
- * The heading over a band of panels, on the purple field rather than inside a card.
- *
- * The page was one stack of white panels, which made every part of it read as equally important. A band
- * with its own title says where the sales figures end and the people behind them begin.
- */
-export const SectionHead = styled.div`
-  margin: 10px 0 -4px;
-`
-
-export const SectionTitle = styled.h2`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: ${theme.colors.softWhite};
-`
-
-export const SectionSub = styled.p`
-  margin: 4px 0 0;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: rgba(252, 252, 252, 0.62);
 `
 
 /**
