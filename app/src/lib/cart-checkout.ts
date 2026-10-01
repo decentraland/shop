@@ -1,5 +1,5 @@
 import { TradeAssetType, type Trade } from '@dcl/schemas'
-import { isTradePaused, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { usdWeiToCents, type CatalogItem, type ShopTrade } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
 import { getCouponManagerForTrade, getMarketplaceForTrade } from '~/lib/marketplace'
@@ -153,7 +153,7 @@ export type CartReview = {
 export const RESUME_CART_KEY = 'dcl_shop_resume_cart'
 
 // Resolves an item to its current on-chain-signed trade, or null when there's no live listing.
-export type TradeResolver = (item: CatalogItem) => Promise<Trade | null>
+export type TradeResolver = (item: CatalogItem) => Promise<ShopTrade | null>
 
 /**
  * Re-reads the creator discount currently on a listing, or undefined when it is no longer on sale.
@@ -300,7 +300,7 @@ export async function resolveLine(
 
   const trade = await resolve(item)
   if (!trade) return { status: 'gone' }
-  if (isTradePaused(trade)) return { status: 'paused' }
+  if (trade.paused) return { status: 'paused' }
   // A trade names the marketplace it was signed for, and every rail settles it there by resolving that address's
   // version on the trade's chain. A pair the registry does not deploy is a trade nothing can settle, so it reads
   // as not for sale here rather than as a purchase that reverts after the buyer confirmed.

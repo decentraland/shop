@@ -9,6 +9,7 @@ import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
+import { unavailableLabel } from '~/lib/cart-line-label'
 import * as S from './CartPopover.styles'
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
@@ -33,12 +34,6 @@ function CartRow({
   const atStockCap = typeof item.available === 'number' && qty >= item.available
   const subtotal = item.priceCredits * qty
   const unavailable = !isLineBuyable(status)
-  const unavailableLabel =
-    status === 'sold-out'
-      ? t('cart.availability.soldOut')
-      : status === 'paused'
-        ? t('cart.availability.paused')
-        : t('cart.availability.unavailable')
   return (
     <S.Card data-unavailable={unavailable || undefined}>
       <S.Thumb data-thumb>
@@ -57,7 +52,7 @@ function CartRow({
             /* Warning + reason. The trash button remains the one-tap remove. */
             <S.Unavailable>
               <S.Warn name="warning-fill" size={24} />
-              {unavailableLabel}
+              {unavailableLabel(status)}
             </S.Unavailable>
           ) : (
             <>

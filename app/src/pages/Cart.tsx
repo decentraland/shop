@@ -58,6 +58,7 @@ import {
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { cartAvailabilityKey, isLineBuyable } from '~/lib/cart-availability'
+import { unavailableLabel } from '~/lib/cart-line-label'
 import { CURRENCY } from '~/lib/currency'
 import { Price } from '~/components/Price'
 import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
@@ -1398,12 +1399,6 @@ export function Cart() {
                   // Live availability (optimistically 'available' until the trade resolves otherwise).
                   const status = availability[item.id]
                   const unavailable = !isLineBuyable(status)
-                  const unavailableLabel =
-                    status === 'sold-out'
-                      ? t('cart.availability.soldOut')
-                      : status === 'paused'
-                        ? t('cart.availability.paused')
-                        : t('cart.availability.unavailable')
                   return (
                     <S.Card data-unavailable={unavailable || undefined} key={item.id}>
                       <S.Thumb data-thumb>
@@ -1456,7 +1451,7 @@ export function Cart() {
                                checkout__actions is the one-tap remove. */
                             <S.Unavailable>
                               <S.Warn name="warning-fill" size={24} />
-                              {unavailableLabel}
+                              {unavailableLabel(status)}
                             </S.Unavailable>
                           ) : (
                             <>

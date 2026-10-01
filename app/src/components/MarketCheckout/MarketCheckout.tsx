@@ -161,7 +161,6 @@ export function MarketCheckout({
     const checkListing = async () => {
       try {
         const trade = await fetchOpenTrade(listing.tradeId)
-        if (!trade) throw new Error('not found')
         // Before anything is quoted or reserved, and before the top-up route below can be offered.
         if (trade.paused) throw new ListingPausedError()
         // Same gate the cart's review applies: the rails settle a trade on the marketplace its address

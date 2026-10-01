@@ -1521,11 +1521,6 @@ export async function fetchTrade(tradeId: string): Promise<ShopTrade> {
   return { ...trade, paused: isPaused === true }
 }
 
-/** Whether a trade's marketplace version has stopped accepting purchases. Missing means no. */
-export function isTradePaused(trade: Trade): boolean {
-  return (trade as Partial<ShopTrade>).paused === true
-}
-
 /**
  * A trade that can still be bought from, for the purchase paths. A trade the server reports as anything
  * but open (sold, cancelled, invalidated) reads exactly like a 404, so every "sold or removed" path applies.

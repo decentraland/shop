@@ -1,12 +1,11 @@
-import type { Trade } from '@dcl/schemas'
 import type { QueryClient } from '@tanstack/react-query'
 import {
   resolveLiveTrade,
   fetchStoreMintState,
-  isTradePaused,
   usdWeiToCents,
   TradeNotFoundError,
-  type CatalogItem
+  type CatalogItem,
+  type ShopTrade
 } from '~/lib/api'
 import { getMarketplaceForTrade } from '~/lib/marketplace'
 import { markListingPaused } from '~/lib/dead-listings'
@@ -52,10 +51,10 @@ export function isLineBuyable(status: CartLineAvailability | undefined): boolean
 // Mirrors the availability half of reviewCart so what the cart SHOWS agrees with what checkout DOES:
 // no live listing / a past expiration / a zero price all mean "not buyable". A PRIMARY (mint) line
 // with no live listing reads as sold-out; a SECONDARY (unique token) line reads as unavailable.
-export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: Trade | null): CartLineAvailability {
+export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: ShopTrade | null): CartLineAvailability {
   if (!trade) return item.tokenId ? 'unavailable' : 'sold-out'
   // Before the marketplace lookup: a paused version is still a known one, and the buyer is owed the reason.
-  if (isTradePaused(trade)) return 'paused'
+  if (trade.paused) return 'paused'
   // As in resolveLine: a trade naming a marketplace not deployed on its chain cannot settle anywhere.
   if (!getMarketplaceForTrade(trade)) return 'unavailable'
   // checks.expiration is stored in epoch MILLISECONDS (see lib/trade-encoding.ts), so it compares

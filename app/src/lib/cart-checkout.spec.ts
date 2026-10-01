@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { TradeAssetType, type Trade } from '@dcl/schemas'
-import type { CatalogItem } from '~/lib/api'
+import { TradeAssetType } from '@dcl/schemas'
+import type { CatalogItem, ShopTrade } from '~/lib/api'
 import type { ListingCoupon } from '~/lib/trade-encoding'
 import {
   reviewCart,
@@ -55,8 +55,9 @@ const item = (id: string, priceCredits: number, over: Partial<CatalogItem> = {})
 // USD_PEGGED_MANA (2) — verified against the live API, which returns 2 for native and 1 for legacy — and
 // the received amount is USD wei (1e18 = $1), so $2 → 2e18 wei → 200 cents → 20 credits. The assetType is
 // load-bearing: it is what tells reviewCart the amount is dollars and not MANA.
-const trade = (dollars: number, signer = '0xseller'): Trade =>
+const trade = (dollars: number, signer = '0xseller'): ShopTrade =>
   ({
+    paused: false,
     signer,
     contract: MARKETPLACE_V2_AMOY,
     chainId: AMOY,
@@ -66,24 +67,25 @@ const trade = (dollars: number, signer = '0xseller'): Trade =>
         amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString()
       }
     ]
-  }) as unknown as Trade
+  }) as unknown as ShopTrade
 
 // A LEGACY trade, signed by the older Marketplace: plain ERC20, priced in MANA wei. Only the oracle can
 // say what it is worth, so reviewCart needs the rate to price it.
-const legacyTrade = (mana: number, signer = '0xseller'): Trade =>
+const legacyTrade = (mana: number, signer = '0xseller'): ShopTrade =>
   ({
+    paused: false,
     signer,
     contract: MARKETPLACE_V2_AMOY,
     chainId: AMOY,
     received: [{ assetType: TradeAssetType.ERC20, amount: (BigInt(Math.round(mana * 1000)) * 10n ** 15n).toString() }]
-  }) as unknown as Trade
+  }) as unknown as ShopTrade
 
 // 1 MANA = $0.50 on an 8-decimal aggregator, so 10 MANA = $5 = 50 credits.
 const RATE = { rate: 50_000_000n, decimals: 8 }
 
 // Resolver driven by a map of item.id → trade | null | 'throw'.
 const resolverFrom =
-  (map: Record<string, Trade | null | 'throw'>): TradeResolver =>
+  (map: Record<string, ShopTrade | null | 'throw'>): TradeResolver =>
   async i => {
     const r = map[i.id]
     if (r === 'throw') throw new Error('resolve failed')
@@ -141,7 +143,7 @@ describe('reviewCart', () => {
   })
 
   it('never throws for a malformed trade with an empty received array (classified unavailable)', async () => {
-    const emptyReceived = { signer: '0xseller', received: [] } as unknown as Trade
+    const emptyReceived = { paused: false, signer: '0xseller', received: [] } as unknown as ShopTrade
     const review = await reviewCart(
       [item('a', 20), item('b', 10)],
       BUYER,
@@ -153,7 +155,7 @@ describe('reviewCart', () => {
   })
 
   it('classifies a zero/malformed-price trade as unavailable (never buyable at 0 credits)', async () => {
-    const zero = { signer: '0xseller', received: [{ amount: '0' }] } as unknown as Trade
+    const zero = { paused: false, signer: '0xseller', received: [{ amount: '0' }] } as unknown as ShopTrade
     const review = await reviewCart([item('a', 20)], BUYER, resolverFrom({ a: zero }))
 
     expect(review.buyable).toEqual([])
@@ -281,7 +283,7 @@ describe('reviewCart with legacy MANA lines', () => {
     const trade = {
       ...legacyTrade(10),
       received: [{ assetType: 99, amount: '10000000000000000000' }]
-    } as unknown as Trade
+    } as unknown as ShopTrade
 
     const review = await reviewCart([unknown], BUYER, resolverFrom({ U: trade }), RATE)
 
@@ -290,7 +292,7 @@ describe('reviewCart with legacy MANA lines', () => {
   })
 
   it('defers a price asset with no assetType at all rather than assuming the legacy shape', async () => {
-    const trade = { ...legacyTrade(10), received: [{ amount: '10000000000000000000' }] } as unknown as Trade
+    const trade = { ...legacyTrade(10), received: [{ amount: '10000000000000000000' }] } as unknown as ShopTrade
 
     const review = await reviewCart([item('N', 50)], BUYER, resolverFrom({ N: trade }), RATE)
 
@@ -916,8 +918,9 @@ describe('when pricing a line that a creator put on sale', () => {
 })
 
 /** A PRIMARY listing on the V3 marketplace: the only kind the coupon contract will discount. */
-const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLACE_V3, chainId = POLYGON): Trade =>
+const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLACE_V3, chainId = POLYGON): ShopTrade =>
   ({
+    paused: false,
     signer,
     contract,
     chainId,
@@ -928,7 +931,7 @@ const primaryTrade = (dollars: number, signer = '0xseller', contract = MARKETPLA
         amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString()
       }
     ]
-  }) as unknown as Trade
+  }) as unknown as ShopTrade
 
 describe('when deciding whether a coupon can settle a trade', () => {
   describe('and it is a live rate discount on a primary listing', () => {
@@ -1175,7 +1178,7 @@ describe('when a line resolves to a paused trade', () => {
   let resolver: TradeResolver
 
   beforeEach(() => {
-    resolver = resolverFrom({ p: { ...trade(2), paused: true } as Trade, a: trade(1) })
+    resolver = resolverFrom({ p: { ...trade(2), paused: true }, a: trade(1) })
   })
 
   describe('and it is resolved on its own', () => {
