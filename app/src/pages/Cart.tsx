@@ -56,7 +56,7 @@ import {
   type Reservation
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
-import { useCartAvailability } from '~/hooks/useCartAvailability'
+import { cartAvailabilityKey, useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
 import { Price } from '~/components/Price'
@@ -228,7 +228,11 @@ export function Cart() {
   const shownTotal = buyableItems.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
   // Total buyable units (Σ quantity over available lines) — the "N items" the summary total reflects.
   const totalUnits = items.reduce((n, i) => n + i.quantity, 0)
-  const buyableUnits = buyableItems.reduce((n, i) => n + i.quantity, 0)
+  // A pending review is what will actually be charged, so its lines are the count.
+  const buyableUnits = (review ? review.buyable.map(l => l.quantity) : buyableItems.map(i => i.quantity)).reduce(
+    (n, q) => n + q,
+    0
+  )
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
@@ -1185,6 +1189,8 @@ export function Cart() {
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]
       dropped.forEach(i => remove(i.id))
+      // A line that paused after the cart opened shows as on hold, like one known paused on open.
+      rev.paused.forEach(i => qc.setQueryData(cartAvailabilityKey(i), 'paused'))
       if (dropped.length || rev.paused.length) setNotice(dropNotice(rev))
       if (rev.buyable.length === 0) {
         setError(t('cart.error.noneAvailable'))

@@ -97,4 +97,12 @@ describe('when a cart line is paused', () => {
   it('should say the line is on hold', () => {
     expect(screen.getByText(t('cart.availability.paused'))).toBeInTheDocument()
   })
+
+  it('should still count the line in the header', () => {
+    expect(screen.getByText(t('cartPopover.title', { count: 1 }))).toBeInTheDocument()
+  })
+
+  it('should leave it out of the total count', () => {
+    expect(screen.getByText(t('cartPopover.total', { count: 0 }))).toBeInTheDocument()
+  })
 })

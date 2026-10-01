@@ -765,6 +765,11 @@ export const PausedNote = styled.p`
     margin-top: 1px;
     color: ${colors.flareAmber};
   }
+
+  /* Right under the price and its ON HOLD tag, above the divider that closes the buy section. */
+  ${media.maxWidth('lg')} {
+    order: 4;
+  }
 `
 
 export const MarketNote = styled.div`

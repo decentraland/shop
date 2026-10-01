@@ -473,6 +473,11 @@ export function AssetCard(props: AssetCardProps) {
         style={isNameItem ? undefined : { backgroundImage: rarityMedia(item.rarity) }}
       >
         {onSale ? <S.SaleBadge pct={discountPct} testId="card-sale-badge" /> : null}
+        {paused ? (
+          <S.PausedBadge data-testid="card-paused-badge" aria-hidden>
+            {t('assetCard.paused')}
+          </S.PausedBadge>
+        ) : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}

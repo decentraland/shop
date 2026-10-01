@@ -17,6 +17,7 @@ import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
+import { t } from '~/intl/i18n'
 
 // Every card reads its save count through react-query, so every render needs a client — one per render,
 // so one case's counts never reach the next.
@@ -737,6 +738,10 @@ describe('when the card shows a paused listing', () => {
 
   it('should flag the listing as on hold', () => {
     expect(container.querySelector('[data-testid="chip-paused"]')).not.toBeNull()
+  })
+
+  it('should flag it on the artwork too, for the compact card that hides its chips', () => {
+    expect(container.querySelector('[data-testid="card-paused-badge"]')?.textContent).toBe(t('assetCard.paused'))
   })
 
   it('should disable adding it to the cart', () => {

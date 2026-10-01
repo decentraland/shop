@@ -199,6 +199,20 @@ export const Table = styled.table`
     border-bottom-color: ${theme.colors.media};
   }
 
+  /* A paused row offers nothing to buy, so it neither lights up on hover nor reads at full strength. */
+  tbody tr[data-paused='true']:hover,
+  tbody tr[data-paused='true']:focus-within {
+    background: transparent;
+  }
+  tbody tr[data-paused='true']:hover td,
+  tbody tr[data-paused='true']:focus-within td {
+    border-bottom-color: ${theme.colors.lineStrong};
+  }
+  tbody tr[data-paused='true'] td:not(:last-of-type),
+  tbody tr[data-paused='true'] .amount {
+    opacity: 0.5;
+  }
+
   /* Stack every cell into a card — a 4-column grid is unusable at phone widths. The column name is
      carried on each cell's data-label so it survives translation. */
   ${theme.media.maxWidth('mobile')} {
@@ -427,6 +441,8 @@ export const OwnChip = styled.span`
 `
 
 export const PausedChip = styled(OwnChip)`
+  background: ${theme.colors.promptAmber};
+  color: ${theme.colors.text};
   text-transform: uppercase;
   letter-spacing: 0.02em;
   cursor: help;

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { useCart } from '~/store/cart'
+import { t } from '~/intl/i18n'
 
 /**
  * THE WIRING OF A FAILED CART CHECKOUT — the money decisions, asserted through the page.
@@ -64,7 +65,10 @@ const { mana } = vi.hoisted(() => ({ mana: { wei: 0n } }))
 vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: mana.wei }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: { rate: 50_000_000n, decimals: 8 } }) }))
 // Every line buyable: availability is a different concern with its own specs.
-vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) }))
+vi.mock('~/hooks/useCartAvailability', () => ({
+  useCartAvailability: () => ({}),
+  cartAvailabilityKey: (i: { id: string }) => ['cart-availability', i.id]
+}))
 // The per-line "Creator" chip is gated on this; `secondarySales` lets a test pick the state it needs.
 const secondarySales = { on: false }
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales.on }))
@@ -305,6 +309,32 @@ describe('the Purchase Summary CTA', () => {
 
     expect(await screen.findByRole('button', { name: /^checkout$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /buy now/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('when a line is paused by the time the checkout reviews the cart', () => {
+  beforeEach(async () => {
+    const a = item('a')
+    const b = item('b')
+    renderCart([a, b])
+    reviewCart.mockResolvedValueOnce({
+      buyable: [line(a)],
+      unavailable: [],
+      paused: [b],
+      own: [],
+      liveTotalCredits: 20,
+      orderChanged: true
+    })
+    await pay()
+    await screen.findByText(t('cart.drop.paused', { count: 1 }))
+  })
+
+  it('should count only the line being bought in the summary total', () => {
+    expect(screen.getByText(t('cart.totalItems', { count: 1 }))).toBeInTheDocument()
+  })
+
+  it('should keep the paused line in the cart', () => {
+    expect(useCart.getState().items.map(i => i.id)).toEqual(['a', 'b'])
   })
 })
 

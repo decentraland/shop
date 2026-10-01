@@ -113,12 +113,13 @@ export function CartPopover() {
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Validate each line's live trade while the drawer is open (optimistic until resolved). Unavailable
-  // lines stay visible with their reason but are excluded from the total and the unit count.
+  // lines stay visible with their reason but are excluded from the total.
   const availability = useCartAvailability(items, open)
 
   const buyable = items.filter(i => isLineBuyable(availability[i.id]))
   const total = buyable.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
-  // Count reflects total buyable units (Σ quantity), not the number of distinct lines.
+  // The header counts what the cart holds (as the nav badge does); the total counts what can be bought.
+  const heldUnits = items.reduce((n, i) => n + i.quantity, 0)
   const count = buyable.reduce((n, i) => n + i.quantity, 0)
 
   // Escape closes the drawer (outside-click is handled by the scrim). No auto-dismiss: a full drawer
@@ -145,7 +146,7 @@ export function CartPopover() {
       <S.Scrim onClick={() => setOpen(false)} />
       <S.Panel ref={panelRef}>
         <S.Head>
-          <S.Title>{t('cartPopover.title', { count })}</S.Title>
+          <S.Title>{t('cartPopover.title', { count: heldUnits })}</S.Title>
           <S.Close onClick={() => setOpen(false)} aria-label={t('cartPopover.close')}>
             <Icon name="close" size={18} />
           </S.Close>

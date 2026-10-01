@@ -95,8 +95,10 @@ export const useCart = create<CartState>()(
       // Adding always opens the popover (feedback). A PRIMARY line already in the cart increments its
       // quantity (capped at stock); a SECONDARY line already in the cart is a no-op (a unique token —
       // only one can be bought). Every real add (new line OR a primary increment) bumps justAddedCount
-      // for the success banner and tracks a funnel event; a no-op does neither.
+      // for the success banner and tracks a funnel event; a no-op does neither. A paused listing is refused.
       add: (item, source = 'grid', outfitId) => {
+        // A paused listing cannot be bought, so it never enters the cart whichever surface offered it.
+        if (item.paused) return
         const isPrimary = isPrimaryLine(item)
         const existing = get().items.find(i => i.id === item.id)
 

@@ -165,7 +165,12 @@ function ResellerRow({
   )
 
   return (
-    <tr data-testid="resale-row" data-source={r.source} data-own={isOwn ? 'true' : undefined}>
+    <tr
+      data-testid="resale-row"
+      data-source={r.source}
+      data-own={isOwn ? 'true' : undefined}
+      data-paused={!isOwn && r.paused ? 'true' : undefined}
+    >
       <td data-label={labels.owner}>
         {seller ? (
           <S.OwnerButton type="button" onClick={() => navigate(`/items/creator/${seller}`)}>

@@ -258,6 +258,10 @@ describe('when a resale sits on a paused marketplace version', () => {
     expect(within(row).getByTestId('resale-paused')).toBeTruthy()
   })
 
+  it('should mark the row itself as paused', () => {
+    expect(row.getAttribute('data-paused')).toBe('true')
+  })
+
   it('should offer neither Buy nor Add to cart', () => {
     expect([within(row).queryByTestId('resale-buy'), within(row).queryByTestId('resale-add')]).toEqual([null, null])
   })
