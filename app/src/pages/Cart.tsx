@@ -65,7 +65,7 @@ import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
-import { isRejection, isInsufficient } from '~/lib/errors'
+import { isRejection, isInsufficient, isPausedError } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -94,6 +94,7 @@ export type CartNavState = {
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
 function friendlyError(e: unknown): string {
   if (isRejection(e)) return t('errors.rejected')
+  if (isPausedError(e)) return t('cart.error.paused')
   const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('no active listing') || msg.includes('your own listing')) return t('cart.error.listingChanged')
@@ -105,11 +106,14 @@ function friendlyError(e: unknown): string {
 const REVIEW_TTL_MS = 120_000
 
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
-function dropNotice(review: CartReview): string {
+function dropNotice(review: CartReview): string | null {
   const parts: string[] = []
   if (review.unavailable.length) parts.push(t('cart.drop.unavailable', { count: review.unavailable.length }))
   if (review.own.length) parts.push(t('cart.drop.own', { count: review.own.length }))
-  return t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) })
+  const removed = parts.length ? t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) }) : null
+  // Paused lines stay in the cart: if the seller lists again, the line can be bought without re-adding it.
+  const held = review.paused.length ? t('cart.drop.paused', { count: review.paused.length }) : null
+  return [removed, held].filter(Boolean).join(' ') || null
 }
 
 // Sum of a set of reviewed lines in whole credits — per-unit price × quantity for each line.
@@ -568,6 +572,8 @@ export function Cart() {
             throw gaslessErr
           } else {
             if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
+            // A paused marketplace refuses the direct rail just the same.
+            if (isPausedError(gaslessErr)) throw gaslessErr
             // The gas-paying rail is only a route for a SELF-CUSTODY wallet. A managed (web2) wallet holds no
             // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
             // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
@@ -1178,10 +1184,8 @@ export function Cart() {
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]
-      if (dropped.length) {
-        dropped.forEach(i => remove(i.id))
-        setNotice(dropNotice(rev))
-      }
+      dropped.forEach(i => remove(i.id))
+      if (dropped.length || rev.paused.length) setNotice(dropNotice(rev))
       if (rev.buyable.length === 0) {
         setError(t('cart.error.noneAvailable'))
         setReview(null)
@@ -1391,7 +1395,11 @@ export function Cart() {
                   const status = availability[item.id]
                   const unavailable = !isLineBuyable(status)
                   const unavailableLabel =
-                    status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
+                    status === 'sold-out'
+                      ? t('cart.availability.soldOut')
+                      : status === 'paused'
+                        ? t('cart.availability.paused')
+                        : t('cart.availability.unavailable')
                   return (
                     <S.Card data-unavailable={unavailable || undefined} key={item.id}>
                       <S.Thumb data-thumb>

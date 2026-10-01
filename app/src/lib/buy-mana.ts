@@ -13,6 +13,7 @@ import { buyOneWithCredits, type AnyPurchase, type SpendableCredit } from '~/lib
 import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { captureError } from '~/lib/monitoring'
+import { isPausedError } from '~/lib/errors'
 import { requireChain } from '~/lib/network'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import {
@@ -493,6 +494,8 @@ async function payGapWithMana(opts: {
        * this bug in front of a real buyer twice.
        */
       if (!canPayGasItself(providerType)) throw e
+      // A paused marketplace refuses the direct rail just the same.
+      if (isPausedError(e)) throw e
       captureError(e, { flow: 'buy_credits_and_mana', step: 'gasless_fallback' })
     }
   }

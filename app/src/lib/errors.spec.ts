@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { ChainId } from '@dcl/schemas'
-import { friendlyError, isRejection } from '~/lib/errors'
+import { t } from '~/intl/i18n'
+import { friendlyError, isPausedError, isRejection, ListingPausedError } from '~/lib/errors'
 import { WrongNetworkError } from '~/lib/network'
 
 const FALLBACK = "Couldn't complete checkout."
@@ -50,5 +51,75 @@ describe('friendlyError — wallet state', () => {
 
   it('keeps mapping sale failures when asked to', () => {
     expect(friendlyError(new Error('no active listing'), FALLBACK, { sale: true })).not.toBe(FALLBACK)
+  })
+})
+
+describe('when a purchase is refused because the listing is paused', () => {
+  let error: unknown
+
+  describe('and the refusal is the shop’s own pre-check', () => {
+    beforeEach(() => {
+      error = new ListingPausedError()
+    })
+
+    it('should be recognised as a pause', () => {
+      expect(isPausedError(error)).toBe(true)
+    })
+
+    it('should map to the purchases-paused message on a sale', () => {
+      expect(friendlyError(error, FALLBACK, { sale: true })).toBe(t('errors.purchasesPaused'))
+    })
+  })
+
+  describe('and the refusal is the OpenZeppelin revert string', () => {
+    beforeEach(() => {
+      error = { code: 'CALL_EXCEPTION', reason: 'Pausable: paused', message: 'execution reverted' }
+    })
+
+    it('should be recognised as a pause', () => {
+      expect(isPausedError(error)).toBe(true)
+    })
+  })
+
+  describe('and the refusal is the EnforcedPause custom error', () => {
+    beforeEach(() => {
+      error = new Error('execution reverted: EnforcedPause()')
+    })
+
+    it('should be recognised as a pause', () => {
+      expect(isPausedError(error)).toBe(true)
+    })
+  })
+
+  describe('and the relayer echoes the raw EnforcedPause selector', () => {
+    beforeEach(() => {
+      error = new Error('relayer rejected: 0xd93c0665')
+    })
+
+    it('should be recognised as a pause', () => {
+      expect(isPausedError(error)).toBe(true)
+    })
+  })
+
+  describe('and the flow is not a sale', () => {
+    beforeEach(() => {
+      error = new ListingPausedError()
+    })
+
+    it('should keep the caller’s own fallback', () => {
+      expect(friendlyError(error, FALLBACK)).toBe(FALLBACK)
+    })
+  })
+})
+
+describe('when a purchase fails for an unrelated reason', () => {
+  let error: unknown
+
+  beforeEach(() => {
+    error = new Error('execution reverted: invalid signature')
+  })
+
+  it('should not be recognised as a pause', () => {
+    expect(isPausedError(error)).toBe(false)
   })
 })

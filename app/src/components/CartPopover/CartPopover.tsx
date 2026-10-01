@@ -33,7 +33,12 @@ function CartRow({
   const atStockCap = typeof item.available === 'number' && qty >= item.available
   const subtotal = item.priceCredits * qty
   const unavailable = !isLineBuyable(status)
-  const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
+  const unavailableLabel =
+    status === 'sold-out'
+      ? t('cart.availability.soldOut')
+      : status === 'paused'
+        ? t('cart.availability.paused')
+        : t('cart.availability.unavailable')
   return (
     <S.Card data-unavailable={unavailable || undefined}>
       <S.Thumb data-thumb>

@@ -1,15 +1,23 @@
 import type { Trade } from '@dcl/schemas'
-import { resolveLiveTrade, fetchStoreMintState, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
+import {
+  resolveLiveTrade,
+  fetchStoreMintState,
+  isTradePaused,
+  usdWeiToCents,
+  TradeNotFoundError,
+  type CatalogItem
+} from '~/lib/api'
 import { getMarketplaceForTrade } from '~/lib/marketplace'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable
 //   sold-out    → a PRIMARY (mint) line whose supply is exhausted / minting closed (no live listing)
 //   unavailable → a SECONDARY (unique token) line whose listing is gone, or any expired / $0 listing
+//   paused      → the listing is still open but its marketplace version no longer accepts purchases
 // We never block render on this: a line is assumed 'available' until proven otherwise (see the hook),
 // so a non-available state is only ever reported once the line's live trade has actually resolved (or
 // definitively failed to resolve).
-export type CartLineAvailability = 'available' | 'sold-out' | 'unavailable'
+export type CartLineAvailability = 'available' | 'sold-out' | 'unavailable' | 'paused'
 
 // Can this line still be bought? Anything other than 'available' (and the optimistic "not yet known"
 // undefined) is excluded from the total and from checkout. Kept as one predicate so the cart UI and
@@ -24,6 +32,8 @@ export function isLineBuyable(status: CartLineAvailability | undefined): boolean
 // with no live listing reads as sold-out; a SECONDARY (unique token) line reads as unavailable.
 export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: Trade | null): CartLineAvailability {
   if (!trade) return item.tokenId ? 'unavailable' : 'sold-out'
+  // Before the marketplace lookup: a paused version is still a known one, and the buyer is owed the reason.
+  if (isTradePaused(trade)) return 'paused'
   // As in resolveLine: a trade naming a marketplace not deployed on its chain cannot settle anywhere.
   if (!getMarketplaceForTrade(trade)) return 'unavailable'
   // checks.expiration is stored in epoch MILLISECONDS (see lib/trade-encoding.ts), so it compares

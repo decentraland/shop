@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { WrongNetworkError } from '~/lib/network'
+import { t } from '~/intl/i18n'
 
 /**
  * THE RESERVATION DECISIONS in the PDP buy flow — when a credit is minted, and when it is handed back.
@@ -1186,5 +1187,65 @@ describe('when the purchase completes', () => {
       const cta = await screen.findByRole('link', { name: /backpack/i })
       expect(cta.getAttribute('target')).toBeNull()
     })
+  })
+})
+
+describe('when the listing sits on a paused marketplace version', () => {
+  beforeEach(() => {
+    resolveLiveTrade.mockResolvedValue({
+      id: 'trade-1',
+      chainId: 80002,
+      contract: MARKETPLACE_ADDRESS,
+      signer: '0xseller',
+      received: [{ assetType: 2, amount: (2700n * 10n ** 16n).toString() }],
+      paused: true
+    })
+  })
+
+  describe('and the buyer opens the modal', () => {
+    beforeEach(() => {
+      renderIdle()
+    })
+
+    it('should tell the buyer purchases are on hold', async () => {
+      expect(await screen.findByText(t('errors.purchasesPaused'))).toBeInTheDocument()
+    })
+
+    it('should reserve nothing', async () => {
+      await screen.findByText(t('errors.purchasesPaused'))
+      expect(authorizeUsdCredit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the buyer comes back from a top-up to finish the purchase', () => {
+    beforeEach(() => {
+      renderResuming()
+    })
+
+    it('should reserve nothing and buy nothing', async () => {
+      await screen.findByText(t('errors.purchasesPaused'))
+      expect([authorizeUsdCredit.mock.calls.length, buyOneWithCredits.mock.calls.length]).toEqual([0, 0])
+    })
+  })
+})
+
+describe('when the relayer refuses the purchase because the marketplace is paused', () => {
+  beforeEach(() => {
+    gaslessOn.value = true
+    buyOneGasless.mockRejectedValue(new GaslessUnavailable('execution reverted: Pausable: paused', 'relayer-rejected'))
+    renderResuming()
+  })
+
+  it('should tell the buyer purchases are on hold', async () => {
+    await waitFor(() => expect(screen.getByTestId('buy-modal').textContent).toContain(t('errors.purchasesPaused')))
+  })
+
+  it('should not fall back to the direct rail', async () => {
+    await waitFor(() => expect(screen.getByTestId('buy-modal').textContent).toContain(t('errors.purchasesPaused')))
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+
+  it('should release the reservation', async () => {
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
   })
 })

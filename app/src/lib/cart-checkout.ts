@@ -1,5 +1,5 @@
 import { TradeAssetType, type Trade } from '@dcl/schemas'
-import { usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { isTradePaused, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
 import { getCouponManagerForTrade, getMarketplaceForTrade } from '~/lib/marketplace'
@@ -140,6 +140,7 @@ export function groupUnitsForAuthorization(
 export type CartReview = {
   buyable: ResolvedLine[] // resolvable, not the buyer's own — safe to charge
   unavailable: CatalogItem[] // no live listing (sold / cancelled / never resolved)
+  paused: CatalogItem[] // still listed, but its marketplace version no longer accepts purchases
   own: CatalogItem[] // the buyer's own listing — can't buy
   liveTotalCredits: number // sum of the buyable lines' live credit prices
   orderChanged: boolean // a live price differs from what the cart showed, or rows were dropped
@@ -248,7 +249,7 @@ export function purchaseTargetFor(line: ResolvedLine): PurchaseTarget {
  * rows into unavailable/own, while a single-item checkout has to SAY what happened — "no longer available" is
  * the wrong thing to tell a buyer whose price simply could not be read.
  */
-export type LineUnbuyable = 'gone' | 'own' | 'no-price'
+export type LineUnbuyable = 'gone' | 'own' | 'no-price' | 'paused'
 
 export type LineOutcome = { status: 'buyable'; line: ResolvedLine } | { status: LineUnbuyable }
 
@@ -299,6 +300,7 @@ export async function resolveLine(
 
   const trade = await resolve(item)
   if (!trade) return { status: 'gone' }
+  if (isTradePaused(trade)) return { status: 'paused' }
   // A trade names the marketplace it was signed for, and every rail settles it there by resolving that address's
   // version on the trade's chain. A pair the registry does not deploy is a trade nothing can settle, so it reads
   // as not for sale here rather than as a purchase that reverts after the buyer confirmed.
@@ -409,6 +411,7 @@ export async function reviewCart(
 ): Promise<CartReview> {
   const buyable: ResolvedLine[] = []
   const unavailable: CatalogItem[] = []
+  const paused: CatalogItem[] = []
   const own: CatalogItem[] = []
 
   for (const item of items) {
@@ -420,6 +423,7 @@ export async function reviewCart(
       const outcome = await resolveLine(item, buyerAddress, resolve, rate, resolveStore, resolveCoupon)
       if (outcome.status === 'buyable') buyable.push(outcome.line)
       else if (outcome.status === 'own') own.push(item)
+      else if (outcome.status === 'paused') paused.push(item)
       else unavailable.push(item)
     } catch {
       unavailable.push(item)
@@ -429,9 +433,12 @@ export async function reviewCart(
   // Live total sums each buyable line's per-unit credit price × its quantity.
   const liveTotalCredits = buyable.reduce((sum, line) => sum + line.priceCredits * line.quantity, 0)
   const orderChanged =
-    unavailable.length > 0 || own.length > 0 || buyable.some(line => line.priceCredits !== line.item.priceCredits)
+    unavailable.length > 0 ||
+    paused.length > 0 ||
+    own.length > 0 ||
+    buyable.some(line => line.priceCredits !== line.item.priceCredits)
 
-  return { buyable, unavailable, own, liveTotalCredits, orderChanged }
+  return { buyable, unavailable, paused, own, liveTotalCredits, orderChanged }
 }
 
 /**

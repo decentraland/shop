@@ -49,7 +49,7 @@ import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payme
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
-import { friendlyError, isInsufficient } from '~/lib/errors'
+import { friendlyError, isInsufficient, isPausedError, ListingPausedError } from '~/lib/errors'
 import { Confetti } from '~/components/Confetti'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
@@ -381,6 +381,8 @@ export function BuyModal({
         // The three outcomes read differently to a buyer, so they are not collapsed: gone means the sale ended,
         // own means they are the seller, and no-price means we could not quote it — see lib/errors.
         if (outcome.status === 'own') throw new Error("You can't buy your own listing.")
+        // Before any credit is reserved and before the pack picker can send the buyer to pay.
+        if (outcome.status === 'paused') throw new ListingPausedError()
         if (outcome.status === 'no-price') throw new Error('price unavailable')
         if (outcome.status !== 'buyable') throw new Error('not for sale')
         const sale = purchaseTargetFor(outcome.line)
@@ -592,6 +594,8 @@ export function BuyModal({
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
             if (!canPayGasItself(session.providerType)) throw gaslessErr
+            // A paused marketplace refuses the direct rail just the same.
+            if (isPausedError(gaslessErr)) throw gaslessErr
             txHash = await buyOneWithCredits(buyArgs)
           } else {
             /**

@@ -230,6 +230,7 @@ function renderCart(items: CatalogItem[], toLine: (i: CatalogItem, index: number
   const review = {
     buyable: items.map((i, index) => toLine(i, index)),
     unavailable: [],
+    paused: [],
     own: [],
     liveTotalCredits: 20 * items.length,
     orderChanged: false

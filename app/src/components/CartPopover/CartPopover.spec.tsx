@@ -2,9 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { t } from '~/intl/i18n'
 
-vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) }))
-vi.mock('~/lib/cart-availability', () => ({ isLineBuyable: () => true }))
+const { availability } = vi.hoisted(() => {
+  const map: Record<string, string> = {}
+  return { availability: { map } }
+})
+vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => availability.map }))
+vi.mock('~/lib/cart-availability', () => ({
+  isLineBuyable: (status?: string) => status === undefined || status === 'available'
+}))
 
 const cart = {
   items: [
@@ -43,6 +50,7 @@ function renderPopover() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  availability.map = {}
 })
 
 /**
@@ -77,5 +85,16 @@ describe('the cart popover CTAs', () => {
     renderPopover()
 
     expect(screen.getByRole('button', { name: /continue shopping/i })).toBeInTheDocument()
+  })
+})
+
+describe('when a cart line is paused', () => {
+  beforeEach(() => {
+    availability.map = { 'item-1': 'paused' }
+    renderPopover()
+  })
+
+  it('should say the line is on hold', () => {
+    expect(screen.getByText(t('cart.availability.paused'))).toBeInTheDocument()
   })
 })

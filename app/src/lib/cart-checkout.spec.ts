@@ -162,7 +162,14 @@ describe('reviewCart', () => {
 
   it('returns an empty, unchanged review for an empty cart', async () => {
     const review = await reviewCart([], BUYER, resolverFrom({}))
-    expect(review).toEqual({ buyable: [], unavailable: [], own: [], liveTotalCredits: 0, orderChanged: false })
+    expect(review).toEqual({
+      buyable: [],
+      unavailable: [],
+      paused: [],
+      own: [],
+      liveTotalCredits: 0,
+      orderChanged: false
+    })
   })
 
   it('multiplies a PRIMARY line by its quantity in the live total and carries quantity on the line', async () => {
@@ -1160,6 +1167,54 @@ describe('when reviewing a line whose trade names a marketplace not deployed on 
 
     it('should keep the rest of the basket buyable', () => {
       expect(buyableIds).toEqual(['y'])
+    })
+  })
+})
+
+describe('when a line resolves to a paused trade', () => {
+  let resolver: TradeResolver
+
+  beforeEach(() => {
+    resolver = resolverFrom({ p: { ...trade(2), paused: true } as Trade, a: trade(1) })
+  })
+
+  describe('and it is resolved on its own', () => {
+    let outcome: LineOutcome
+
+    beforeEach(async () => {
+      outcome = await resolveLine(item('p', 20), BUYER, resolver, RATE)
+    })
+
+    it('should report it as paused instead of buyable', () => {
+      expect(outcome).toEqual({ status: 'paused' })
+    })
+  })
+
+  describe('and it is reviewed as part of a basket', () => {
+    let review: Awaited<ReturnType<typeof reviewCart>>
+
+    beforeEach(async () => {
+      review = await reviewCart([item('p', 20), item('a', 10)], BUYER, resolver, RATE)
+    })
+
+    it('should put the paused line in its own bucket', () => {
+      expect(review.paused.map(i => i.id)).toEqual(['p'])
+    })
+
+    it('should not charge for the paused line', () => {
+      expect(review.buyable.map(l => l.item.id)).toEqual(['a'])
+    })
+
+    it('should not count the paused line as unavailable', () => {
+      expect(review.unavailable).toEqual([])
+    })
+
+    it('should leave the paused line out of the total', () => {
+      expect(review.liveTotalCredits).toBe(10)
+    })
+
+    it('should ask the buyer to confirm the changed order', () => {
+      expect(review.orderChanged).toBe(true)
     })
   })
 })

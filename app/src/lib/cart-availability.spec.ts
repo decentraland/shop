@@ -213,3 +213,33 @@ describe('cart-availability', () => {
     })
   })
 })
+
+describe('when a line resolves to a paused trade', () => {
+  let paused: ShopTrade
+
+  beforeEach(() => {
+    paused = { ...trade(3), paused: true }
+  })
+
+  describe('and it is classified directly', () => {
+    it('should report the line as paused', () => {
+      expect(classifyTrade(primary, paused)).toBe('paused')
+    })
+  })
+
+  describe('and its availability is resolved through the live trade', () => {
+    beforeEach(() => {
+      resolveMock.mockResolvedValueOnce(paused)
+    })
+
+    it('should report the line as paused rather than sold out', async () => {
+      await expect(resolveLineAvailability(primary as CatalogItem)).resolves.toBe('paused')
+    })
+  })
+
+  describe('and the cart asks whether it can be bought', () => {
+    it('should leave it out of the buyable lines', () => {
+      expect(isLineBuyable('paused')).toBe(false)
+    })
+  })
+})

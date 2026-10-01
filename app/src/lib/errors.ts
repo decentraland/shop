@@ -23,6 +23,28 @@ export function isInsufficient(e: unknown): boolean {
   return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
 }
 
+/** Thrown before any money moves when the listing's marketplace version no longer accepts purchases. */
+export class ListingPausedError extends Error {
+  constructor() {
+    super('listing paused')
+    this.name = 'ListingPausedError'
+  }
+}
+
+/**
+ * A purchase refused because the listing's marketplace version is paused: our own pre-check, or the revert
+ * itself (OpenZeppelin's `Pausable: paused` string or its `EnforcedPause()` custom error) when the feed lags.
+ */
+export function isPausedError(e: unknown): boolean {
+  if (e instanceof ListingPausedError) return true
+  const err = e as ErrLike & { reason?: string; data?: unknown; error?: { message?: string } }
+  const text = [err?.message, err?.reason, err?.error?.message, typeof err?.data === 'string' ? err.data : '']
+    .filter(Boolean)
+    .join(' ')
+  // 0xd93c0665 is the selector of EnforcedPause(), which a relayer may echo without decoding it.
+  return /paused|enforcedpause|0xd93c0665/i.test(text)
+}
+
 /**
  * Map a thrown error to a safe, localized string for display.
  * - Wallet/abort rejection is handled universally.
@@ -45,6 +67,7 @@ export function friendlyError(e: unknown, fallback: string, opts: { sale?: boole
   // the buyer is told the transaction failed on-chain when it never left their wallet.
   if (isWalletUnauthorizedError(e)) return t('errors.walletUnauthorized')
   if (opts.sale) {
+    if (isPausedError(e)) return t('errors.purchasesPaused')
     const msg = ((e as ErrLike).message ?? '').toLowerCase()
     if (msg.includes('insufficient')) return t('errors.insufficient', { currency: CURRENCY.name })
     if (/not for sale|not found|no active listing|404/.test(msg)) return t('errors.soldOrRemoved')

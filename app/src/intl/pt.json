@@ -5,7 +5,8 @@
     "soldOrRemoved": "Este item acabou de ser vendido ou removido.",
     "cantBuyOwn": "Você não pode comprar seu próprio anúncio.",
     "wrongNetwork": "Sua wallet está em {current}. Mude para {required} para continuar.",
-    "walletUnauthorized": "Sua wallet bloqueou esta solicitação. Verifique se ela ainda está conectada à loja e na rede certa, e tente de novo."
+    "walletUnauthorized": "Sua wallet bloqueou esta solicitação. Verifique se ela ainda está conectada à loja e na rede certa, e tente de novo.",
+    "purchasesPaused": "As compras deste anúncio estão pausadas por enquanto. O vendedor precisa anunciá-lo novamente."
   },
   "nav": {
     "overview": "Início",
@@ -204,20 +205,23 @@
     "allUnavailable": "Nenhum destes itens está mais disponível. Remova-os para continuar comprando.",
     "availability": {
       "soldOut": "Esgotado",
-      "unavailable": "Não está mais disponível"
+      "unavailable": "Não está mais disponível",
+      "paused": "Pausado"
     },
     "youMightAlsoLike": "Você também pode gostar",
     "error": {
       "insufficient": "Você não tem Créditos suficientes. Consiga mais primeiro.",
       "noneAvailable": "Nenhum destes itens está disponível para compra agora.",
       "listingChanged": "Um ou mais itens mudaram. Revise seu carrinho e tente de novo.",
-      "partiallyBought": "Parte da sua compra foi concluída: esses itens já estão em Meus itens. O resto continua no seu carrinho, então você pode tentar de novo sem pagar duas vezes."
+      "partiallyBought": "Parte da sua compra foi concluída: esses itens já estão em Meus itens. O resto continua no seu carrinho, então você pode tentar de novo sem pagar duas vezes.",
+      "paused": "Alguns itens estão pausados e ficaram de fora. Revise seu carrinho e tente novamente."
     },
     "drop": {
       "unavailable": "{count, plural, one {# que não está mais disponível} other {# que não estão mais disponíveis}}",
       "own": "{count} que você não pode comprar (seu próprio anúncio)",
       "and": "e",
-      "removed": "Removemos {items} do seu carrinho."
+      "removed": "Removemos {items} do seu carrinho.",
+      "paused": "{count, plural, one {# item pausado ficou} other {# itens pausados ficaram}} de fora deste pedido."
     },
     "suggestedTitle": "Combina com seu carrinho"
   },
@@ -313,7 +317,9 @@
     "soldOut": "Esgotado",
     "notForSale": "Fora de venda",
     "view": "Ver",
-    "unitsLeftAtThisPrice": "Só restam {count} por este preço"
+    "unitsLeftAtThisPrice": "Só restam {count} por este preço",
+    "paused": "Pausado",
+    "pausedHint": "As compras deste anúncio estão pausadas por enquanto."
   },
   "notifyMe": {
     "label": "Avise-me quando estiver disponível",
@@ -498,7 +504,11 @@
     "cancelRelayReverted": "Não deu certo: seu anúncio continua ativo. Você pode removê-lo agora pagando a taxa da rede, ou deixar como está e tentar mais tarde.",
     "cancelRelayRetry": "Não conseguimos remover agora. Tente de novo daqui a pouco.",
     "cancelSlowManaged": "Ainda finalizando. Pode levar alguns minutos; você pode deixar isto aberto.",
-    "becauseYouOwn": "Com base no que você tem"
+    "becauseYouOwn": "Com base no que você tem",
+    "paused": "Pausado",
+    "pausedHint": "As compras deste anúncio estão pausadas por enquanto. O vendedor precisa anunciá-lo novamente.",
+    "pausedSellerHint": "Os compradores não podem comprar este anúncio agora. Anuncie novamente para continuar vendendo — você ainda pode removê-lo.",
+    "manageRelist": "Anunciar novamente"
   },
   "transfer": {
     "title": "Transferir item",
@@ -1165,7 +1175,8 @@
     "selectedSummary": "{count, plural, one {# item selecionado} other {# itens selecionados}} · ${usd}",
     "listAll": "Anunciar {count, plural, one {# item} other {# itens}} ({count})",
     "toastFailed": "Não conseguimos atualizar seus anúncios. Tente de novo.",
-    "toastPartial": "Alguns anúncios não puderam ser atualizados."
+    "toastPartial": "Alguns anúncios não puderam ser atualizados.",
+    "pausedHint": "Os compradores não podem comprar este anúncio agora. Anuncie novamente para continuar vendendo."
   },
   "faq": {
     "title": "Saiba mais sobre os Créditos",
