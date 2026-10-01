@@ -205,11 +205,14 @@ describe('when the calendar is open and the creator moves on to the review', () 
 })
 
 describe('when the creator types a decimal custom discount', () => {
-  it('should keep the whole percentage rather than running the digits together', () => {
+  it('should refuse anything but a whole percentage rather than rewrite it into another one', () => {
     open()
     fireEvent.click(screen.getByTestId('creator-sale-custom-pct-chip'))
     const input = screen.getByLabelText<HTMLInputElement>(/discount percentage/i)
-    fireEvent.change(input, { target: { value: '7.5' } })
-    expect(input.value).toBe('7')
+    fireEvent.change(input, { target: { value: '30' } })
+    for (const typo of ['5.5', '1e1', '123']) {
+      fireEvent.change(input, { target: { value: typo } })
+      expect(input.value).toBe('30')
+    }
   })
 })

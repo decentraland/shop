@@ -817,9 +817,10 @@ export function CreatorSaleModal({
                   aria-label={t('creatorSale.pctLabel')}
                   onChange={e => {
                     setTouched(true)
-                    // Whole percentages only, at most two digits: the part before a decimal point, never its
-                    // digits run together ("7.5" must not become 75).
-                    setCustomPct(e.target.value.split(/[.,]/)[0].replace(/\D/g, '').slice(0, 2))
+                    // Whole percentages of at most two digits, or nothing: anything else keeps what was there, so
+                    // "5.5" or "1e1" can never be rewritten into a discount nobody typed.
+                    const next = e.target.value
+                    if (/^\d{0,2}$/.test(next)) setCustomPct(next)
                   }}
                 />
                 <span aria-hidden>%</span>
