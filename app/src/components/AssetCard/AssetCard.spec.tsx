@@ -17,6 +17,7 @@ import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
+import { t } from '~/intl/i18n'
 
 // Every card reads its save count through react-query, so every render needs a client — one per render,
 // so one case's counts never reach the next.
@@ -721,5 +722,43 @@ describe('AssetCard note', () => {
 
     expect(screen.queryByTestId('card-note')).toBeNull()
     expect(screen.getByTestId('card').hasAttribute('data-note')).toBe(false)
+  })
+})
+
+describe('when the card shows a paused listing', () => {
+  let container: HTMLElement
+
+  beforeEach(() => {
+    ;({ container } = renderCard(makeItem({ paused: true, priceCredits: 7 })))
+  })
+
+  it('should keep showing the price', () => {
+    expect(container.querySelector('[data-testid="card-price"]')?.textContent).toContain('7')
+  })
+
+  it('should flag the listing as on hold', () => {
+    expect(container.querySelector('[data-testid="chip-paused"]')).not.toBeNull()
+  })
+
+  it('should flag it on the artwork too, for the compact card that hides its chips', () => {
+    expect(container.querySelector('[data-testid="card-paused-badge"]')?.textContent).toBe(t('assetCard.paused'))
+  })
+
+  it('should disable adding it to the cart', () => {
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="card-cart"]')?.disabled).toBe(true)
+  })
+
+  it('should disable the compact add button too', () => {
+    expect(container.querySelector<HTMLButtonElement>('[data-testid="card-add-round"]')?.disabled).toBe(true)
+  })
+
+  describe('and the buyer clicks the disabled action anyway', () => {
+    beforeEach(() => {
+      fireEvent.click(container.querySelector('[data-testid="card-cart"]')!)
+    })
+
+    it('should leave the cart empty', () => {
+      expect(useCart.getState().items).toHaveLength(0)
+    })
   })
 })

@@ -197,6 +197,13 @@ export function AssetCard(props: AssetCardProps) {
   // items that can still be bought. An exhausted mint used to keep its ADD TO CART, and since a feed can
   // still report a price for it the card offered a purchase that add() could not honour.
   const notForSale = !own && (item.priceCredits <= 0 || item.available === 0)
+  // Still listed and priced, but its marketplace version no longer accepts purchases.
+  const paused = !!item.paused && !notForSale
+  const pausedChip = paused ? (
+    <S.CardChip data-variant="paused" data-testid="chip-paused" title={t('assetCard.pausedHint')}>
+      {t('assetCard.paused')}
+    </S.CardChip>
+  ) : null
 
   // Whether the card has run out of copies to offer — the only case where the CTA may stop saying "Add to
   // cart". Quantity is a PRIMARY (mint) concept: a primary row can hold several copies up to the remaining
@@ -309,6 +316,7 @@ export function AssetCard(props: AssetCardProps) {
         </S.CardChip>
       ) : null}
       {playModeChip}
+      {pausedChip}
     </S.Chips>
   )
 
@@ -360,8 +368,12 @@ export function AssetCard(props: AssetCardProps) {
         </S.CardChip>
       ) : null}
       {playModeChip}
+      {pausedChip}
     </S.Chips>
   )
+
+  // A buyer cannot add a paused listing; its owner still gets MANAGE.
+  const buyBlocked = paused && !own
 
   return (
     <S.Card
@@ -461,6 +473,11 @@ export function AssetCard(props: AssetCardProps) {
         style={isNameItem ? undefined : { backgroundImage: rarityMedia(item.rarity) }}
       >
         {onSale ? <S.SaleBadge pct={discountPct} testId="card-sale-badge" /> : null}
+        {paused ? (
+          <S.PausedBadge data-testid="card-paused-badge" aria-hidden>
+            {t('assetCard.paused')}
+          </S.PausedBadge>
+        ) : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
@@ -712,13 +729,22 @@ export function AssetCard(props: AssetCardProps) {
               <S.AddRound
                 data-testid="card-add-round"
                 data-in={(!own && cartFull) || undefined}
+                data-paused={buyBlocked || undefined}
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
-                  add(item, source)
+                  if (!buyBlocked) add(item, source)
                 }}
-                disabled={!own && cartFull}
-                aria-label={own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                disabled={buyBlocked || (!own && cartFull)}
+                aria-label={
+                  own
+                    ? t('assetCard.manage')
+                    : buyBlocked
+                      ? t('assetCard.pausedHint')
+                      : cartFull
+                        ? t('assetCard.inCart')
+                        : t('assetCard.addToCart')
+                }
               >
                 <Icon name={own ? 'pen' : 'plus'} size={18} />
               </S.AddRound>
@@ -729,16 +755,24 @@ export function AssetCard(props: AssetCardProps) {
             ) : (
               <S.Cart
                 data-in={(!own && cartFull) || undefined}
+                data-paused={buyBlocked || undefined}
                 data-testid="card-cart"
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
-                  add(item, source)
+                  if (!buyBlocked) add(item, source)
                 }}
-                disabled={!own && cartFull}
+                disabled={buyBlocked || (!own && cartFull)}
+                title={buyBlocked ? t('assetCard.pausedHint') : undefined}
               >
                 <Icon name={own ? 'pen' : 'cart'} />
-                {own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                {own
+                  ? t('assetCard.manage')
+                  : buyBlocked
+                    ? t('assetCard.paused')
+                    : cartFull
+                      ? t('assetCard.inCart')
+                      : t('assetCard.addToCart')}
               </S.Cart>
             )}
           </S.Action>

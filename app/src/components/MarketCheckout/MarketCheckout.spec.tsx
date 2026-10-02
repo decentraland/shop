@@ -5,12 +5,15 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { LegacyListing } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
+import { t } from '~/intl/i18n'
+import { cartAvailabilityKey } from '~/lib/cart-availability'
+import { PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 
 // MarketCheckout is a Buy-Now modal for a legacy (MANA-priced) listing. These specs cover the branches
 // with no e2e coverage: WHEN the dollars get reserved (on the confirm click, never on open), the price
 // math (credits === ceil(usdCents / 10), and the dollars shown must be the dollars charged), the
 // low-balance bridge to Get Credits, and the release decision after a failed submit. Everything the
-// modal talks to (fetchTrade → authorizeUsdCredit → the buy rails) is stubbed so it renders offline.
+// modal talks to (fetchOpenTrade → authorizeUsdCredit → the buy rails) is stubbed so it renders offline.
 
 const session = {
   address: '0xbuyer000000000000000000000000000000000001',
@@ -34,8 +37,8 @@ const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
 }))
 vi.mock('~/lib/credits', () => ({ authorizeUsdCredit, cancelUsdIntents, getUsdBalance: vi.fn(), devMintUsd: vi.fn() }))
 
-const { fetchTrade } = vi.hoisted(() => ({ fetchTrade: vi.fn() }))
-vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), fetchTrade }))
+const { fetchOpenTrade } = vi.hoisted(() => ({ fetchOpenTrade: vi.fn() }))
+vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), fetchOpenTrade }))
 
 // The USD sizing is stubbed so the locked-price math is deterministic and the $0-guard is satisfied.
 // Fully mocked (not partial): the real mana-rate module transitively imports decentraland-transactions,
@@ -114,8 +117,11 @@ const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
 /** A real marketplace, but Polygon mainnet's: valid nowhere for a listing on Amoy. */
 const MARKETPLACE_V3_POLYGON = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
 
+let queryClient: QueryClient
+
 function renderModal() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  queryClient = qc
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -135,7 +141,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   // Named on the real Amoy V2 marketplace, matching the listing's chain: the modal refuses a trade whose
   // marketplace the registry does not deploy on its chain, since the rails would have nowhere to settle it.
-  fetchTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V2_AMOY, chainId: 80002 })
+  fetchOpenTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V2_AMOY, chainId: 80002 })
   // ECHOES the requested price, rounded up to a whole credit — exactly what the credits-server does
   // (`Math.ceil(rawPrice / 10) * 10`). A fixed number would silently disagree with the quote this modal
   // showed, which is a real condition it now refuses to charge through.
@@ -688,7 +694,7 @@ describe('when the trade names a marketplace that is not deployed on its chain',
 
   beforeEach(async () => {
     useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
-    fetchTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V3_POLYGON, chainId: 80002 })
+    fetchOpenTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V3_POLYGON, chainId: 80002 })
     renderModal()
     soldLabel = await screen.findByText(/sold|no longer/i)
   })
@@ -703,5 +709,70 @@ describe('when the trade names a marketplace that is not deployed on its chain',
 
   it('should never reach the buy rails', () => {
     expect(buyWithCredits).not.toHaveBeenCalled()
+  })
+})
+
+describe('when the listing sits on a paused marketplace version', () => {
+  beforeEach(() => {
+    fetchOpenTrade.mockResolvedValue({
+      signer: '0xseller',
+      contract: MARKETPLACE_V2_AMOY,
+      chainId: 80002,
+      paused: true
+    })
+  })
+
+  describe('and the buyer has enough credits', () => {
+    beforeEach(() => {
+      useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+      renderModal()
+    })
+
+    it('should tell the buyer purchases are on hold', async () => {
+      expect(await screen.findByText(t('errors.purchasesPaused'))).toBeInTheDocument()
+    })
+
+    it('should reserve nothing', async () => {
+      await screen.findByText(t('errors.purchasesPaused'))
+      expect(authorizeUsdCredit).not.toHaveBeenCalled()
+    })
+
+    it('should keep the purchase button disabled', async () => {
+      await screen.findByText(t('errors.purchasesPaused'))
+      expect(screen.getByRole('button', { name: /confirm purchase/i })).toBeDisabled()
+    })
+  })
+
+  describe('and the buyer is short of credits', () => {
+    beforeEach(() => {
+      useBalance.mockReturnValue({ data: { balanceCents: 50, credits: 5 }, isError: false })
+      renderModal()
+    })
+
+    it('should not send the buyer to top up', async () => {
+      await screen.findByText(t('errors.purchasesPaused'))
+      expect(screen.queryByRole('button', { name: /get credits/i })).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('when the purchase reverts because the marketplace is paused', () => {
+  beforeEach(async () => {
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    buyWithCredits.mockRejectedValue(new Error('execution reverted: Pausable: paused'))
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await userEvent.setup().click(cta)
+    await screen.findByText(t('errors.purchasesPaused'))
+  })
+
+  it('should remember the listing as paused for the item page', () => {
+    expect(queryClient.getQueryData(PAUSED_LISTINGS_KEY)).toEqual(['trade-1'])
+  })
+
+  it('should show the listing on hold in the cart', () => {
+    expect(queryClient.getQueryData(cartAvailabilityKey({ ...listing, id: listing.tradeId }))).toBe('paused')
   })
 })

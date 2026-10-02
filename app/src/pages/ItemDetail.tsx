@@ -26,7 +26,7 @@ import {
 import { couponUsedWith, useCouponUses } from '~/store/couponUses'
 import { itemIdFromTokenId } from '~/lib/token-id'
 import { routeSegment } from '~/lib/routes'
-import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
+import { liveTradeId, markListingCancelled, PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
@@ -54,6 +54,8 @@ import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { useCampaignBadge } from '~/hooks/useCampaignBadge'
 import { shortAddress } from '~/lib/address'
+import { capitalizeFirst } from '~/lib/text'
+import { useProfile } from '~/hooks/useProfile'
 import { t } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
@@ -123,6 +125,25 @@ function categoryLabel(item: CatalogItem): string {
 // The PDP rail is shorter than the home page's: it sits under a page the reader came to for one
 // specific item, not under a browsing surface.
 const PERSONAL_RAIL_SIZE = 8
+
+// A resale row as a cart/buy-ready item, with the display fields secondary rows lack taken from the item.
+function withItemDisplay(r: UnifiedListing, item: CatalogItem): CatalogItem {
+  return {
+    ...r,
+    name: r.name || item.name,
+    thumbnail: r.thumbnail || item.thumbnail,
+    rarity: r.rarity || item.rarity,
+    category: r.category || item.category,
+    wearableCategory: r.wearableCategory ?? item.wearableCategory,
+    gender: r.gender ?? item.gender
+  }
+}
+
+function ResaleSeller({ seller }: { seller: string }) {
+  const { data: profile } = useProfile(seller)
+  const name = profile?.name ? capitalizeFirst(profile.name) : shortAddress(seller)
+  return <S.SoSeller data-testid="resale-offer-seller">{t('itemDetail.resaleSeller', { name })}</S.SoSeller>
+}
 
 export function ItemDetailRoute() {
   const { pathname } = useLocation()
@@ -381,6 +402,8 @@ export function ItemDetail() {
         // fetched listing, so the server's answer simply wins — a seed that lacks it would otherwise
         // leave a store mint with stock reading "Not for Sale".
         acquisition: deepLinkItem.acquisition,
+        // Per listing, like the money: the seed's flag may describe a trade the creator has since replaced.
+        paused: deepLinkItem.paused,
         wearableCategory: prev.wearableCategory ?? deepLinkItem.wearableCategory
       }
     })
@@ -436,7 +459,7 @@ export function ItemDetail() {
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
-  const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
+  const { data: resolvedTrade, isLoading: resolvingTrade } = useQuery({
     queryKey: ['detail-trade', current.id, current.tradeId, current.contractAddress, current.itemId],
     enabled: !!current.contractAddress,
     // Money-sensitive: buyability can flip when a 3rd party buys/lists/cancels. Always revalidate on
@@ -444,19 +467,20 @@ export function ItemDetail() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: async (): Promise<string | null> => {
-      if (current.tradeId) return current.tradeId
+    queryFn: async (): Promise<{ id: string; paused: boolean } | null> => {
+      if (current.tradeId) return { id: current.tradeId, paused: !!current.paused }
       // Item route only: resolve the cheapest open listing by itemId. On a TOKEN route the buyable trade
       // is the token's OWN listing (carried on current.tradeId from ownedAsset/publicToken) — never the
       // item-level fallback, which would resurrect a stale "for sale" after the token's listing is
       // cancelled (the stale-price / stuck-listed bug).
       if (!isTokenRoute && current.itemId) {
         const trade = await fetchTradeForItem(current.contractAddress, current.itemId)
-        return trade?.id ?? null
+        return trade ? { id: trade.id, paused: trade.paused } : null
       }
       return null
     }
   })
+  const resolvedTradeId = resolvedTrade?.id ?? null
 
   /**
    * Smart-wearable traits, from the v1 items endpoint — the only one that carries `utility` (the v3 catalog
@@ -555,6 +579,13 @@ export function ItemDetail() {
   }, [current, siblings, pageItemId])
 
   const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
+  // Listings a purchase this session saw revert as paused, ahead of the feed (see lib/dead-listings).
+  const { data: pausedByRevert = [] } = useQuery<string[]>({
+    queryKey: PAUSED_LISTINGS_KEY,
+    queryFn: () => [],
+    enabled: false
+  })
+  const revertedPaused = (tradeId?: string | null) => !!tradeId && pausedByRevert.includes(tradeId)
   /**
    * A COLLECTION-STORE MINT is for sale and has no trade — it is minted straight from the store contract,
    * so no tradeId will ever exist for it. Defining "for sale" as "has a trade" is what made this page say
@@ -567,6 +598,9 @@ export function ItemDetail() {
    */
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
   const forSale = !!buyableTradeId || isStoreMint
+  // Still listed and priced, but its marketplace version no longer accepts purchases.
+  const listingPaused =
+    !!buyableTradeId && !isStoreMint && (!!current.paused || !!resolvedTrade?.paused || revertedPaused(buyableTradeId))
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
@@ -596,19 +630,15 @@ export function ItemDetail() {
 
   // The cheapest resale as a cart/buy-ready item (Figma 1524-298906 sold-out state buys the resale).
   // Backfills the display fields secondary rows lack from the PDP item, mirroring <ResellersModal>.
-  const cheapestResaleItem: CatalogItem | null = useMemo(() => {
-    const r = resales[0]
-    if (!r) return null
-    return {
-      ...r,
-      name: r.name || current.name,
-      thumbnail: r.thumbnail || current.thumbnail,
-      rarity: r.rarity || current.rarity,
-      category: r.category || current.category,
-      wearableCategory: r.wearableCategory ?? current.wearableCategory,
-      gender: r.gender ?? current.gender
-    }
-  }, [resales, current])
+  const cheapestResaleItem: CatalogItem | null = useMemo(
+    () => (resales[0] ? withItemDisplay(resales[0], current) : null),
+    [resales, current]
+  )
+  // The cheapest resale that can be bought now, for when the creator's own listing is on hold.
+  const cheapestLiveResaleItem: CatalogItem | null = useMemo(() => {
+    const r = resales.find(x => !x.paused && !(x.tradeId && pausedByRevert.includes(x.tradeId)))
+    return r ? withItemDisplay(r, current) : null
+  }, [resales, current, pausedByRevert])
   const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
   const [showResellers, setShowResellers] = useState(false)
   // The resale hand-off (see MarketplaceRedirectModal). Separate from `showResellers`, which is the BUYER's
@@ -659,10 +689,12 @@ export function ItemDetail() {
       available: 1,
       network: it.network,
       chainId: it.chainId,
-      createdAt: 0
+      createdAt: 0,
+      paused: !!it.paused
     }
   }, [isMarket, state?.item])
-  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing
+  const marketPaused = !!marketListing && (marketListing.paused || revertedPaused(marketListing.tradeId))
+  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing && !marketPaused
   // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
   // Kept up here with the other hooks so it's never called after an early return.
   const saleActive = useSaleActive({
@@ -757,7 +789,7 @@ export function ItemDetail() {
   }, [routeKey])
 
   function handleAddToCart() {
-    if (!forSale || own || resolvingTrade) return
+    if (!forSale || own || resolvingTrade || listingPaused) return
     // Secondary: only ever one copy of a unique token. Primary: don't exceed remaining stock.
     if (!isPrimary && inCart) return
     if (atStockCap) return
@@ -979,6 +1011,9 @@ export function ItemDetail() {
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
   const managePriceCredits = justListedCredits ?? (manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0)
+  // A just-published listing is on the current marketplace, so only an older one can be paused.
+  const managePaused =
+    manageListed && justListedCredits == null && (manageAsSecondary ? !!ownedAsset?.listingPaused : listingPaused)
 
   // Item route only: how many copies of THIS item the viewer owns, for the "You own N of this" note.
   // The item page never manages a token, so this replaces the (removed) secondary-manage leak with a
@@ -1171,17 +1206,24 @@ export function ItemDetail() {
   // Sold-out primary that still has resellers (Figma 1524-298906): show the original (struck) + resale
   // price block and let the buyer buy the cheapest resale, instead of the plain out-of-stock/notify state.
   const soldOutWithResale = outOfStock && !manage && !!cheapestResaleItem
-  const resaleInCart = !!cheapestResaleItem && cartItems.some(i => i.id === cheapestResaleItem.id)
+  // The creator's listing is on hold but someone's resale is live: that resale becomes the offer, shown as
+  // one (its price and seller), so what Buy now charges is what the page displays.
+  const pausedWithResale =
+    !manage && !isMarket && !current.tokenId && listingPaused && secondarySales && !!cheapestLiveResaleItem
+  const resaleOffer = soldOutWithResale ? cheapestResaleItem : pausedWithResale ? cheapestLiveResaleItem : null
+  const resaleInCart = !!resaleOffer && cartItems.some(i => i.id === resaleOffer.id)
+  const resalePaused = !!resaleOffer && (!!resaleOffer.paused || revertedPaused(resaleOffer.tradeId))
+  // Whether the buyer is looking at a purchase that is on hold, so the reason is spelled out under the CTAs.
+  const buyerPaused = !manage && (isMarket ? marketPaused : forSale && !pausedWithResale ? listingPaused : resalePaused)
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
-  const dualCta = !manage && forSale && !isMarket
+  const dualCta = !manage && forSale && !isMarket && !pausedWithResale
   // Whether the CTA block below holds anything a visitor can actually act on — which is what earns it the
   // fixed bottom bar on mobile. A market item has Buy now; a listing you don't manage has buy/add-cart, or
   // the cheapest resale of a sold-out primary, or the notify-me form. Its LAST branch can render nothing
   // but the permanently disabled "coming soon" offer button (notify-me hides itself when no shop-server is
   // configured), and pinning a shadowed bar to the bottom of the screen for that is pure noise.
-  const hasActionableCta =
-    isMarket || (!manage && (forSale || (soldOutWithResale && !!cheapestResaleItem) || isNotifyAvailable()))
+  const hasActionableCta = isMarket || (!manage && (forSale || !!resaleOffer || isNotifyAvailable()))
 
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
@@ -1564,7 +1606,7 @@ export function ItemDetail() {
                       listing from a resale, and with resales off there is nothing to distinguish it from —
                       every listing in the Shop is a mint from its creator, so the row says something that is
                       true of the entire catalogue and reads as noise. It comes back with the flag. */}
-                  {secondarySales && !manage && !isMarket && forSale && !current.tokenId ? (
+                  {secondarySales && !manage && !isMarket && forSale && !current.tokenId && !pausedWithResale ? (
                     <S.PrimarySaleBanner data-testid="buy-from-creator">
                       <S.FromCreator>
                         <S.FromCreatorIco name="buy-from-creator" />
@@ -1574,10 +1616,10 @@ export function ItemDetail() {
                     </S.PrimarySaleBanner>
                   ) : null}
 
-                  {soldOutWithResale ? (
-                    // Sold-out primary with resellers (Figma 1524-298906): original (struck) price + SOLD OUT,
-                    // then the cheapest resale price + how many copies are on the secondary market.
-                    <S.SoldOutPricing data-testid="sold-out">
+                  {resaleOffer ? (
+                    // Sold-out (Figma 1524-298906) or on-hold primary with resellers: original (struck) price +
+                    // its state, then the resale on offer + how many copies are on the secondary market.
+                    <S.SoldOutPricing data-testid={pausedWithResale ? 'paused-resale' : 'sold-out'}>
                       <S.SoRow data-variant="original">
                         <S.SoLabel>
                           {t('itemDetail.originalPrice')}
@@ -1591,16 +1633,19 @@ export function ItemDetail() {
                             <Icon name="info" size={12} />
                           </S.SoInfo>
                         </S.SoLabel>
-                        <S.SoTag data-testid="out-of-stock">{t('itemDetail.soldOut')}</S.SoTag>
+                        {pausedWithResale ? (
+                          <S.SoTag data-testid="item-paused">{t('itemDetail.paused')}</S.SoTag>
+                        ) : (
+                          <S.SoTag data-testid="out-of-stock">{t('itemDetail.soldOut')}</S.SoTag>
+                        )}
                       </S.SoRow>
                       <S.SoRow data-variant="resale">
                         <S.SoLabel>
                           {t('itemDetail.resalePrice')}
                           <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <S.SoValue>
-                              {/* soldOutWithResale implies at least one resale, so a price exists. */}
-                              <Price credits={lowestResale!} />
+                            <S.SoValue data-testid="resale-offer-price">
+                              <Price credits={resaleOffer.priceCredits} />
                             </S.SoValue>
                           </S.SoPrice>
                           <S.SoInfo aria-hidden>
@@ -1611,6 +1656,7 @@ export function ItemDetail() {
                           {t('itemDetail.stock')} {resales.length}/{Rarity.getMaxSupply(rarity).toLocaleString()}
                         </S.SoStock>
                       </S.SoRow>
+                      {pausedWithResale && resaleOffer.seller ? <ResaleSeller seller={resaleOffer.seller} /> : null}
                     </S.SoldOutPricing>
                   ) : (
                     <S.PriceBlock>
@@ -1680,6 +1726,20 @@ export function ItemDetail() {
                               </Tooltip>
                             </S.Price>
                           )}
+                          {buyerPaused || (manage && managePaused) ? (
+                            <S.PausedTag data-testid="item-paused">
+                              <span>{t('itemDetail.paused')}</span>
+                              <Tooltip content={t(manage ? 'itemDetail.pausedSellerHint' : 'itemDetail.pausedHint')}>
+                                <S.PriceInfo
+                                  tabIndex={0}
+                                  role="img"
+                                  aria-label={t(manage ? 'itemDetail.pausedSellerHint' : 'itemDetail.pausedHint')}
+                                >
+                                  <Icon name="info" size={14} />
+                                </S.PriceInfo>
+                              </Tooltip>
+                            </S.PausedTag>
+                          ) : null}
                         </S.PriceCol>
                         {showStock ? (
                           <S.StockCol>
@@ -1751,7 +1811,9 @@ export function ItemDetail() {
                                 data-testid="edit-price"
                               >
                                 <Icon name="pen" className="ico" />
-                                <span>{t('itemDetail.manageUpdatePrice')}</span>
+                                <span>
+                                  {managePaused ? t('itemDetail.manageRelist') : t('itemDetail.manageUpdatePrice')}
+                                </span>
                               </S.SoftCta>
                             ) : null}
                             <S.ScrimCta onClick={() => setRemoving(true)} data-testid="remove-listing">
@@ -1806,9 +1868,14 @@ export function ItemDetail() {
                           </S.ManageResellers>
                         ) : null}
                       </S.ManageActions>
-                    ) : forSale ? (
+                    ) : forSale && !pausedWithResale ? (
                       <>
-                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                        <S.DetailCta
+                          variant="purple"
+                          onClick={handleBuyNow}
+                          disabled={resolvingTrade || listingPaused}
+                          data-testid="detail-buy-now"
+                        >
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
@@ -1817,32 +1884,36 @@ export function ItemDetail() {
                         </S.DetailCta>
                         <S.AddCart
                           onClick={handleAddToCart}
-                          disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
+                          disabled={resolvingTrade || listingPaused || (isPrimary ? atStockCap : inCart)}
                           aria-label={addLabel}
+                          data-testid="detail-add-cart"
                         >
                           <Icon name="cart" />
                           <S.AddCartLabel>{addLabel}</S.AddCartLabel>
                         </S.AddCart>
                       </>
-                    ) : soldOutWithResale && cheapestResaleItem ? (
-                      // Sold-out primary with resellers (Figma 1524-298906): buy the cheapest resale.
+                    ) : resaleOffer ? (
+                      // Sold-out or on-hold primary with resellers (Figma 1524-298906): buy the resale on offer.
                       <>
                         <S.DetailCta
                           variant="purple"
-                          onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
+                          onClick={() => (session ? setBuyResale(resaleOffer) : signIn())}
+                          disabled={resalePaused}
+                          data-testid="resale-buy-now"
                         >
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            <Price credits={cheapestResaleItem.priceCredits} />
+                            <Price credits={resaleOffer.priceCredits} />
                           </S.CtaPrice>
                         </S.DetailCta>
                         <S.AddCart
                           onClick={() => {
-                            if (!resaleInCart) add(cheapestResaleItem, 'item_detail')
+                            if (!resaleInCart) add(resaleOffer, 'item_detail')
                           }}
-                          disabled={resaleInCart}
+                          disabled={resaleInCart || resalePaused}
                           aria-label={resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                          data-testid="resale-add-cart"
                         >
                           <Icon name="cart" />
                           <S.AddCartLabel>
@@ -1880,13 +1951,25 @@ export function ItemDetail() {
                     )}
                   </S.Ctas>
 
+                  {buyerPaused || (manage && managePaused) ? (
+                    <S.PausedNote data-testid="paused-notice" role="status">
+                      <Icon name="info" size={16} />
+                      <span>{t(manage ? 'itemDetail.pausedSellerHint' : 'itemDetail.pausedHint')}</span>
+                    </S.PausedNote>
+                  ) : pausedWithResale ? (
+                    <S.PausedNote data-testid="paused-resale-notice" role="status">
+                      <Icon name="info" size={16} />
+                      <span>{t('itemDetail.pausedResaleHint')}</span>
+                    </S.PausedNote>
+                  ) : null}
+
                   {/* Lowest resale price + the trigger for the Other Resellers modal (Figma 1524-297513).
                   Only when there's at least one resale to show, and not for your own managed item (the
                   manage view carries its own trigger below the manage CTAs). In the sold-out state the
                   resale price already shows above, so the link is centered alone (Figma 1524-298906). */}
                   {!manage && !isMarket && lowestResale != null ? (
-                    <S.LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale || undefined}>
-                      {!soldOutWithResale ? (
+                    <S.LowestPriceRow data-testid="lowest-price" data-centered={!!resaleOffer || undefined}>
+                      {!resaleOffer ? (
                         <S.Lowest>
                           {t('itemDetail.lowestPrice')}
                           <CurrencyIcon className="ico" />

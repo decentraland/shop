@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 import { useCart } from '~/store/cart'
+import { t } from '~/intl/i18n'
+import { cartAvailabilityKey } from '~/lib/cart-availability'
 
 /**
  * THE WIRING OF A FAILED CART CHECKOUT — the money decisions, asserted through the page.
@@ -225,17 +227,21 @@ const lineInOwnGroup = (i: CatalogItem, index: number) => ({
   trade: { id: i.tradeId, chainId: 80002, contract: `0xmarket-${index}`, signer: '0xseller' }
 })
 
+let queryClient: QueryClient
+
 function renderCart(items: CatalogItem[], toLine: (i: CatalogItem, index: number) => unknown = line) {
   useCart.setState({ items: items.map(i => ({ ...i, quantity: 1 })), open: false })
   const review = {
     buyable: items.map((i, index) => toLine(i, index)),
     unavailable: [],
+    paused: [],
     own: [],
     liveTotalCredits: 20 * items.length,
     orderChanged: false
   }
   reviewCart.mockResolvedValue(review)
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  queryClient = qc
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -304,6 +310,38 @@ describe('the Purchase Summary CTA', () => {
 
     expect(await screen.findByRole('button', { name: /^checkout$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /buy now/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('when a line is paused by the time the checkout reviews the cart', () => {
+  let b: CatalogItem
+
+  beforeEach(async () => {
+    const a = item('a')
+    b = item('b')
+    renderCart([a, b])
+    reviewCart.mockResolvedValueOnce({
+      buyable: [line(a)],
+      unavailable: [],
+      paused: [b],
+      own: [],
+      liveTotalCredits: 20,
+      orderChanged: true
+    })
+    await pay()
+    await screen.findByText(t('cart.drop.paused', { count: 1 }))
+  })
+
+  it('should count only the line being bought in the summary total', () => {
+    expect(screen.getByText(t('cart.totalItems', { count: 1 }))).toBeInTheDocument()
+  })
+
+  it('should keep the paused line in the cart', () => {
+    expect(useCart.getState().items.map(i => i.id)).toEqual(['a', 'b'])
+  })
+
+  it('should mark the line paused under the key the availability query reads', () => {
+    expect(queryClient.getQueryData(cartAvailabilityKey(b))).toBe('paused')
   })
 })
 

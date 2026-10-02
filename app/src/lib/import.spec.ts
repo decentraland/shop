@@ -197,6 +197,24 @@ describe("when fetching a seller's importable listings", () => {
   })
 })
 
+describe('when the server flags an importable listing as paused', () => {
+  let result: Awaited<ReturnType<typeof fetchImportable>>
+
+  beforeEach(async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      okResponse([{ ...listing({ oldTradeId: 'held' }), isPaused: true }, listing({ oldTradeId: 'live' })])
+    )
+    result = await fetchImportable('0xseller')
+  })
+
+  it('should read isPaused into the paused flag and default a missing one to false', () => {
+    expect(result.owned.map(i => [i.oldTradeId, i.paused])).toEqual([
+      ['held', true],
+      ['live', false]
+    ])
+  })
+})
+
 describe('when importing a primary (creation) listing', () => {
   it('should ensure the shop can mint then sign and post an item order', async () => {
     await importListing(item({ listingType: 'primary', itemId: '3', available: 5 }), 50, session)

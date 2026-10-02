@@ -23,6 +23,7 @@ function asset(overrides: Partial<MyAsset> = {}): MyAsset {
     isOnSale: false,
     listingPrice: undefined,
     tradeId: undefined,
+    listingPaused: false,
     ...overrides
   }
 }

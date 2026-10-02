@@ -6,7 +6,7 @@ import { useFavorites, favoriteKey } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import { detailRouteFor } from '~/lib/routes'
-import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, authorizeUsdCreditGroup, cancelUsdIntents } from '~/lib/credits'
 import type { Session } from '~/lib/auth'
@@ -57,7 +57,8 @@ import {
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
-import { isLineBuyable } from '~/lib/cart-availability'
+import { cartAvailabilityKey, isLineBuyable } from '~/lib/cart-availability'
+import { unavailableLabel } from '~/lib/cart-line-label'
 import { CURRENCY } from '~/lib/currency'
 import { Price } from '~/components/Price'
 import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
@@ -65,7 +66,7 @@ import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
-import { isRejection, isInsufficient } from '~/lib/errors'
+import { isRejection, isInsufficient, isPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -94,6 +95,7 @@ export type CartNavState = {
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
 function friendlyError(e: unknown): string {
   if (isRejection(e)) return t('errors.rejected')
+  if (isPausedError(e)) return t('cart.error.paused')
   const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('no active listing') || msg.includes('your own listing')) return t('cart.error.listingChanged')
@@ -105,11 +107,14 @@ function friendlyError(e: unknown): string {
 const REVIEW_TTL_MS = 120_000
 
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
-function dropNotice(review: CartReview): string {
+function dropNotice(review: CartReview): string | null {
   const parts: string[] = []
   if (review.unavailable.length) parts.push(t('cart.drop.unavailable', { count: review.unavailable.length }))
   if (review.own.length) parts.push(t('cart.drop.own', { count: review.own.length }))
-  return t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) })
+  const removed = parts.length ? t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) }) : null
+  // Paused lines stay in the cart: if the seller lists again, the line can be bought without re-adding it.
+  const held = review.paused.length ? t('cart.drop.paused', { count: review.paused.length }) : null
+  return [removed, held].filter(Boolean).join(' ') || null
 }
 
 // Sum of a set of reviewed lines in whole credits — per-unit price × quantity for each line.
@@ -224,7 +229,11 @@ export function Cart() {
   const shownTotal = buyableItems.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
   // Total buyable units (Σ quantity over available lines) — the "N items" the summary total reflects.
   const totalUnits = items.reduce((n, i) => n + i.quantity, 0)
-  const buyableUnits = buyableItems.reduce((n, i) => n + i.quantity, 0)
+  // A pending review is what will actually be charged, so its lines are the count.
+  const buyableUnits = (review ? review.buyable.map(l => l.quantity) : buyableItems.map(i => i.quantity)).reduce(
+    (n, q) => n + q,
+    0
+  )
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
@@ -572,7 +581,7 @@ export function Cart() {
             // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
             // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
             // to surface the relayer being down as what it is: something to try again shortly.
-            if (!canPayGasItself(session.providerType)) throw gaslessErr
+            if (!mayFallBackToDirect(gaslessErr, session.providerType)) throw gaslessErr
             hashes = await buyManyWithCredits({
               purchases,
               buyer: session.address,
@@ -1178,10 +1187,10 @@ export function Cart() {
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]
-      if (dropped.length) {
-        dropped.forEach(i => remove(i.id))
-        setNotice(dropNotice(rev))
-      }
+      dropped.forEach(i => remove(i.id))
+      // A line that paused after the cart opened shows as on hold, like one known paused on open.
+      rev.paused.forEach(i => qc.setQueryData(cartAvailabilityKey(i), 'paused'))
+      if (dropped.length || rev.paused.length) setNotice(dropNotice(rev))
       if (rev.buyable.length === 0) {
         setError(t('cart.error.noneAvailable'))
         setReview(null)
@@ -1390,8 +1399,6 @@ export function Cart() {
                   // Live availability (optimistically 'available' until the trade resolves otherwise).
                   const status = availability[item.id]
                   const unavailable = !isLineBuyable(status)
-                  const unavailableLabel =
-                    status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
                   return (
                     <S.Card data-unavailable={unavailable || undefined} key={item.id}>
                       <S.Thumb data-thumb>
@@ -1444,7 +1451,7 @@ export function Cart() {
                                checkout__actions is the one-tap remove. */
                             <S.Unavailable>
                               <S.Warn name="warning-fill" size={24} />
-                              {unavailableLabel}
+                              {unavailableLabel(status)}
                             </S.Unavailable>
                           ) : (
                             <>

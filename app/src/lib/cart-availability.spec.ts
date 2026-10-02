@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Trade } from '@dcl/schemas'
-import type { CatalogItem } from '~/lib/api'
+import type { CatalogItem, ShopTrade } from '~/lib/api'
 
 // Only resolveLiveTrade is stubbed; usdWeiToCents + TradeNotFoundError stay real so the classifier and
 // the not-found branch exercise the production code paths.
@@ -10,7 +9,16 @@ vi.mock('~/lib/api', async importActual => {
 })
 
 import { resolveLiveTrade, fetchStoreMintState, TradeNotFoundError } from '~/lib/api'
-import { classifyTrade, classifyStoreMint, isLineBuyable, resolveLineAvailability } from '~/lib/cart-availability'
+import {
+  cartAvailabilityKey,
+  classifyTrade,
+  classifyStoreMint,
+  isLineBuyable,
+  notePausedPurchase,
+  resolveLineAvailability
+} from '~/lib/cart-availability'
+import { QueryClient } from '@tanstack/react-query'
+import { PAUSED_LISTINGS_KEY } from '~/lib/dead-listings'
 
 const resolveMock = vi.mocked(resolveLiveTrade)
 const storeMock = vi.mocked(fetchStoreMintState)
@@ -23,13 +31,14 @@ const AMOY = 80002
 
 // A USD-pegged trade on the Amoy V2 marketplace: received amount is USD wei (1e18 = $1), so $2 → 2e18 wei.
 // Optional expiration is epoch ms (the shape fetchTrade returns).
-const trade = (dollars: number, expiration?: number): Trade =>
+const trade = (dollars: number, expiration?: number): ShopTrade =>
   ({
+    paused: false,
     contract: MARKETPLACE_V2_AMOY,
     chainId: AMOY,
     received: [{ amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString() }],
     ...(expiration != null ? { checks: { expiration } } : {})
-  }) as unknown as Trade
+  }) as unknown as ShopTrade
 
 const primary = { itemId: 'item-1', contractAddress: '0xc', tradeId: 'trade-1' } as Partial<CatalogItem>
 const secondary = { tokenId: '42', contractAddress: '0xc', tradeId: 'trade-2' } as Partial<CatalogItem>
@@ -211,5 +220,54 @@ describe('cart-availability', () => {
       await expect(resolveLineAvailability(primary as CatalogItem)).resolves.toBe('available')
       expect(storeMock).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('when a line resolves to a paused trade', () => {
+  let paused: ShopTrade
+
+  beforeEach(() => {
+    paused = { ...trade(3), paused: true }
+  })
+
+  describe('and it is classified directly', () => {
+    it('should report the line as paused', () => {
+      expect(classifyTrade(primary, paused)).toBe('paused')
+    })
+  })
+
+  describe('and its availability is resolved through the live trade', () => {
+    beforeEach(() => {
+      resolveMock.mockResolvedValueOnce(paused)
+    })
+
+    it('should report the line as paused rather than sold out', async () => {
+      await expect(resolveLineAvailability(primary as CatalogItem)).resolves.toBe('paused')
+    })
+  })
+
+  describe('and the cart asks whether it can be bought', () => {
+    it('should leave it out of the buyable lines', () => {
+      expect(isLineBuyable('paused')).toBe(false)
+    })
+  })
+})
+
+describe('when a purchase reverts because the listing is paused', () => {
+  let qc: QueryClient
+  let line: Pick<CatalogItem, 'id' | 'tradeId' | 'itemId' | 'contractAddress'>
+
+  beforeEach(() => {
+    qc = new QueryClient()
+    line = { id: 'line-1', tradeId: 'tr-1', itemId: '4', contractAddress: '0xc' }
+    notePausedPurchase(qc, line, ['tr-1', null, 'tr-2'])
+  })
+
+  it('should remember every trade it was given as paused', () => {
+    expect(qc.getQueryData(PAUSED_LISTINGS_KEY)).toEqual(['tr-1', 'tr-2'])
+  })
+
+  it("should write paused into the line's cart availability", () => {
+    expect(qc.getQueryData(cartAvailabilityKey(line))).toBe('paused')
   })
 })

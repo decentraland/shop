@@ -33,3 +33,14 @@ export function liveTradeId(qc: QueryClient, tradeId?: string | null): string | 
   if (!tradeId) return undefined
   return qc.getQueryData<string[]>(KEY)?.includes(tradeId) ? undefined : tradeId
 }
+
+/**
+ * The listings a purchase this session saw revert as paused. The feed can lag behind a pause just as it lags
+ * behind a take-down, and without this a buyer could retry straight into the same revert.
+ */
+export const PAUSED_LISTINGS_KEY = ['paused-listings'] as const
+
+export function markListingPaused(qc: QueryClient, tradeId: string): void {
+  if (!tradeId) return
+  qc.setQueryData<string[]>(PAUSED_LISTINGS_KEY, prev => (prev?.includes(tradeId) ? prev : [...(prev ?? []), tradeId]))
+}

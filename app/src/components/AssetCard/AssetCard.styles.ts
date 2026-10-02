@@ -319,6 +319,31 @@ export const SaleBadge = styled(SaleTag)`
   z-index: 4;
 `
 
+// The compact card hides its chip row, so a paused listing says so on the artwork instead.
+export const PausedBadge = styled.span`
+  display: none;
+
+  ${media.maxWidth('sm')} {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: ${colors.overlayStrong};
+    color: ${colors.flareAmber};
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+`
+
 // Shimmer over the gray media background while the shared 3D preview boots. z-index -1 (within the
 // media's isolate stacking context) keeps it above the gray fill but behind the static thumbnail.
 export const Skeleton = styled.div`
@@ -764,6 +789,12 @@ export const CardChip = styled(Chip)`
     padding: 4px 4px 4px 2px;
     background: rgba(255, 255, 255, 0.14);
     color: ${colors.softWhite};
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  &[data-variant='paused'] {
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.flareAmber};
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }

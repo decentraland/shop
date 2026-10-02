@@ -149,6 +149,24 @@ describe('when adding an item to the cart', () => {
   })
 })
 
+describe('when adding a paused listing to the cart', () => {
+  beforeEach(() => {
+    useCart.getState().add(item({ paused: true }))
+  })
+
+  it('should leave the cart empty', () => {
+    expect(useCart.getState().items).toHaveLength(0)
+  })
+
+  it('should keep the popover closed', () => {
+    expect(useCart.getState().open).toBe(false)
+  })
+
+  it('should not track an add', () => {
+    expect(trackMock).not.toHaveBeenCalled()
+  })
+})
+
 // The bug this guards, seen in production: three different CollectionStore mints were added from one
 // outfit and became a SINGLE line at quantity 3. Mints carry no tradeId, the feed mapper took that
 // null as the row id, and `find(i => i.id === item.id)` matched null against null — so the buyer paid

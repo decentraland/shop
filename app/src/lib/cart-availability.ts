@@ -1,15 +1,44 @@
-import type { Trade } from '@dcl/schemas'
-import { resolveLiveTrade, fetchStoreMintState, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
+import type { QueryClient } from '@tanstack/react-query'
+import {
+  resolveLiveTrade,
+  fetchStoreMintState,
+  usdWeiToCents,
+  TradeNotFoundError,
+  type CatalogItem,
+  type ShopTrade
+} from '~/lib/api'
 import { getMarketplaceForTrade } from '~/lib/marketplace'
+import { markListingPaused } from '~/lib/dead-listings'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable
 //   sold-out    → a PRIMARY (mint) line whose supply is exhausted / minting closed (no live listing)
 //   unavailable → a SECONDARY (unique token) line whose listing is gone, or any expired / $0 listing
+//   paused      → the listing is still open but its marketplace version no longer accepts purchases
 // We never block render on this: a line is assumed 'available' until proven otherwise (see the hook),
 // so a non-available state is only ever reported once the line's live trade has actually resolved (or
 // definitively failed to resolve).
-export type CartLineAvailability = 'available' | 'sold-out' | 'unavailable'
+export type CartLineAvailability = 'available' | 'sold-out' | 'unavailable' | 'paused'
+
+// Keyed on the identity that determines the trade to resolve: a re-priced/re-signed line (new tradeId)
+// revalidates, while an unchanged line reuses its cached result across reopens.
+export function cartAvailabilityKey(item: Pick<CatalogItem, 'id' | 'tradeId' | 'itemId' | 'contractAddress'>) {
+  return ['cart-availability', item.id, item.tradeId ?? null, item.itemId ?? null, item.contractAddress] as const
+}
+
+/**
+ * Record a purchase that reverted because the listing is paused, so the item page and the cart show it on
+ * hold before the feed reports it.
+ */
+export function notePausedPurchase(
+  qc: QueryClient,
+  item: Pick<CatalogItem, 'id' | 'tradeId' | 'itemId' | 'contractAddress'>,
+  tradeIds: (string | null | undefined)[]
+): void {
+  for (const id of tradeIds) if (id) markListingPaused(qc, id)
+  qc.setQueryData(cartAvailabilityKey(item), 'paused')
+  void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+}
 
 // Can this line still be bought? Anything other than 'available' (and the optimistic "not yet known"
 // undefined) is excluded from the total and from checkout. Kept as one predicate so the cart UI and
@@ -22,8 +51,10 @@ export function isLineBuyable(status: CartLineAvailability | undefined): boolean
 // Mirrors the availability half of reviewCart so what the cart SHOWS agrees with what checkout DOES:
 // no live listing / a past expiration / a zero price all mean "not buyable". A PRIMARY (mint) line
 // with no live listing reads as sold-out; a SECONDARY (unique token) line reads as unavailable.
-export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: Trade | null): CartLineAvailability {
+export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: ShopTrade | null): CartLineAvailability {
   if (!trade) return item.tokenId ? 'unavailable' : 'sold-out'
+  // Before the marketplace lookup: a paused version is still a known one, and the buyer is owed the reason.
+  if (trade.paused) return 'paused'
   // As in resolveLine: a trade naming a marketplace not deployed on its chain cannot settle anywhere.
   if (!getMarketplaceForTrade(trade)) return 'unavailable'
   // checks.expiration is stored in epoch MILLISECONDS (see lib/trade-encoding.ts), so it compares
