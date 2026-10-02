@@ -16,6 +16,18 @@ const EDGE = 0.02
 /** Above this share of the wearer covered by other people, the item is likely behind someone. */
 const MAX_COVERED = 0.5
 
+/**
+ * Someone this much shorter than the wearer in the photo is taken to stand behind them, and does not cover
+ * them. The rectangle has no depth, and in a perspective shot smaller usually means further away.
+ */
+const IN_FRONT_HEIGHT = 0.8
+
+/** A box touching a side edge and this thin for its height is a person mostly out of frame at that side. */
+const MIN_SIDE_WIDTH = 0.08
+
+/** How finely the wearer's box is sampled to measure what others cover, counting each spot once. */
+const COVER_SAMPLES = 20
+
 /** How much being near the centre counts, against size: the photographer framed the subject there. */
 const CENTRE_WEIGHT = 0.2
 
@@ -50,32 +62,47 @@ export function toScreenRect(raw: unknown): ScreenRect | null {
   return rect
 }
 
-function overlap(a: ScreenRect, b: ScreenRect): number {
-  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
-  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
-  return width > 0 && height > 0 ? width * height : 0
+function contains(rect: ScreenRect, x: number, y: number): boolean {
+  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
+}
+
+/** The share of the wearer's box that people in front of them cover, each covered spot counted once. */
+function coveredShare(wearer: ScreenRect, others: ScreenRect[]): number {
+  const inFront = others.filter(other => other.height >= wearer.height * IN_FRONT_HEIGHT)
+  if (inFront.length === 0) return 0
+  let covered = 0
+  for (let i = 0; i < COVER_SAMPLES; i++) {
+    for (let j = 0; j < COVER_SAMPLES; j++) {
+      const x = wearer.x + ((i + 0.5) / COVER_SAMPLES) * wearer.width
+      const y = wearer.y + ((j + 0.5) / COVER_SAMPLES) * wearer.height
+      if (inFront.some(other => contains(other, x, y))) covered++
+    }
+  }
+  return covered / (COVER_SAMPLES * COVER_SAMPLES)
 }
 
 /**
  * A score for how clearly the photo shows the item on its wearer, or null when it does not show it.
  *
- * Null when the wearer is too small, when they are cut off on the side of the body the item is on, or when
- * other people cover most of them. Otherwise bigger and more central scores higher, less whatever others
- * cover. The rectangle has no depth, so anyone overlapping counts as in front.
+ * Null when the wearer is too small, mostly out of frame at a side, cut off on the side of the body the
+ * item is on, or covered for the most part by people in front of them. Otherwise bigger and more central
+ * scores higher, less whatever is covered.
  */
 export function framingScore(wearer: ScreenRect, others: ScreenRect[], category: string): number | null {
   if (wearer.height < MIN_WEARER_HEIGHT) return null
 
+  const atSide = wearer.x <= EDGE || wearer.x + wearer.width >= 1 - EDGE
+  if (atSide && wearer.width < wearer.height * MIN_SIDE_WIDTH) return null
+
   const cutAtTop = wearer.y <= EDGE
   const cutAtBottom = wearer.y + wearer.height >= 1 - EDGE
-  const wholeBody = category === 'skin'
+  // An unknown category (the rules lookup failed, or the entity has none) is checked at both edges, like a
+  // skin: without knowing where the item sits, a wearer cut off at either end may have lost it.
+  const wholeBody = category === 'skin' || !category
   if (cutAtBottom && (wholeBody || LOW_CATEGORIES.has(category))) return null
   if (cutAtTop && (wholeBody || HEAD_CATEGORIES.has(category))) return null
 
-  const covered = Math.min(
-    1,
-    others.reduce((sum, other) => sum + overlap(wearer, other), 0) / (wearer.width * wearer.height)
-  )
+  const covered = coveredShare(wearer, others)
   if (covered > MAX_COVERED) return null
 
   const centre = wearer.x + wearer.width / 2

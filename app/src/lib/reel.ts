@@ -39,6 +39,8 @@ export type ReelPhoto = {
   itemCategory: string
   /** Where the wearer stands in the photo. Null on photos taken before the client recorded it. */
   wearerRect: ScreenRect | null
+  /** The client recorded a rectangle for the wearer but it is empty: they are outside the saved photo. */
+  wearerOffPhoto: boolean
   /** Where everyone else in the shot stands, for telling whether they cover the wearer. */
   otherRects: ScreenRect[]
 }
@@ -177,6 +179,8 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
     itemUrn: wearer ? (wornItem(wearer, itemKey) ?? '') : '',
     itemCategory: '',
     wearerRect: toScreenRect(wearer?.screenRect),
+    // Present but empty is the client saying the wearer is outside the saved crop. Absent is an older photo.
+    wearerOffPhoto: wearer?.screenRect != null && !toScreenRect(wearer.screenRect),
     otherRects: people
       .filter(person => person !== wearer)
       .map(person => toScreenRect(person.screenRect))
@@ -214,7 +218,7 @@ export function rankReelPhotos(photos: ReelPhoto[], limit = SHOWN): ReelPhoto[] 
     .sort((a, b) => b.score - a.score || newest(a.photo, b.photo))
     .map(({ photo }) => photo)
   const unframed = photos
-    .filter(photo => !photo.wearerRect && !isCrowd(photo))
+    .filter(photo => !photo.wearerRect && !photo.wearerOffPhoto && !isCrowd(photo))
     .sort((a, b) => a.people - b.people || newest(a, b))
   const ordered = [...framed, ...unframed]
 

@@ -57,6 +57,24 @@ describe('when scoring how a photo frames the wearer', () => {
     expect(framingScore(cutAtTop, [], 'feet')).not.toBeNull()
   })
 
+  it('and the wearer is mostly out of frame at a side it should not show the photo', () => {
+    expect(framingScore({ x: 0.97, y: 0.15, width: 0.03, height: 0.7 }, [], 'upper_body')).toBeNull()
+  })
+
+  it('and the category is unknown it should check both edges, as for a skin', () => {
+    expect(framingScore({ x: 0.4, y: 0.3, width: 0.2, height: 0.7 }, [], '')).toBeNull()
+    expect(framingScore({ x: 0.4, y: 0, width: 0.2, height: 0.7 }, [], '')).toBeNull()
+    expect(framingScore(CENTRED, [], '')).not.toBeNull()
+  })
+
+  it('should not count smaller people behind the wearer, nor the same covered spot twice', () => {
+    const behind = Array.from({ length: 14 }, () => ({ x: 0.4, y: 0.3, width: 0.05, height: 0.2 }))
+    const inFront = { x: CENTRED.x, y: CENTRED.y, width: CENTRED.width * 0.3, height: CENTRED.height }
+
+    expect(framingScore(CENTRED, behind, 'upper_body')).toBe(framingScore(CENTRED, [], 'upper_body'))
+    expect(framingScore(CENTRED, [inFront, inFront], 'upper_body')).toBe(framingScore(CENTRED, [inFront], 'upper_body'))
+  })
+
   it('and other people cover most of the wearer it should not show the photo', () => {
     expect(framingScore(CENTRED, [{ ...CENTRED }], 'upper_body')).toBeNull()
   })
