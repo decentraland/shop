@@ -1,5 +1,6 @@
 import { config } from '~/config'
 import type { CatalogItem } from '~/lib/api'
+import { framingScore, toScreenRect, type ScreenRect } from '~/lib/reelFraming'
 import { fetchWearableRules, hiddenBy, type WearableRule } from '~/lib/wearable-rules'
 
 /**
@@ -34,6 +35,14 @@ export type ReelPhoto = {
   wearerWearables: string[]
   /** This item's urn as the wearer carries it, without the token id. Empty when nobody in the shot wears it. */
   itemUrn: string
+  /** The item's category from its Catalyst entity (`lower_body`, `hat`…). Empty when it could not be read. */
+  itemCategory: string
+  /** Where the wearer stands in the photo. Null on photos taken before the client recorded it. */
+  wearerRect: ScreenRect | null
+  /** The client recorded a rectangle for the wearer but it is empty: they are outside the saved photo. */
+  wearerOffPhoto: boolean
+  /** Where everyone else in the shot stands, for telling whether they cover the wearer. */
+  otherRects: ScreenRect[]
 }
 
 /** `contract-itemId`, the same identity the favourites use, and what the service indexes photos by. */
@@ -63,6 +72,14 @@ function isCrowd(photo: ReelPhoto): boolean {
   return photo.people > MAX_PEOPLE
 }
 
+/**
+ * Whether the photo can still make the strip. A crowd shot is only ruled out when nobody knows where the
+ * wearer stands: with a rectangle, a large wearer in front of a crowd still shows the item.
+ */
+function mayShow(photo: ReelPhoto): boolean {
+  return !!photo.wearerRect || !isCrowd(photo)
+}
+
 // The Catalyst reads a batch of pointers per request; a strip's candidates can carry a few hundred.
 const RULES_BATCH = 100
 
@@ -75,7 +92,7 @@ const RULES_BATCH = 100
  * photos are kept, since a strip must not depend on this lookup.
  */
 async function withItemVisible(photos: ReelPhoto[]): Promise<ReelPhoto[]> {
-  const candidates = photos.filter(photo => !isCrowd(photo) && photo.itemUrn)
+  const candidates = photos.filter(photo => mayShow(photo) && photo.itemUrn)
   const urns = [...new Set(candidates.flatMap(photo => [photo.itemUrn, ...photo.wearerWearables]))]
   const batches: string[][] = []
   for (let i = 0; i < urns.length; i += RULES_BATCH) batches.push(urns.slice(i, i + RULES_BATCH))
@@ -83,14 +100,15 @@ async function withItemVisible(photos: ReelPhoto[]): Promise<ReelPhoto[]> {
   for (const rule of (await Promise.all(batches.map(fetchWearableRules))).flat())
     rules.set(rule.urn.toLowerCase(), rule)
 
-  return photos.filter(photo => {
-    const category = rules.get(photo.itemUrn.toLowerCase())?.category
-    if (!category) return true
-    return !photo.wearerWearables.some(urn => {
-      const rule = urn.toLowerCase() === photo.itemUrn.toLowerCase() ? undefined : rules.get(urn.toLowerCase())
-      return !!rule && hiddenBy(rule).has(category)
+  return photos
+    .map(photo => ({ ...photo, itemCategory: rules.get(photo.itemUrn.toLowerCase())?.category ?? '' }))
+    .filter(photo => {
+      if (!photo.itemCategory) return true
+      return !photo.wearerWearables.some(urn => {
+        const rule = urn.toLowerCase() === photo.itemUrn.toLowerCase() ? undefined : rules.get(urn.toLowerCase())
+        return !!rule && hiddenBy(rule).has(photo.itemCategory)
+      })
     })
-  })
 }
 
 /** At most this many photos by the same person, or in the same place, so the strip is not one scene. */
@@ -101,6 +119,7 @@ type ServicePerson = {
   userName?: string
   userAddress?: string
   wearables?: string[]
+  screenRect?: unknown
 }
 
 type ServiceImage = {
@@ -158,6 +177,14 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
     position: location?.x != null && location?.y != null ? `${location.x},${location.y}` : '',
     wearerWearables: (wearer?.wearables ?? []).map(itemPointer),
     itemUrn: wearer ? (wornItem(wearer, itemKey) ?? '') : '',
+    itemCategory: '',
+    wearerRect: toScreenRect(wearer?.screenRect),
+    // Present but empty is the client saying the wearer is outside the saved crop. Absent is an older photo.
+    wearerOffPhoto: wearer?.screenRect != null && !toScreenRect(wearer.screenRect),
+    otherRects: people
+      .filter(person => person !== wearer)
+      .map(person => toScreenRect(person.screenRect))
+      .filter((rect): rect is ScreenRect => !!rect),
     realm: metadata.realm ?? '',
     dateTime: metadata.dateTime ?? '',
     people: people.length
@@ -165,7 +192,11 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
 }
 
 /**
- * Fewest people first, then most recent, with a cap per person and per place. Crowds are left out.
+ * Photos that show the wearer well first, best framed first; then the photos with no rectangle, fewest
+ * people first and crowds left out. Most recent breaks ties, and a cap per person and per place applies.
+ *
+ * A photo with a rectangle is judged on it alone: too small, cut off where the item is, or covered by
+ * others, and it is dropped however few people are in it.
  *
  * The caps are what keep the strip from opening with the same scene four times: a popular spot is
  * photographed by several people on the same night, and those shots are near-identical.
@@ -178,9 +209,18 @@ export function rankReelPhotos(photos: ReelPhoto[], limit = SHOWN): ReelPhoto[] 
   const seen = new Set<string>()
   const ranked: ReelPhoto[] = []
 
-  const ordered = [...photos]
-    .filter(photo => !isCrowd(photo))
-    .sort((a, b) => a.people - b.people || Number(b.dateTime) - Number(a.dateTime))
+  const newest = (a: ReelPhoto, b: ReelPhoto) => Number(b.dateTime) - Number(a.dateTime)
+  const framed = photos
+    .flatMap(photo => {
+      const score = photo.wearerRect && framingScore(photo.wearerRect, photo.otherRects, photo.itemCategory)
+      return score == null ? [] : [{ photo, score }]
+    })
+    .sort((a, b) => b.score - a.score || newest(a.photo, b.photo))
+    .map(({ photo }) => photo)
+  const unframed = photos
+    .filter(photo => !photo.wearerRect && !photo.wearerOffPhoto && !isCrowd(photo))
+    .sort((a, b) => a.people - b.people || newest(a, b))
+  const ordered = [...framed, ...unframed]
 
   for (const photo of ordered) {
     const author = photo.userAddress.toLowerCase()

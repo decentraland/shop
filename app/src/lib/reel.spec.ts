@@ -49,6 +49,10 @@ function photo(overrides: Partial<ReelPhoto> = {}): ReelPhoto {
     people: 1,
     wearerWearables: [],
     itemUrn: '',
+    itemCategory: '',
+    wearerRect: null,
+    wearerOffPhoto: false,
+    otherRects: [],
     ...overrides
   }
 }
@@ -199,6 +203,79 @@ describe('when ranking the photos of an item', () => {
     ])
 
     expect(ranked.map(p => p.id)).toEqual(['solo', 'pair', 'group'])
+  })
+
+  it('should put photos that frame the wearer well before those with no rectangle', () => {
+    const ranked = rankReelPhotos([
+      photo({ id: 'portrait-no-rect', people: 1, userAddress: '0x1', place: 'a', dateTime: '3000' }),
+      photo({
+        id: 'framed',
+        people: 4,
+        userAddress: '0x2',
+        place: 'b',
+        dateTime: '1000',
+        wearerRect: { x: 0.35, y: 0.2, width: 0.3, height: 0.6 }
+      })
+    ])
+
+    expect(ranked.map(p => p.id)).toEqual(['framed', 'portrait-no-rect'])
+  })
+
+  it('should keep a crowd shot whose wearer is large in the frame, with smaller people behind them', () => {
+    const wearerRect = { x: 0.3, y: 0.1, width: 0.35, height: 0.8 }
+    const background = Array.from({ length: 14 }, (_, i) => ({
+      x: 0.3 + (i % 7) * 0.05,
+      y: 0.2 + Math.floor(i / 7) * 0.2,
+      width: 0.05,
+      height: 0.2
+    }))
+    const ranked = rankReelPhotos([
+      photo({ id: 'party', people: 30, itemCategory: 'upper_body', wearerRect, otherRects: background })
+    ])
+
+    expect(ranked.map(p => p.id)).toEqual(['party'])
+  })
+
+  it('should drop a photo with a rectangle that frames the wearer badly, however few people are in it', () => {
+    const ranked = rankReelPhotos([
+      photo({
+        id: 'tiny',
+        people: 1,
+        userAddress: '0x1',
+        place: 'a',
+        wearerRect: { x: 0.45, y: 0.4, width: 0.05, height: 0.1 }
+      }),
+      photo({
+        id: 'feet-cut',
+        people: 1,
+        userAddress: '0x2',
+        place: 'b',
+        itemCategory: 'feet',
+        wearerRect: { x: 0.4, y: 0.3, width: 0.2, height: 0.7 }
+      })
+    ])
+
+    expect(ranked).toEqual([])
+  })
+
+  it('should drop a photo whose wearer the client placed outside the saved crop', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [
+          serviceImage({}, [
+            {
+              userName: 'Out',
+              userAddress: '0xbbb',
+              wearables: [WORN],
+              screenRect: { x: 0, y: 0, width: 0, height: 0 }
+            }
+          ])
+        ]
+      })
+    })
+
+    await expect(fetchItemReel(ITEM)).resolves.toEqual([])
   })
 
   it('should leave crowds out, where the item is a speck', () => {
