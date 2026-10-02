@@ -233,12 +233,23 @@ export function CreatorSaleModal({
   }
   const pct = pctPreset === 'custom' ? Number(customPct) : pctPreset
 
+  /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
+  const review = useMemo(() => {
+    const listed = current.items.filter(i => i.state === 'discounted')
+    const classic = current.items.filter(i => i.state === 'classic')
+    const unlisted = current.items.filter(i => i.state === 'unlisted')
+    // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
+    // listed item — the honest ceiling for "how many can be sold at this price".
+    const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
+    return { listed, classic, unlisted, supply }
+  }, [current])
+
   // The terms as they stand, validated the way the submit will validate them, so the button and the inline
   // message agree. `now` is taken per render: a "72 hours" sale is measured from the click, not from mount.
   const terms = useMemo(() => {
     const now = Date.now()
     const { startsAtMs, endsAtMs } = windowOf(when, now)
-    const uses = capOn ? Number(cap) : undefined
+    const uses = capOn ? (review.supply > 0 ? Math.min(Number(cap), review.supply) : Number(cap)) : undefined
     const candidate = { collections: selected, discountPct: pct, startsAtMs, endsAtMs, uses }
     let problem: SaleInputProblem | null = null
     try {
@@ -247,7 +258,7 @@ export function CreatorSaleModal({
       problem = e instanceof SaleInputError ? e.problem : 'window'
     }
     return { ...candidate, problem }
-  }, [selected, pct, when, capOn, cap])
+  }, [selected, pct, when, capOn, cap, review.supply])
 
   /**
    * Opening the flow is the top of the funnel. Guarded by a ref rather than an empty dependency list so it
@@ -303,17 +314,6 @@ export function CreatorSaleModal({
     if (el) el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' })
   }
   useEffect(measureStrip, [previewItems, step])
-
-  /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
-  const review = useMemo(() => {
-    const listed = current.items.filter(i => i.state === 'discounted')
-    const classic = current.items.filter(i => i.state === 'classic')
-    const unlisted = current.items.filter(i => i.state === 'unlisted')
-    // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
-    // listed item — the honest ceiling for "how many can be sold at this price".
-    const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
-    return { listed, classic, unlisted, supply }
-  }, [current])
 
   async function submit() {
     setTouched(true)
@@ -373,7 +373,8 @@ export function CreatorSaleModal({
       if (e instanceof SaleInputError) {
         setError(problemCopy(e.problem))
       } else {
-        captureError(e, { flow: 'creator_sale' })
+        // A preview signs with a placeholder session, so its failure is expected rather than reportable.
+        if (!silent) captureError(e, { flow: 'creator_sale' })
         trackSale('Shop Sale Failed', { error_code: errorCode(e), step: 'create' })
         setError(friendlyError(e, t('creatorSale.errorGeneric')))
       }
@@ -928,14 +929,14 @@ export function CreatorSaleModal({
               data-testid="creator-sale-cap"
               onChange={e => {
                 const v = e.target.value
-                if (!/^\d*$/.test(v)) return
+                if (!/^\d{0,7}$/.test(v)) return
                 setTouched(true)
                 setCap(review.supply > 0 && Number(v) > review.supply ? String(review.supply) : v)
               }}
             />
             {review.supply > 0 ? (
               <span aria-hidden data-testid="creator-sale-cap-count">
-                {cap || 0}/{review.supply}
+                {terms.uses ?? 0}/{review.supply}
               </span>
             ) : null}
           </S.CapInput>

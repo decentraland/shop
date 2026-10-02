@@ -1354,10 +1354,10 @@ export function MyStore() {
                 }}
               />
             ) : null}
-            {saleOpen && (session || mock) ? (
+            {saleOpen && (mock || session) ? (
               <CreatorSaleModal
-                // The invented store has nobody signed in: the flow can be walked, only signing it fails.
-                session={session ?? MOCK_SESSION}
+                // The invented store signs as nobody, even with a creator signed in: only signing it fails.
+                session={mock ? MOCK_SESSION : (session as Session)}
                 collections={mock ? mockSaleable : saleable}
                 onClose={() => setSaleOpen(false)}
                 source="my_store"
