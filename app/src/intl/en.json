@@ -506,7 +506,7 @@
     "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open.",
     "becauseYouOwn": "Because of what you own",
     "paused": "On hold",
-    "pausedHint": "Purchases of this listing are on hold for now. The seller needs to list it again.",
+    "pausedHint": "Purchases of this listing are on hold until it is listed again.",
     "pausedResaleHint": "The creator's listing is on hold, so this offer is a resale from another owner.",
     "resaleSeller": "Sold by {name}",
     "pausedSellerHint": "Buyers can't purchase this listing right now. List it again to keep selling — you can still remove it.",

@@ -506,7 +506,7 @@
     "cancelSlowManaged": "Ainda finalizando. Pode levar alguns minutos; você pode deixar isto aberto.",
     "becauseYouOwn": "Com base no que você tem",
     "paused": "Pausado",
-    "pausedHint": "As compras deste anúncio estão pausadas por enquanto. O vendedor precisa anunciá-lo novamente.",
+    "pausedHint": "As compras deste anúncio estão pausadas até que ele seja anunciado novamente.",
     "pausedResaleHint": "O anúncio do criador está pausado, então esta oferta é uma revenda de outro dono.",
     "resaleSeller": "Vendido por {name}",
     "pausedSellerHint": "Os compradores não podem comprar este anúncio agora. Anuncie novamente para continuar vendendo — você ainda pode removê-lo.",
