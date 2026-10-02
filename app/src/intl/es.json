@@ -1459,7 +1459,6 @@
     "durationHours": "{count, plural, one {# hora} other {# horas}}",
     "durationDays": "{count, plural, one {# día} other {# días}}",
     "previewTitle": "Lo que ven los compradores",
-    "previewRounds": "Los precios son <c>Créditos</c> enteros, así que un descuento pequeño puede dejar un artículo barato al mismo precio. Elige un descuento mayor para moverlo.",
     "pctTag": "-{pct}%",
     "searchCollections": "Busca tus colecciones",
     "pickCount": "{count, plural, one {# colección} other {# colecciones}} · {credits} con artículos en Créditos",
@@ -1467,11 +1466,11 @@
     "previewCount": "{count, plural, one {# artículo} other {# artículos}}",
     "previewPrev": "Artículos anteriores",
     "previewNext": "Artículos siguientes",
-    "cap": "Limita cuántos se venden al precio rebajado",
-    "capLabel": "Unidades al precio rebajado",
+    "capLabel": "Copias al precio rebajado",
+    "capPlaceholder": "Sin límite",
+    "capHint": "Opcional. Déjalo vacío para rebajar {count, plural, one {tu # copia publicada} other {las # copias publicadas}}.",
     "submit": "Iniciar descuento",
     "submitScheduled": "Programar descuento",
-    "review": "Revisar descuento",
     "back": "Atrás",
     "reviewTitle": "Revisa tu descuento",
     "reviewStarts": "Empieza",
@@ -1534,7 +1533,9 @@
     "liftDown": "vende {amount} más lento",
     "liftFlat": "al mismo ritmo que antes",
     "liftNoBaseline": "antes no se vendía nada",
-    "liftHint": "Ventas por día mientras el descuento estuvo activo, frente al mismo lapso justo antes de que empezara."
+    "liftHint": "Ventas por día mientras el descuento estuvo activo, frente al mismo lapso justo antes de que empezara.",
+    "continue": "Continuar",
+    "previewRounding": "Como los Créditos son números enteros, los precios con descuento se redondean y pueden no coincidir exactamente con el porcentaje de descuento."
   },
   "listingEdit": {
     "title": "Editar precio",

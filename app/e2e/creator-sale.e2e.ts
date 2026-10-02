@@ -217,7 +217,7 @@ describe('creator sales', () => {
     )
 
     // Nothing is signed from the form — the terms go to a review first.
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
     await waitForText(page, '1 item gets the discount')
     expect(await noOverflow(page)).toBe(true)
@@ -348,7 +348,7 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Cape')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Every listed item, with what it costs now and what it will cost. 20% off: 30 → 24, 10 → 8.
@@ -420,7 +420,7 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Cape')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Its own group, named for what it is — and NOT among the ones that are not for sale.
@@ -553,7 +553,7 @@ describe('creator sales', () => {
       await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-range-picker"]'))
       heights.push(await height())
     }
-    await page.click('[data-testid="creator-sale-cap-toggle"]')
+    await page.type('[data-testid="creator-sale-cap"]', '5')
     heights.push(await height())
 
     // One height, every combination. The cap field used to arrive as a whole new row and the calendar
@@ -589,7 +589,7 @@ describe('creator sales', () => {
     await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-range-picker"]'))
     await page.waitForSelector('[data-testid="creator-sale-when-hint"]')
     await page.click('[data-testid="creator-sale-pct-50"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Each end of the window is its own row, and each says how long until it.
@@ -621,7 +621,7 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Hat')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
@@ -631,7 +631,7 @@ describe('creator sales', () => {
     expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
     expect(await page.$('[data-testid="creator-sale-error"]')).toBeNull()
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
     expect(await page.$('[data-testid="creator-sale-error"]')).toBeNull()
   })

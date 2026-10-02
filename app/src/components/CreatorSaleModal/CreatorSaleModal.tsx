@@ -217,8 +217,9 @@ export function CreatorSaleModal({
     setWhenAnchor({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
     setWhenOpen(true)
   }
-  const [capOn, setCapOn] = useState(false)
-  const [cap, setCap] = useState('50')
+  // Empty means no limit: the sale then covers every listed copy.
+  const [cap, setCap] = useState('')
+  const capOn = cap !== ''
   const [touched, setTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
@@ -232,12 +233,23 @@ export function CreatorSaleModal({
   }
   const pct = pctPreset === 'custom' ? Number(customPct) : pctPreset
 
+  /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
+  const review = useMemo(() => {
+    const listed = current.items.filter(i => i.state === 'discounted')
+    const classic = current.items.filter(i => i.state === 'classic')
+    const unlisted = current.items.filter(i => i.state === 'unlisted')
+    // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
+    // listed item — the honest ceiling for "how many can be sold at this price".
+    const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
+    return { listed, classic, unlisted, supply }
+  }, [current])
+
   // The terms as they stand, validated the way the submit will validate them, so the button and the inline
   // message agree. `now` is taken per render: a "72 hours" sale is measured from the click, not from mount.
   const terms = useMemo(() => {
     const now = Date.now()
     const { startsAtMs, endsAtMs } = windowOf(when, now)
-    const uses = capOn ? Number(cap) : undefined
+    const uses = capOn ? (review.supply > 0 ? Math.min(Number(cap), review.supply) : Number(cap)) : undefined
     const candidate = { collections: selected, discountPct: pct, startsAtMs, endsAtMs, uses }
     let problem: SaleInputProblem | null = null
     try {
@@ -246,7 +258,7 @@ export function CreatorSaleModal({
       problem = e instanceof SaleInputError ? e.problem : 'window'
     }
     return { ...candidate, problem }
-  }, [selected, pct, when, capOn, cap])
+  }, [selected, pct, when, capOn, cap, review.supply])
 
   /**
    * Opening the flow is the top of the funnel. Guarded by a ref rather than an empty dependency list so it
@@ -302,17 +314,6 @@ export function CreatorSaleModal({
     if (el) el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' })
   }
   useEffect(measureStrip, [previewItems, step])
-
-  /** The collection split the way the review reads it: what the sale re-prices, and what it cannot touch. */
-  const review = useMemo(() => {
-    const listed = current.items.filter(i => i.state === 'discounted')
-    const classic = current.items.filter(i => i.state === 'classic')
-    const unlisted = current.items.filter(i => i.state === 'unlisted')
-    // What the sale can move at most: the cap when there is one, otherwise every remaining copy of every
-    // listed item — the honest ceiling for "how many can be sold at this price".
-    const supply = listed.reduce((sum, i) => sum + i.remainingSupply, 0)
-    return { listed, classic, unlisted, supply }
-  }, [current])
 
   async function submit() {
     setTouched(true)
@@ -372,7 +373,8 @@ export function CreatorSaleModal({
       if (e instanceof SaleInputError) {
         setError(problemCopy(e.problem))
       } else {
-        captureError(e, { flow: 'creator_sale' })
+        // A preview signs with a placeholder session, so its failure is expected rather than reportable.
+        if (!silent) captureError(e, { flow: 'creator_sale' })
         trackSale('Shop Sale Failed', { error_code: errorCode(e), step: 'create' })
         setError(friendlyError(e, t('creatorSale.errorGeneric')))
       }
@@ -619,6 +621,9 @@ export function CreatorSaleModal({
   const inlineProblem = touched && terms.problem ? problemCopy(terms.problem) : null
   // A percentage the terms refuse is not a price anyone will see, so the preview shows none.
   const previewPct = terms.problem === 'pct' ? 0 : pct
+  // Whether any price shown rounds away from the exact cut: Credits are whole, so the badge and the price can disagree.
+  const rounded =
+    previewPct > 0 && previewItems.some(i => ((i.priceCredits as number) * (100 - previewPct)) % 100 !== 0)
   const customPctOpen = pctPreset === 'custom'
   const dateFormat = new Intl.DateTimeFormat(activeLocale(), { month: 'short', day: 'numeric' })
   const whenLabel =
@@ -688,6 +693,7 @@ export function CreatorSaleModal({
                 type="button"
                 onClick={() => {
                   setPicked(choice)
+                  setCap('')
                   setStep('form')
                 }}
                 data-testid="creator-sale-pick-row"
@@ -861,9 +867,9 @@ export function CreatorSaleModal({
               onClick={() => (whenOpen ? whenPicker.current?.close() : openWhen())}
               data-testid="creator-sale-when"
             >
-              <Icon name="calendar" size={16} aria-hidden />
+              <Icon name="calendar" size={20} aria-hidden />
               <span>{whenLabel}</span>
-              <Icon name="chevron-down" size={16} aria-hidden data-open={whenOpen ? '' : undefined} />
+              <Icon name="arrow-drop-down" size={24} aria-hidden data-open={whenOpen ? '' : undefined} />
             </S.WhenTrigger>
             {whenOpen && whenAnchor
               ? createPortal(
@@ -908,40 +914,39 @@ export function CreatorSaleModal({
           ) : null}
         </S.Field>
 
-        <S.CapRow>
-          <S.CapLabel>
+        <S.Field>
+          <S.CapLabel htmlFor="creator-sale-cap">{t('creatorSale.capLabel')}</S.CapLabel>
+          <S.CapInput data-disabled={busy || undefined}>
             <input
-              type="checkbox"
-              checked={capOn}
+              id="creator-sale-cap"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={cap}
               disabled={busy}
-              data-testid="creator-sale-cap-toggle"
-              onChange={e => setCapOn(e.target.checked)}
+              placeholder={t('creatorSale.capPlaceholder')}
+              aria-describedby={review.supply > 0 ? 'creator-sale-cap-hint' : undefined}
+              data-testid="creator-sale-cap"
+              onChange={e => {
+                const v = e.target.value
+                if (!/^\d{0,7}$/.test(v)) return
+                setTouched(true)
+                setCap(review.supply > 0 && Number(v) > review.supply ? String(review.supply) : v)
+              }}
             />
-            <span>{t('creatorSale.cap')}</span>
-          </S.CapLabel>
-          {/* Opens in the row rather than below it: a two-character number does not need a field the
-              width of the modal, and adding a row resized the card. */}
-          <S.Reveal data-open={capOn || undefined} data-testid="creator-sale-cap">
-            <S.MorphCell data-off={!capOn || undefined} aria-hidden={!capOn || undefined}>
-              <S.InlineInput>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  inputMode="numeric"
-                  value={cap}
-                  disabled={busy}
-                  tabIndex={capOn ? undefined : -1}
-                  aria-label={t('creatorSale.capLabel')}
-                  onChange={e => {
-                    setTouched(true)
-                    setCap(e.target.value)
-                  }}
-                />
-              </S.InlineInput>
-            </S.MorphCell>
-          </S.Reveal>
-        </S.CapRow>
+            {review.supply > 0 ? (
+              <span aria-hidden data-testid="creator-sale-cap-count">
+                {terms.uses ?? 0}/{review.supply}
+              </span>
+            ) : null}
+          </S.CapInput>
+          {review.supply > 0 ? (
+            <S.CapHint id="creator-sale-cap-hint">
+              <Icon name="circle-warning" size={15} aria-hidden />
+              <span>{t('creatorSale.capHint', { count: review.supply })}</span>
+            </S.CapHint>
+          ) : null}
+        </S.Field>
 
         {/* The collection as a buyer will meet it: the same tag and struck price the Shop's cards wear. */}
         {previewItems.length > 0 ? (
@@ -997,9 +1002,8 @@ export function CreatorSaleModal({
                 )
               })}
             </S.PreviewStrip>
-            {previewPct > 0 &&
-            previewItems.some(i => salePriceOf(i.priceCredits as number, previewPct) >= (i.priceCredits as number)) ? (
-              <S.FieldHint>{tNode('creatorSale.previewRounds', { c: marked })}</S.FieldHint>
+            {rounded ? (
+              <S.FieldHint data-testid="creator-sale-preview-rounding">{t('creatorSale.previewRounding')}</S.FieldHint>
             ) : null}
           </S.Field>
         ) : null}
@@ -1007,28 +1011,34 @@ export function CreatorSaleModal({
         {status ? <S.Status>{status}</S.Status> : null}
         <ErrorNotice message={error ?? inlineProblem} testId="creator-sale-error" />
 
-        <S.PrimaryBtn
-          variant="red"
-          data-testid="creator-sale-continue"
-          onClick={() => {
-            setTouched(true)
-            if (terms.problem) setError(problemCopy(terms.problem))
-            else {
-              setError(null)
-              setReviewed(windowOf(when, Date.now()))
-              setStep('review')
-              trackSale('Shop Reviewed Sale', {
-                discount_pct: terms.discountPct,
-                duration_h: Math.round((terms.endsAtMs - (terms.startsAtMs ?? Date.now())) / HOUR_MS),
-                scheduled: terms.startsAtMs !== undefined,
-                capped: terms.uses !== undefined
-              })
-            }
-          }}
-          disabled={busy || (touched && !!terms.problem)}
-        >
-          {t('creatorSale.review')}
-        </S.PrimaryBtn>
+        <S.Actions>
+          <S.ActionBtn variant="white" onClick={onClose} disabled={busy} data-testid="creator-sale-cancel">
+            {t('creatorSale.cancel')}
+          </S.ActionBtn>
+          <S.ActionBtn
+            variant="red"
+            data-testid="creator-sale-continue"
+            onClick={() => {
+              setTouched(true)
+              if (terms.problem) setError(problemCopy(terms.problem))
+              else {
+                setError(null)
+                setReviewed(windowOf(when, Date.now()))
+                setStep('review')
+                trackSale('Shop Reviewed Sale', {
+                  discount_pct: terms.discountPct,
+                  duration_h: Math.round((terms.endsAtMs - (terms.startsAtMs ?? Date.now())) / HOUR_MS),
+                  scheduled: terms.startsAtMs !== undefined,
+                  capped: terms.uses !== undefined
+                })
+              }
+            }}
+            disabled={busy || (touched && !!terms.problem)}
+          >
+            {t('creatorSale.continue')}
+            <Icon name="chevron-right" size={22} aria-hidden />
+          </S.ActionBtn>
+        </S.Actions>
       </S.Card>
     </S.Scrim>
   )

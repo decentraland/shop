@@ -19,6 +19,7 @@ for (const [path, url] of Object.entries(SVG_URLS)) {
 export type IconName =
   | 'alert'
   | 'arrow-left'
+  | 'arrow-drop-down'
   | 'arrow-right'
   | 'arrow-up-right'
   | 'ban'
@@ -52,6 +53,8 @@ export type IconName =
   | 'cat-upper'
   | 'category-eyewear'
   | 'chevron-down'
+  | 'chevron-right'
+  | 'circle-warning'
   | 'chevron-up-line'
   | 'clock'
   | 'clock-filled'

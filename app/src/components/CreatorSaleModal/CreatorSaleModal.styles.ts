@@ -119,13 +119,10 @@ export const Field = styled.div`
   gap: 10px;
 `
 
-/** Lettered like the dashboard's tile keys, so the modal reads as part of the page it opened from. */
 export const FieldLabel = styled.span`
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: ${colors.gray4};
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${colors.softWhite};
 `
 
 export const FieldHint = styled.p`
@@ -249,34 +246,32 @@ export const RowMeta = styled.span`
   color: ${colors.gray4};
 `
 
-/** The discounts as one segmented control, like My Store's currency switch: the picked one lights up white. */
+/** The discounts as separate pills, the Builder's filter chips: soft white once picked. */
 export const Chips = styled.div`
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid ${hairline};
-  border-radius: ${radius.pill};
-  background: rgba(0, 0, 0, 0.25);
+  flex-wrap: wrap;
+  gap: 12px;
+
+  ${media.maxWidth('mobile')} {
+    gap: 8px;
+  }
 `
 
 export const Chip = styled.button`
-  /* Shares the bar by content, so "Custom" and an open field get the room a percentage does not need. */
-  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: 0;
-  width: 100%;
   height: 40px;
-  padding: 0 10px;
+  padding: 0 16px;
   border: 0;
-  border-radius: ${radius.pill};
-  background: transparent;
-  color: ${colors.gray4};
+  border-radius: 20px;
+  background: ${colors.glass};
+  color: ${colors.white};
   font-family: ${font.sans};
-  font-weight: 700;
+  font-weight: 600;
   font-size: 14px;
+  letter-spacing: 0.46px;
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -284,11 +279,11 @@ export const Chip = styled.button`
     color 0.15s ease;
 
   &:hover:not(:disabled):not([data-selected]) {
-    color: ${colors.white};
+    background: ${colors.glassHover};
   }
   &[data-selected] {
-    background: ${colors.white};
-    color: ${colors.dclRed};
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
   &:disabled {
     opacity: 0.5;
@@ -324,19 +319,21 @@ export const InlineInput = styled.span`
   &[aria-invalid='true'] {
     border-color: ${colors.dclRed};
   }
-  /* The custom discount open in its segment: lit like a picked one. */
+  /* The custom discount, open in its own pill: lit like a picked one. */
   &[data-selected] {
-    flex: 1 1 auto;
-    justify-content: center;
-    width: auto;
     height: 40px;
-    border-color: ${colors.white};
-    background: ${colors.white};
-    color: ${colors.dclRed};
+    padding: 0 16px;
+    border-color: ${colors.softWhite};
+    border-radius: 20px;
+    background: ${colors.softWhite};
+    color: ${colors.text};
 
     input {
-      color: ${colors.dclRed};
+      color: ${colors.text};
     }
+  }
+  &[data-selected][aria-invalid='true'] {
+    border-color: ${colors.dclRed};
   }
 
   input {
@@ -382,21 +379,25 @@ export const WhenAnchor = styled.div`
   }
 `
 
+/** Drawn like the Builder's Select trigger: an outlined field whose border turns white while it is open. */
 export const WhenTrigger = styled.button`
   position: relative;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 16px;
-  border: 1px solid ${hairline};
-  border-radius: ${radius.card};
-  background: ${raised};
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border: 1px solid ${colors.muted2};
+  border-radius: 6px;
+  background: transparent;
   color: ${colors.softWhite};
   font-family: ${font.sans};
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
+  line-height: 24px;
   text-align: left;
   cursor: pointer;
 
@@ -407,28 +408,23 @@ export const WhenTrigger = styled.button`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .ico {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    transition: transform 0.15s ease;
+  }
   .ico[data-open] {
     transform: rotate(180deg);
   }
-  .ico {
-    transition: transform 0.2s ease;
-  }
-  &:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.32);
-  }
-  /* Opaque while open: the calendar slides out from behind it. */
+  &:focus-visible,
   &[aria-expanded='true'] {
-    background: ${colors.softWhite};
-    border-color: ${colors.softWhite};
-    color: ${colors.text};
+    border-color: ${colors.white};
+    outline: 0;
   }
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: default;
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.softWhite};
-    outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
     .ico {
@@ -437,28 +433,56 @@ export const WhenTrigger = styled.button`
   }
 `
 
-export const CapRow = styled.div`
+export const CapLabel = styled.label`
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${colors.softWhite};
+`
+
+export const CapInput = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  font-size: 14px;
-  color: ${colors.softWhite};
+  gap: 8px;
+  height: 54px;
+  padding: 8px;
+  border: 1.5px solid ${colors.white};
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
 
-  /* Only the checkbox, not the number field the row can open. */
-  > label > input {
-    width: 20px;
-    height: 20px;
-    accent-color: ${colors.dclRed};
-    cursor: pointer;
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: ${colors.softWhite};
+    font-family: ${font.sans};
+    font-size: 16px;
+    outline: 0;
+  }
+  input::placeholder {
+    color: ${colors.gray5};
+    opacity: 1;
+  }
+  > span {
+    flex: none;
+    font-size: 14px;
+    color: ${colors.gray5};
+    font-variant-numeric: tabular-nums;
+  }
+  &[data-disabled] {
+    opacity: 0.6;
   }
 `
 
-export const CapLabel = styled.label`
-  display: inline-flex;
+export const CapHint = styled.p`
+  display: flex;
   align-items: center;
-  gap: 10px;
-  cursor: pointer;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  color: ${colors.muted2};
 `
 
 /** What buyers will see: every listed item, priciest first, in a row that scrolls sideways. */
@@ -621,9 +645,13 @@ export const PrimaryBtn = styled(Button)`
   min-height: 48px;
 `
 
+/** The modal's foot: ruled off from the form, the way out on the left and the way on at the right. */
 export const Actions = styled.div`
   display: flex;
+  justify-content: space-between;
   gap: 12px;
+  padding-top: 24px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.3);
 
   ${media.maxWidth('mobile')} {
     flex-direction: column-reverse;
@@ -631,12 +659,32 @@ export const Actions = styled.div`
 `
 
 export const ActionBtn = styled(Button)`
-  flex: 1 1 0;
+  flex: 0 1 242px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 48px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+
+  /* The secondary action is an outline on this card, not a white slab. */
+  &[data-variant='white'] {
+    border: 0.5px solid ${colors.softWhite};
+    background: transparent;
+    color: ${colors.softWhite};
+  }
+  &[data-variant='white']:hover:not(:disabled),
+  &[data-variant='white']:active:not(:disabled) {
+    background: ${colors.glassFaint};
+  }
+
+  ${media.maxWidth('mobile')} {
+    flex: 1 1 auto;
+  }
 `
 
 export const SuccessBanner = styled.div`
@@ -684,34 +732,6 @@ export const SuccessDetail = styled.p`
   color: ${colors.gray4};
 `
 
-/** A field that opens in place beside the checkbox that turns it on. */
-export const Reveal = styled.div`
-  /* Its own width, not what the label beside it leaves over: shrunk by the row it clipped its own field. */
-  flex: none;
-  display: inline-grid;
-  grid-template-columns: 0fr;
-  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
-
-  &[data-open] {
-    grid-template-columns: 1fr;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-export const MorphCell = styled.div`
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-
-  /* The collapsed half is still in the DOM (it has to be, to animate back), so stop it catching clicks. */
-  &[data-off] {
-    pointer-events: none;
-  }
-`
-
 /** The review step: what the sale will do, item by item, before anything is signed. */
 export const ReviewSummary = styled.div`
   display: flex;
@@ -744,9 +764,6 @@ export const ReviewWhenRow = styled.div`
 export const ReviewWhenLabel = styled.span`
   color: ${colors.gray4};
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 `
 
 export const ReviewWhenValue = styled.b`

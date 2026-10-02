@@ -217,6 +217,20 @@ describe('when the creator types a decimal custom discount', () => {
   })
 })
 
+describe('when the creator limits how many copies sell at the discounted price', () => {
+  it('should stop at the copies the collection has listed', () => {
+    open()
+    const input = screen.getByTestId<HTMLInputElement>('creator-sale-cap')
+    expect(screen.getByTestId('creator-sale-cap-count').textContent).toBe('0/9')
+    fireEvent.change(input, { target: { value: '40' } })
+    expect(input.value).toBe('9')
+    fireEvent.change(input, { target: { value: '4x' } })
+    expect(input.value).toBe('9')
+    fireEvent.change(input, { target: { value: '4' } })
+    expect(screen.getByTestId('creator-sale-cap-count').textContent).toBe('4/9')
+  })
+})
+
 describe('when the creator lingers on the review before signing', () => {
   it('should sign the window the review showed, not one measured at the click', async () => {
     const opened = Date.now()
