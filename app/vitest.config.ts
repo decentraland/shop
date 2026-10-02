@@ -26,11 +26,11 @@ export default defineConfig({
     // only tests are blanked, not the dev deploy.
     env: { VITE_STRIPE_PK: '', VITE_SEGMENT_WRITE_KEY: '', VITE_SENTRY_DSN: '' },
     // @dcl/ui-env ships extensionless internal imports (dist/index.js → './config') that Vitest's
-    // resolver can't follow; inlining it routes the dep through Vite's resolver, which can.
-    // decentraland-transactions has the same shape — its ESM entry re-exports a DIRECTORY — which is why
-    // every spec touching it has had to mock it. Inlining lets the lockstep guard use the real registry,
-    // which is the one thing a mock cannot stand in for.
-    server: { deps: { inline: ['@dcl/ui-env', 'decentraland-transactions'] } },
+    // resolver can't follow; inlining it routes the dep through Vite's resolver, which can. The other two
+    // have the same shape: @dcl/hooks re-exports './clients' and decentraland-transactions re-exports a
+    // DIRECTORY, both invalid for Node's ESM resolver and both fine for Vite's, which is why the
+    // production build resolves them and only the test runner trips.
+    server: { deps: { inline: ['@dcl/ui-env', '@dcl/hooks', 'decentraland-transactions'] } },
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html'],

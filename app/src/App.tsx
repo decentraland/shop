@@ -13,8 +13,8 @@ import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useCampaignThemeAttribute } from '~/hooks/useCampaignTheme'
 import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useWallet } from '~/store/wallet'
-import { initAnalytics, trackPage } from '~/lib/analytics'
 import { config } from '~/config'
+import { usePageView } from '~/hooks/usePageView'
 import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -27,24 +27,6 @@ import { t } from '~/intl/i18n'
 // The NAMES are frozen even where the route was renamed: they are the `page` prop of `Shop Viewed Page`,
 // so 'assets'/'my_assets' are what every existing funnel and dashboard groups on. Renaming them to match
 // the new paths would silently split each series in two at the deploy.
-const PAGE_NAMES: Record<string, string> = {
-  '/overview': 'overview',
-  '/items': 'assets',
-  '/my-items': 'my_assets',
-  '/my-store': 'my_store',
-  '/my-favorites': 'favorites',
-  '/activity': 'activity',
-  '/event': 'event',
-  '/import': 'import',
-  '/store-settings': 'store_settings',
-  '/cart': 'cart',
-  '/credits': 'credits',
-  '/success': 'success',
-  '/authorizations': 'authorizations',
-  '/outfits/manage': 'outfit_studio',
-  '/outfits/new': 'outfit_studio'
-}
-
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
@@ -167,33 +149,8 @@ export function App() {
     void restoreWallet()
   }, [restoreWallet])
 
-  // Load Segment once (no-op without a write key), then emit a page view on each route change.
-  useEffect(() => {
-    initAnalytics()
-  }, [])
-  useEffect(() => {
-    const path = location.pathname
-    const page =
-      PAGE_NAMES[path] ??
-      (path.startsWith('/item/') || path.startsWith('/token/')
-        ? 'item'
-        : path.startsWith('/collection/')
-          ? 'collection'
-          : path.startsWith('/items/creator/')
-            ? 'creator'
-            : path.startsWith('/items/outfits/')
-              ? 'outfit'
-              : path.startsWith('/outfits/')
-                ? 'outfit_studio'
-                : 'other')
-    // The invented store is a reviewer reading it, not a visit. Only honoured where the override itself
-    // is (config.previewHost), so the live Shop always counts.
-    // Read off window rather than added as a dependency: a page view is per ROUTE, and depending on the
-    // query string would count every filter change on the grids as a visit.
-    const params = new URLSearchParams(window.location.search)
-    if (config.previewHost && params.get('mock') === '1') return
-    trackPage(page)
-  }, [location.pathname])
+  // Segment is loaded by the AnalyticsProvider in main.tsx; this only emits a page view per route.
+  usePageView()
 
   // Nothing gates the shell. There used to be a pre-launch curtain here that rendered NOTHING until a
   // feature-flag read and the wallet restore had both settled — and since that read only starts once the
