@@ -455,7 +455,16 @@ describe('outfit studio', () => {
     // studio, whose avatar previews and outfit thumbnails keep requests going — so `networkidle2` was waiting
     // on something that may never happen, on the puppeteer default 30s budget, and timing out there while the
     // page was in fact ready. The assertion below is the one that decides, with a budget of its own.
+    //
+    // A leave-page prompt left open blocks the navigation until it times out, and nothing in the logs says
+    // why. The editor's unload guard must be off once the save lands, so fail on one by name instead.
+    const prompts: string[] = []
+    page.on('dialog', dialog => {
+      prompts.push(dialog.type())
+      void dialog.accept()
+    })
     await page.goto(`${OUTFITS_BASE}/outfits/manage`, { waitUntil: 'domcontentloaded' })
+    expect(prompts, 'leave-page prompt after a saved draft').toEqual([])
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="outfit-studio-row"]').length === 4, {
       timeout: 20000
     })
