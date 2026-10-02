@@ -316,6 +316,9 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const [restored] = useState(() => readStoredDraft(storageKey))
   const [draft, setDraft] = useState<OutfitDraft | null>(() => restored ?? (isNew ? emptyDraft() : null))
   const [dirty, setDirty] = useState(!!restored)
+  // What the unload guard reads. Set in the same tick as the change, not in an effect: a reload right
+  // after a save would otherwise still meet the guard armed and stop on the leave-page prompt.
+  const unsaved = useRef(!!restored)
 
   const {
     data: record,
@@ -338,6 +341,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   function update(patch: Partial<OutfitDraft>) {
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
     setDirty(true)
+    unsaved.current = true
   }
 
   useEffect(() => {
@@ -350,11 +354,12 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   }, [draft, dirty, storageKey])
 
   useEffect(() => {
-    if (!dirty) return
-    const handler = (e: BeforeUnloadEvent) => e.preventDefault()
+    const handler = (e: BeforeUnloadEvent) => {
+      if (unsaved.current) e.preventDefault()
+    }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [dirty])
+  }, [])
 
   useEffect(() => () => sessionStorage.removeItem(storageKey), [storageKey])
 
@@ -478,6 +483,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       sessionStorage.removeItem(storageKey)
       setDraft(toDraft(saved))
       setDirty(false)
+      unsaved.current = false
       invalidateOutfitQueries(queryClient)
       if (published && !draft.published) {
         track('Shop Outfit Published', { outfit_id: saved.id, item_count: saved.items.length })
