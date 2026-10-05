@@ -143,6 +143,13 @@ const builderItem = (bid: string, name: string) => ({
 const noOverflow = (page: App['page']) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
+/** Whether an action sits wholly inside the viewport, with its label inside the button. */
+const actionInView = (page: App['page'], testId: string) =>
+  page.$eval(`[data-testid="${testId}"]`, el => {
+    const box = el.getBoundingClientRect()
+    return box.top >= 0 && box.bottom <= window.innerHeight && el.scrollWidth <= el.clientWidth
+  })
+
 const text = (page: App['page'], testId: string) =>
   page.$eval(`[data-testid="${testId}"]`, el => (el as HTMLElement).innerText.trim())
 
@@ -216,11 +223,15 @@ describe('creator sales', () => {
       () => document.querySelector('[data-testid="creator-sale-preview-now"]')?.textContent?.trim() === '21'
     )
 
+    // The form is taller than a phone, so the actions stay pinned in view rather than below the fold.
+    expect(await actionInView(page, 'creator-sale-continue')).toBe(true)
+
     // Nothing is signed from the form — the terms go to a review first.
     await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
     await waitForText(page, '1 item gets the discount')
     expect(await noOverflow(page)).toBe(true)
+    expect(await actionInView(page, 'creator-sale-submit')).toBe(true)
 
     // One signature, one POST, then the success view with its countdown.
     await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
