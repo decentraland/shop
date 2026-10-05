@@ -519,8 +519,7 @@ export const OutlineBtn = styled.button`
   }
 `
 
-// The way out of a payment rail that cannot work, under the dead button it explains: full width like the
-// primary action, but quieter than it.
+// Full width like the primary action, but quieter.
 export const SecondaryBtn = styled(OutlineBtn)`
   flex: none;
   display: block;
@@ -530,7 +529,6 @@ export const SecondaryBtn = styled(OutlineBtn)`
   border-radius: 12px;
 `
 
-// The fee a MANA-alone NAME carries on top of its MANA, stated under the price it is added to.
 export const FeeNote = styled.p`
   margin: 6px 0 0;
   text-align: right;

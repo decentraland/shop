@@ -120,7 +120,9 @@ vi.mock('~/lib/names', () => {
     quoteNameWithPolygonMana: (...a: unknown[]) => quoteNameWithPolygonMana(...a),
     registerNameWithPolygonMana: (...a: unknown[]) => registerNameWithPolygonMana(...a),
     // The fixed on-chain price the MANA rails are sized against.
-    NAME_PRICE_IN_WEI: '100000000000000000000'
+    NAME_PRICE_IN_WEI: '100000000000000000000',
+    // The MANA-alone row's figure before its route is priced: the price plus the router's 1.5% margin.
+    MANA_ALONE_ESTIMATE_WEI: 101500000000000000000n
   }
 })
 
@@ -668,6 +670,16 @@ describe('NameBuyModal', () => {
         credits: screen.getByTestId('pay-with-credits').getAttribute('data-selected'),
         mana: screen.getByTestId('pay-with-mana').getAttribute('data-selected')
       }).toEqual({ credits: 'true', mana: 'false' })
+    })
+
+    // Their credits already pay, so the large router SDK is not loaded on the chance they pick MANA.
+    it('should not price MANA alone for a buyer whose credits already cover the NAME', async () => {
+      session.providerType = 'injected'
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      renderModal(67)
+
+      await waitFor(() => expect(screen.getByTestId('pay-with-mana').textContent).toContain('101.5'))
+      expect(quoteNameWithPolygonMana).not.toHaveBeenCalled()
     })
 
     /**

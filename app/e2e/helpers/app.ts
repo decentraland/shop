@@ -282,7 +282,8 @@ const SQUID_MANA = {
   amoy: '0x7ad72b9f944ea9793cf4055d88f81138cc2c63a0',
   sepolia: '0xfa04d2e2ba9aec166c93dfeeba7427b2303befa9'
 }
-const SQUID_ROUTER = '0x' + '5c'.repeat(20)
+// The router the lib pins: a route naming any other is refused.
+const SQUID_ROUTER = '0xce16f69375520ab01377ce7b88f5ba8c48f8d666'
 const squidToken = (chainId: string, address: string) => ({
   chainId,
   address,

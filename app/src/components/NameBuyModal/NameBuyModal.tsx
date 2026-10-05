@@ -6,19 +6,14 @@ import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import {
   type NameRegistrationResult,
   type NameRegistrationStage,
-  NameFeeShortError,
-  NameInFlightError,
-  NameManaShortError,
   NameNotRegisteredError,
   NameQuoteMovedError,
   NameRefundedError,
-  NameRouteCostTooHighError,
-  NameRouteUnavailableError,
   NameSettlementUnknownError,
-  NameTakenError,
   quoteNameWithPolygonMana,
   registerNameWithPolygonMana,
   registerNameWithUsdCredits,
+  MANA_ALONE_ESTIMATE_WEI,
   NAME_PRICE_IN_WEI
 } from '~/lib/names'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -30,9 +25,8 @@ import { formatMana } from '~/lib/mana-format'
 import { isIapMode } from '~/lib/iap'
 import { hrefFor } from '~/lib/routes'
 import { captureError } from '~/lib/monitoring'
-import { friendlyError } from '~/lib/errors'
 import { chainLabel, isWrongNetworkError, switchChain } from '~/lib/network'
-import { formatUsd } from '~/lib/manaUsd'
+import { formatFeeUsd, manaAloneBlockedCopy, nameFailureCopy, nameFailureIsFinal } from '~/lib/name-copy'
 import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { useManaBalances } from '~/hooks/useManaBalance'
@@ -149,23 +143,14 @@ export function NameBuyModal({
    * The rails the buyer's own balances support, beyond credits.
    *
    * A NAME costs a FIXED 100 MANA — it is priced on-chain, and the credits figure is that price converted —
-   * so the MANA leg needs no oracle read here.
-   *
-   * MANA alone is the marketplace's cross-chain route, which the buyer's wallet sends and pays the fees of, so
-   * it is offered only to a wallet that can (see `registerNameWithPolygonMana`). The mixed rail is gasless and
-   * stays open to everyone.
+   * so the MANA leg needs no oracle read here. MANA alone is a route the wallet sends and pays the fees of, so
+   * only a self-custody wallet is offered it; the mixed rail is gasless and open to everyone.
    */
   const { data: manaBalances } = useManaBalances(session)
   const polygonManaWei = manaBalances?.matic ?? 0n
 
-  /**
-   * MANA alone, priced by its route as soon as the buyer could take it — so the method step shows what it
-   * really costs, and the rail goes away when it cannot work instead of leading somewhere it dead-ends.
-   *
-   * The NAME is 100 MANA on Ethereum, but the route pulls a little more on Polygon so the bridge delivers all
-   * of it, and charges a fee in Polygon's native token on top. Those are what the buyer agrees to, so they are
-   * what the screen shows, and the purchase is held to them.
-   */
+  // Priced by its route as soon as it matters, so the screens show what leaves the wallet (a little over 100
+  // MANA, plus a fee) and the rail goes away when it cannot work rather than dead-ending.
   const [manaAloneDismissed, setManaAloneDismissed] = useState(false)
   const manaAloneEligible =
     session != null &&
@@ -175,12 +160,14 @@ export function NameBuyModal({
   const manaQuote = useQuery({
     queryKey: ['name-polygon-mana-quote', name, session?.address],
     queryFn: () => quoteNameWithPolygonMana({ name, buyer: session!.address }),
-    enabled: manaAloneEligible && (phase === 'confirm' || phase === 'error'),
+    // Not for a buyer whose credits already pay: the router SDK is large, and they may never pick MANA.
+    enabled:
+      manaAloneEligible && (insufficient || chosen?.rail === 'mana') && (phase === 'confirm' || phase === 'error'),
     retry: false,
     staleTime: 0,
     gcTime: 0
   })
-  // A failed refetch keeps the last data around; a quote that can no longer be had is not one to buy on.
+  // A failed refetch keeps the old data; a quote that can no longer be had is not one to buy on.
   const quote = manaQuote.isError ? undefined : manaQuote.data
   const manaShort = quote != null && polygonManaWei < quote.manaWei
   const feeShort = quote != null && quote.nativeBalanceWei < quote.requiredNativeWei
@@ -195,12 +182,9 @@ export function NameBuyModal({
     manaBalanceWei: polygonManaWei,
     manaOnlyRail: manaAloneUsable
   })
-  // The method step's MANA-alone row shows what the route takes, not the NAME's 100 — the router's own first
-  // estimate (the price plus its 1.5% margin) until the route itself is priced.
+  // The MANA-alone row shows what the route takes, estimated until it is priced.
   const methodOptions = paymentOptions.options.map(option =>
-    option.method === 'mana'
-      ? { ...option, manaWei: quote?.manaWei ?? (BigInt(NAME_PRICE_IN_WEI) * 1015n) / 1000n }
-      : option
+    option.method === 'mana' ? { ...option, manaWei: quote?.manaWei ?? MANA_ALONE_ESTIMATE_WEI } : option
   )
   // A buyer with a rail of their own is not stuck, so the pack picker is not what they need to see.
   const hasOwnRail = paymentOptions.options.some(o => o.method !== 'credits')
@@ -215,25 +199,17 @@ export function NameBuyModal({
    */
   const askForMethod = chosen == null && hasOwnRail && !priceUnavailable && balance != null
 
-  // What left the wallet, once something has: the route's own figure, which can come in under the quote.
+  // What left the wallet, once something has.
   const [paidManaWei, setPaidManaWei] = useState<bigint | null>(null)
-  // The chain the buyer's wallet has to be on for the MANA-alone route, once it was found elsewhere.
+  // Where the wallet must be for the MANA-alone route, once it was found elsewhere.
   const [switchTo, setSwitchTo] = useState<number | null>(null)
 
   const blockedReason = priceUnavailable
     ? t('names.priceUnavailable')
-    : rail !== 'mana'
-      ? null
-      : manaQuote.isError
-        ? t('names.manaRouteUnavailable')
-        : quote == null
-          ? t('names.manaQuoteLoading')
-          : manaShort
-            ? t('names.manaNotEnough')
-            : feeShort
-              ? t('names.manaNotEnoughFee')
-              : null
-  // Blocked on something the buyer cannot fix here, as opposed to still loading.
+    : rail === 'mana'
+      ? manaAloneBlockedCopy({ failed: manaQuote.isError, quoted: quote != null, manaShort, feeShort })
+      : null
+  // Blocked for good, as opposed to still loading.
   const manaBlocked = rail === 'mana' && (manaQuote.isError || manaShort || feeShort)
 
   // What the NAME costs on the rail paying for it, in what that rail is paid in.
@@ -373,61 +349,23 @@ export function NameBuyModal({
         error_code: errorCode(e),
         purchase_type: 'name'
       })
-      // The route-cost guard is a DISTINCT condition and gets its own copy. The credits-server withholds
-      // the route (503 ROUTE_COST_TOO_HIGH) when Across' bridge overhead exceeds what the executor can
-      // front; the lib types it separately and rethrows it unwrapped for exactly this. It is temporary and
-      // nothing is wrong with the buyer's account, so "try again" is the wrong advice — "try again later" is.
-      // Two failures where the credit is gone or may be, so retrying spends a second one on something the
-      // buyer cannot fix. Each gets its own copy, and neither gets a retry button below.
-      const notRegistered = e instanceof NameNotRegisteredError
-      const unknown = e instanceof NameSettlementUnknownError
-      const wrongNetwork = isWrongNetworkError(e)
-      // Retrying either of these pays for nothing: the NAME is gone, or the first purchase is still landing.
-      const dead = e instanceof NameTakenError || e instanceof NameInFlightError
-      setSwitchTo(wrongNetwork && rail === 'mana' ? config.chainId : null)
-      // Sent before it failed: the quote is the most that left, and the screen should not re-price it.
-      if (rail === 'mana' && quote != null && (notRegistered || unknown || e instanceof NameRefundedError)) {
-        setPaidManaWei(quote.manaWei)
-      }
-      // The route asked for more than was shown: show the new figure rather than the old one under "try again".
+      // The wallet's network is the one failure the buyer can fix from here, on the rail that needs it.
+      setSwitchTo(isWrongNetworkError(e) && rail === 'mana' ? config.chainId : null)
+      // Sent before it failed: the quote is the most that left, so the screen does not re-price it.
+      const sent =
+        e instanceof NameNotRegisteredError || e instanceof NameSettlementUnknownError || e instanceof NameRefundedError
+      if (rail === 'mana' && quote != null && sent) setPaidManaWei(quote.manaWei)
+      // Show the new figure rather than the old one under "try again".
       if (e instanceof NameQuoteMovedError) void qc.invalidateQueries({ queryKey: ['name-polygon-mana-quote'] })
-      setError(
-        e instanceof NameRouteCostTooHighError
-          ? t('names.errorRouteCost')
-          : notRegistered
-            ? // "Your Credits were used" is not true of a NAME paid without any.
-              t(rail === 'mana' ? 'names.errorNotRegisteredPayment' : 'names.errorNotRegistered')
-            : unknown
-              ? t('names.errorSettlementUnknown')
-              : e instanceof NameRefundedError
-                ? t('names.errorRefunded')
-                : e instanceof NameQuoteMovedError
-                  ? t('names.manaPriceMoved')
-                  : e instanceof NameRouteUnavailableError
-                    ? t('names.manaRouteUnavailable')
-                    : e instanceof NameManaShortError
-                      ? t('names.manaNotEnough')
-                      : e instanceof NameFeeShortError
-                        ? t('names.manaNotEnoughFee')
-                        : e instanceof NameTakenError
-                          ? t('names.taken')
-                          : e instanceof NameInFlightError
-                            ? t('names.errorInFlight')
-                            : wrongNetwork
-                              ? friendlyError(e, t('names.errorGeneric'))
-                              : (e as { message?: string })?.message || t('names.errorGeneric')
-      )
-      setRetryUnsafe(notRegistered || unknown || dead)
+      setError(nameFailureCopy(e, rail))
+      setRetryUnsafe(nameFailureIsFinal(e))
       setPhase('error')
     } finally {
       startedRef.current = false
     }
   }
 
-  /**
-   * The MANA-alone route is a Polygon transaction the buyer's wallet sends, so a wallet sitting on another
-   * network is the one failure the buyer can fix from here. Declining the switch leaves the offer standing.
-   */
+  // Declining the switch leaves the offer standing.
   async function switchAndRetry(chainId: number) {
     if (!session) return
     try {
@@ -584,8 +522,7 @@ export function NameBuyModal({
    * strand someone on a top-up screen they no longer need. `insufficient` is false while the balance is
    * unknown, so a failed read still shows the confirm step and lets the server be the authority.
    */
-  // Not while the buyer is on the MANA-alone rail they chose: if it stops working there, they are told why
-  // and handed the way out, rather than dropped onto the pack picker with no word about what happened.
+  // Not on the MANA-alone rail the buyer chose: if it stops working, they are told why and given a way out.
   const shortOnCredits = phase === 'confirm' && insufficient && !hasOwnRail && chosen?.rail !== 'mana'
   const headTitle =
     phase === 'error' ? t('names.errorTitle') : shortOnCredits ? t('names.buyCreditsTitle') : t('names.buyTitle')
@@ -727,11 +664,10 @@ export function NameBuyModal({
                 {chargedPrice}
               </S.RowPrice>
             </S.NameRow>
-            {/* The fee is paid on top of the MANA, so it is stated before the buyer agrees, not left to the
-                prompt that asks them to pay it. */}
+            {/* Paid on top of the MANA, so stated before the buyer agrees. */}
             {rail === 'mana' && phase === 'confirm' && quote?.feeUsd != null ? (
               <S.FeeNote data-testid="name-mana-fee">
-                {t('names.manaFeeNote', { fee: `$${formatUsd(Math.max(quote.feeUsd, 0.01), activeLocale())}` })}
+                {t('names.manaFeeNote', { fee: formatFeeUsd(quote.feeUsd, activeLocale()) })}
               </S.FeeNote>
             ) : null}
 
@@ -780,8 +716,7 @@ export function NameBuyModal({
                     <span>{blockedReason}</span>
                   </S.ErrorBox>
                 ) : null}
-                {/* A way out of a rail that cannot work, so the buyer is not left on a screen with a dead button:
-                    back to the rails they can use, or to the pack picker when that is none. */}
+                {/* A way out of a rail that cannot work, instead of a dead button. */}
                 {manaBlocked ? (
                   <S.SecondaryBtn
                     data-testid="name-choose-another-way"
@@ -919,8 +854,7 @@ export function NameBuyModal({
                 </S.NameText>
                 <S.NameSub>{t('names.subtitle')}</S.NameSub>
               </S.NameMeta>
-              {/* What was charged, in what it was charged in: credits on the credits rails, MANA when that is what
-                  left the wallet. (The Figma draws a Polygon mark here for every rail — confirmed stale.) */}
+              {/* What was charged, in what it was charged in: credits on the credits rails, MANA on the MANA one. */}
               <S.RowPrice data-testid="name-charged-price" data-currency={chosen?.rail === 'mana' ? 'mana' : 'credits'}>
                 {chargedPrice}
               </S.RowPrice>

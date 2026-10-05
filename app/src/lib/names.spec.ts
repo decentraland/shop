@@ -141,6 +141,7 @@ import {
   NameTakenError,
   quoteNameWithPolygonMana,
   registerNameWithPolygonMana,
+  SQUID_ROUTER,
   buildNameUseCreditsArgs,
   checkNameAvailability,
   fetchNameCreditRoute,
@@ -889,7 +890,7 @@ describe('when the buyer pays part of the NAME with MANA', () => {
 const MANA = (n: number) => BigInt(n) * 10n ** 18n
 const NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 const ZERO = '0x0000000000000000000000000000000000000000'
-const ROUTER = '0x000000000000000000000000000000000000d00d'
+const ROUTER = SQUID_ROUTER
 // value 0.5 + gasLimit 500k × maxFee 100 gwei (0.05) = what the wallet must hold for the bridge alone.
 const BRIDGE_RESERVE = 5n * 10n ** 17n + 500_000n * 100_000_000_000n
 
@@ -899,7 +900,7 @@ function squidRoute() {
     route: {
       quoteId: 'quote-1',
       // The route raised the amount past the first estimate, so the quote must read it from here.
-      params: { fromAmount: MANA(102).toString() },
+      params: { fromAmount: MANA(102).toString(), fromToken: ZERO, fromChain: '137' },
       estimate: {
         gasCosts: [{ amount: '300000000000000000', token: { address: NATIVE } }],
         feeCosts: [
@@ -993,6 +994,51 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
     })
   })
 
+  // Every one of these is the API's to choose, and the buyer is about to approve and send it.
+  describe.each([
+    ['names another router', { transactionRequest: { ...squidRoute().route.transactionRequest, target: ZERO } }],
+    ['pulls another token', { params: { ...squidRoute().route.params, fromToken: NATIVE } }],
+    ['starts on another chain', { params: { ...squidRoute().route.params, fromChain: '1' } }],
+    [
+      'pulls more MANA than a NAME can need',
+      { params: { ...squidRoute().route.params, fromAmount: MANA(108).toString() } }
+    ],
+    [
+      'carries more native value than any fee could be',
+      { transactionRequest: { ...squidRoute().route.transactionRequest, value: MANA(1001).toString() } }
+    ]
+  ])('and the route %s', (_label, change) => {
+    beforeEach(() => {
+      squid.getRegisterNameRoute.mockResolvedValue({ ...squidRoute(), route: { ...squidRoute().route, ...change } })
+    })
+
+    it('should refuse it as unavailable, and report it', async () => {
+      await expect(quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })).rejects.toBeInstanceOf(
+        NameRouteUnavailableError
+      )
+      expect(captureError).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // The screen never shows a fee below what the transaction actually carries.
+  describe('and the route carries more native value than its own estimate', () => {
+    beforeEach(() => {
+      squid.getRegisterNameRoute.mockResolvedValue({
+        ...squidRoute(),
+        route: {
+          ...squidRoute().route,
+          transactionRequest: { ...squidRoute().route.transactionRequest, value: MANA(3).toString() }
+        }
+      })
+    })
+
+    it('should quote the value as the fee', async () => {
+      const quote = await quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })
+
+      expect(quote.feeWei).toBe(MANA(3))
+    })
+  })
+
   describe('and MANA cannot be routed between the two chains', () => {
     beforeEach(() => {
       squid.getSupportedTokens.mockReturnValue([{ chainId: '137', address: ZERO, decimals: 18, symbol: 'MANA' }])
@@ -1025,8 +1071,11 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
   const web3 = {
     send: vi.fn(async (method: string) => (method === 'eth_chainId' ? chainIdHex : null))
   } as unknown as ethers.providers.Web3Provider
-  const signer = { getAddress: async () => BUYER } as unknown as ethers.providers.JsonRpcSigner
-  const run = (opts: { providerType?: string; shownManaWei?: bigint; shownFeeWei?: bigint } = {}) =>
+  const sendTransaction = vi.fn()
+  const signer = { getAddress: async () => BUYER, sendTransaction } as unknown as ethers.providers.JsonRpcSigner
+  const run = (
+    opts: { providerType?: string; shownManaWei?: bigint; shownFeeWei?: bigint; waitTimeoutMs?: number } = {}
+  ) =>
     registerNameWithPolygonMana({
       name: 'my-name',
       signer,
@@ -1034,7 +1083,8 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
       providerType: opts.providerType ?? 'injected',
       shownManaWei: opts.shownManaWei ?? MANA(102),
       shownFeeWei: opts.shownFeeWei ?? 500000000000000000n,
-      statusPoll: { intervalMs: 0, maxAttempts: 2 }
+      statusPoll: { intervalMs: 0, maxAttempts: 2 },
+      waitTimeoutMs: opts.waitTimeoutMs
     })
 
   beforeEach(() => {
@@ -1055,11 +1105,12 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
   it('should send the quoted route from the buyer’s own wallet with an exact approval', async () => {
     await run()
 
-    expect(squid.squid.executeRoute).toHaveBeenCalledWith({
-      route: squidRoute().route,
-      signer,
-      executionSettings: { infiniteApproval: false }
-    })
+    const call = squid.squid.executeRoute.mock.calls[0][0]
+    expect({
+      route: call.route,
+      settings: call.executionSettings,
+      fromBuyersWallet: Object.getPrototypeOf(call.signer) === signer
+    }).toEqual({ route: squidRoute().route, settings: { infiniteApproval: false }, fromBuyersWallet: true })
   })
 
   it('should report the NAME registered, with what the route pulled', async () => {
@@ -1315,6 +1366,111 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
     })
   })
 
+  describe('and the route drifted up within the half-percent it is allowed', () => {
+    it('should go ahead', async () => {
+      await expect(run({ shownManaWei: (MANA(102) * 1000n) / 1004n })).resolves.toMatchObject({ status: 'registered' })
+    })
+  })
+
+  // ethers broadcasts, then polls for the transaction; a failed poll throws with the hash of what already left.
+  describe('and the wallet lost track of the bridge right after sending it', () => {
+    beforeEach(() => {
+      sendTransaction.mockRejectedValue(
+        Object.assign(new Error('failed to get transaction'), { transactionHash: '0xout' })
+      )
+      squid.squid.executeRoute.mockImplementation(async ({ signer: sender }: { signer: ethers.Signer }) => {
+        await sender.sendTransaction({ to: SQUID_ROUTER })
+      })
+    })
+
+    it('should follow the bridge it sent instead of offering a retry', async () => {
+      await expect(run()).resolves.toMatchObject({ status: 'registered', originTxHash: '0xout' })
+    })
+
+    it('should hold the NAME as in flight while it does', async () => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'ongoing' })
+      await run().catch(() => undefined)
+
+      await expect(run()).rejects.toBeInstanceOf(NameInFlightError)
+    })
+  })
+
+  describe('and the wallet lost track of the approval, so the bridge never left', () => {
+    beforeEach(() => {
+      sendTransaction.mockRejectedValue(
+        Object.assign(new Error('failed to get transaction'), { transactionHash: '0xapproval' })
+      )
+      squid.squid.executeRoute.mockImplementation(async ({ signer: sender }: { signer: ethers.Signer }) => {
+        await sender.sendTransaction({ to: ZERO })
+      })
+    })
+
+    it('should fail as one a retry may follow', async () => {
+      const thrown = await run().catch((e: unknown) => e)
+
+      expect(thrown instanceof NameSettlementUnknownError).toBe(false)
+    })
+  })
+
+  describe('and the bridge never confirms within the wait', () => {
+    beforeEach(() => {
+      wait.mockImplementation(() => new Promise(() => {}))
+    })
+
+    it('should stop waiting and ask the bridge', async () => {
+      await expect(run({ waitTimeoutMs: 1 })).resolves.toMatchObject({ status: 'registered', originTxHash: '0xbridge' })
+    })
+  })
+
+  // No answer ever came back, which is not the same as "on its way".
+  describe('and the bridge status can never be read', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockRejectedValue(new Error('404'))
+    })
+
+    it('should report the outcome as unknown', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameSettlementUnknownError)
+    })
+  })
+
+  describe('and the router has never seen the bridge', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'not_found' })
+    })
+
+    it('should report the outcome as unknown', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameSettlementUnknownError)
+    })
+  })
+
+  // Two tabs sitting on their wallet prompts at once: the second must not get as far as its own.
+  describe('and another attempt is still at the wallet prompts', () => {
+    beforeEach(() => {
+      squid.squid.executeRoute.mockImplementation(() => new Promise(() => {}))
+    })
+
+    it('should refuse to start a second one', async () => {
+      void run()
+      await vi.waitFor(() => expect(squid.squid.executeRoute).toHaveBeenCalled())
+
+      await expect(run()).rejects.toBeInstanceOf(NameInFlightError)
+    })
+  })
+
+  // A tab closed on its wallet prompts must not lock the NAME for hours.
+  describe('and an earlier attempt was abandoned at the wallet prompts long ago', () => {
+    beforeEach(() => {
+      localStorage.setItem(
+        'dcl_shop_names_in_flight',
+        JSON.stringify({ 'my-name': { at: Date.now() - 11 * 60 * 1000, phase: 'sending' } })
+      )
+    })
+
+    it('should let it be bought', async () => {
+      await expect(run()).resolves.toMatchObject({ status: 'registered' })
+    })
+  })
+
   describe('and the buyer rejects the request', () => {
     beforeEach(() => {
       squid.squid.executeRoute.mockRejectedValue(
@@ -1326,6 +1482,30 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
       const thrown = await run().catch((e: unknown) => e)
 
       expect(thrown instanceof NameSettlementUnknownError).toBe(false)
+    })
+  })
+})
+
+describe('when the cross-chain module fails to load', () => {
+  afterEach(() => {
+    resetSquid()
+  })
+
+  it('should try again on the next quote instead of keeping the failure', async () => {
+    vi.resetModules()
+    const crossChainModule = await import('decentraland-transactions/crossChain')
+    const ctor = vi.mocked(crossChainModule.AxelarProvider)
+    ctor.mockImplementationOnce(() => {
+      throw new Error('chunk failed to load')
+    })
+    const fresh = await import('~/lib/names')
+    primeSquid()
+
+    await expect(fresh.quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })).rejects.toBeInstanceOf(
+      fresh.NameRouteUnavailableError
+    )
+    await expect(fresh.quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })).resolves.toMatchObject({
+      manaWei: MANA(102)
     })
   })
 })

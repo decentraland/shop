@@ -17,7 +17,7 @@ const SHORT = { ...creditsResponse, usd: { balanceCents: 300, credits: 30 } }
 const BROKE = { ...creditsResponse, usd: { balanceCents: 0, credits: 0 } }
 // Where the wallet sends the approval and the bridge: Amoy MANA, and the router the mocked route names.
 const AMOY_MANA = '0x7ad72b9f944ea9793cf4055d88f81138cc2c63a0'
-const SQUID_ROUTER = '0x' + '5c'.repeat(20)
+const SQUID_ROUTER = '0xce16f69375520ab01377ce7b88f5ba8c48f8d666'
 const APPROVE = '0x095ea7b3'
 
 async function openMethods(extra: Record<string, unknown>, viewport = { width: 1280, height: 950 }) {
