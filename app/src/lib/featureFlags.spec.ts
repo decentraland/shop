@@ -6,6 +6,7 @@ import {
   getAddressListVariant,
   getIsFeatureEnabled,
   getVariantValue,
+  getFlagWithVariant,
   getIsProceedsToTreasuryEnabled,
   resetFeatureFlagsCache
 } from '~/lib/featureFlags'
@@ -344,6 +345,56 @@ describe('featureFlags', () => {
   })
 })
 
+describe('getFlagWithVariant', () => {
+  const ADDR = '0x' + 'c'.repeat(40)
+
+  beforeEach(() => {
+    resetFeatureFlagsCache()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function mockFlagAndVariant(flags: Record<string, boolean>, variants: Record<string, string>) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            flags,
+            variants: Object.fromEntries(
+              Object.entries(variants).map(([key, value]) => [key, { enabled: true, payload: { value } }])
+            )
+          })
+      })
+    )
+  }
+
+  it('should return the flag and its payload from one read', async () => {
+    mockFlagAndVariant({ 'dapps-shop-campaign': true }, { 'dapps-shop-campaign': `halloween:${ADDR}` })
+
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({
+      enabled: true,
+      variant: `halloween:${ADDR}`
+    })
+  })
+
+  it('should report an absent payload as null rather than as an empty string', async () => {
+    mockFlagAndVariant({ 'dapps-shop-campaign': true }, {})
+
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: true, variant: null })
+  })
+
+  it('should fail closed on an unreachable service, in both halves at once', async () => {
+    // The pair is the point: answering "on" with no payload is how a restricted campaign escapes to
+    // everybody, so a failed read must never produce that combination.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: false, variant: null })
+  })
+})
+
 /**
  * The query overrides exist so a preview deploy can be shown to somebody: the build-time `VITE_*` vars are
  * baked in by `npm run build` and a Vercel preview has none, so a flag-gated page is otherwise unreachable
@@ -383,6 +434,21 @@ describe('preview query overrides', () => {
     window.history.replaceState({}, '', `/?ffv=shop-my-store:${ADDRESS}`)
 
     expect(await getAddressListVariant(FeatureFlag.SHOP_MY_STORE)).toEqual([ADDRESS.toLowerCase()])
+  })
+
+  it('reads a RAW variant payload the same way, so a preview can be given a campaign theme', async () => {
+    mockFlags({})
+    window.history.replaceState({}, '', `/?ffv=shop-campaign:halloween:${ADDRESS}`)
+
+    expect(await getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).toBe(`halloween:${ADDRESS}`)
+  })
+
+  it('ignores a raw variant payload from the query string on the live Shop', async () => {
+    mockFlags({})
+    config.previewHost = false
+    window.history.replaceState({}, '', '/?ffv=shop-campaign:halloween')
+
+    expect(await getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).toBeNull()
   })
 
   it('falls through to the real flag when the value is neither true nor false', async () => {

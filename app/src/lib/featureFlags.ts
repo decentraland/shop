@@ -124,6 +124,14 @@ export enum FeatureFlag {
    *
    * Fails closed like every other accessor here, and there it matches the product default: no flag, no
    * event.
+   *
+   * Its VARIANT payload carries two things, parsed by `parseCampaignVariant`: the seasonal theme to wear,
+   * and optionally the accounts to show the event to while it is still being reviewed. A payload with no
+   * address list restricts nobody, so turning the flag on with `halloween` ships to everyone as before.
+   *
+   * Which means DISABLING the variant while the flag stays on does not pause a restricted preview — it
+   * publishes it, because a disabled variant is dropped on the way in and reads here as "no list". To take
+   * a preview down, turn the FLAG off.
    */
   SHOP_CAMPAIGN = 'shop-campaign'
 }
@@ -238,7 +246,7 @@ export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]
  * as a deliberate choice of anything.
  */
 export async function getVariantValue(flag: FeatureFlag): Promise<string | null> {
-  const override = devVariantOverrideFor(flag)
+  const override = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
   if (override !== undefined) return override || null
   try {
     return (await getSnapshot()).variants[flagKey(flag)] || null
@@ -247,12 +255,46 @@ export async function getVariantValue(flag: FeatureFlag): Promise<string | null>
   }
 }
 
-function parseAddressList(value: string): string[] {
+/**
+ * A flag and its variant payload, read from ONE snapshot.
+ *
+ * Calling {@link getIsFeatureEnabled} and {@link getVariantValue} in sequence is not the same thing: they
+ * take the snapshot twice, so a cache expiry between them can answer "on" from the fresh copy and `null`
+ * from a failed refetch. A caller whose payload RESTRICTS something then reads that as "nothing was
+ * restricted" and opens the feature to everyone — the one failure direction an allowlist must not have.
+ *
+ * Fails closed as a pair, like every other accessor here.
+ */
+export async function getFlagWithVariant(flag: FeatureFlag): Promise<{ enabled: boolean; variant: string | null }> {
+  const flagOverride = devOverrideFor(flag) ?? queryFlagOverrideFor(flag)
+  const variantOverride = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
+  if (flagOverride !== undefined && variantOverride !== undefined) {
+    return { enabled: flagOverride, variant: variantOverride || null }
+  }
+
+  try {
+    const snapshot = await getSnapshot()
+    const key = flagKey(flag)
+    return {
+      enabled: flagOverride ?? snapshot.flags[key] === true,
+      variant: variantOverride !== undefined ? variantOverride || null : snapshot.variants[key] || null
+    }
+  } catch {
+    return { enabled: flagOverride ?? false, variant: variantOverride ?? null }
+  }
+}
+
+/**
+ * The addresses in a comma-separated list, lowercased, trimmed and de-duplicated. Anything that is not an
+ * address is dropped rather than rejected, so one stray word cannot cost a list its other entries.
+ */
+export function parseAddressList(value: string): string[] {
   return Array.from(
     new Set(
       value
-        .replace(/\n/g, '')
-        .split(',')
+        // Commas, newlines and semicolons all separate. A dashboard field is pasted into by hand, and a list
+        // split across lines with no commas used to glue into one 84-character token and vanish whole.
+        .split(/[\s,;]+/)
         .map(address => address.toLowerCase().trim())
         .filter(address => /^0x[0-9a-f]{40}$/.test(address))
     )
