@@ -57,6 +57,29 @@
     <meta name="twitter:image" content="https://decentraland.org/shop/og-image.png" />
     <meta name="twitter:image:alt" content="Decentraland Shop — wearables and emotes for your avatar" />
 
+    <!-- Names this app for agents and search engines, and tells it apart from the Marketplace, which
+         agents otherwise answer Shop questions from. It describes the site, not a page, so it holds on
+         every route the CDN serves this file for. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Decentraland Shop",
+        "url": "https://decentraland.org/shop/",
+        "description": "Discover wearables and emotes to make your Decentraland avatar your own. The Shop is its own app, separate from the Decentraland Marketplace (https://decentraland.org/marketplace/), where Wearables, LAND and NAMEs are listed by the community.",
+        "inLanguage": "en",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "Decentraland",
+          "url": "https://decentraland.org/"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "Decentraland",
+          "url": "https://decentraland.org/"
+        }
+      }
+    </script>
     <!-- Sitemap -->
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
 
