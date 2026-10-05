@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { SaleableCollection } from '~/lib/saleableCollections'
 
@@ -45,9 +45,12 @@ describe('when the announcement has a collection to show', () => {
   it('should record that it was shown, once', async () => {
     mount()
     await screen.findByTestId('discounts-announcement')
-    expect(track.mock.calls.filter(call => call[0] === 'Shop Discounts Announcement Shown')).toEqual([
-      ['Shop Discounts Announcement Shown', { collection: '0xaa' }]
-    ])
+    // Reported from the dialog's mount effect, which runs just after it reaches the DOM.
+    await waitFor(() =>
+      expect(track.mock.calls.filter(call => call[0] === 'Shop Discounts Announcement Shown')).toEqual([
+        ['Shop Discounts Announcement Shown', { collection: '0xaa' }]
+      ])
+    )
   })
 
   it('should open the discount flow on that collection, in the store, leaving the store to retire it', async () => {
