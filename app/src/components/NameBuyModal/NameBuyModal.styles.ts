@@ -650,3 +650,34 @@ export const ThumbGlyph = styled.span`
   font-weight: 700;
   color: ${theme.colors.white};
 `
+
+// The Ethereum MANA marks inside its row — sized to match the Polygon ones the shared rows already draw.
+export const AltMark = styled.img`
+  width: 12px;
+  height: 12px;
+`
+export const AltPriceMark = styled.img`
+  width: 18px;
+  height: 18px;
+`
+export const AltBalance = styled.span`
+  font-weight: 600;
+  color: ${theme.colors.text};
+`
+
+/**
+ * The wrong-network screen: the buyer picked the Ethereum rail while their account is elsewhere.
+ *
+ * Not an error panel — nothing failed and nothing was spent. It states the requirement and hands over the
+ * one control that fixes it, because the switch has to be fired from the buyer's own click.
+ */
+export const ChainNotice = styled.div`
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: ${theme.colors.promptLilac};
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.5;
+  color: ${theme.colors.text2};
+`

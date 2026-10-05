@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { config } from '~/config'
+import { rpcUrlForChain } from '~/lib/network'
 import { captureError } from '~/lib/monitoring'
 
 // MANA reads for the "pay with MANA" Buy Now option: the buyer's on-chain MANA balance (to decide
@@ -23,14 +24,6 @@ type OracleReaderContract = ethers.Contract & {
 type AggregatorContract = ethers.Contract & {
   decimals(): Promise<number>
   latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
-}
-
-// The read-only RPC for a chain. MANA is deployed on both Polygon and Ethereum L1 at DIFFERENT
-// addresses, so the contract's chain and the RPC it is queried over must always agree: resolving the L1
-// MANA address and then calling balanceOf on the Polygon RPC hits an address that holds no such
-// contract there, which answers 0 instead of failing — a wrong balance, not an error.
-function rpcUrlForChain(chainId: number): string {
-  return chainId === config.ethereumChainId ? config.ethereumRpcUrl : config.rpcUrl
 }
 
 // An address's MANA balance in wei (18 decimals) on ONE chain. ERC20 balanceOf on that chain's MANA

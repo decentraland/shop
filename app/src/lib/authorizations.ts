@@ -15,7 +15,7 @@ import { gaslessConfig } from '~/lib/gasless-config'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { confirmMetaTx } from '~/lib/tx-confirm'
 import { captureError } from '~/lib/monitoring'
-import { activeChainId, requireChain } from '~/lib/network'
+import { activeChainId, requireChain, rpcUrlForChain } from '~/lib/network'
 import { useWallet } from '~/store/wallet'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
@@ -61,9 +61,15 @@ type CollectionMinterContract = ethers.Contract & {
   setMinters(minters: string[], values: boolean[]): Promise<ethers.ContractTransaction>
 }
 
-// Read-only provider for the target chain — contract reads must not depend on the wallet's network.
-export function readProvider() {
-  return new ethers.providers.JsonRpcProvider(config.rpcUrl)
+/**
+ * Read-only provider for a chain — contract reads must not depend on the wallet's network.
+ *
+ * Defaults to the shop's settlement chain, which is what every caller but the Ethereum NAME rail wants.
+ * Passing the chain matters wherever the CONTRACT is not on Polygon: an L1 address read over the Polygon
+ * RPC is not a wrong answer, it is an undecodable one.
+ */
+export function readProvider(chainId: number = config.chainId) {
+  return new ethers.providers.JsonRpcProvider(rpcUrlForChain(chainId))
 }
 
 // A single on-chain authorization: a (kind, token/collection, operator/spender) triple on a chain.
@@ -97,7 +103,8 @@ export async function getAuthorizationStatus(
   owner: string,
   requiredWei?: bigint
 ): Promise<boolean> {
-  const provider = readProvider()
+  // The authorization already names its chain; reading it over any other one asks the wrong node.
+  const provider = readProvider(auth.chainId)
   switch (auth.kind) {
     case AuthorizationKind.Allowance: {
       const erc20 = new ethers.Contract(auth.contractAddress, ERC20_ABI, provider) as Erc20Contract
@@ -196,7 +203,7 @@ async function grantViaMetaTransaction(
 ) {
   const functionData = encodeAuthorizationCall(auth, active)
   const contractData = metaTxContractData(auth)
-  const rpc = readProvider()
+  const rpc = readProvider(auth.chainId)
   // The shim signs via the wallet but sends node reads (account-code check, etc.) to `rpc`, so the
   // meta-tx works regardless of which network the wallet is on. `rpc` also reads the nonce + waits for
   // the relayed receipt.
@@ -251,7 +258,18 @@ export async function setAuthorization(opts: {
 }): Promise<void> {
   const { auth, signer, active } = opts
 
-  if (gaslessConfig.enabled) {
+  /**
+   * The relayer only submits on the shop's settlement chain, so an authorization on any other one has no
+   * relayed rail — it goes straight to the direct transaction.
+   *
+   * Asked here rather than discovered by failure: `grantViaMetaTransaction` would sign a Polygon-shaped
+   * meta-tx for an L1 contract that has no `executeMetaTransaction`, post it to a relayer that does not
+   * serve that chain, and only then fall through — burning a signature prompt the buyer gains nothing from
+   * and logging a gasless_fallback that names none of this.
+   */
+  const relayable = Number(auth.chainId) === Number(config.chainId)
+
+  if (gaslessConfig.enabled && relayable) {
     try {
       await grantViaMetaTransaction(auth, signer, active)
       return
