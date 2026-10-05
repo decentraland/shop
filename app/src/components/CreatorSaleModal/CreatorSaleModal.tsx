@@ -584,10 +584,13 @@ export function CreatorSaleModal({
 
           <S.ReviewFoot>{capCopy}</S.ReviewFoot>
 
-          {status ? <S.Status>{status}</S.Status> : null}
-          <ErrorNotice message={error} testId="creator-sale-error" />
-
           <S.Actions>
+            {status || error ? (
+              <S.ActionsNote>
+                {status ? <S.Status>{status}</S.Status> : null}
+                <ErrorNotice message={error} testId="creator-sale-error" />
+              </S.ActionsNote>
+            ) : null}
             <S.ActionBtn
               variant="white"
               onClick={() => {
@@ -1008,10 +1011,13 @@ export function CreatorSaleModal({
           </S.Field>
         ) : null}
 
-        {status ? <S.Status>{status}</S.Status> : null}
-        <ErrorNotice message={error ?? inlineProblem} testId="creator-sale-error" />
-
         <S.Actions>
+          {status || error || inlineProblem ? (
+            <S.ActionsNote>
+              {status ? <S.Status>{status}</S.Status> : null}
+              <ErrorNotice message={error ?? inlineProblem} testId="creator-sale-error" />
+            </S.ActionsNote>
+          ) : null}
           <S.ActionBtn variant="white" onClick={onClose} disabled={busy} data-testid="creator-sale-cancel">
             {t('creatorSale.cancel')}
           </S.ActionBtn>

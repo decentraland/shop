@@ -30,7 +30,10 @@ export const Card = styled.div`
   width: 560px;
   max-width: 100%;
   max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
+  /* Keeps a focused field clear of the pinned actions when the browser scrolls it into view. */
+  scroll-padding-bottom: 104px;
   background: ${colors.fieldBottomWashed};
   border: 1px solid ${hairline};
   border-radius: ${radius.modal};
@@ -651,13 +654,15 @@ export const PrimaryBtn = styled(Button)`
 
 /**
  * The modal's foot: ruled off from the form, the way out on the left and the way on at the right. Pinned to
- * the bottom of the card, so a form taller than the screen never hides the button that moves it on.
+ * the bottom of the card, so a form taller than the screen never hides the button that moves it on — nor
+ * the reason that button is disabled, which rides in the foot above it.
  */
 export const Actions = styled.div`
   position: sticky;
   bottom: -${CARD_PAD}px;
   z-index: 3;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   margin: 0 -${CARD_PAD}px -${CARD_PAD}px;
@@ -671,6 +676,13 @@ export const Actions = styled.div`
     margin: 0 -${CARD_PAD_MOBILE}px -${CARD_PAD_MOBILE}px;
     padding: 12px ${CARD_PAD_MOBILE}px ${CARD_PAD_MOBILE}px;
   }
+`
+
+export const ActionsNote = styled.div`
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `
 
 export const ActionBtn = styled(Button)`
@@ -697,8 +709,8 @@ export const ActionBtn = styled(Button)`
     background: ${colors.glassFaint};
   }
 
-  /* Side by side on a phone too: stacked, the pinned foot took a fifth of the screen. The way on keeps
-     the room, and a label longer than that (the busy status, German) wraps inside a taller button. */
+  /* Side by side on a phone: the way on takes the room the way out leaves, and a label longer than that
+     (the busy status, German) wraps inside a taller button. */
   ${media.maxWidth('mobile')} {
     flex: 1 1 0;
     min-width: 0;
@@ -710,7 +722,7 @@ export const ActionBtn = styled(Button)`
 
     &[data-variant='white'] {
       flex: 0 0 auto;
-      padding: 0 20px;
+      padding-inline: 20px;
     }
   }
 `

@@ -143,12 +143,22 @@ const builderItem = (bid: string, name: string) => ({
 const noOverflow = (page: App['page']) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
-/** Whether an action sits wholly inside the viewport, with its label inside the button. */
-const actionInView = (page: App['page'], testId: string) =>
+/**
+ * Whether an element is on screen and on top: inside the viewport, its text inside its box, and the thing
+ * a tap at its centre would land on, so nothing pinned over it counts as visible.
+ */
+const onScreen = (page: App['page'], testId: string) =>
   page.$eval(`[data-testid="${testId}"]`, el => {
     const box = el.getBoundingClientRect()
-    return box.top >= 0 && box.bottom <= window.innerHeight && el.scrollWidth <= el.clientWidth
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    return (
+      box.top >= 0 && box.bottom <= window.innerHeight && el.scrollWidth <= el.clientWidth && !!hit && el.contains(hit)
+    )
   })
+
+/** Whether the card scrolls, which is what makes the pinned actions matter. */
+const cardScrolls = (page: App['page']) =>
+  page.$eval('[data-testid="creator-sale-modal"]', el => el.scrollHeight > el.clientHeight)
 
 const text = (page: App['page'], testId: string) =>
   page.$eval(`[data-testid="${testId}"]`, el => (el as HTMLElement).innerText.trim())
@@ -224,14 +234,23 @@ describe('creator sales', () => {
     )
 
     // The form is taller than a phone, so the actions stay pinned in view rather than below the fold.
-    expect(await actionInView(page, 'creator-sale-continue')).toBe(true)
+    expect(await cardScrolls(page)).toBe(true)
+    expect(await onScreen(page, 'creator-sale-continue')).toBe(true)
+
+    // And so does the reason Continue is refused, which rides in the pinned foot rather than below the form.
+    await page.type('[data-testid="creator-sale-cap"]', '0')
+    await page.waitForSelector('[data-testid="creator-sale-error"]')
+    expect(await onScreen(page, 'creator-sale-error')).toBe(true)
+    await page.click('[data-testid="creator-sale-cap"]', { count: 3 })
+    await page.keyboard.press('Backspace')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-error"]'))
 
     // Nothing is signed from the form — the terms go to a review first.
     await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
     await waitForText(page, '1 item gets the discount')
     expect(await noOverflow(page)).toBe(true)
-    expect(await actionInView(page, 'creator-sale-submit')).toBe(true)
+    expect(await onScreen(page, 'creator-sale-submit')).toBe(true)
 
     // One signature, one POST, then the success view with its countdown.
     await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
