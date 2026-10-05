@@ -1575,5 +1575,16 @@
     "stock": "Dadurch {count, plural, one {wird # neues Exemplar} other {werden # neue Exemplare}} von „{name}“ ausgegeben, {left, plural, one {vom # übrigen} other {von den # übrigen}}.",
     "notEnough": "Von „{name}“ {left, plural, one {ist nur noch # übrig} other {sind nur noch # übrig}}. Wähle weniger Personen oder einen anderen Artikel.",
     "continue": "Weiter"
+  },
+  "discountsAnnouncement": {
+    "eyebrow": "Neu für Creator",
+    "close": "Schließen",
+    "title": "Setz deine Kollektionen in den Sale",
+    "lead": "<b>So würde {collection}</b> für Käufer mit {pct}% Rabatt aussehen.",
+    "stepPick": "<b>Wähl deinen Rabatt:</b> 10%, 20%, 30%, 50% oder einen eigenen.",
+    "stepWhen": "<b>Wähl, wann er läuft:</b> Starte deinen Sale jetzt oder plane die Tage.",
+    "stepBack": "<b>Preise setzen sich automatisch zurück:</b> Wenn der Sale endet, kehren deine Artikel zu ihren ursprünglichen Preisen zurück.",
+    "later": "Später",
+    "create": "Rabatt erstellen"
   }
 }

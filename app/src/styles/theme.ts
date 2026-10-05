@@ -44,6 +44,7 @@ const colors = {
   // docked mobile summary bar, which scrolls over content and so cannot be translucent. Named here, and
   // mirrored in styles/index.css beside the gradient, so it moves with the field rather than drifting.
   fieldBottomWashed: '#3c1556',
+  modalViolet: '#4c147c', // the builder's dark modal surface (Create Collection, Item Details)
   accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)

@@ -110,6 +110,7 @@ body {
      in. It is what an opaque surface must be to sit on the field where the field is darkest. Kept beside
      the gradient so the two move together. */
   --field-bottom-washed: #3c1556;
+  --modal-violet: #4c147c;
   color: var(--text);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;

@@ -1,0 +1,1 @@
+export { DiscountsAnnouncementHost } from './DiscountsAnnouncementHost'
