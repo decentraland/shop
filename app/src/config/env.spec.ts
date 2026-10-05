@@ -50,6 +50,9 @@ describe('per-env config JSONs', () => {
     expect(new URL(stg.RELAYER_URL).hostname).toContain('decentraland.org')
   })
 
+  /** The entry the Marketplace reads in prod and stg. Ours must not be this one; see the test below. */
+  const MARKETPLACE_ADMIN_ENTITY_ID = '7JRrew0kMt5fkXu45Vbx7e'
+
   it.each(ENVS)('$name points at the marketing CMS', ({ json }) => {
     expect(new URL(json.CONTENTFUL_URL).hostname).toBe('cms-api.decentraland.org')
     expect(json.CONTENTFUL_SPACE_ID).toBeTruthy()
@@ -63,11 +66,18 @@ describe('per-env config JSONs', () => {
   })
 
   it('reads the published campaign on stg, like every other production surface it points at', () => {
-    // Deliberate, and the same split the Marketplace ships. Staging is not a second dev: it reads the
-    // production APIs and Polygon mainnet, so reading a different CMS entry there would rehearse a
-    // campaign nobody is about to launch. Previewing a draft is what dev is for — or a local
-    // VITE_CONTENTFUL_ADMIN_ENTITY_ID override.
+    // Deliberate. Staging is not a second dev: it reads the production APIs and Polygon mainnet, so
+    // reading a different CMS entry there would rehearse a campaign nobody is about to launch. Previewing
+    // a draft is what dev is for — or a local VITE_CONTENTFUL_ADMIN_ENTITY_ID override.
     expect(stg.CONTENTFUL_ADMIN_ENTITY_ID).toBe(prod.CONTENTFUL_ADMIN_ENTITY_ID)
+  })
+
+  it('reads an admin entry of its own, not the one the Marketplace is configured by', () => {
+    // These entries are shared dapp CONFIG, not a shared document: the same three fields drive the
+    // Marketplace's event tab and banners. While the Shop read the Marketplace's entry there was no way to
+    // stage a campaign for one without launching it on the other, which is a scheduling constraint nobody
+    // chose and the kind that gets discovered on launch day.
+    expect(prod.CONTENTFUL_ADMIN_ENTITY_ID).not.toBe(MARKETPLACE_ADMIN_ENTITY_ID)
   })
 })
 
