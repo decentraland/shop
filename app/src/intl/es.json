@@ -1416,7 +1416,7 @@
     "errorInFlight": "Una compra de este NAME todavía se está completando. Revisa Mis artículos en unos minutos antes de volver a intentarlo.",
     "manaRouteUnavailable": "Este medio de pago no está disponible ahora. Prueba de nuevo en unos minutos.",
     "manaPriceMoved": "El monto necesario cambió mientras confirmabas. Revisa el nuevo monto y prueba de nuevo.",
-    "errorSettlementUnknown": "No pudimos confirmar si tu compra se completó. No vuelvas a comprar — revisa Mis Ítems en unos minutos y contacta a soporte con este NAME si no aparece.",
+    "errorSettlementUnknown": "No pudimos confirmar si tu compra se completó. No vuelvas a comprar — revisa Mis artículos en unos minutos y contacta a soporte con este NAME si no aparece.",
     "errorSpentDismiss": "Entendido"
   },
   "seo": {

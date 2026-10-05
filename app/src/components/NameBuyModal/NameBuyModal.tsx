@@ -278,6 +278,8 @@ export function NameBuyModal({
           : (priceCredits ?? null)
     setPhase('completing')
     setError(null)
+    // A retry after a refund is priced afresh: the screen and the cap must not hold the old figure.
+    setPaidManaWei(null)
     setStage('preparing')
     try {
       let result: NameRegistrationResult
@@ -684,7 +686,14 @@ export function NameBuyModal({
                 ) : retryUnsafe ? (
                   <S.PrimaryBtn onClick={onClose}>{t('names.errorSpentDismiss')}</S.PrimaryBtn>
                 ) : (
-                  <S.PrimaryBtn onClick={() => setPhase('confirm')}>{t('names.tryAgain')}</S.PrimaryBtn>
+                  <S.PrimaryBtn
+                    onClick={() => {
+                      setPaidManaWei(null)
+                      setPhase('confirm')
+                    }}
+                  >
+                    {t('names.tryAgain')}
+                  </S.PrimaryBtn>
                 )}
               </>
             ) : (
