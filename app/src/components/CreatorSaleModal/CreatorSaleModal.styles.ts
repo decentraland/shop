@@ -645,16 +645,27 @@ export const PrimaryBtn = styled(Button)`
   min-height: 48px;
 `
 
-/** The modal's foot: ruled off from the form, the way out on the left and the way on at the right. */
+/**
+ * The modal's foot: ruled off from the form, the way out on the left and the way on at the right. Pinned to
+ * the bottom of the card, so a form taller than the screen never hides the button that moves it on.
+ */
 export const Actions = styled.div`
+  position: sticky;
+  bottom: -20px;
+  z-index: 3;
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 24px;
+  margin: 0 -20px -20px;
+  padding: 16px 20px 20px;
   border-top: 0.5px solid rgba(255, 255, 255, 0.3);
+  background: ${colors.fieldBottomWashed};
+  box-shadow: 0 -12px 24px -12px rgba(0, 0, 0, 0.45);
 
   ${media.maxWidth('mobile')} {
-    flex-direction: column-reverse;
+    bottom: -16px;
+    margin: 0 -16px -16px;
+    padding: 12px 16px 16px;
   }
 `
 
@@ -682,8 +693,17 @@ export const ActionBtn = styled(Button)`
     background: ${colors.glassFaint};
   }
 
+  /* Side by side on a phone too: stacked, the pinned foot took a fifth of the screen. The way on keeps
+     the room, so its longer label stays on one line. */
   ${media.maxWidth('mobile')} {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
+
+    &[data-variant='white'] {
+      flex: 0 0 auto;
+      padding: 0 20px;
+    }
   }
 `
 
