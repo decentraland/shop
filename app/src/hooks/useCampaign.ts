@@ -48,7 +48,12 @@ export function useCampaignFlag(): CampaignFlagState {
     retry: 1
   })
 
-  if (isPending || !data) return { enabled: false, isPending: true, theme: null }
+  if (isPending) return { enabled: false, isPending: true, theme: null }
+  // Settled with NO data means the read itself failed. `getFlagWithVariant` catches its own errors and
+  // resolves a closed pair, so this is unreachable today; spelled out anyway, because folding it into the
+  // pending branch leaves a rejection reporting "still loading" forever, and `/event` then neither renders
+  // nor redirects. The fail-closed direction should not be inherited from a detail of another module.
+  if (!data) return { enabled: false, isPending: false, theme: null }
   if (!data.on) return { enabled: false, isPending: false, theme: null }
   if (data.only === null) return { enabled: true, isPending: false, theme: data.theme }
   // A list that matches nobody is still a list. Nothing to wait for and nobody to let in — the usual cause

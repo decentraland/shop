@@ -132,6 +132,11 @@ export enum FeatureFlag {
    * Which means DISABLING the variant while the flag stays on does not pause a restricted preview — it
    * publishes it, because a disabled variant is dropped on the way in and reads here as "no list". To take
    * a preview down, turn the FLAG off.
+   *
+   * And a payload naming a theme this build cannot paint — a typo, or a season whose CSS has not shipped —
+   * hides the event from everybody rather than showing it unthemed. On a flag that also decides WHO sees
+   * the event, a payload we cannot act on is likelier to be a restriction gone wrong than a deliberate
+   * launch, so it is read as the former.
    */
   SHOP_CAMPAIGN = 'shop-campaign'
 }
@@ -221,7 +226,10 @@ async function getSnapshot(): Promise<Snapshot> {
  * exclude must therefore check that the FLAG is on separately; an empty result on its own is not permission
  * to hide anything.
  *
- * Mirrors credits-server's parseAddressListVariant so one flag drives both sides.
+ * Reads the same payloads as credits-server's parseAddressListVariant, so one flag drives both sides, but
+ * is no longer character-for-character the same: whitespace separates here too. That only ever finds MORE
+ * addresses in a payload both would accept, so the two cannot disagree about letting somebody in — only
+ * about a list typed across lines, which this one honours and credits-server still drops.
  */
 export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]> {
   const override = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')

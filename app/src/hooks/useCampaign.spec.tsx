@@ -4,9 +4,22 @@ import { PropsWithChildren } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ContentfulLocale } from '@dcl/schemas'
 
-import { resetFeatureFlagsCache } from '~/lib/featureFlags'
+import { resetFeatureFlagsCache, type FeatureFlag } from '~/lib/featureFlags'
 import type { Campaign } from '~/lib/contentful'
 import { useWallet } from '~/store/wallet'
+
+// Only ever on for the one test that needs the flag read to REJECT. `getFlagWithVariant` catches its own
+// errors, so there is no other way to reach the branch that keeps a rejection from reporting "still
+// loading" forever.
+let flagReadRejects = false
+vi.mock('~/lib/featureFlags', async importOriginal => {
+  const actual = await importOriginal<typeof import('~/lib/featureFlags')>()
+  return {
+    ...actual,
+    getFlagWithVariant: (flag: FeatureFlag) =>
+      flagReadRejects ? Promise.reject(new Error('flag service exploded')) : actual.getFlagWithVariant(flag)
+  }
+})
 
 const fetchCampaign = vi.fn()
 let configured = true
@@ -64,6 +77,7 @@ afterEach(() => {
   resetFeatureFlagsCache()
   fetchCampaign.mockReset()
   configured = true
+  flagReadRejects = false
   useWallet.setState({ session: null, restored: false })
 })
 
@@ -272,6 +286,21 @@ describe('useCampaign', () => {
     it('should ignore a list left behind on a flag that was turned off', async () => {
       vi.stubGlobal('fetch', flagResponse({ [FLAG_KEY]: false }, `halloween:${ALICE}`))
       signedInAs(ALICE)
+
+      const { result } = renderHook(() => useCampaign(), { wrapper })
+
+      await waitFor(() => expect(result.current.isPending).toBe(false))
+      expect(result.current.campaign).toBeUndefined()
+    })
+  })
+
+  describe('when the flag read itself rejects', () => {
+    it('should settle with no campaign rather than report itself pending forever', async () => {
+      // A rejection that never clears leaves `/event` neither rendering nor redirecting, so the visitor
+      // sits on a spinner. Unreachable through the real accessor, which fails closed on its own; pinned so
+      // the direction does not quietly depend on that.
+      flagReadRejects = true
+      vi.stubGlobal('fetch', hangingFlag())
 
       const { result } = renderHook(() => useCampaign(), { wrapper })
 
