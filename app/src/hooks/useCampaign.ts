@@ -1,33 +1,70 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
+import { FeatureFlag, getFlagWithVariant } from '~/lib/featureFlags'
+import { parseCampaignVariant } from '~/lib/campaignVariant'
 import { fetchCampaign, isContentfulConfigured, type Campaign } from '~/lib/contentful'
+import { useWallet } from '~/store/wallet'
 
-type FlagState = { enabled: boolean; isPending: boolean }
+export type CampaignFlagState = {
+  enabled: boolean
+  isPending: boolean
+  /** The theme the payload names, as written. `null` when it names none, which defers to the campaign tag. */
+  theme: string | null
+}
 
-function useCampaignFlag(): FlagState {
+/**
+ * The flag behind every event surface, with its variant payload applied.
+ *
+ * The flag decides whether the event exists at all; the payload's address list, when it carries one,
+ * narrows that to those accounts so an event can be rehearsed on production before it is announced. A
+ * payload with NO list restricts nobody, so the flag alone answers and everyone sees the event, which is
+ * how every campaign to date was shipped.
+ *
+ * This hides the event; it does not keep a secret. The address list and the theme name are served in a
+ * public flag file, the seasonal CSS and artwork ship in the bundle to everybody, the CMS entry is public,
+ * and the address compared here comes from the visitor's own restored session. It is the right tool for
+ * keeping a half-finished skin off the storefront, and the wrong one for anything confidential.
+ */
+export function useCampaignFlag(): CampaignFlagState {
+  const address = useWallet(s => s.session?.address)
+  // Whether the silent wallet restore has FINISHED, which `address` alone cannot say: it is undefined both
+  // for a visitor with no account and for one whose session is still being read back. Only consulted when a
+  // list exists, so an unrestricted event never waits on the wallet for an answer it does not need.
+  const walletRestored = useWallet(s => s.restored)
+
   const { data, isPending } = useQuery({
     queryKey: ['feature-flag', 'shop-campaign'],
-    queryFn: () => getIsFeatureEnabled(FeatureFlag.SHOP_CAMPAIGN),
+    queryFn: async () => {
+      // Both answers from ONE snapshot: read apart, the pair can straddle a cache expiry and report a live
+      // flag with no payload, which reads as "nothing was restricted" and publishes the event.
+      const { enabled, variant } = await getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)
+      // A list left behind on a flag that was turned off cannot let anyone in through the back.
+      if (!enabled) return { on: false, ...parseCampaignVariant(null) }
+      return { on: true, ...parseCampaignVariant(variant) }
+    },
     // The lib caches for 60s behind this; keeping react-query's window in step avoids two competing TTLs.
     staleTime: 60_000,
     refetchOnWindowFocus: true,
     retry: 1
   })
 
-  return { enabled: data === true, isPending }
-}
+  if (isPending) return { enabled: false, isPending: true, theme: null }
+  // Settled with NO data means the read itself failed. `getFlagWithVariant` catches its own errors and
+  // resolves a closed pair, so this is unreachable today; spelled out anyway, because folding it into the
+  // pending branch leaves a rejection reporting "still loading" forever, and `/event` then neither renders
+  // nor redirects. The fail-closed direction should not be inherited from a detail of another module.
+  if (!data) return { enabled: false, isPending: false, theme: null }
+  if (!data.on) return { enabled: false, isPending: false, theme: null }
+  if (data.only === null) return { enabled: true, isPending: false, theme: data.theme }
+  // A list that matches nobody is still a list. Nothing to wait for and nobody to let in — the usual cause
+  // is a payload that meant to name accounts and named none of them.
+  if (data.only.length === 0) return { enabled: false, isPending: false, theme: null }
+  // Still pending rather than off: answering "no event" from a half-restored session would show the
+  // ordinary Shop to a listed reviewer for a beat, then swap the event in underneath them.
+  if (!walletRestored) return { enabled: false, isPending: true, theme: null }
 
-/**
- * Whether the Shop's seasonal-event surfaces are switched on. See `FeatureFlag.SHOP_CAMPAIGN` — this is the
- * code's kill switch, not how an event is started or ended.
- *
- * Reads `false` while the flag itself is still loading. Fine for a surface that simply appears when the
- * answer arrives; anything that has to ACT on "there is no event" wants `useCampaign`'s `isPending`, which
- * covers this window too.
- */
-export function useCampaignEnabled(): boolean {
-  return useCampaignFlag().enabled
+  const allowed = address !== undefined && data.only.includes(address.toLowerCase())
+  return { enabled: allowed, isPending: false, theme: allowed ? data.theme : null }
 }
 
 export type CampaignQuery = {
