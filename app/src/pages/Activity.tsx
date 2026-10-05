@@ -17,6 +17,8 @@ import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySa
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useImportable } from '~/hooks/useImportable'
+import { useCancelledTrades } from '~/hooks/useCancelledTrades'
+import { CancelledListings } from '~/components/CancelledListings'
 import { useListingCount } from '~/hooks/useListingCount'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -518,6 +520,8 @@ export function Activity() {
   const { count: importCount } = useImportable()
   // …and how many listings they have at all, on either pricing.
   const { count: listingCount } = useListingCount()
+  // Listings taken down by the marketplace upgrade, listed above the tool so they can be put back.
+  const { trades: cancelled, count: cancelledCount } = useCancelledTrades()
 
   /**
    * The chip is about HAVING listings, not about having migratable ones. Gating it on the migratable count
@@ -535,7 +539,7 @@ export function Activity() {
   // which is the flash the single-count version was written to avoid. They resolve together anyway — both
   // queries gate on the same address.
   const countsKnown = importCount !== undefined && listingCount !== undefined
-  const showMigrate = countsKnown && (importCount > 0 || listingCount > 0 || migrating)
+  const showMigrate = (countsKnown && (importCount > 0 || listingCount > 0 || migrating)) || !!cancelledCount
 
   // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
   // what the migrate panel is allowed to render.
@@ -691,7 +695,9 @@ export function Activity() {
       </S.Tabs>
       {migrating ? (
         <Suspense fallback={<S.PanelFallback aria-busy="true" />}>
-          <ImportListings />
+          {cancelledCount ? <CancelledListings trades={cancelled} /> : null}
+          {/* Its "all set" card would contradict the list above it. */}
+          {!cancelledCount || (importCount ?? 0) > 0 ? <ImportListings /> : null}
         </Suspense>
       ) : isLoading ? (
         <S.List>

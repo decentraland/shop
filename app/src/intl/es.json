@@ -1588,5 +1588,28 @@
     "stepBack": "<b>Los precios vuelven solos:</b> Cuando termina el descuento, tus ítems vuelven a su precio original.",
     "later": "Más tarde",
     "create": "Crear un descuento"
+  },
+  "cancelledListings": {
+    "banner": {
+      "lead": {
+        "listings": "{count, plural, one {Una de tus publicaciones se retiró} other {# de tus publicaciones se retiraron}} durante una actualización de la tienda.",
+        "offers": "{count, plural, one {Una de tus ofertas se retiró} other {# de tus ofertas se retiraron}} durante una actualización de la tienda.",
+        "mixed": "Algunas de tus publicaciones y ofertas se retiraron durante una actualización de la tienda."
+      },
+      "accent": "{count, plural, one {Vuelve a publicarla en unos clics.} other {Vuelve a publicarlas en unos clics.}}",
+      "cta": "Revisar",
+      "dismiss": "Cerrar"
+    },
+    "list": {
+      "title": "Retiradas durante la actualización de la tienda",
+      "lede": "No se vendió nada: solo tienes que volver a publicarlas. Elige un precio y vuelven a estar a la venta.",
+      "kindListing": "Publicación",
+      "kindOffer": "Oferta",
+      "price": "Precio anterior",
+      "relist": "Poner a la venta",
+      "reoffer": "Volver a ofertar",
+      "itemFallback": "Artículo sin nombre",
+      "elsewhereAria": "{action}: {name} (abre el Marketplace de Decentraland en una pestaña nueva)"
+    }
   }
 }

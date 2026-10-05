@@ -93,6 +93,16 @@ vi.mock('~/components/ImportListings', () => ({
   ImportListings: () => <div data-testid="import-panel" />
 }))
 
+const useCancelledTrades = vi.fn()
+vi.mock('~/hooks/useCancelledTrades', () => ({
+  useCancelledTrades: () => useCancelledTrades()
+}))
+vi.mock('~/components/CancelledListings', () => ({
+  CancelledListings: ({ trades }: { trades: unknown[] }) => (
+    <div data-testid="cancelled-panel" data-count={trades.length} />
+  )
+}))
+
 import { Activity } from '~/pages/Activity'
 
 function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
@@ -192,6 +202,7 @@ beforeEach(() => {
   fetchAssetDisplay.mockResolvedValue(null)
   fetchImportable.mockResolvedValue({ creations: [], owned: [] })
   useManaRate.mockReturnValue({ data: RATE })
+  useCancelledTrades.mockReturnValue({ trades: [], count: 0 })
 })
 
 describe('when the user is not signed in', () => {
@@ -754,5 +765,56 @@ describe('when a checkout was left unfinished', () => {
     window.dispatchEvent(new Event('pageshow'))
 
     await waitFor(() => expect(button).not.toBeDisabled())
+  })
+})
+
+describe('when the account has listings taken down by the store upgrade', () => {
+  beforeEach(() => {
+    fetchUnified.mockReset().mockResolvedValue({ items: [], total: 0 })
+    useCancelledTrades.mockReturnValue({ trades: [{ id: 'gone-1' }, { id: 'gone-2' }], count: 2 })
+  })
+
+  describe('and nothing is left on the classic pricing', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+      renderPage('/activity?section=listings')
+      await screen.findByTestId('cancelled-panel')
+      await waitFor(() => expect(fetchImportable).toHaveBeenCalled())
+    })
+
+    it('should list the taken-down listings', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-count', '2')
+    })
+
+    it('should not show the migration tool and its all-set card', () => {
+      expect(screen.queryByTestId('import-panel')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and classic listings are still left to move', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+      renderPage('/activity?section=listings')
+      await screen.findByTestId('import-panel')
+    })
+
+    it('should show the taken-down listings above the migration tool', () => {
+      expect(
+        screen.getByTestId('cancelled-panel').compareDocumentPosition(screen.getByTestId('import-panel')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+  })
+
+  describe('and the feed is on screen', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should offer the listings chip', () => {
+      expect(screen.getByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
   })
 })

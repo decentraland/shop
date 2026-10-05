@@ -1,0 +1,37 @@
+import styled from '@emotion/styled'
+import { theme } from '~/styles/theme'
+
+export {
+  Accent,
+  Actions,
+  Body,
+  Cta,
+  Dismiss,
+  Root,
+  Text
+} from '~/components/ManaPricingBanner/ManaPricingBanner.styles'
+
+const { media } = theme
+
+// Same gutter and max width as `.page`, so the strip lines up with the content under it.
+export const Frame = styled.div`
+  max-width: 1760px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 16px 54px 0;
+
+  /* These routes drop the page's top padding for a full-bleed hero, so the strip brings its own gap. */
+  &[data-route='/overview'],
+  &[data-route='/event'] {
+    padding-bottom: 16px;
+  }
+
+  ${media.maxWidth('mobile')} {
+    padding: 12px 16px 0;
+
+    &[data-route='/overview'],
+    &[data-route='/event'] {
+      padding-bottom: 12px;
+    }
+  }
+`
