@@ -412,7 +412,6 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const [thumbError, setThumbError] = useState<string | null>(null)
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
-  const [pendingImport, setPendingImport] = useState<ReturnType<typeof parseOutfitImport>>(null)
   // Session-only presentation extras from an imported preview link; never part of the record.
   const [importColors, setImportColors] = useState<{ skin?: string; hair?: string; eyes?: string }>()
   useEffect(
@@ -428,12 +427,6 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       setImportError(t('outfits.studio.importError'))
       return
     }
-    if (draft?.items.length) setPendingImport(parsed)
-    else commitImport(parsed)
-  }
-
-  function commitImport(parsed: NonNullable<ReturnType<typeof parseOutfitImport>>) {
-    setPendingImport(null)
     setImportError(null)
     setImportText('')
     setImportColors(parsed.colors)
@@ -889,32 +882,6 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
           )}
         </S.SaveActions>
       </S.SaveBar>
-      {pendingImport ? (
-        <S.ConfirmModal
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('outfits.studio.importReplaceTitle')}
-          data-testid="outfit-studio-import-confirm"
-        >
-          <S.ConfirmScrim onClick={() => setPendingImport(null)} />
-          <S.ConfirmPanel>
-            <S.ConfirmTitle>{t('outfits.studio.importReplaceTitle')}</S.ConfirmTitle>
-            <p className="muted">{t('outfits.studio.importReplaceBody')}</p>
-            <S.ConfirmActions>
-              <Button
-                variant="purple"
-                data-testid="outfit-studio-import-confirm-apply"
-                onClick={() => commitImport(pendingImport)}
-              >
-                {t('outfits.studio.importApply')}
-              </Button>
-              <Button variant="ghost" onClick={() => setPendingImport(null)}>
-                {t('outfits.studio.cancel')}
-              </Button>
-            </S.ConfirmActions>
-          </S.ConfirmPanel>
-        </S.ConfirmModal>
-      ) : null}
     </S.Root>
   )
 }

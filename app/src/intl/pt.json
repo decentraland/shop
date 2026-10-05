@@ -1046,8 +1046,6 @@
       "maxItems": "Um look pode ter até 20 itens.",
       "hiddenFromHome": "Itens marcados como indisponíveis, esgotados ou fora de venda ocultam este look da página inicial. Ele continua visível na própria página.",
       "unsavedConfirm": "Você tem alterações não salvas que serão perdidas. Continuar?",
-      "importReplaceTitle": "Substituir os itens?",
-      "importReplaceBody": "Importar substitui os itens que já estão neste look.",
       "remove": "Remover",
       "playsInPreview": "Reproduz na prévia",
       "needsWearable": "Adicione pelo menos um wearable para publicar.",

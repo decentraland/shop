@@ -1046,8 +1046,6 @@
       "maxItems": "An outfit can have up to 20 items.",
       "hiddenFromHome": "Items marked unavailable, sold out or not for sale hide this outfit from the home page. It still shows on its own page.",
       "unsavedConfirm": "You have unsaved changes that will be lost. Continue?",
-      "importReplaceTitle": "Replace the items?",
-      "importReplaceBody": "Importing replaces the items already in this outfit.",
       "remove": "Remove",
       "playsInPreview": "Plays in preview",
       "needsWearable": "Add at least one wearable to publish.",

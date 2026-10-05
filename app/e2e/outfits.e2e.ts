@@ -572,26 +572,6 @@ describe('outfit studio', () => {
     await page.waitForSelector('[data-testid="outfit-studio-hidden-hint"]', { timeout: 10000 })
   })
 
-  it('asks before an import replaces the items already in the outfit', async () => {
-    const page = await launch(`/outfits/${FULL_ID}/edit`, { outfitCreator: true })
-    await page.waitForSelector('[data-testid="outfit-studio-selected"]', { timeout: 20000 })
-    const before = (await page.$$('[data-testid="outfit-studio-selected"]')).length
-    expect(before).toBeGreaterThan(1)
-
-    await page.type(
-      '[data-testid="outfit-studio-import"]',
-      `?urn=urn:decentraland:matic:collections-v2:${COLLECTION}:1`
-    )
-    await page.click('[data-testid="outfit-studio-import-apply"]')
-    await page.waitForSelector('[data-testid="outfit-studio-import-confirm"]', { timeout: 10000 })
-    expect((await page.$$('[data-testid="outfit-studio-selected"]')).length).toBe(before)
-
-    await page.click('[data-testid="outfit-studio-import-confirm-apply"]')
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="outfit-studio-selected"]').length === 1, {
-      timeout: 10000
-    })
-  })
-
   it('deletes an outfit behind the confirm dialog, with unpublish offered first', async () => {
     const page = await launch('/outfits/manage', { outfitCreator: true })
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="outfit-studio-row"]').length === 3, {
