@@ -1602,6 +1602,7 @@
     },
     "list": {
       "title": "Taken down during our store upgrade",
+      "count": "{count, plural, one {# item} other {# items}}",
       "lede": "Nothing was sold — these just need to be put back up. Choose a price and they go on sale again.",
       "kindListing": "Listing",
       "kindOffer": "Offer",

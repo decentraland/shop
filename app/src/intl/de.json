@@ -1602,6 +1602,7 @@
     },
     "list": {
       "title": "Beim Shop-Update entfernt",
+      "count": "{count, plural, one {# Artikel} other {# Artikel}}",
       "lede": "Nichts wurde verkauft – sie müssen nur wieder eingestellt werden. Wähle einen Preis und sie sind wieder im Verkauf.",
       "kindListing": "Angebot",
       "kindOffer": "Gebot",

@@ -9,7 +9,8 @@ import {
   cancelledTradeCredits,
   cancelledTradesKind,
   fetchCancelledTrades,
-  type CancelledTrade
+  type CancelledTrade,
+  type CancelledTradesPage
 } from '~/lib/cancelled-trades'
 import type { ManaRate } from '~/lib/mana-convert'
 
@@ -35,7 +36,7 @@ function trade(overrides: Partial<CancelledTrade> = {}): CancelledTrade {
 }
 
 describe('when fetching the cancelled trades', () => {
-  let result: CancelledTrade[] | undefined
+  let result: CancelledTradesPage | undefined
   let error: unknown
 
   beforeEach(() => {
@@ -44,32 +45,45 @@ describe('when fetching the cancelled trades', () => {
     error = undefined
   })
 
-  describe('and the server answers', () => {
+  describe('and the server answers the first page', () => {
     beforeEach(async () => {
-      signedFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [trade()], total: 1 }) })
+      signedFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [trade()], total: 480 }) })
       result = await fetchCancelledTrades(IDENTITY)
     })
 
-    it('should ask for the signature-index bump reason with a signed request', () => {
+    it('should ask for the first page of the signature-index bump reason with a signed request', () => {
       expect(signedFetch).toHaveBeenCalledWith(
-        'https://marketplace.example/v1/cancelled-trades?reason=contract_signature_index_bump&first=100',
+        'https://marketplace.example/v1/cancelled-trades?reason=contract_signature_index_bump&first=100&skip=0',
         { method: 'GET', identity: IDENTITY, metadata: { signer: 'dcl:marketplace' } }
       )
     })
 
-    it('should return the rows', () => {
-      expect(result).toEqual([trade()])
+    it('should return the rows with the total across every page', () => {
+      expect(result).toEqual({ items: [trade()], total: 480 })
     })
   })
 
-  describe('and the server answers without data', () => {
+  describe('and a later page of offers only is asked for', () => {
+    beforeEach(async () => {
+      signedFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [], total: 0 }) })
+      await fetchCancelledTrades(IDENTITY, { skip: 200, first: 1, types: ['bid', 'public_nft_order'] })
+    })
+
+    it('should send the offset, the size and every type', () => {
+      expect(signedFetch.mock.calls[0][0]).toBe(
+        'https://marketplace.example/v1/cancelled-trades?reason=contract_signature_index_bump&first=1&skip=200&type=bid&type=public_nft_order'
+      )
+    })
+  })
+
+  describe('and the server answers without data or total', () => {
     beforeEach(async () => {
       signedFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) })
       result = await fetchCancelledTrades(IDENTITY)
     })
 
-    it('should return an empty list', () => {
-      expect(result).toEqual([])
+    it('should return an empty page', () => {
+      expect(result).toEqual({ items: [], total: 0 })
     })
   })
 
@@ -161,36 +175,40 @@ describe('when pricing a cancelled trade in credits', () => {
   })
 })
 
-describe('when classifying a set of cancelled trades', () => {
-  let trades: CancelledTrade[]
+describe('when classifying the cancelled trades', () => {
+  let total: number
+  let offers: number
 
   describe('and none are offers', () => {
     beforeEach(() => {
-      trades = [trade(), trade({ type: 'public_nft_order' })]
+      total = 300
+      offers = 0
     })
 
     it('should call them listings', () => {
-      expect(cancelledTradesKind(trades)).toBe('listings')
+      expect(cancelledTradesKind(total, offers)).toBe('listings')
     })
   })
 
   describe('and all are offers', () => {
     beforeEach(() => {
-      trades = [trade({ type: 'bid' }), trade({ type: 'bid' })]
+      total = 300
+      offers = 300
     })
 
     it('should call them offers', () => {
-      expect(cancelledTradesKind(trades)).toBe('offers')
+      expect(cancelledTradesKind(total, offers)).toBe('offers')
     })
   })
 
   describe('and some are offers', () => {
     beforeEach(() => {
-      trades = [trade(), trade({ type: 'bid' })]
+      total = 300
+      offers = 120
     })
 
     it('should call them mixed', () => {
-      expect(cancelledTradesKind(trades)).toBe('mixed')
+      expect(cancelledTradesKind(total, offers)).toBe('mixed')
     })
   })
 })

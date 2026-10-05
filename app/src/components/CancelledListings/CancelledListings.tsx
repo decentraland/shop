@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
+import { LoadMore } from '~/components/LoadMore'
 import { Price } from '~/components/Price'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
@@ -10,8 +12,35 @@ import { TradeAssetType } from '@dcl/schemas'
 import { relistTargetFor } from './relistTarget'
 import * as S from './CancelledListings.styles'
 
+const LOADING_ROWS = 3
+
+function Thumb({ src }: { src: string | null }) {
+  const [broken, setBroken] = useState(false)
+  return (
+    <S.Thumb>{src && !broken ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} /> : null}</S.Thumb>
+  )
+}
+
 /** The listings and offers taken down by the marketplace upgrade, each with a way to put it back. */
-export function CancelledListings({ trades }: { trades: CancelledTrade[] }) {
+export function CancelledListings({
+  trades,
+  total,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  isFetchNextPageError = false,
+  onLoadMore,
+  autoLoad = true
+}: {
+  trades: CancelledTrade[]
+  /** Across every page; the rows are only the pages loaded so far. */
+  total?: number
+  hasNextPage?: boolean
+  isFetchingNextPage?: boolean
+  isFetchNextPageError?: boolean
+  onLoadMore?: () => void
+  /** Off when more content sits below, so scrolling past the list does not keep growing it. */
+  autoLoad?: boolean
+}) {
   const secondarySales = useSecondarySales()
   const needsRate = trades.some(trade => trade.price?.assetType === Number(TradeAssetType.ERC20))
   const { data: rate } = useManaRate(needsRate)
@@ -21,7 +50,12 @@ export function CancelledListings({ trades }: { trades: CancelledTrade[] }) {
   return (
     <S.Root data-testid="cancelled-listings" aria-labelledby="cancelled-listings-title">
       <S.Head>
-        <S.Title id="cancelled-listings-title">{t('cancelledListings.list.title')}</S.Title>
+        <S.TitleRow>
+          <S.Title id="cancelled-listings-title">{t('cancelledListings.list.title')}</S.Title>
+          <S.Count data-testid="cancelled-listings-count">
+            {t('cancelledListings.list.count', { count: Math.max(total ?? 0, trades.length) })}
+          </S.Count>
+        </S.TitleRow>
         <S.Lede>{t('cancelledListings.list.lede')}</S.Lede>
       </S.Head>
       <S.List>
@@ -33,7 +67,7 @@ export function CancelledListings({ trades }: { trades: CancelledTrade[] }) {
           const label = t(isBid ? 'cancelledListings.list.reoffer' : 'cancelledListings.list.relist')
           return (
             <S.Row key={trade.id} data-testid="cancelled-listings-row" data-kind={trade.type}>
-              <S.Thumb>{trade.asset.image ? <img src={trade.asset.image} alt="" /> : null}</S.Thumb>
+              <Thumb src={trade.asset.image} />
               <S.Info>
                 <S.Name title={name}>{name}</S.Name>
                 <S.Chip data-kind={isBid ? 'bid' : 'listing'}>
@@ -72,7 +106,21 @@ export function CancelledListings({ trades }: { trades: CancelledTrade[] }) {
             </S.Row>
           )
         })}
+        {isFetchingNextPage
+          ? Array.from({ length: LOADING_ROWS }, (_, i) => (
+              <S.RowSkeleton key={i} data-testid="cancelled-listings-loading" aria-hidden />
+            ))
+          : null}
       </S.List>
+      {onLoadMore ? (
+        <LoadMore
+          hasNextPage={hasNextPage}
+          isFetching={isFetchingNextPage}
+          isError={isFetchNextPageError}
+          onLoadMore={onLoadMore}
+          auto={autoLoad}
+        />
+      ) : null}
     </S.Root>
   )
 }

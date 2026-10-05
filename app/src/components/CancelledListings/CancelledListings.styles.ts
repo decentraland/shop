@@ -22,6 +22,13 @@ export const Head = styled.header`
   padding: 10px 12px;
 `
 
+export const TitleRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+`
+
 export const Title = styled.h2`
   margin: 0;
   font-weight: 600;
@@ -29,6 +36,13 @@ export const Title = styled.h2`
   line-height: 24px;
   letter-spacing: 0.46px;
   color: ${colors.white};
+`
+
+export const Count = styled.span`
+  font-weight: 500;
+  font-size: 14px;
+  color: ${colors.gray5};
+  font-variant-numeric: tabular-nums;
 `
 
 export const Lede = styled.p`
@@ -165,5 +179,21 @@ export const Action = styled(Button)`
 
   ${media.maxWidth('mobile')} {
     flex: 1 1 100%;
+  }
+`
+
+export const RowSkeleton = styled.li`
+  height: 100px;
+  border-radius: ${radius.card};
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+
+  ${media.maxWidth('mobile')} {
+    height: 200px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `

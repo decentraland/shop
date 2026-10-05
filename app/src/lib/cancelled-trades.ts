@@ -32,11 +32,22 @@ export type CancelledTrade = {
   price: { assetType: number; amount: string } | null
 }
 
-const PAGE_SIZE = 100
+/** The server's page cap. */
+export const CANCELLED_TRADES_PAGE_SIZE = 100
 
-/** The signed-in account's re-creatable listings and offers taken down by the signature-index bump. */
-export async function fetchCancelledTrades(identity: AuthIdentity): Promise<CancelledTrade[]> {
-  const qs = new URLSearchParams({ reason: SIGNATURE_INDEX_BUMP_REASON, first: String(PAGE_SIZE) })
+export type CancelledTradesPage = { items: CancelledTrade[]; total: number }
+
+/** One page of the signed-in account's re-creatable listings and offers taken down by the signature-index bump. */
+export async function fetchCancelledTrades(
+  identity: AuthIdentity,
+  opts: { skip?: number; first?: number; types?: CancelledTradeType[] } = {}
+): Promise<CancelledTradesPage> {
+  const qs = new URLSearchParams({
+    reason: SIGNATURE_INDEX_BUMP_REASON,
+    first: String(opts.first ?? CANCELLED_TRADES_PAGE_SIZE),
+    skip: String(opts.skip ?? 0)
+  })
+  for (const type of opts.types ?? []) qs.append('type', type)
   const res = await signedFetch(`${config.marketplaceServerUrl}/v1/cancelled-trades?${qs.toString()}`, {
     method: 'GET',
     identity,
@@ -46,8 +57,9 @@ export async function fetchCancelledTrades(identity: AuthIdentity): Promise<Canc
     void res.body?.cancel()
     throw new Error(`fetchCancelledTrades ${res.status}`)
   }
-  const { data } = (await res.json()) as { data?: CancelledTrade[] }
-  return data ?? []
+  const { data, total } = (await res.json()) as { data?: CancelledTrade[]; total?: number }
+  const items = data ?? []
+  return { items, total: typeof total === 'number' ? total : items.length }
 }
 
 /** The old price in credits, or null when it cannot be shown (no price, unknown asset, rate not loaded). */
@@ -62,9 +74,8 @@ export function cancelledTradeCredits(trade: Pick<CancelledTrade, 'price'>, rate
   return null
 }
 
-/** Which mix of listings and offers a set of cancelled trades is, for picking the banner's wording. */
-export function cancelledTradesKind(trades: Pick<CancelledTrade, 'type'>[]): 'listings' | 'offers' | 'mixed' {
-  const bids = trades.filter(trade => trade.type === 'bid').length
-  if (bids === 0) return 'listings'
-  return bids === trades.length ? 'offers' : 'mixed'
+/** Which mix of listings and offers the account lost, from the total and how many of those are offers. */
+export function cancelledTradesKind(total: number, offers: number): 'listings' | 'offers' | 'mixed' {
+  if (offers === 0) return 'listings'
+  return offers >= total ? 'offers' : 'mixed'
 }

@@ -1602,6 +1602,7 @@
     },
     "list": {
       "title": "Retirados durante a atualização da loja",
+      "count": "{count, plural, one {# item} other {# itens}}",
       "lede": "Nada foi vendido — você só precisa colocá-los de volta. Escolha um preço e eles voltam à venda.",
       "kindListing": "Anúncio",
       "kindOffer": "Oferta",

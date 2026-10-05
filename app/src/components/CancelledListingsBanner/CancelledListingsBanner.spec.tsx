@@ -93,7 +93,7 @@ describe('when the notice decides whether to show', () => {
   beforeEach(() => {
     walletAddress = ADDRESS
     path = '/overview'
-    useCancelledTrades.mockReturnValue({ trades: rows('public_item_order', 'bid'), count: 2 })
+    useCancelledTrades.mockReturnValue({ trades: rows('public_item_order', 'bid'), count: 480, kind: 'mixed' })
   })
 
   afterEach(() => {
@@ -118,6 +118,28 @@ describe('when the notice decides whether to show', () => {
     })
   })
 
+  describe('and only listings were taken down, more than one page of them', () => {
+    beforeEach(() => {
+      useCancelledTrades.mockReturnValue({ trades: rows('public_item_order'), count: 480, kind: 'listings' })
+      renderNotice()
+    })
+
+    it('should count every taken-down listing, not only the loaded page', () => {
+      expect(screen.getByTestId('cancelled-listings-banner')).toHaveTextContent('480 of your listings were')
+    })
+  })
+
+  describe('and the mix is not known yet', () => {
+    beforeEach(() => {
+      useCancelledTrades.mockReturnValue({ trades: rows('public_item_order'), count: 480, kind: undefined })
+      renderNotice()
+    })
+
+    it('should show nothing rather than guess the wording', () => {
+      expect(screen.queryByTestId('cancelled-listings-banner')).not.toBeInTheDocument()
+    })
+  })
+
   describe('and the visitor is signed out', () => {
     beforeEach(() => {
       walletAddress = undefined
@@ -131,7 +153,7 @@ describe('when the notice decides whether to show', () => {
 
   describe('and the count is not known yet', () => {
     beforeEach(() => {
-      useCancelledTrades.mockReturnValue({ trades: [], count: undefined })
+      useCancelledTrades.mockReturnValue({ trades: [], count: undefined, kind: undefined })
       renderNotice()
     })
 
@@ -142,7 +164,7 @@ describe('when the notice decides whether to show', () => {
 
   describe('and nothing was taken down', () => {
     beforeEach(() => {
-      useCancelledTrades.mockReturnValue({ trades: [], count: 0 })
+      useCancelledTrades.mockReturnValue({ trades: [], count: 0, kind: 'listings' })
       renderNotice()
     })
 

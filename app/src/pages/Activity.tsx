@@ -521,7 +521,8 @@ export function Activity() {
   // …and how many listings they have at all, on either pricing.
   const { count: listingCount } = useListingCount()
   // Listings taken down by the marketplace upgrade, listed above the tool so they can be put back.
-  const { trades: cancelled, count: cancelledCount } = useCancelledTrades()
+  const cancelled = useCancelledTrades()
+  const cancelledCount = cancelled.count
 
   /**
    * The chip is about HAVING listings, not about having migratable ones. Gating it on the migratable count
@@ -695,7 +696,18 @@ export function Activity() {
       </S.Tabs>
       {migrating ? (
         <Suspense fallback={<S.PanelFallback aria-busy="true" />}>
-          {cancelledCount ? <CancelledListings trades={cancelled} /> : null}
+          {cancelledCount ? (
+            <CancelledListings
+              trades={cancelled.trades}
+              total={cancelledCount}
+              hasNextPage={cancelled.hasNextPage}
+              isFetchingNextPage={cancelled.isFetchingNextPage}
+              isFetchNextPageError={cancelled.isFetchNextPageError}
+              onLoadMore={cancelled.fetchNextPage}
+              // The tool below stays reachable: past the list it loads on request only.
+              autoLoad={!importCount}
+            />
+          ) : null}
           {/* Its "all set" card would contradict the list above it. */}
           {!cancelledCount || (importCount ?? 0) > 0 ? <ImportListings /> : null}
         </Suspense>

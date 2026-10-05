@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { invalidateCancelledTrades } from '~/hooks/useCancelledTrades'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
@@ -152,6 +153,7 @@ export function PrimaryListModal({
       void queryClient.invalidateQueries({ queryKey: ['catalog-items'] })
       void queryClient.invalidateQueries({ queryKey: ['overview-listings'] })
       void queryClient.invalidateQueries({ queryKey: ['upsell-listings'] })
+      invalidateCancelledTrades(queryClient)
     } catch (e) {
       if (signal()?.aborted) return
       captureError(e, { flow: 'list_primary' })

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { CancelledTrade } from '~/lib/cancelled-trades'
 
@@ -149,6 +150,92 @@ describe('when listing the taken-down listings', () => {
       expect(action).toHaveAccessibleName(
         'Make offer again: Galaxy Hat (opens the Decentraland Marketplace in a new tab)'
       )
+    })
+  })
+
+  describe('and only the first page of many is loaded', () => {
+    let onLoadMore: ReturnType<typeof vi.fn>
+    let originalObserver: typeof IntersectionObserver
+    let observe: ReturnType<typeof vi.fn>
+
+    function renderPaged(props: { isFetchingNextPage?: boolean; isFetchNextPageError?: boolean; autoLoad?: boolean }) {
+      render(
+        <MemoryRouter>
+          <CancelledListings trades={trades} total={480} hasNextPage onLoadMore={onLoadMore} {...props} />
+        </MemoryRouter>
+      )
+    }
+
+    beforeEach(() => {
+      trades = [trade({ id: 'a' }), trade({ id: 'b' })]
+      onLoadMore = vi.fn()
+      observe = vi.fn()
+      originalObserver = globalThis.IntersectionObserver
+      globalThis.IntersectionObserver = class {
+        constructor(private cb: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+        observe() {
+          observe()
+          this.cb([{ isIntersecting: true }])
+        }
+        disconnect() {}
+      } as unknown as typeof IntersectionObserver
+    })
+
+    afterEach(() => {
+      globalThis.IntersectionObserver = originalObserver
+    })
+
+    describe('and the sentinel scrolls into view', () => {
+      beforeEach(() => {
+        renderPaged({})
+      })
+
+      it('should show the total across every page', () => {
+        expect(screen.getByTestId('cancelled-listings-count')).toHaveTextContent('480 items')
+      })
+
+      it('should ask for the next page', () => {
+        expect(onLoadMore).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and the next page is on its way', () => {
+      beforeEach(() => {
+        renderPaged({ isFetchingNextPage: true })
+      })
+
+      it('should show placeholder rows under the loaded ones', () => {
+        expect(screen.getAllByTestId('cancelled-listings-loading')).toHaveLength(3)
+      })
+
+      it('should say it is loading', () => {
+        expect(screen.getByRole('button', { name: 'Loading…' })).toBeDisabled()
+      })
+    })
+
+    describe('and the next page failed', () => {
+      beforeEach(async () => {
+        renderPaged({ isFetchNextPageError: true })
+        await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      })
+
+      it('should retry only when asked', () => {
+        expect(onLoadMore).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and more content sits below the list', () => {
+      beforeEach(() => {
+        renderPaged({ autoLoad: false })
+      })
+
+      it('should not load on scroll', () => {
+        expect(observe).not.toHaveBeenCalled()
+      })
+
+      it('should offer to load more by hand', () => {
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+      })
     })
   })
 })

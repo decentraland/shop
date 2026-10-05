@@ -288,6 +288,19 @@ describe('when a migration lands ahead of the server view', () => {
     expect(asked()).toBe(0)
   })
 
+  describe('and the run lists every queued item', () => {
+    let invalidate: ReturnType<typeof renderWithCache>['invalidate']
+
+    beforeEach(() => {
+      invalidate = renderWithCache().invalidate
+      run('finish clean')
+    })
+
+    it('should refresh the listings taken down by the store upgrade', () => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['cancelled-trades'] })
+    })
+  })
+
   // A decline is the seller saying no, not a migration. Those listings are still live, and pruning them
   // put the tool on a false "all set" until the reconcile brought them back.
   it('should keep every row the seller declined', () => {

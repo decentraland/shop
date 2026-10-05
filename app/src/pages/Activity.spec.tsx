@@ -98,8 +98,8 @@ vi.mock('~/hooks/useCancelledTrades', () => ({
   useCancelledTrades: () => useCancelledTrades()
 }))
 vi.mock('~/components/CancelledListings', () => ({
-  CancelledListings: ({ trades }: { trades: unknown[] }) => (
-    <div data-testid="cancelled-panel" data-count={trades.length} />
+  CancelledListings: ({ trades, total, autoLoad }: { trades: unknown[]; total?: number; autoLoad?: boolean }) => (
+    <div data-testid="cancelled-panel" data-count={trades.length} data-total={total} data-auto={String(autoLoad)} />
   )
 }))
 
@@ -771,7 +771,7 @@ describe('when a checkout was left unfinished', () => {
 describe('when the account has listings taken down by the store upgrade', () => {
   beforeEach(() => {
     fetchUnified.mockReset().mockResolvedValue({ items: [], total: 0 })
-    useCancelledTrades.mockReturnValue({ trades: [{ id: 'gone-1' }, { id: 'gone-2' }], count: 2 })
+    useCancelledTrades.mockReturnValue({ trades: [{ id: 'gone-1' }, { id: 'gone-2' }], count: 480 })
   })
 
   describe('and nothing is left on the classic pricing', () => {
@@ -782,8 +782,16 @@ describe('when the account has listings taken down by the store upgrade', () => 
       await waitFor(() => expect(fetchImportable).toHaveBeenCalled())
     })
 
-    it('should list the taken-down listings', () => {
+    it('should list the loaded taken-down listings', () => {
       expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-count', '2')
+    })
+
+    it('should give the list the total across every page', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-total', '480')
+    })
+
+    it('should let the list load more as it scrolls', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-auto', 'true')
     })
 
     it('should not show the migration tool and its all-set card', () => {
@@ -803,6 +811,10 @@ describe('when the account has listings taken down by the store upgrade', () => 
         screen.getByTestId('cancelled-panel').compareDocumentPosition(screen.getByTestId('import-panel')) &
           Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeTruthy()
+    })
+
+    it('should load more of the list only on request, so the tool stays reachable', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-auto', 'false')
     })
   })
 

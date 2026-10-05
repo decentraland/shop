@@ -1602,6 +1602,7 @@
     },
     "list": {
       "title": "Retiradas durante la actualización de la tienda",
+      "count": "{count, plural, one {# artículo} other {# artículos}}",
       "lede": "No se vendió nada: solo tienes que volver a publicarlas. Elige un precio y vuelven a estar a la venta.",
       "kindListing": "Publicación",
       "kindOffer": "Oferta",
