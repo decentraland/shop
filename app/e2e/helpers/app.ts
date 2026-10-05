@@ -275,6 +275,8 @@ let campaignFlag = false
 let namesFlag = false
 // What the cross-chain router reports for a NAME paid in Polygon MANA alone, once its bridge is sent.
 let squidStatus = 'success'
+// Route quotes Squid turns away with its per-address 429 before answering one.
+let squidRateLimitedQuotes = 0
 
 // The router's view of the two chains a NAME's MANA moves between in this environment (Amoy → Sepolia), at
 // the addresses decentraland-transactions resolves MANA to there.
@@ -499,6 +501,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     }
     if (path === '/v2/tokens') return json(req, { tokens: SQUID_TOKENS })
     if (path === '/v2/route') {
+      if (squidRateLimitedQuotes > 0) {
+        squidRateLimitedQuotes--
+        return json(req, { error: 'Too many quote requests for this address', retryAfter: 1 }, 429)
+      }
       const params = JSON.parse(req.postData() || '{}') as Record<string, unknown>
       // Delivers a little more than the price, so the route is accepted on the first quote.
       return req.respond({
@@ -1253,6 +1259,8 @@ export async function launchApp(
     nativeBalanceWei?: string
     /** What the cross-chain router reports for a NAME's bridge; omit for 'success'. */
     squidStatus?: string
+    /** How many route quotes the cross-chain router rate-limits before answering; omit for none. */
+    squidRateLimitedQuotes?: number
     /**
      * Whether the mocked flag file reports secondary sales as available. Defaults to TRUE so the resale
      * specs cover the feature; pass false to exercise the shipped default, where the Shop offers none.
@@ -1339,6 +1347,7 @@ export async function launchApp(
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   setNativeBalanceWei(BigInt(opts.nativeBalanceWei ?? '0'))
   squidStatus = opts.squidStatus ?? 'success'
+  squidRateLimitedQuotes = opts.squidRateLimitedQuotes ?? 0
   resetMetaTxNonce() // so a relayed purchase in one test cannot leave the next one's nonce ahead
   // Headless Chrome reports NO hover (and a coarse pointer) on a machine with no pointing device, which
   // is what CI is — and every hover-gated rule in the app then evaluates to its touch branch, so the

@@ -683,11 +683,35 @@ export async function registerNameWithEthereumMana(opts: {
   }
 }
 
+const QUOTE_RATE_LIMIT_RETRIES = 4
+
+/**
+ * Waits out Squid's per-address quote limit instead of failing on it. The API answers a second route quote
+ * within about a second with a 429, and the library's safe-route loop asks again at once, so without this
+ * every quote that needs a second pass fails.
+ */
+function waitOutQuoteRateLimit(provider: AxelarProvider): AxelarProvider {
+  const getRoute = provider.squid.getRoute.bind(provider.squid)
+  provider.squid.getRoute = async params => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await getRoute(params)
+      } catch (e) {
+        const response = (e as { response?: { status?: number; data?: { retryAfter?: unknown } } } | null)?.response
+        if (response?.status !== 429 || attempt >= QUOTE_RATE_LIMIT_RETRIES) throw e
+        const seconds = Math.min(Math.max(Number(response.data?.retryAfter) || 1, 1), 5)
+        await new Promise(resolve => setTimeout(resolve, seconds * 1000))
+      }
+    }
+  }
+  return provider
+}
+
 /** The cross-chain SDK, loaded on demand; a failed load is forgotten so the next attempt retries it. */
 let crossChain: Promise<AxelarProvider> | null = null
 function loadCrossChain(): Promise<AxelarProvider> {
   crossChain ??= import('decentraland-transactions/crossChain')
-    .then(m => new m.AxelarProvider(config.squidApiUrl))
+    .then(m => waitOutQuoteRateLimit(new m.AxelarProvider(config.squidApiUrl)))
     .catch((e: unknown) => {
       crossChain = null
       throw e
@@ -821,19 +845,84 @@ const ERC20_ALLOWANCE_ABI = ['function allowance(address owner, address spender)
 
 type RouteRequestGas = { value?: string; gasLimit?: string; maxFeePerGas?: string; gasPrice?: string }
 
-type RouteExpectation = { polygonMana: string; ethereumMana: string; controller: string; registerCall: string }
+type HookCall = {
+  target?: string
+  callData?: string
+  callType?: unknown
+  value?: unknown
+  payload?: { tokenAddress?: string; inputPos?: unknown }
+}
+type ExpectedHookCall = { target: string; callData: string; callType: number; tokenAddress: string; inputPos: number }
+type RouteExpectation = { polygonMana: string; ethereumMana: string; controller: string; hookCalls: ExpectedHookCall[] }
+
+const ERC20_HOOK_ABI = [
+  'function approve(address spender, uint256 amount)',
+  'function transfer(address to, uint256 amount)'
+]
+// Squid's call types: a plain call, and one whose argument at `inputPos` becomes the router's whole balance.
+const SQUID_CALL_DEFAULT = 0
+const SQUID_CALL_FULL_TOKEN_BALANCE = 1
+
+/**
+ * The Ethereum calls `getRegisterNameRoute` builds, in order: approve the controller for the price (after
+ * zeroing it on mainnet, whose MANA requires that), register the NAME to the buyer, then sweep the leftover
+ * MANA back to them.
+ */
+function registerHookCalls(opts: {
+  ethereumMana: string
+  controller: { address: string; abi: object[] }
+  name: string
+  buyer: string
+}): ExpectedHookCall[] {
+  const erc20 = new ethers.utils.Interface(ERC20_HOOK_ABI)
+  const controller = opts.controller.address.toLowerCase()
+  const plain = (target: string, callData: string): ExpectedHookCall => ({
+    target,
+    callData: callData.toLowerCase(),
+    callType: SQUID_CALL_DEFAULT,
+    tokenAddress: SQUID_NATIVE_TOKEN,
+    inputPos: 0
+  })
+  return [
+    ...(config.ethereumChainId === Number(ChainId.ETHEREUM_MAINNET)
+      ? [plain(opts.ethereumMana, erc20.encodeFunctionData('approve', [controller, 0]))]
+      : []),
+    plain(opts.ethereumMana, erc20.encodeFunctionData('approve', [controller, NAME_PRICE_IN_WEI])),
+    plain(
+      controller,
+      new ethers.utils.Interface(opts.controller.abi).encodeFunctionData('register', [opts.name, opts.buyer])
+    ),
+    {
+      target: opts.ethereumMana,
+      callData: erc20.encodeFunctionData('transfer', [opts.buyer, 0]).toLowerCase(),
+      callType: SQUID_CALL_FULL_TOKEN_BALANCE,
+      tokenAddress: opts.ethereumMana,
+      inputPos: 1
+    }
+  ]
+}
+
+function hookCallMatches(call: HookCall, expected: ExpectedHookCall): boolean {
+  return (
+    String(call.target).toLowerCase() === expected.target &&
+    String(call.callData).toLowerCase() === expected.callData &&
+    Number(call.callType) === expected.callType &&
+    String(call.value) === '0' &&
+    String(call.payload?.tokenAddress).toLowerCase() === expected.tokenAddress &&
+    Number(call.payload?.inputPos) === expected.inputPos
+  )
+}
 
 /**
  * Refuses a route that does not do what was asked. The API is a third party that picks every one of these
  * fields, and the buyer is about to approve and send them: the router and token it would approve, the amount
- * and value it would pull, and the Ethereum call it would make with the bridged MANA.
+ * and value it would pull, and the Ethereum calls it would make with the bridged MANA.
  */
 function assertRouteShape(route: RouteResponse, expected: RouteExpectation) {
   const { params, transactionRequest } = route.route
-  const extra = params as { preHook?: unknown; postHook?: { calls?: { target?: string; callData?: string }[] } }
+  const extra = params as { preHook?: unknown; toAddress?: unknown; postHook?: { calls?: HookCall[] } }
   const value = BigInt((transactionRequest as RouteRequestGas | undefined)?.value ?? '0')
   const calls = extra.postHook?.calls ?? []
-  const allowedTargets = [expected.ethereumMana, expected.controller]
   const problems = [
     transactionRequest?.target?.toLowerCase() !== SQUID_ROUTER && 'router',
     String(params.fromToken).toLowerCase() !== expected.polygonMana && 'token',
@@ -844,12 +933,11 @@ function assertRouteShape(route: RouteResponse, expected: RouteExpectation) {
     value > MAX_ROUTE_VALUE_WEI && 'value',
     String(params.toChain) !== String(config.ethereumChainId) && 'destination chain',
     String(params.toToken).toLowerCase() !== expected.ethereumMana && 'destination token',
-    calls.some(call => !allowedTargets.includes(String(call.target).toLowerCase())) && 'hook target',
-    !calls.some(
-      call =>
-        String(call.target).toLowerCase() === expected.controller &&
-        String(call.callData).toLowerCase() === expected.registerCall
-    ) && 'register call'
+    // Where the bridged MANA lands if the hook is skipped; the library names the controller.
+    String(extra.toAddress).toLowerCase() !== expected.controller && 'destination address',
+    (calls.length !== expected.hookCalls.length ||
+      calls.some((call, i) => !hookCallMatches(call, expected.hookCalls[i]))) &&
+      'hook calls'
   ].filter(Boolean)
   if (problems.length > 0) throw new Error(`Squid route rejected: ${problems.join(', ')}`)
 }
@@ -890,9 +978,7 @@ export async function quoteNameWithPolygonMana(opts: { name: string; buyer: stri
       polygonMana,
       ethereumMana,
       controller: controller.address.toLowerCase(),
-      registerCall: new ethers.utils.Interface(controller.abi)
-        .encodeFunctionData('register', [opts.name, opts.buyer])
-        .toLowerCase()
+      hookCalls: registerHookCalls({ ethereumMana, controller, name: opts.name, buyer: opts.buyer })
     })
 
     const { estimate, params, transactionRequest } = route.route

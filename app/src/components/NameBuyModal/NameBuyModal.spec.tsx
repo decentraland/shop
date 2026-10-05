@@ -10,6 +10,7 @@ import { NameBuyModal } from './NameBuyModal'
 // Resolves to the MOCKED module below, which is what makes the modal's `instanceof` check meaningful here:
 // both sides get the same class object.
 import {
+  NameInFlightError,
   NameNotRegisteredError,
   NameQuoteMovedError,
   NameRefundedError,
@@ -863,6 +864,119 @@ describe('NameBuyModal', () => {
 
             await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
             expect(switchChain).toHaveBeenCalledWith(session.web3Provider, config.chainId)
+          })
+
+          describe('and the wallet is still deciding on the switch', () => {
+            let acceptSwitch: () => void
+
+            beforeEach(() => {
+              switchChain.mockImplementation(
+                () =>
+                  new Promise<void>(resolve => {
+                    acceptSwitch = resolve
+                  })
+              )
+            })
+
+            const askToSwitch = async () => {
+              chooseMana()
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+              fireEvent.click(await waitFor(() => screen.getByTestId('name-switch-and-retry')))
+            }
+
+            it('should ask the wallet only once however often the button is pressed', async () => {
+              await askToSwitch()
+              fireEvent.click(screen.getByTestId('name-switch-and-retry'))
+
+              expect(switchChain).toHaveBeenCalledTimes(1)
+            })
+
+            // Nothing would show the approval and bridge prompts that followed, nor their outcome.
+            it('should not buy once the modal has been closed', async () => {
+              const { unmount } = renderModal(104)
+              fireEvent.click(screen.getByTestId('confirm-payment'))
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+              fireEvent.click(await waitFor(() => screen.getByTestId('name-switch-and-retry')))
+              unmount()
+              await act(async () => acceptSwitch())
+
+              expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(1)
+            })
+          })
+        })
+
+        describe('and the NAME has not landed on Ethereum yet', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockResolvedValue({
+              status: 'pending',
+              originTxHash: '0xbridge',
+              destinationTxHash: null,
+              manaWei: MANA(102)
+            })
+          })
+
+          it('should say the purchase is in progress rather than complete', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/in progress/i)).toBeTruthy())
+            expect(screen.queryByText(/purchase complete/i)).toBeNull()
+          })
+        })
+
+        // The MANA may already be on its way, so a second purchase could pay twice.
+        describe('and whether the purchase went through cannot be confirmed', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameSettlementUnknownError())
+          })
+
+          const fail = async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+            await waitFor(() => expect(screen.getByText(/couldn’t confirm/i)).toBeTruthy())
+          }
+
+          it('should offer no retry', async () => {
+            await fail()
+
+            expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+          })
+
+          it('should keep showing the amount that may have left', async () => {
+            await fail()
+
+            expect(priceShown()).toBe('102')
+          })
+
+          it('should not price the route again', async () => {
+            await fail()
+            await act(async () => {})
+
+            expect(quoteNameWithPolygonMana).toHaveBeenCalledTimes(1)
+          })
+        })
+
+        describe('and an earlier purchase of this NAME is still being completed', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameInFlightError())
+          })
+
+          it('should say so and offer no retry', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/still being completed/i)).toBeTruthy())
+            expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
           })
         })
 

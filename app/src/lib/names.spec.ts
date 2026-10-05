@@ -54,9 +54,12 @@ const squid = vi.hoisted(() => ({
   getFromAmount: vi.fn(),
   getRegisterNameRoute: vi.fn(),
   // The SDK underneath, which the lib calls directly for the exact approval and the bridge's hash.
-  squid: { executeRoute: vi.fn(), getStatus: vi.fn() }
+  squid: { executeRoute: vi.fn(), getStatus: vi.fn(), getRoute: vi.fn() }
 }))
-vi.mock('decentraland-transactions/crossChain', () => ({ AxelarProvider: vi.fn(() => squid) }))
+// A fresh SDK object per provider, as the real one builds, so the lib's wrapping of it never stacks.
+vi.mock('decentraland-transactions/crossChain', () => ({
+  AxelarProvider: vi.fn(() => ({ ...squid, squid: { ...squid.squid } }))
+}))
 
 const { captureError } = vi.hoisted(() => ({ captureError: vi.fn() }))
 vi.mock('~/lib/monitoring', () => ({ captureError }))
@@ -905,6 +908,35 @@ const registerCall = (name: string, buyer: string) =>
     buyer
   ])
 
+const erc20 = new ethers.utils.Interface([
+  'function approve(address spender, uint256 amount)',
+  'function transfer(address to, uint256 amount)'
+])
+const plainCall = (target: string, callData: string) => ({
+  target,
+  callData,
+  callType: 0,
+  value: '0',
+  payload: { tokenAddress: NATIVE, inputPos: 0 }
+})
+// What `getRegisterNameRoute` asks Ethereum to do, as the API echoes it back. MANA is ZERO in these mocks.
+function registerHook() {
+  return [
+    plainCall(ZERO, erc20.encodeFunctionData('approve', [CONTROLLER, 0])),
+    plainCall(ZERO, erc20.encodeFunctionData('approve', [CONTROLLER, NAME_PRICE_IN_WEI])),
+    plainCall(CONTROLLER, registerCall('my-name', SQUID_BUYER)),
+    {
+      target: ZERO,
+      callData: erc20.encodeFunctionData('transfer', [SQUID_BUYER, 0]),
+      callType: 1,
+      value: '0',
+      payload: { tokenAddress: ZERO, inputPos: 1 }
+    }
+  ]
+}
+const withHookCall = (index: number, change: Record<string, unknown>) =>
+  registerHook().map((call, i) => (i === index ? { ...call, ...change } : call))
+
 // value 0.5 + gasLimit 500k × maxFee 100 gwei (0.05) = what the wallet must hold for the bridge alone.
 const BRIDGE_RESERVE = 5n * 10n ** 17n + 500_000n * 100_000_000_000n
 
@@ -920,12 +952,8 @@ function squidRoute() {
         fromChain: '137',
         toChain: '1',
         toToken: ZERO,
-        postHook: {
-          calls: [
-            { target: ZERO, callData: '0x095ea7b3' },
-            { target: CONTROLLER, callData: registerCall('my-name', SQUID_BUYER) }
-          ]
-        }
+        toAddress: CONTROLLER,
+        postHook: { calls: registerHook() }
       },
       estimate: {
         gasCosts: [{ amount: '300000000000000000', token: { address: NATIVE } }],
@@ -963,6 +991,7 @@ function resetSquid() {
     fn.mockReset()
   squid.squid.executeRoute.mockReset()
   squid.squid.getStatus.mockReset()
+  squid.squid.getRoute.mockReset()
   for (const fn of [getBalanceMock, getGasPriceMock, allowanceMock, availableMock, captureError]) fn.mockReset()
 }
 
@@ -1037,12 +1066,14 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
     ['funds itself through a pre-hook', { params: { ...squidRoute().route.params, preHook: { fundToken: NATIVE } } }],
     ['lands on another chain', { params: { ...squidRoute().route.params, toChain: '137' } }],
     ['delivers another token', { params: { ...squidRoute().route.params, toToken: NATIVE } }],
+    // Where the MANA lands if the hook does not run.
+    ['delivers to someone other than the controller', { params: { ...squidRoute().route.params, toAddress: ROUTER } }],
     [
       'calls something else on Ethereum',
       {
         params: {
           ...squidRoute().route.params,
-          postHook: { calls: [...squidRoute().route.params.postHook.calls, { target: NATIVE, callData: '0x' }] }
+          postHook: { calls: [...registerHook(), plainCall(NATIVE, '0x')] }
         }
       }
     ],
@@ -1051,7 +1082,37 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
       {
         params: {
           ...squidRoute().route.params,
-          postHook: { calls: [{ target: CONTROLLER, callData: registerCall('my-name', ROUTER) }] }
+          postHook: { calls: withHookCall(2, { callData: registerCall('my-name', ROUTER) }) }
+        }
+      }
+    ],
+    [
+      'lets the controller take more than the price',
+      {
+        params: {
+          ...squidRoute().route.params,
+          postHook: {
+            calls: withHookCall(1, { callData: erc20.encodeFunctionData('approve', [CONTROLLER, MANA(1000)]) })
+          }
+        }
+      }
+    ],
+    [
+      'sends the leftover MANA to someone else',
+      {
+        params: {
+          ...squidRoute().route.params,
+          postHook: { calls: withHookCall(3, { callData: erc20.encodeFunctionData('transfer', [ROUTER, 0]) }) }
+        }
+      }
+    ],
+    // The balance would land on the recipient argument instead of the amount.
+    [
+      'sweeps the leftover into another argument',
+      {
+        params: {
+          ...squidRoute().route.params,
+          postHook: { calls: withHookCall(3, { payload: { tokenAddress: ZERO, inputPos: 0 } }) }
         }
       }
     ]
@@ -1615,6 +1676,71 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
       const thrown = await run().catch((e: unknown) => e)
 
       expect(thrown instanceof NameSettlementUnknownError).toBe(false)
+    })
+  })
+})
+
+/**
+ * Squid answers a second quote for the same address within about a second with a 429, and the library's
+ * safe-route loop asks again at once.
+ */
+describe('when Squid rate-limits a route quote', () => {
+  const rateLimited = { response: { status: 429, data: { retryAfter: 1 } } }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    primeSquid()
+    squid.getRegisterNameRoute.mockImplementation(function (this: { squid: { getRoute: (p: unknown) => unknown } }) {
+      return this.squid.getRoute({})
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    resetSquid()
+  })
+
+  describe('and the limit clears after the wait it asks for', () => {
+    beforeEach(() => {
+      squid.squid.getRoute.mockRejectedValueOnce(rateLimited).mockResolvedValue(squidRoute())
+    })
+
+    it('should wait and quote the route', async () => {
+      const quoted = quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER })
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(quoted).resolves.toMatchObject({ manaWei: MANA(102) })
+    })
+  })
+
+  describe('and the limit never clears', () => {
+    beforeEach(() => {
+      squid.squid.getRoute.mockRejectedValue(rateLimited)
+    })
+
+    it('should give up as unavailable after a few tries', async () => {
+      const quoted = quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER }).catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect({
+        error: (await quoted) instanceof NameRouteUnavailableError,
+        asked: squid.squid.getRoute.mock.calls.length
+      }).toEqual({
+        error: true,
+        asked: 5
+      })
+    })
+  })
+
+  describe('and the quote fails for another reason', () => {
+    beforeEach(() => {
+      squid.squid.getRoute.mockRejectedValue({ response: { status: 500 } })
+    })
+
+    it('should not ask again', async () => {
+      await quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER }).catch(() => undefined)
+
+      expect(squid.squid.getRoute).toHaveBeenCalledTimes(1)
     })
   })
 })

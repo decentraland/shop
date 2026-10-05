@@ -133,6 +133,14 @@ describe('paying for a NAME with MANA', () => {
       expect(await page.$eval('[data-testid="name-mana-fee"]', el => el.textContent ?? '')).toMatch(/\$\d/)
     })
 
+    // The router turns away a quick second quote for the same address, and the library asks again at once.
+    it('still prices the route when the router asks it to slow down', async () => {
+      const page = await chooseMana({ squidRateLimitedQuotes: 2 })
+
+      await page.waitForSelector('[data-testid="name-mana-fee"]', { timeout: 20000 })
+      expect(await page.$('[data-testid="credit-packs"]')).toBeNull()
+    })
+
     // 100 MANA delivered on Ethereum, plus the margin the router needs to guarantee it: what leaves the wallet.
     it('shows the amount the route will take before anything is bought', async () => {
       const page = await chooseMana()

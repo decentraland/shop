@@ -105,6 +105,16 @@ export function NameBuyModal({
   // buyer already gave. Reset on every attempt, not just on mount.
   const [stage, setStage] = useState<NameRegistrationStage>('preparing')
   const startedRef = useRef(false)
+  // A network switch resolves in the wallet, possibly after the modal is gone; a purchase must not follow it.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+  const switchingRef = useRef(false)
+  const [switching, setSwitching] = useState(false)
 
   const matches = reentry.trim().toLowerCase() === name.toLowerCase()
   /**
@@ -161,11 +171,15 @@ export function NameBuyModal({
     queryKey: ['name-polygon-mana-quote', name, session?.address],
     queryFn: () => quoteNameWithPolygonMana({ name, buyer: session!.address }),
     // Not for a buyer whose credits already pay: the router SDK is large, and they may never pick MANA.
+    // Nor after a failure that offers no retry: there is nothing left to price.
     enabled:
-      manaAloneEligible && (insufficient || chosen?.rail === 'mana') && (phase === 'confirm' || phase === 'error'),
+      manaAloneEligible &&
+      (insufficient || chosen?.rail === 'mana') &&
+      (phase === 'confirm' || (phase === 'error' && !retryUnsafe)),
     retry: false,
     staleTime: 0,
-    gcTime: 0
+    gcTime: 0,
+    refetchOnWindowFocus: false
   })
   // A failed refetch keeps the old data; a quote that can no longer be had is not one to buy on.
   const quote = manaQuote.isError ? undefined : manaQuote.data
@@ -369,13 +383,19 @@ export function NameBuyModal({
 
   // Declining the switch leaves the offer standing.
   async function switchAndRetry(chainId: number) {
-    if (!session) return
+    if (!session || switchingRef.current) return
+    switchingRef.current = true
+    setSwitching(true)
     try {
       await switchChain(session.web3Provider, chainId)
     } catch (switchErr) {
       if (!isUserRejection(switchErr)) captureError(switchErr, { flow: 'name_polygon_mana', step: 'switch_chain' })
       return
+    } finally {
+      switchingRef.current = false
+      if (mountedRef.current) setSwitching(false)
     }
+    if (!mountedRef.current) return
     setSwitchTo(null)
     await buy()
   }
@@ -680,7 +700,11 @@ export function NameBuyModal({
                   <span>{error}</span>
                 </S.ErrorBox>
                 {switchTo != null ? (
-                  <S.PrimaryBtn data-testid="name-switch-and-retry" onClick={() => void switchAndRetry(switchTo)}>
+                  <S.PrimaryBtn
+                    data-testid="name-switch-and-retry"
+                    disabled={switching}
+                    onClick={() => void switchAndRetry(switchTo)}
+                  >
                     {t('buyModal.error.switchAndRetry', { network: chainLabel(switchTo) })}
                   </S.PrimaryBtn>
                 ) : retryUnsafe ? (
