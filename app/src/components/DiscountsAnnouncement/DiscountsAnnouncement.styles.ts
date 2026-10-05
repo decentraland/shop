@@ -23,6 +23,7 @@ export const Card = styled.div`
   width: 560px;
   max-width: 100%;
   max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;

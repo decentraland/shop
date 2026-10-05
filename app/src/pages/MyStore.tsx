@@ -1149,7 +1149,9 @@ export function MyStore() {
   // refresh or the back button does not reopen a modal the creator already closed. Opening it is also what
   // retires the announcement that links here: it is spent only once its promise is kept.
   const discountParam = params.get('discount')?.toLowerCase()
-  const discountTarget = discountParam ? saleable.find(c => c.contractAddress === discountParam) : undefined
+  // Behind the same flag as every other way into the flow.
+  const discountTarget =
+    discountParam && creatorSalesEnabled ? saleable.find(c => c.contractAddress === discountParam) : undefined
   useEffect(() => {
     if (!discountTarget) return
     setSaleCollection(discountTarget)

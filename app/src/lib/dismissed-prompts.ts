@@ -6,9 +6,9 @@
 // written — a signed-out visitor has no account to attach the choice to.
 //
 // Dismissal is PERMANENT, with no expiry. "Don't show this again" is a promise, and re-asking after a
-// timeout breaks it; the prompt is self-limiting anyway, since it only fires while the seller still
-// has classic listings left to move.
-const KEY = 'shop:dismissed-prompts'
+// timeout breaks it.
+export const DISMISSED_PROMPTS_KEY = 'shop:dismissed-prompts'
+const KEY = DISMISSED_PROMPTS_KEY
 
 /** The My Assets prompt that points sellers at the credit-pricing migration. */
 export const MANA_PRICING_PROMPT = 'mana-pricing'

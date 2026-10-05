@@ -10,12 +10,14 @@ import { DISCOUNTS_ANNOUNCEMENT_PROMPT, dismissPrompt, isPromptDismissed } from 
 
 const flagOn = vi.fn()
 const creator = vi.fn()
+const storeOpen = vi.fn()
 const fetchPublishableItems = vi.fn()
 const fetchCollectionSaleState = vi.fn()
 const fetchSalesSummary = vi.fn()
 
 vi.mock('~/hooks/useCreatorSalesEnabled', () => ({ useCreatorSalesEnabled: () => flagOn() }))
 vi.mock('~/hooks/useIsCreator', () => ({ useIsCreator: (address?: string) => !!address && creator() }))
+vi.mock('~/hooks/useMyStoreEnabled', () => ({ useMyStoreEnabled: () => storeOpen() }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: (...args: unknown[]) => fetchPublishableItems(...args) }))
 vi.mock('~/lib/collections', () => ({
   fetchCollectionSaleState: (...args: unknown[]) => fetchCollectionSaleState(...args)
@@ -51,6 +53,7 @@ beforeEach(() => {
   useWallet.setState({ session })
   flagOn.mockReturnValue(true)
   creator.mockReturnValue(true)
+  storeOpen.mockReturnValue(true)
   fetchPublishableItems.mockResolvedValue([item('0xaa', '0'), item('0xbb', '0')])
   fetchCollectionSaleState.mockImplementation((ca: string) => Promise.resolve({ '0': listed(ca === '0xaa' ? 40 : 20) }))
   fetchSalesSummary.mockResolvedValue({ byCollection: [{ contractAddress: '0xBB', sold: 3, earnedWei: '0' }] })
@@ -73,10 +76,27 @@ describe('when a creator with collections in Credits has not seen the announceme
     await waitFor(() => expect(result.current.collection).not.toBeNull())
   })
 
-  it.each(['/my-items', '/cart', '/my-purchases', '/success'])('should stay quiet on %s', async pathname => {
-    const { result } = renderHook(() => useDiscountsAnnouncement(pathname), { wrapper })
+  it.each(['/my-items', '/cart', '/my-purchases', '/success'])(
+    'should stay quiet, and read nothing, on %s',
+    pathname => {
+      const { result } = renderHook(() => useDiscountsAnnouncement(pathname), { wrapper })
+      expect(result.current.collection).toBeNull()
+      expect(fetchPublishableItems).not.toHaveBeenCalled()
+      expect(fetchSalesSummary).not.toHaveBeenCalled()
+    }
+  )
+
+  it('should wait while another dialog is open rather than stack on it', async () => {
+    const other = document.createElement('div')
+    other.setAttribute('role', 'dialog')
+    other.setAttribute('aria-modal', 'true')
+    document.body.append(other)
+    const { result } = renderHook(() => useDiscountsAnnouncement('/overview'), { wrapper })
     await waitFor(() => expect(fetchSalesSummary).toHaveBeenCalled())
+    await waitFor(() => expect(fetchCollectionSaleState).toHaveBeenCalled())
     expect(result.current.collection).toBeNull()
+    act(() => other.remove())
+    await waitFor(() => expect(result.current.collection).not.toBeNull())
   })
 
   it('should open on an item page as on any browsing page', async () => {
@@ -104,6 +124,13 @@ describe('when a creator with collections in Credits has not seen the announceme
 describe('when the account could not be shown the announcement', () => {
   it('should fetch nothing while the flag is off', () => {
     flagOn.mockReturnValue(false)
+    const { result } = renderHook(() => useDiscountsAnnouncement('/overview'), { wrapper })
+    expect(result.current.collection).toBeNull()
+    expect(fetchPublishableItems).not.toHaveBeenCalled()
+  })
+
+  it('should fetch nothing when the account cannot open the store the call to action leads to', () => {
+    storeOpen.mockReturnValue(false)
     const { result } = renderHook(() => useDiscountsAnnouncement('/overview'), { wrapper })
     expect(result.current.collection).toBeNull()
     expect(fetchPublishableItems).not.toHaveBeenCalled()

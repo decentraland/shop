@@ -15,10 +15,13 @@ const bold = (chunks: ReactNode[]) => <b>{chunks}</b>
 /** Tells a creator that discounts exist, with one of their own collections priced as buyers would see it on sale. */
 export function DiscountsAnnouncement({
   collection,
+  onShown,
   onClose,
   onCreate
 }: {
   collection: SaleableCollection
+  /** Called once it is on screen, which is later than the decision to show it when its chunk is still loading. */
+  onShown?: () => void
   onClose: () => void
   onCreate: () => void
 }) {
@@ -26,6 +29,8 @@ export function DiscountsAnnouncement({
   // Read through a ref so a parent re-rendering with a new callback does not re-run the focus effect.
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const shownRef = useRef(onShown)
+  shownRef.current = onShown
   // The priciest first: a 1-credit item rounds any discount away and would show no change at all.
   const items = collection.items
     .filter(item => item.state === 'discounted' && item.priceCredits !== null)
@@ -35,6 +40,7 @@ export function DiscountsAnnouncement({
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
     cardRef.current?.focus()
+    shownRef.current?.()
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         closeRef.current()
@@ -73,7 +79,9 @@ export function DiscountsAnnouncement({
         onClick={e => e.stopPropagation()}
       >
         <S.Head>
-          <S.Eyebrow>🔥 {t('discountsAnnouncement.eyebrow')}</S.Eyebrow>
+          <S.Eyebrow>
+            <span aria-hidden>🔥</span> {t('discountsAnnouncement.eyebrow')}
+          </S.Eyebrow>
           <S.Close type="button" onClick={onClose} aria-label={t('discountsAnnouncement.close')}>
             <Icon name="close" size={22} aria-hidden />
           </S.Close>

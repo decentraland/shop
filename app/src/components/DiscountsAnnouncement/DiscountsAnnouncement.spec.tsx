@@ -28,6 +28,12 @@ function open() {
 }
 
 describe('when a creator is shown the discounts announcement', () => {
+  it('should report itself shown once it is on screen', () => {
+    const onShown = vi.fn()
+    render(<DiscountsAnnouncement collection={collection} onShown={onShown} onClose={vi.fn()} onCreate={vi.fn()} />)
+    expect(onShown).toHaveBeenCalledOnce()
+  })
+
   it('should name their collection', () => {
     open()
     expect(screen.getByTestId('discounts-announcement').textContent).toContain('Neon Runners')

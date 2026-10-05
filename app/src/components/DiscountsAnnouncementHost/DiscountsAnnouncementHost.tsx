@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from 'react'
+import { lazy, Suspense, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useDiscountsAnnouncement } from '~/hooks/useDiscountsAnnouncement'
 import { track } from '~/lib/analytics'
@@ -15,18 +15,17 @@ export function DiscountsAnnouncementHost() {
   const { collection, dismiss, hide } = useDiscountsAnnouncement(location.pathname)
   const shown = useRef<string | null>(null)
 
-  useEffect(() => {
-    if (!collection || shown.current === collection.contractAddress) return
-    shown.current = collection.contractAddress
-    track('Shop Discounts Announcement Shown', { collection: collection.contractAddress })
-  }, [collection])
-
   if (!collection) return null
 
   return (
     <Suspense fallback={null}>
       <DiscountsAnnouncement
         collection={collection}
+        onShown={() => {
+          if (shown.current === collection.contractAddress) return
+          shown.current = collection.contractAddress
+          track('Shop Discounts Announcement Shown', { collection: collection.contractAddress })
+        }}
         onClose={() => {
           track('Shop Discounts Announcement Dismissed', { collection: collection.contractAddress })
           dismiss()

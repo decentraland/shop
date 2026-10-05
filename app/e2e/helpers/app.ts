@@ -10,6 +10,7 @@ import {
   ORACLE_RATE
 } from './rpc'
 import * as fx from '../fixtures'
+import { DISCOUNTS_ANNOUNCEMENT_PROMPT, DISMISSED_PROMPTS_KEY } from '../../src/lib/dismissed-prompts'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 
@@ -1291,17 +1292,21 @@ export async function launchApp(
     await page.evaluateOnNewDocument(sessionInitScript(sess))
   }
   if (!opts.discountsAnnouncement) {
-    await page.evaluateOnNewDocument((account: string) => {
-      try {
-        const key = 'shop:dismissed-prompts'
-        const store = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, string[]>
-        const seen = store[account] ?? []
-        if (!seen.includes('discounts-announcement')) store[account] = [...seen, 'discounts-announcement']
-        localStorage.setItem(key, JSON.stringify(store))
-      } catch {
-        // Storage refused: the announcement may show, which the spec that needs it to stay away will report.
-      }
-    }, fx.TEST_ADDRESS.toLowerCase())
+    await page.evaluateOnNewDocument(
+      (key: string, prompt: string, account: string) => {
+        try {
+          const store = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, string[]>
+          const seen = store[account] ?? []
+          if (!seen.includes(prompt)) store[account] = [...seen, prompt]
+          localStorage.setItem(key, JSON.stringify(store))
+        } catch {
+          // Storage refused: the announcement may show, which the spec that needs it to stay away will report.
+        }
+      },
+      DISMISSED_PROMPTS_KEY,
+      DISCOUNTS_ANNOUNCEMENT_PROMPT,
+      fx.TEST_ADDRESS.toLowerCase()
+    )
   }
   if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)
