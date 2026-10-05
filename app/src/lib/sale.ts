@@ -104,3 +104,8 @@ export function saleUnitsHint(saleUnitsLeft: number | undefined): number | null 
   if (saleUnitsLeft <= 0 || saleUnitsLeft > SALE_UNITS_HINT_MAX) return null
   return Math.floor(saleUnitsLeft)
 }
+
+/** What a listed item will ring up at, rounded the way the checkout rounds the discounted amount. */
+export function salePriceOf(price: number, pct: number): number {
+  return Math.max(1, Math.ceil((price * (100 - (Number.isFinite(pct) ? pct : 0))) / 100))
+}

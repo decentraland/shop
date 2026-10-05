@@ -449,3 +449,39 @@ describe('when the store dashboard is rolled out to a list of creators', () => {
     expect(await app.page.$('[data-testid="filter-collections"]')).toBeNull()
   })
 })
+
+describe('when a creator who has not seen it yet arrives with creator sales on', () => {
+  it('should announce discounts once and open the flow on the announced collection', async () => {
+    app = await launchApp({
+      path: '/my-store?tab=audience',
+      myStore: true,
+      creatorSales: true,
+      discountsAnnouncement: true,
+      fixtures: storeFixtures
+    })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1000 })
+
+    // The collection's own priciest item, at the example's 30% off: 30 credits shows as 21.
+    await page.waitForSelector('[data-testid="discounts-announcement"]')
+    await page.waitForSelector('[data-testid="discounts-announcement-item"]')
+    const first = await page.$eval('[data-testid="discounts-announcement-item"]', el => el.textContent ?? '')
+    expect(first).toContain('Galaxy Hat')
+    expect(first).toContain('21')
+
+    // Its call to action lands on the store's collections with the flow already on that collection.
+    await page.click('[data-testid="discounts-announcement-create"]')
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    expect(await page.$('[data-testid="creator-sale-pick-row"]')).toBeNull()
+    await page.waitForFunction(() => !location.search.includes('discount='))
+    expect(new URL(page.url()).searchParams.get('tab')).toBe('collections')
+    expect(await page.$('[data-testid="discounts-announcement"]')).toBeNull()
+
+    // Spent once the flow it promised has opened, and spent for this account, so no later visit shows it.
+    const seen = await page.evaluate(
+      account => JSON.parse(localStorage.getItem('shop:dismissed-prompts') ?? '{}')[account] ?? [],
+      TEST_ADDRESS.toLowerCase()
+    )
+    expect(seen).toContain('discounts-announcement')
+  })
+})

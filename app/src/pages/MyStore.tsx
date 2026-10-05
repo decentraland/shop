@@ -12,6 +12,8 @@ import {
 } from 'react'
 import { Link, Navigate, useHref, useSearchParams } from 'react-router-dom'
 import type { Session } from '~/lib/auth'
+import type { SaleableCollection } from '~/lib/saleableCollections'
+import { DISCOUNTS_ANNOUNCEMENT_PROMPT, dismissPrompt } from '~/lib/dismissed-prompts'
 import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
 import { useStoreStats, type StoreCollection, type StoreItem } from '~/hooks/useStoreStats'
@@ -21,8 +23,9 @@ import { useCreatorSales } from '~/hooks/useCreatorSales'
 import { isSaleCapped, liveSaleStatus, type CreatorSale } from '~/lib/coupons'
 import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useMyStoreAccess } from '~/hooks/useMyStoreEnabled'
-import { CollectionThumb } from '~/components/CollectionThumb'
+import { CollectionThumb, useCollectionPreview } from '~/components/CollectionThumb'
 import { CreatorSaleModal } from '~/components/CreatorSaleModal'
+import { DiscountsAnnouncement } from '~/components/DiscountsAnnouncement'
 import { CurrencyMark } from '~/components/CurrencyMark'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { track } from '~/lib/analytics'
@@ -882,6 +885,8 @@ export function MyStore() {
   const [collectionPage, setCollectionPage] = useState(0)
   const [page, setPage] = useState(0)
   const [saleOpen, setSaleOpen] = useState(false)
+  // Set when the flow opens on one collection rather than on the list, as it does from the announcement.
+  const [saleCollection, setSaleCollection] = useState<SaleableCollection | null>(null)
   const [sort, setSort] = useState<Sort>(storedSort)
   const [buyerPage, setBuyerPage] = useState(0)
   // A header click overrides the dropdown until the dropdown is used again. Not remembered: it is a
@@ -911,6 +916,19 @@ export function MyStore() {
   const creatorSalesEnabled = useCreatorSalesEnabled()
   const access = useMyStoreAccess()
   const mock = previewMock(params.get('mock'))
+  const [announceOpen, setAnnounceOpen] = useState(() => mock && params.has('announce'))
+  // The invented items carry no pictures; borrow the ones the collection mosaic already shows.
+  const announcePictures = useCollectionPreview(mockSaleable[0].contractAddress, announceOpen)
+  const announceCollection = useMemo(
+    () => ({
+      ...mockSaleable[0],
+      items: mockSaleable[0].items.map((item, i) => ({
+        ...item,
+        thumbnail: item.thumbnail || announcePictures.data?.items[i]?.thumbnail || ''
+      }))
+    }),
+    [announcePictures.data]
+  )
   const env = params.get('env')
   /**
    * The router's own root, so a plain anchor into the app keeps the basename.
@@ -1126,6 +1144,26 @@ export function MyStore() {
       { replace: true }
     )
   }
+
+  // `?discount=<collection>` opens the flow on that collection once it has loaded, then leaves the URL, so a
+  // refresh or the back button does not reopen a modal the creator already closed. Opening it is also what
+  // retires the announcement that links here: it is spent only once its promise is kept.
+  const discountParam = params.get('discount')?.toLowerCase()
+  const discountTarget = discountParam ? saleable.find(c => c.contractAddress === discountParam) : undefined
+  useEffect(() => {
+    if (!discountTarget) return
+    setSaleCollection(discountTarget)
+    setSaleOpen(true)
+    dismissPrompt(DISCOUNTS_ANNOUNCEMENT_PROMPT, session?.address)
+    setParams(
+      prev => {
+        const query = new URLSearchParams(prev)
+        query.delete('discount')
+        return query
+      },
+      { replace: true }
+    )
+  }, [discountTarget, setParams, session?.address])
 
   // The flag closes the page, not just the nav entry — otherwise the link is off and the URL is still live.
   // Only once the read has ANSWERED no: a pending read is not an answer, and bouncing on it would send
@@ -1354,13 +1392,27 @@ export function MyStore() {
                 }}
               />
             ) : null}
+            {announceOpen ? (
+              <DiscountsAnnouncement
+                collection={announceCollection}
+                onClose={() => setAnnounceOpen(false)}
+                onCreate={() => {
+                  setAnnounceOpen(false)
+                  setSaleCollection(announceCollection)
+                  setSaleOpen(true)
+                }}
+              />
+            ) : null}
             {saleOpen && (mock || session) ? (
               <CreatorSaleModal
                 // The invented store signs as nobody, even with a creator signed in: only signing it fails.
                 session={mock ? MOCK_SESSION : (session as Session)}
-                collections={mock ? mockSaleable : saleable}
-                onClose={() => setSaleOpen(false)}
-                source="my_store"
+                {...(saleCollection ? { collection: saleCollection } : { collections: mock ? mockSaleable : saleable })}
+                onClose={() => {
+                  setSaleOpen(false)
+                  setSaleCollection(null)
+                }}
+                source={saleCollection ? 'announcement' : 'my_store'}
                 silent={preview}
               />
             ) : null}

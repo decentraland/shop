@@ -13,6 +13,9 @@ const KEY = 'shop:dismissed-prompts'
 /** The My Assets prompt that points sellers at the credit-pricing migration. */
 export const MANA_PRICING_PROMPT = 'mana-pricing'
 
+/** The one-time announcement that tells a creator they can put their collections on sale. */
+export const DISCOUNTS_ANNOUNCEMENT_PROMPT = 'discounts-announcement'
+
 type Store = Record<string, string[]>
 
 function read(): Store {

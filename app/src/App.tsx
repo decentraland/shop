@@ -6,6 +6,7 @@ import { BatFlight } from '~/components/BatFlight'
 import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
+import { DiscountsAnnouncementHost } from '~/components/DiscountsAnnouncementHost'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
@@ -208,6 +209,10 @@ export function App() {
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />
+      {/* Boundaried like the decorations below: a failed read or chunk must never take the shell with it. */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <DiscountsAnnouncementHost />
+      </Sentry.ErrorBoundary>
       {/* Seasonal decoration, mounted only while that skin is on — it brings its own lazy chunk, so an
           ordinary day neither renders nor downloads it.
 

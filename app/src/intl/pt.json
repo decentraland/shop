@@ -1575,5 +1575,16 @@
     "stock": "Isto emite {count, plural, one {# nova cópia} other {# novas cópias}} de “{name}”, {left, plural, one {da # restante} other {das # restantes}}.",
     "notEnough": "“{name}” tem apenas {left, plural, one {# restante} other {# restantes}}. Escolha menos pessoas ou outro item.",
     "continue": "Continuar"
+  },
+  "discountsAnnouncement": {
+    "eyebrow": "Novidade para criadores",
+    "close": "Fechar",
+    "title": "Coloque suas coleções em promoção",
+    "lead": "É assim que os compradores veriam <b>{collection}</b> com {pct}% de desconto.",
+    "stepPick": "<b>Escolha um desconto</b>: 10%, 20%, 30%, 50% ou o seu.",
+    "stepWhen": "<b>Escolha quando ele vale</b>: a partir de agora ou nas datas que você quiser.",
+    "stepBack": "<b>Os preços voltam sozinhos</b> quando termina. Nada para desfazer.",
+    "later": "Mais tarde",
+    "create": "Criar um desconto"
   }
 }

@@ -1,0 +1,1 @@
+export { DiscountsAnnouncement } from './DiscountsAnnouncement'

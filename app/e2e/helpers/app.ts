@@ -1208,6 +1208,11 @@ export async function launchApp(
      */
     creatorSales?: boolean
     /**
+     * Whether the creator still has the one-time discounts announcement to see. Defaults to FALSE: with
+     * creator sales on it would open over whatever page a spec is about. Its own spec passes true.
+     */
+    discountsAnnouncement?: boolean
+    /**
      * Whether the mocked flag file reports the personalised rail as available. Defaults to FALSE, the
      * shipped state; the suggested-for-you spec passes true to exercise the row.
      */
@@ -1284,6 +1289,19 @@ export async function launchApp(
   if (!opts.signedOut) {
     const sess = await session()
     await page.evaluateOnNewDocument(sessionInitScript(sess))
+  }
+  if (!opts.discountsAnnouncement) {
+    await page.evaluateOnNewDocument((account: string) => {
+      try {
+        const key = 'shop:dismissed-prompts'
+        const store = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, string[]>
+        const seen = store[account] ?? []
+        if (!seen.includes('discounts-announcement')) store[account] = [...seen, 'discounts-announcement']
+        localStorage.setItem(key, JSON.stringify(store))
+      } catch {
+        // Storage refused: the announcement may show, which the spec that needs it to stay away will report.
+      }
+    }, fx.TEST_ADDRESS.toLowerCase())
   }
   if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)

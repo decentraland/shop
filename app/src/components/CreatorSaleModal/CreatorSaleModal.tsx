@@ -33,6 +33,7 @@ import { Chevron } from '~/components/Chevron'
 import { SaleTag } from '~/components/SaleTag'
 import { RangePicker, type RangePickerHandle } from '~/components/RangePicker'
 import type { SaleableCollection } from '~/lib/saleableCollections'
+import { salePriceOf } from '~/lib/sale'
 import * as S from './CreatorSaleModal.styles'
 
 /**
@@ -45,11 +46,6 @@ import * as S from './CreatorSaleModal.styles'
  */
 type CollectionSource =
   { collection: SaleableCollection; collections?: never } | { collection?: never; collections: SaleableCollection[] }
-
-/** What a listed item will ring up at, rounded the way the checkout rounds the discounted amount. */
-function salePriceOf(price: number, pct: number): number {
-  return Math.max(1, Math.ceil((price * (100 - (Number.isFinite(pct) ? pct : 0))) / 100))
-}
 
 const PCT_PRESETS = [10, 20, 30, 50]
 const DURATION_PRESETS = [
@@ -74,7 +70,7 @@ type When =
   | { kind: 'range'; from: number; to: number }
 
 /** Where the create-a-discount flow was opened from — the one prop every event in the funnel carries. */
-export type SaleSource = 'my_store' | 'my_assets'
+export type SaleSource = 'my_store' | 'my_assets' | 'announcement'
 
 function startOfDay(ms: number): number {
   const d = new Date(ms)

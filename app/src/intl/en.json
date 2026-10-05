@@ -1575,5 +1575,16 @@
     "stock": "This issues {count, plural, one {# new copy} other {# new copies}} of “{name}”, out of the {left} left.",
     "notEnough": "“{name}” has only {left} left. Pick fewer people or another item.",
     "continue": "Continue"
+  },
+  "discountsAnnouncement": {
+    "eyebrow": "New for creators",
+    "close": "Close",
+    "title": "Put your collections on sale",
+    "lead": "This is how <b>{collection}</b> would look to buyers at {pct}% off.",
+    "stepPick": "<b>Pick a discount</b>: 10%, 20%, 30%, 50% or your own.",
+    "stepWhen": "<b>Choose when it runs</b>: starting now or on dates you pick.",
+    "stepBack": "<b>Prices go back by themselves</b> when it ends. Nothing to undo.",
+    "later": "Maybe later",
+    "create": "Create a discount"
   }
 }
