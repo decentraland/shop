@@ -5,11 +5,14 @@ import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCatalogItems, fetchCreatorCollections } from '~/lib/collections'
+import { fetchShopItems, type CatalogItem } from '~/lib/api'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { AssetCard } from '~/components/AssetCard'
 import { CollectionCard } from '~/components/CollectionCard'
 import { CreatorHero } from '~/components/CreatorHero'
 import { Filters, type FilterStatus } from '~/components/Filters'
-import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
+import { FilterBar, type FilterChip, DEALS_SORTS, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -70,6 +73,11 @@ export function Creator() {
   //
   // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid. And
   // unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
+  // Deals opens ranked by discount, the way the browse grid does; read off the URL because that default is an
+  // input to the hook that would report it. Behind the creator-sales flag, so a hand-typed `?deals=true`
+  // never reaches the query while the feature is dark.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const dealsRequested = creatorSalesEnabled && searchParams.get('deals') === 'true'
   const filterDefaults = useMemo(
     () => ({
       category: 'all',
@@ -79,12 +87,15 @@ export function Creator() {
       priceMin: '',
       priceMax: '',
       smart: false,
-      sort: 'newest'
+      deals: false,
+      sort: dealsRequested ? 'discount' : 'newest'
     }),
-    []
+    [dealsRequested]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { category, subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  const deals = creatorSalesEnabled && filterState.deals
+  const secondarySales = useSecondarySales()
   // Validated on read — the URL is user-editable and an unknown status must not reach the query.
   const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
     ? (filterState.status as FilterStatus)
@@ -113,7 +124,8 @@ export function Creator() {
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
-  const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
+  const sortOptions = deals ? DEALS_SORTS : SORTS
+  const sortBy = (sortOptions.find(s => s.key === sort) ?? sortOptions[0]).server
   const filters = {
     creator: address,
     category,
@@ -125,6 +137,21 @@ export function Creator() {
     // Unset = every item; the sidebar's Status radio narrows it.
     isOnSale: status === 'all' ? undefined : status === 'on_sale',
     sortBy
+  }
+  // Deals reads the Shop's own listings feed, the only one that knows which listings a creator is
+  // discounting right now; the full catalogue this page otherwise reads has no notion of it.
+  const dealFilters = {
+    creator: address,
+    category,
+    rarities: rarities.length ? rarities : undefined,
+    wearableCategories,
+    minPriceCredits: min,
+    maxPriceCredits: max,
+    isSmart: smart || undefined,
+    sortBy,
+    onSale: true,
+    discounted: true,
+    listingType: secondarySales ? undefined : ('primary' as const)
   }
 
   // Listings (default) and collections are mutually exclusive: only one query is enabled at a time so
@@ -139,9 +166,14 @@ export function Creator() {
     isFetchingNextPage,
     isFetchNextPageError,
     fetchNextPage
-  } = useInfiniteGrid(['creator-items', filters], skip => fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }), {
-    enabled: !!address && !collectionsMode
-  })
+  } = useInfiniteGrid<CatalogItem>(
+    deals ? ['creator-deals', dealFilters] : ['creator-items', filters],
+    skip =>
+      deals
+        ? fetchShopItems({ ...dealFilters, first: PAGE_SIZE, skip })
+        : fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }),
+    { enabled: !!address && !collectionsMode }
+  )
 
   // The creator's UNFILTERED item count, so an empty grid can tell "this creator has published nothing"
   // apart from "your filters match nothing". Without it both look identical and the page accuses a
@@ -213,6 +245,9 @@ export function Creator() {
   for (const r of RARITIES)
     if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
+  // Clearing it drops the discount sort too, which would otherwise rank a grid where nothing is discounted.
+  if (deals)
+    chips.push({ key: 'deals', label: t('filter.deals'), onRemove: () => setFilters({ deals: false, sort: 'newest' }) })
   if (status !== 'all')
     chips.push({
       key: 'status',
@@ -290,6 +325,8 @@ export function Creator() {
               onStatus={setStatus}
               smart={smart}
               onSmart={v => setFilters({ smart: v })}
+              deals={deals}
+              onDeals={creatorSalesEnabled ? v => setFilters({ deals: v, sort: v ? 'discount' : 'newest' }) : undefined}
               hideNames
               collections={collectionsMode}
               onCollections={toggleCollections}
@@ -357,6 +394,7 @@ export function Creator() {
             <>
               <FilterBar
                 sort={sort}
+                sortOptions={sortOptions}
                 onSort={v => setFilters({ sort: v })}
                 total={total}
                 loading={showGridSkeletons}
