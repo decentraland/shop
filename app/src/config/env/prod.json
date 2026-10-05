@@ -8,6 +8,7 @@
   "RPC_URL": "https://rpc.decentraland.org/polygon",
   "ETHEREUM_CHAIN_ID": "1",
   "ETHEREUM_RPC_URL": "https://rpc.decentraland.org/mainnet",
+  "SQUID_API_URL": "https://apiplus.squidrouter.com",
   "RELAYER_URL": "https://transactions-api.decentraland.org/v1",
   "CREDITS_SERVER_URL": "https://credits.decentraland.org",
   "NOTIFICATIONS_SERVER_URL": "https://notifications.decentraland.org",

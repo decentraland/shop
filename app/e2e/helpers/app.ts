@@ -5,6 +5,7 @@ import {
   setManaBalanceWei,
   setEthereumManaBalanceWei,
   setManaAllowanceWei,
+  setNativeBalanceWei,
   bumpMetaTxNonce,
   resetMetaTxNonce,
   ORACLE_RATE
@@ -272,6 +273,31 @@ let campaignFlag = false
 // Buying a NAME with credits. Off is the shipped default (the flag fails closed), so the suite runs in it
 // and the NAMEs specs opt in.
 let namesFlag = false
+// What the cross-chain router reports for a NAME paid in Polygon MANA alone, once its bridge is sent.
+let squidStatus = 'success'
+
+// The router's view of the two chains a NAME's MANA moves between in this environment (Amoy → Sepolia), at
+// the addresses decentraland-transactions resolves MANA to there.
+const SQUID_MANA = {
+  amoy: '0x7ad72b9f944ea9793cf4055d88f81138cc2c63a0',
+  sepolia: '0xfa04d2e2ba9aec166c93dfeeba7427b2303befa9'
+}
+const SQUID_ROUTER = '0x' + '5c'.repeat(20)
+const squidToken = (chainId: string, address: string) => ({
+  chainId,
+  address,
+  decimals: 18,
+  symbol: 'MANA',
+  name: 'Decentraland',
+  type: 'evm',
+  usdPrice: 0.27
+})
+const SQUID_TOKENS = [
+  squidToken('80002', SQUID_MANA.amoy),
+  squidToken('11155111', SQUID_MANA.sepolia),
+  // Polygon's native token, priced like the real list prices it: what the route's fee is stated in dollars from.
+  { ...squidToken('80002', '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'), symbol: 'POL', name: 'POL', usdPrice: 0.25 }
+]
 
 // The marketing CMS, as the delivery proxy serves it: FLAT fields per `?locale=`, which is what makes the
 // client fetch each entry once per locale and merge. The admin id is the one dev.json points at, so the
@@ -455,6 +481,48 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // the second until it sees this move, the same way it waits on the real chain.
     bumpMetaTxNonce()
     return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
+  }
+  // Squid, the cross-chain router a NAME paid in Polygon MANA alone rides: the token list its SDK starts from,
+  // the prices it sizes the amount with, the route, and the bridge's status.
+  if (u.hostname.includes('squidrouter')) {
+    if (path === '/v2/sdk-info') {
+      return json(req, {
+        tokens: SQUID_TOKENS,
+        chains: [
+          { chainId: '80002', chainType: 'evm', rpc: 'https://rpc.decentraland.org/amoy' },
+          { chainId: '11155111', chainType: 'evm', rpc: 'https://rpc.decentraland.org/sepolia' }
+        ],
+        isInMaintenanceMode: false,
+        axlScanUrl: 'https://axelarscan.io'
+      })
+    }
+    if (path === '/v2/tokens') return json(req, { tokens: SQUID_TOKENS })
+    if (path === '/v2/route') {
+      const params = JSON.parse(req.postData() || '{}') as Record<string, unknown>
+      // Delivers a little more than the price, so the route is accepted on the first quote.
+      return req.respond({
+        status: 200,
+        headers: { 'content-type': 'application/json', 'x-request-id': 'e2e-squid-request', ...CORS },
+        body: JSON.stringify({
+          route: {
+            params,
+            estimate: {
+              toAmountMin: (101n * 10n ** 18n).toString(),
+              gasCosts: [
+                {
+                  amount: (2n * 10n ** 17n).toString(),
+                  token: { address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' }
+                }
+              ],
+              feeCosts: []
+            },
+            transactionRequest: { target: SQUID_ROUTER, data: '0x' + 'ab'.repeat(68), value: '0', gasLimit: '500000' }
+          }
+        })
+      })
+    }
+    if (path === '/v2/status') return json(req, { id: 'e2e', status: squidStatus, squidTransactionStatus: squidStatus })
+    return json(req, { message: 'not found' }, 404)
   }
   // WearablePreview iframe → a blank page that stands in for the external preview app. It can't run the
   // real Unity/Babylon runtime, so it reports Babylon via the same PreviewMessageType.LOAD message the
@@ -1180,6 +1248,10 @@ export async function launchApp(
     ethereumManaBalanceWei?: string
     /** MANA allowance the mocked ERC20 reports; omit for "already approved". */
     manaAllowanceWei?: string
+    /** The buyer's native balance, which pays a cross-chain route's fee; omit for none. */
+    nativeBalanceWei?: string
+    /** What the cross-chain router reports for a NAME's bridge; omit for 'success'. */
+    squidStatus?: string
     /**
      * Whether the mocked flag file reports secondary sales as available. Defaults to TRUE so the resale
      * specs cover the feature; pass false to exercise the shipped default, where the Shop offers none.
@@ -1264,6 +1336,8 @@ export async function launchApp(
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
+  setNativeBalanceWei(BigInt(opts.nativeBalanceWei ?? '0'))
+  squidStatus = opts.squidStatus ?? 'success'
   resetMetaTxNonce() // so a relayed purchase in one test cannot leave the next one's nonce ahead
   // Headless Chrome reports NO hover (and a coarse pointer) on a machine with no pointing device, which
   // is what CI is — and every hover-gated rule in the app then evaluates to its touch branch, so the

@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { AuthIdentity } from '@dcl/crypto'
 import type { ethers } from 'ethers'
+import { WrongNetworkError } from '~/lib/network'
 
 // --- Network / dependency seams -------------------------------------------------------------------
 // signedFetch (default export) backs the /credits-name-route call; capture it so we can assert the
@@ -9,8 +10,15 @@ const { signedFetch } = vi.hoisted(() => ({ signedFetch: vi.fn() }))
 vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 
 // Pin the server base URLs so asserted URLs are env-independent.
+// Every chain field the rails read, so a comparison against one of them cannot pass against `undefined`.
 vi.mock('~/config', () => ({
-  config: { creditsServerUrl: 'https://credits.example', chainId: 137 }
+  config: {
+    creditsServerUrl: 'https://credits.example',
+    chainId: 137,
+    ethereumChainId: 1,
+    rpcUrl: 'https://rpc.example/polygon',
+    squidApiUrl: 'https://squid.example'
+  }
 }))
 
 // checkNameAvailability reads DCLRegistrar.available on-chain. Stub only ethers.Contract (+ the
@@ -19,17 +27,39 @@ vi.mock('~/config', () => ({
 const availableMock = vi.hoisted(() => vi.fn())
 // DCLControllerV2.register, for the Ethereum rail. Same stubbed Contract as the registrar read above.
 const registerMock = vi.hoisted(() => vi.fn())
+// The buyer's native balance on Polygon, which the MANA-alone rail reads to tell whether its fee is payable.
+const getBalanceMock = vi.hoisted(() => vi.fn())
+const getGasPriceMock = vi.hoisted(() => vi.fn())
+// The MANA allowance the router already holds, which decides whether the wallet must also fund an approval.
+const allowanceMock = vi.hoisted(() => vi.fn())
 vi.mock('ethers', async importOriginal => {
   const actual = await importOriginal<typeof import('ethers')>()
   return {
     ...actual,
     ethers: {
       ...actual.ethers,
-      providers: { ...actual.ethers.providers, JsonRpcProvider: vi.fn(() => ({})) },
-      Contract: vi.fn(() => ({ available: availableMock, register: registerMock }))
+      providers: {
+        ...actual.ethers.providers,
+        JsonRpcProvider: vi.fn(() => ({ getBalance: getBalanceMock, getGasPrice: getGasPriceMock }))
+      },
+      Contract: vi.fn(() => ({ available: availableMock, register: registerMock, allowance: allowanceMock }))
     }
   }
 })
+
+// The cross-chain router the MANA-alone rail rides — the marketplace's own, loaded on demand by the lib.
+const squid = vi.hoisted(() => ({
+  init: vi.fn(),
+  getSupportedTokens: vi.fn(),
+  getFromAmount: vi.fn(),
+  getRegisterNameRoute: vi.fn(),
+  // The SDK underneath, which the lib calls directly for the exact approval and the bridge's hash.
+  squid: { executeRoute: vi.fn(), getStatus: vi.fn() }
+}))
+vi.mock('decentraland-transactions/crossChain', () => ({ AxelarProvider: vi.fn(() => squid) }))
+
+const { captureError } = vi.hoisted(() => ({ captureError: vi.fn() }))
+vi.mock('~/lib/monitoring', () => ({ captureError }))
 
 // ~/lib/trade-encoding (idToSalt) and ~/lib/mana-rate both pull decentraland-transactions at module
 // load; stub it so its ESM/cross-chain deps don't get evaluated. Real ethers stays.
@@ -99,7 +129,18 @@ vi.mock('~/lib/buy-gasless', () => ({
 import {
   NAME_MAX_LENGTH,
   NAME_PRICE_IN_WEI,
+  NameFeeShortError,
+  NameInFlightError,
+  NameManaShortError,
+  NameNotRegisteredError,
+  NameQuoteMovedError,
+  NameRefundedError,
   NameRouteCostTooHighError,
+  NameRouteUnavailableError,
+  NameSettlementUnknownError,
+  NameTakenError,
+  quoteNameWithPolygonMana,
+  registerNameWithPolygonMana,
   buildNameUseCreditsArgs,
   checkNameAvailability,
   fetchNameCreditRoute,
@@ -838,5 +879,453 @@ describe('when the buyer pays part of the NAME with MANA', () => {
     })
 
     expect(authorizeUsdCredit.mock.calls[0][1]).toBe(4000)
+  })
+})
+
+/**
+ * A NAME paid in Polygon MANA alone, through the marketplace's own cross-chain route: the buyer's wallet
+ * approves and sends a Squid route that bridges the MANA to Ethereum and registers the NAME there.
+ */
+const MANA = (n: number) => BigInt(n) * 10n ** 18n
+const NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+const ZERO = '0x0000000000000000000000000000000000000000'
+const ROUTER = '0x000000000000000000000000000000000000d00d'
+// value 0.5 + gasLimit 500k × maxFee 100 gwei (0.05) = what the wallet must hold for the bridge alone.
+const BRIDGE_RESERVE = 5n * 10n ** 17n + 500_000n * 100_000_000_000n
+
+function squidRoute() {
+  return {
+    requestId: 'req-1',
+    route: {
+      quoteId: 'quote-1',
+      // The route raised the amount past the first estimate, so the quote must read it from here.
+      params: { fromAmount: MANA(102).toString() },
+      estimate: {
+        gasCosts: [{ amount: '300000000000000000', token: { address: NATIVE } }],
+        feeCosts: [
+          { amount: '200000000000000000', token: { address: NATIVE } },
+          // Taken out of the bridged MANA, so already inside fromAmount.
+          { amount: '1000000000000000000', token: { address: ZERO } }
+        ]
+      },
+      transactionRequest: {
+        target: ROUTER,
+        value: '500000000000000000',
+        gasLimit: '500000',
+        maxFeePerGas: '100000000000'
+      }
+    }
+  }
+}
+
+function primeSquid() {
+  squid.getSupportedTokens.mockReturnValue([
+    { chainId: '137', address: ZERO, decimals: 18, symbol: 'MANA' },
+    { chainId: '1', address: ZERO, decimals: 18, symbol: 'MANA' },
+    { chainId: '137', address: NATIVE.toLowerCase(), decimals: 18, symbol: 'POL', usdPrice: 0.5 }
+  ])
+  squid.getFromAmount.mockResolvedValue('101.5')
+  squid.getRegisterNameRoute.mockResolvedValue(squidRoute())
+  getBalanceMock.mockResolvedValue({ toString: () => MANA(2).toString() })
+  getGasPriceMock.mockResolvedValue({ toString: () => '30000000000' })
+  allowanceMock.mockResolvedValue({ toString: () => MANA(1000).toString() })
+}
+
+function resetSquid() {
+  for (const fn of [squid.init, squid.getSupportedTokens, squid.getFromAmount, squid.getRegisterNameRoute])
+    fn.mockReset()
+  squid.squid.executeRoute.mockReset()
+  squid.squid.getStatus.mockReset()
+  for (const fn of [getBalanceMock, getGasPriceMock, allowanceMock, availableMock, captureError]) fn.mockReset()
+}
+
+describe('when a NAME is quoted in Polygon MANA alone', () => {
+  beforeEach(() => {
+    primeSquid()
+  })
+
+  afterEach(() => {
+    resetSquid()
+  })
+
+  it('should ask for the route at the amount the first estimate says delivers the price', async () => {
+    await quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })
+
+    expect(squid.getRegisterNameRoute).toHaveBeenCalledWith({
+      name: 'my-name',
+      fromAddress: BUYER,
+      fromAmount: '101500000000000000000',
+      fromChain: 137,
+      fromToken: ZERO,
+      toAmount: NAME_PRICE_IN_WEI,
+      toChain: 1
+    })
+  })
+
+  it('should quote what the route pulls, its native fees alone, and that fee in dollars', async () => {
+    const quote = await quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })
+
+    expect({ mana: quote.manaWei, fee: quote.feeWei, usd: quote.feeUsd, native: quote.nativeBalanceWei }).toEqual({
+      mana: MANA(102),
+      fee: 500000000000000000n,
+      usd: 0.25,
+      native: MANA(2)
+    })
+  })
+
+  // A wallet refuses on the reserve it must hold, not on what is finally spent.
+  it('should require the value the route carries plus the gas its transaction reserves', async () => {
+    const quote = await quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })
+
+    expect(quote.requiredNativeWei).toBe(BRIDGE_RESERVE)
+  })
+
+  describe('and the router does not yet hold an allowance for the MANA', () => {
+    beforeEach(() => {
+      allowanceMock.mockResolvedValue({ toString: () => '0' })
+    })
+
+    // The router sends the approval with the bridge's own gas limit, so the wallet must cover both.
+    it('should require the gas for the approval as well', async () => {
+      const quote = await quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })
+
+      expect(quote.requiredNativeWei).toBe(BRIDGE_RESERVE + 500_000n * 100_000_000_000n)
+    })
+  })
+
+  describe('and MANA cannot be routed between the two chains', () => {
+    beforeEach(() => {
+      squid.getSupportedTokens.mockReturnValue([{ chainId: '137', address: ZERO, decimals: 18, symbol: 'MANA' }])
+    })
+
+    it('should report the route as unavailable', async () => {
+      await expect(quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })).rejects.toBeInstanceOf(
+        NameRouteUnavailableError
+      )
+    })
+  })
+
+  describe('and the router cannot build a route', () => {
+    beforeEach(() => {
+      squid.getRegisterNameRoute.mockRejectedValue(new Error('InsufficientLiquidityError'))
+    })
+
+    it('should report the route as unavailable', async () => {
+      await expect(quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })).rejects.toBeInstanceOf(
+        NameRouteUnavailableError
+      )
+    })
+  })
+})
+
+describe('when a NAME is paid in Polygon MANA alone', () => {
+  // A self-custody wallet on Polygon, as the real requireChain asks it.
+  let chainIdHex: string
+  let wait: ReturnType<typeof vi.fn>
+  const web3 = {
+    send: vi.fn(async (method: string) => (method === 'eth_chainId' ? chainIdHex : null))
+  } as unknown as ethers.providers.Web3Provider
+  const signer = { getAddress: async () => BUYER } as unknown as ethers.providers.JsonRpcSigner
+  const run = (opts: { providerType?: string; shownManaWei?: bigint; shownFeeWei?: bigint } = {}) =>
+    registerNameWithPolygonMana({
+      name: 'my-name',
+      signer,
+      web3Provider: web3,
+      providerType: opts.providerType ?? 'injected',
+      shownManaWei: opts.shownManaWei ?? MANA(102),
+      shownFeeWei: opts.shownFeeWei ?? 500000000000000000n,
+      statusPoll: { intervalMs: 0, maxAttempts: 2 }
+    })
+
+  beforeEach(() => {
+    localStorage.clear()
+    chainIdHex = '0x89'
+    primeSquid()
+    availableMock.mockResolvedValue(true)
+    wait = vi.fn(async () => ({ status: 1, transactionHash: '0xbridge' }))
+    squid.squid.executeRoute.mockResolvedValue({ hash: '0xbridge', wait })
+    squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'success' })
+  })
+
+  afterEach(() => {
+    resetSquid()
+  })
+
+  // The marketplace's call, with the approval held to the amount rather than left unlimited to the router.
+  it('should send the quoted route from the buyer’s own wallet with an exact approval', async () => {
+    await run()
+
+    expect(squid.squid.executeRoute).toHaveBeenCalledWith({
+      route: squidRoute().route,
+      signer,
+      executionSettings: { infiniteApproval: false }
+    })
+  })
+
+  it('should report the NAME registered, with what the route pulled', async () => {
+    await expect(run()).resolves.toEqual({
+      status: 'registered',
+      originTxHash: '0xbridge',
+      destinationTxHash: null,
+      manaWei: MANA(102)
+    })
+  })
+
+  it('should ask the router about the bridge with the chains and the quote beside the transaction', async () => {
+    await run()
+
+    expect(squid.squid.getStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionId: '0xbridge',
+        requestId: 'req-1',
+        fromChainId: '137',
+        toChainId: '1',
+        quoteId: 'quote-1'
+      })
+    )
+  })
+
+  describe('and the wallet cannot pay its own fees', () => {
+    it('should refuse before sending anything', async () => {
+      await expect(run({ providerType: 'magic' })).rejects.toThrow()
+
+      expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the wallet is on another chain', () => {
+    beforeEach(() => {
+      chainIdHex = '0x1'
+    })
+
+    // Unwrapped, so the modal can offer the switch that fixes it.
+    it('should refuse with the wrong-network error itself, before quoting', async () => {
+      await expect(run()).rejects.toBeInstanceOf(WrongNetworkError)
+
+      expect(squid.getRegisterNameRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the fresh route needs more MANA than the buyer was shown', () => {
+    it('should refuse without sending anything', async () => {
+      await expect(run({ shownManaWei: MANA(101) })).rejects.toBeInstanceOf(NameQuoteMovedError)
+
+      expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the fresh route charges well past the fee the buyer was shown', () => {
+    it('should refuse without sending anything', async () => {
+      await expect(run({ shownFeeWei: 300000000000000000n })).rejects.toBeInstanceOf(NameQuoteMovedError)
+
+      expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  // A register that reverts on Ethereum leaves the bridged MANA wherever the router's fallback sends it.
+  describe('and somebody registered the NAME since it was searched', () => {
+    beforeEach(() => {
+      availableMock.mockResolvedValue(false)
+    })
+
+    it('should refuse before sending anything', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameTakenError)
+
+      expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  // The NAME reads as free until the first bridge lands, so only this browser can tell it is already paid for.
+  describe('and a bridge for the same NAME is still on its way', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'ongoing' })
+    })
+
+    it('should refuse to pay for it a second time', async () => {
+      await run()
+
+      await expect(run()).rejects.toBeInstanceOf(NameInFlightError)
+    })
+  })
+
+  describe('and the previous bridge for the NAME settled', () => {
+    it('should let it be bought again', async () => {
+      await run()
+
+      await expect(run()).resolves.toMatchObject({ status: 'registered' })
+    })
+  })
+
+  describe('and the bridge gives the payment back', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'refund' })
+    })
+
+    it('should say the payment was refunded', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameRefundedError)
+    })
+  })
+
+  describe('and the bridge delivered but the registration failed', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'partial_success' })
+    })
+
+    it('should say the NAME was not registered', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameNotRegisteredError)
+    })
+  })
+
+  describe('and the bridge is still on its way when the wait runs out', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'ongoing' })
+    })
+
+    it('should report the purchase pending', async () => {
+      await expect(run()).resolves.toMatchObject({ status: 'pending', originTxHash: '0xbridge' })
+    })
+  })
+
+  // Nobody may add the gas it is waiting on, so "it will finish" is not something the screen can say.
+  describe('and the bridge is still waiting on gas when the wait runs out', () => {
+    beforeEach(() => {
+      squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'needs_gas' })
+    })
+
+    it('should report the outcome as unknown', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameSettlementUnknownError)
+    })
+  })
+
+  describe('and the status API fails before it answers', () => {
+    beforeEach(() => {
+      squid.squid.getStatus
+        .mockRejectedValueOnce(new Error('502'))
+        .mockResolvedValue({ squidTransactionStatus: 'success' })
+    })
+
+    it('should keep asking, and report the failure once', async () => {
+      await expect(run()).resolves.toMatchObject({ status: 'registered' })
+
+      expect(captureError).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('and the buyer sped the bridge up and the replacement mined', () => {
+    beforeEach(() => {
+      wait.mockRejectedValue(
+        Object.assign(new Error('transaction was replaced (cancelled=false)'), {
+          code: 'TRANSACTION_REPLACED',
+          cancelled: false,
+          receipt: { status: 1, transactionHash: '0xspedup' }
+        })
+      )
+    })
+
+    it('should carry on with the replacement as the purchase', async () => {
+      await expect(run()).resolves.toMatchObject({ status: 'registered', originTxHash: '0xspedup' })
+    })
+  })
+
+  describe("and the wallet's own cancel replaced the bridge", () => {
+    beforeEach(() => {
+      wait.mockRejectedValueOnce(
+        Object.assign(new Error('transaction was replaced (cancelled=true)'), {
+          code: 'TRANSACTION_REPLACED',
+          cancelled: true,
+          receipt: { status: 1, transactionHash: '0xcancel' }
+        })
+      )
+    })
+
+    it('should fail as one a retry may follow, and not hold the NAME as in flight', async () => {
+      const thrown = await run().catch((e: unknown) => e)
+
+      expect({ unknown: thrown instanceof NameSettlementUnknownError, again: await run().then(r => r.status) }).toEqual(
+        {
+          unknown: false,
+          again: 'registered'
+        }
+      )
+    })
+  })
+
+  // Sent, and then lost sight of — but the hash is known, so the bridge itself can still be asked.
+  describe('and the wait fails for a reason that says nothing about the bridge', () => {
+    beforeEach(() => {
+      wait.mockRejectedValue(new Error('network timeout'))
+    })
+
+    it('should still report the NAME registered when the bridge says it landed', async () => {
+      await expect(run()).resolves.toMatchObject({ status: 'registered', originTxHash: '0xbridge' })
+    })
+
+    describe('and the bridge cannot say yet', () => {
+      beforeEach(() => {
+        squid.squid.getStatus.mockResolvedValue({ squidTransactionStatus: 'not_found' })
+      })
+
+      it('should report the outcome as unknown rather than offer a retry', async () => {
+        await expect(run()).rejects.toBeInstanceOf(NameSettlementUnknownError)
+      })
+    })
+  })
+
+  // Thrown before the router returned the bridge, so nothing was bridged.
+  describe('and the router refuses for want of MANA', () => {
+    beforeEach(() => {
+      squid.squid.executeRoute.mockRejectedValue(new Error('Insufficient funds for account: 0x on chain 137'))
+    })
+
+    it('should say the balance does not cover the NAME', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameManaShortError)
+    })
+  })
+
+  describe('and the wallet refuses for want of the fee', () => {
+    beforeEach(() => {
+      squid.squid.executeRoute.mockRejectedValue(
+        Object.assign(new Error('insufficient funds for intrinsic transaction cost'), { code: 'INSUFFICIENT_FUNDS' })
+      )
+    })
+
+    it('should say the balance does not cover the fee', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameFeeShortError)
+    })
+  })
+
+  describe('and the buyer sped the approval up, so the bridge was never sent', () => {
+    beforeEach(() => {
+      squid.squid.executeRoute.mockRejectedValue(
+        Object.assign(new Error('transaction was replaced (cancelled=false)'), {
+          code: 'TRANSACTION_REPLACED',
+          cancelled: false,
+          receipt: { status: 1, transactionHash: '0xapproval' }
+        })
+      )
+    })
+
+    it('should fail with a retryable message rather than claim the buyer cancelled', async () => {
+      const thrown = (await run().catch((e: unknown) => e)) as Error
+
+      expect({
+        unknown: thrown instanceof NameSettlementUnknownError,
+        cancelled: /cancel/i.test(thrown.message)
+      }).toEqual({ unknown: false, cancelled: false })
+    })
+  })
+
+  describe('and the buyer rejects the request', () => {
+    beforeEach(() => {
+      squid.squid.executeRoute.mockRejectedValue(
+        Object.assign(new Error('user rejected transaction'), { code: 'ACTION_REJECTED' })
+      )
+    })
+
+    it('should fail as a rejection a retry may follow', async () => {
+      const thrown = await run().catch((e: unknown) => e)
+
+      expect(thrown instanceof NameSettlementUnknownError).toBe(false)
+    })
   })
 })

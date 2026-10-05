@@ -1,24 +1,38 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import {
+  type NameRegistrationResult,
   type NameRegistrationStage,
+  NameFeeShortError,
+  NameInFlightError,
+  NameManaShortError,
   NameNotRegisteredError,
+  NameQuoteMovedError,
+  NameRefundedError,
   NameRouteCostTooHighError,
+  NameRouteUnavailableError,
   NameSettlementUnknownError,
+  NameTakenError,
+  quoteNameWithPolygonMana,
+  registerNameWithPolygonMana,
   registerNameWithUsdCredits,
   NAME_PRICE_IN_WEI
 } from '~/lib/names'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import { formatCredits } from '~/lib/currency'
+import { formatMana } from '~/lib/mana-format'
 import { isIapMode } from '~/lib/iap'
 import { hrefFor } from '~/lib/routes'
 import { captureError } from '~/lib/monitoring'
+import { friendlyError } from '~/lib/errors'
+import { chainLabel, isWrongNetworkError, switchChain } from '~/lib/network'
+import { formatUsd } from '~/lib/manaUsd'
 import { createPackCheckout, MAX_OFFER_PACKS, offerablePacks } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { useManaBalances } from '~/hooks/useManaBalance'
@@ -31,8 +45,9 @@ import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import { track, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { config } from '~/config'
-import { t } from '~/intl/i18n'
+import { activeLocale, t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
+import manaCoin from '~/assets/mana-matic.svg'
 import nameGlyph from '~/assets/names/name-glyph.svg'
 import nameVerified from '~/assets/names/name-verified.svg'
 import * as M from '~/components/BuyModal/modal.styles'
@@ -83,7 +98,7 @@ export function NameBuyModal({
    * see the question — there is nothing to choose.
    */
   const [chosen, setChosen] = useState<{
-    rail: 'credits' | 'combined'
+    rail: 'credits' | 'combined' | 'mana'
     creditsCents?: number
     manaWei?: bigint
   } | null>(null)
@@ -129,30 +144,112 @@ export function NameBuyModal({
   const spendable = balance?.credits
   const shortBy = priceCredits != null && spendable != null ? priceCredits - spendable : 0
   const insufficient = shortBy > 0
-  const blockedReason = priceUnavailable ? t('names.priceUnavailable') : null
 
   /**
    * The rails the buyer's own balances support, beyond credits.
    *
    * A NAME costs a FIXED 100 MANA — it is priced on-chain, and the credits figure is that price converted —
-   * so the MANA leg needs no oracle read here. `manaOnlyRail: false` because the registration runs through a
-   * server-signed external call only `useCredits` can make, and that reverts on an empty credits array: MANA
-   * can cover the remainder, never the whole thing.
+   * so the MANA leg needs no oracle read here.
+   *
+   * MANA alone is the marketplace's cross-chain route, which the buyer's wallet sends and pays the fees of, so
+   * it is offered only to a wallet that can (see `registerNameWithPolygonMana`). The mixed rail is gasless and
+   * stays open to everyone.
    */
   const { data: manaBalances } = useManaBalances(session)
   const polygonManaWei = manaBalances?.matic ?? 0n
+
+  /**
+   * MANA alone, priced by its route as soon as the buyer could take it — so the method step shows what it
+   * really costs, and the rail goes away when it cannot work instead of leading somewhere it dead-ends.
+   *
+   * The NAME is 100 MANA on Ethereum, but the route pulls a little more on Polygon so the bridge delivers all
+   * of it, and charges a fee in Polygon's native token on top. Those are what the buyer agrees to, so they are
+   * what the screen shows, and the purchase is held to them.
+   */
+  const [manaAloneDismissed, setManaAloneDismissed] = useState(false)
+  const manaAloneEligible =
+    session != null &&
+    canPayGasItself(session.providerType) &&
+    polygonManaWei >= BigInt(NAME_PRICE_IN_WEI) &&
+    !manaAloneDismissed
+  const manaQuote = useQuery({
+    queryKey: ['name-polygon-mana-quote', name, session?.address],
+    queryFn: () => quoteNameWithPolygonMana({ name, buyer: session!.address }),
+    enabled: manaAloneEligible && (phase === 'confirm' || phase === 'error'),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0
+  })
+  // A failed refetch keeps the last data around; a quote that can no longer be had is not one to buy on.
+  const quote = manaQuote.isError ? undefined : manaQuote.data
+  const manaShort = quote != null && polygonManaWei < quote.manaWei
+  const feeShort = quote != null && quote.nativeBalanceWei < quote.requiredNativeWei
+  const manaReady = quote != null && !manaShort && !feeShort
+  // Offered while it is still being priced; dropped once the price says it cannot work.
+  const manaAloneUsable = manaAloneEligible && !manaQuote.isError && (quote == null || manaReady)
+
   const paymentOptions = computePaymentOptions({
     priceCents: priceCredits != null ? priceCredits * USD_CENTS_PER_CREDIT : 0,
     priceManaWei: BigInt(NAME_PRICE_IN_WEI),
     balanceCents: balance?.balanceCents ?? 0,
     manaBalanceWei: polygonManaWei,
-    manaOnlyRail: false
+    manaOnlyRail: manaAloneUsable
   })
+  // The method step's MANA-alone row shows what the route takes, not the NAME's 100 — the router's own first
+  // estimate (the price plus its 1.5% margin) until the route itself is priced.
+  const methodOptions = paymentOptions.options.map(option =>
+    option.method === 'mana'
+      ? { ...option, manaWei: quote?.manaWei ?? (BigInt(NAME_PRICE_IN_WEI) * 1015n) / 1000n }
+      : option
+  )
   // A buyer with a rail of their own is not stuck, so the pack picker is not what they need to see.
   const hasOwnRail = paymentOptions.options.some(o => o.method !== 'credits')
   const combinedOption = paymentOptions.options.find(o => o.method === 'combined')
-  // Nothing to ask when credits are the only way to pay.
-  const askForMethod = chosen == null && hasOwnRail && !priceUnavailable
+  /**
+   * Nothing to ask when credits are the only way to pay — nor before the credit balance is known.
+   *
+   * Until it loads the balance reads as zero, so MANA would be the only rail on offer and come preselected,
+   * and the step keeps a selection once one is made: a buyer with plenty of credits could pay in MANA without
+   * meaning to. A balance that failed to load skips the question entirely and leaves it to the server, as the
+   * credits rail always has.
+   */
+  const askForMethod = chosen == null && hasOwnRail && !priceUnavailable && balance != null
+
+  // What left the wallet, once something has: the route's own figure, which can come in under the quote.
+  const [paidManaWei, setPaidManaWei] = useState<bigint | null>(null)
+  // The chain the buyer's wallet has to be on for the MANA-alone route, once it was found elsewhere.
+  const [switchTo, setSwitchTo] = useState<number | null>(null)
+
+  const blockedReason = priceUnavailable
+    ? t('names.priceUnavailable')
+    : rail !== 'mana'
+      ? null
+      : manaQuote.isError
+        ? t('names.manaRouteUnavailable')
+        : quote == null
+          ? t('names.manaQuoteLoading')
+          : manaShort
+            ? t('names.manaNotEnough')
+            : feeShort
+              ? t('names.manaNotEnoughFee')
+              : null
+  // Blocked on something the buyer cannot fix here, as opposed to still loading.
+  const manaBlocked = rail === 'mana' && (manaQuote.isError || manaShort || feeShort)
+
+  // What the NAME costs on the rail paying for it, in what that rail is paid in.
+  const shownManaWei = paidManaWei ?? quote?.manaWei ?? null
+  const chargedPrice =
+    rail === 'mana' ? (
+      <>
+        <S.ManaIco src={manaCoin} alt="" aria-hidden />
+        {shownManaWei != null ? formatMana(shownManaWei) : '—'}
+      </>
+    ) : (
+      <>
+        <CurrencyIcon />
+        {priceLabel}
+      </>
+    )
 
   /**
    * Which packs are offered, which one is recommended, and whether the recommendation can deliver.
@@ -193,24 +290,45 @@ export function NameBuyModal({
     // cannot.
     if (!session || !matches || priceUnavailable || startedRef.current) return
     if (rail === 'credits' && insufficient) return
+    if (rail === 'mana' && (quote == null || !manaReady)) return
     startedRef.current = true
-    // Whole credits, so it matches what the reservation actually charges.
+    // Whole credits, so it matches what the reservation actually charges. Null on the MANA rail, which spends
+    // none: there is no credits leg to report.
     const creditsSpent =
-      rail === 'combined' ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT) : (priceCredits ?? null)
+      rail === 'mana'
+        ? null
+        : rail === 'combined'
+          ? Math.floor((chosen?.creditsCents ?? 0) / USD_CENTS_PER_CREDIT)
+          : (priceCredits ?? null)
     setPhase('completing')
     setError(null)
     setStage('preparing')
     try {
-      const result = await registerNameWithUsdCredits({
-        name,
-        identity: session.identity,
-        signer: session.signer,
-        // The mixed rail reserves only the credits leg; the rest is pulled from the buyer's MANA.
-        // Both figures are the ones the buyer agreed to, not today's re-derivation.
-        creditsCents: chosen?.creditsCents,
-        maxManaWei: chosen?.manaWei,
-        onProgress: setStage
-      })
+      let result: NameRegistrationResult
+      if (rail === 'mana' && quote != null) {
+        const paid = await registerNameWithPolygonMana({
+          name,
+          signer: session.signer,
+          web3Provider: session.web3Provider,
+          providerType: session.providerType,
+          shownManaWei: quote.manaWei,
+          shownFeeWei: quote.feeWei,
+          onProgress: setStage
+        })
+        setPaidManaWei(paid.manaWei)
+        result = paid
+      } else {
+        result = await registerNameWithUsdCredits({
+          name,
+          identity: session.identity,
+          signer: session.signer,
+          // The mixed rail reserves only the credits leg; the rest is pulled from the buyer's MANA.
+          // Both figures are the ones the buyer agreed to, not today's re-derivation.
+          creditsCents: chosen?.creditsCents,
+          maxManaWei: chosen?.manaWei,
+          onProgress: setStage
+        })
+      }
       // The money left the balance in both outcomes, so both refresh it and both count as a completed
       // purchase for analytics — what differs is only whether the NAME exists yet.
       track('Shop Completed Purchase', {
@@ -235,13 +353,16 @@ export function NameBuyModal({
          * `value_credits` is the credits LEG, not the price: on the mixed rail the rest came out of the
          * buyer's own MANA and was never credit spend.
          */
-        payment_type: rail === 'combined' ? 'credits_and_mana' : 'credits',
+        payment_type: rail === 'mana' ? 'mana' : rail === 'combined' ? 'credits_and_mana' : 'credits',
         value_credits: creditsSpent,
-        value_usd: creditsToUsd(creditsSpent ?? 0),
+        // Null rather than zero on the MANA rail: nothing was spent in credits, and a zero reads as a free NAME.
+        value_usd: rail === 'mana' ? null : creditsToUsd(creditsSpent ?? 0),
         transaction_hash: result.originTxHash ?? null,
         settlement: result.status
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      // The MANA rails spent from it, and a second NAME offered off the old figure would revert.
+      void qc.invalidateQueries({ queryKey: ['mana-balances'] })
       // A freshly registered NAME is a new owned asset — refresh My Assets (the Names section reads the
       // 'my-assets' family) so it shows up without waiting for the 30s staleTime or a manual reload.
       void qc.invalidateQueries({ queryKey: ['my-assets'] })
@@ -260,20 +381,63 @@ export function NameBuyModal({
       // buyer cannot fix. Each gets its own copy, and neither gets a retry button below.
       const notRegistered = e instanceof NameNotRegisteredError
       const unknown = e instanceof NameSettlementUnknownError
+      const wrongNetwork = isWrongNetworkError(e)
+      // Retrying either of these pays for nothing: the NAME is gone, or the first purchase is still landing.
+      const dead = e instanceof NameTakenError || e instanceof NameInFlightError
+      setSwitchTo(wrongNetwork && rail === 'mana' ? config.chainId : null)
+      // Sent before it failed: the quote is the most that left, and the screen should not re-price it.
+      if (rail === 'mana' && quote != null && (notRegistered || unknown || e instanceof NameRefundedError)) {
+        setPaidManaWei(quote.manaWei)
+      }
+      // The route asked for more than was shown: show the new figure rather than the old one under "try again".
+      if (e instanceof NameQuoteMovedError) void qc.invalidateQueries({ queryKey: ['name-polygon-mana-quote'] })
       setError(
         e instanceof NameRouteCostTooHighError
           ? t('names.errorRouteCost')
           : notRegistered
-            ? t('names.errorNotRegistered')
+            ? // "Your Credits were used" is not true of a NAME paid without any.
+              t(rail === 'mana' ? 'names.errorNotRegisteredPayment' : 'names.errorNotRegistered')
             : unknown
               ? t('names.errorSettlementUnknown')
-              : (e as { message?: string })?.message || t('names.errorGeneric')
+              : e instanceof NameRefundedError
+                ? t('names.errorRefunded')
+                : e instanceof NameQuoteMovedError
+                  ? t('names.manaPriceMoved')
+                  : e instanceof NameRouteUnavailableError
+                    ? t('names.manaRouteUnavailable')
+                    : e instanceof NameManaShortError
+                      ? t('names.manaNotEnough')
+                      : e instanceof NameFeeShortError
+                        ? t('names.manaNotEnoughFee')
+                        : e instanceof NameTakenError
+                          ? t('names.taken')
+                          : e instanceof NameInFlightError
+                            ? t('names.errorInFlight')
+                            : wrongNetwork
+                              ? friendlyError(e, t('names.errorGeneric'))
+                              : (e as { message?: string })?.message || t('names.errorGeneric')
       )
-      setRetryUnsafe(notRegistered || unknown)
+      setRetryUnsafe(notRegistered || unknown || dead)
       setPhase('error')
     } finally {
       startedRef.current = false
     }
+  }
+
+  /**
+   * The MANA-alone route is a Polygon transaction the buyer's wallet sends, so a wallet sitting on another
+   * network is the one failure the buyer can fix from here. Declining the switch leaves the offer standing.
+   */
+  async function switchAndRetry(chainId: number) {
+    if (!session) return
+    try {
+      await switchChain(session.web3Provider, chainId)
+    } catch (switchErr) {
+      if (!isUserRejection(switchErr)) captureError(switchErr, { flow: 'name_polygon_mana', step: 'switch_chain' })
+      return
+    }
+    setSwitchTo(null)
+    await buy()
   }
 
   /**
@@ -420,7 +584,9 @@ export function NameBuyModal({
    * strand someone on a top-up screen they no longer need. `insufficient` is false while the balance is
    * unknown, so a failed read still shows the confirm step and lets the server be the authority.
    */
-  const shortOnCredits = phase === 'confirm' && insufficient && !hasOwnRail
+  // Not while the buyer is on the MANA-alone rail they chose: if it stops working there, they are told why
+  // and handed the way out, rather than dropped onto the pack picker with no word about what happened.
+  const shortOnCredits = phase === 'confirm' && insufficient && !hasOwnRail && chosen?.rail !== 'mana'
   const headTitle =
     phase === 'error' ? t('names.errorTitle') : shortOnCredits ? t('names.buyCreditsTitle') : t('names.buyTitle')
 
@@ -526,7 +692,7 @@ export function NameBuyModal({
             }}
             priceCredits={priceCredits ?? 0}
             priceCents={(priceCredits ?? 0) * USD_CENTS_PER_CREDIT}
-            options={paymentOptions.options}
+            options={methodOptions}
             priceManaWei={BigInt(NAME_PRICE_IN_WEI)}
             balanceCredits={balance?.credits ?? 0}
             manaBalanceWei={polygonManaWei}
@@ -536,7 +702,9 @@ export function NameBuyModal({
               setChosen(
                 method === 'combined' && combinedOption
                   ? { rail: 'combined', creditsCents: combinedOption.creditsCents, manaWei: combinedOption.manaWei }
-                  : { rail: 'credits' }
+                  : method === 'mana'
+                    ? { rail: 'mana' }
+                    : { rail: 'credits' }
               )
             }}
             onClose={onClose}
@@ -555,11 +723,17 @@ export function NameBuyModal({
                 </S.NameText>
                 <S.NameSub>{t('names.subtitle')}</S.NameSub>
               </S.NameMeta>
-              <S.RowPrice>
-                <CurrencyIcon />
-                {priceLabel}
+              <S.RowPrice data-testid="name-charged-price" data-currency={chosen?.rail === 'mana' ? 'mana' : 'credits'}>
+                {chargedPrice}
               </S.RowPrice>
             </S.NameRow>
+            {/* The fee is paid on top of the MANA, so it is stated before the buyer agrees, not left to the
+                prompt that asks them to pay it. */}
+            {rail === 'mana' && phase === 'confirm' && quote?.feeUsd != null ? (
+              <S.FeeNote data-testid="name-mana-fee">
+                {t('names.manaFeeNote', { fee: `$${formatUsd(Math.max(quote.feeUsd, 0.01), activeLocale())}` })}
+              </S.FeeNote>
+            ) : null}
 
             {phase === 'error' ? (
               <>
@@ -567,7 +741,11 @@ export function NameBuyModal({
                   <Icon name="info" aria-hidden />
                   <span>{error}</span>
                 </S.ErrorBox>
-                {retryUnsafe ? (
+                {switchTo != null ? (
+                  <S.PrimaryBtn data-testid="name-switch-and-retry" onClick={() => void switchAndRetry(switchTo)}>
+                    {t('buyModal.error.switchAndRetry', { network: chainLabel(switchTo) })}
+                  </S.PrimaryBtn>
+                ) : retryUnsafe ? (
                   <S.PrimaryBtn onClick={onClose}>{t('names.errorSpentDismiss')}</S.PrimaryBtn>
                 ) : (
                   <S.PrimaryBtn onClick={() => setPhase('confirm')}>{t('names.tryAgain')}</S.PrimaryBtn>
@@ -602,11 +780,30 @@ export function NameBuyModal({
                     <span>{blockedReason}</span>
                   </S.ErrorBox>
                 ) : null}
+                {/* A way out of a rail that cannot work, so the buyer is not left on a screen with a dead button:
+                    back to the rails they can use, or to the pack picker when that is none. */}
+                {manaBlocked ? (
+                  <S.SecondaryBtn
+                    data-testid="name-choose-another-way"
+                    onClick={() => {
+                      setManaAloneDismissed(true)
+                      setChosen(null)
+                    }}
+                  >
+                    {t('names.chooseAnotherWay')}
+                  </S.SecondaryBtn>
+                ) : null}
                 <S.PrimaryBtn
                   onClick={() => void buy()}
                   /* Short on credits only blocks a credits-only purchase: the MANA rails exist precisely
                      to pay when credits alone cannot. */
-                  disabled={!matches || !session || priceUnavailable || (rail === 'credits' && insufficient)}
+                  disabled={
+                    !matches ||
+                    !session ||
+                    priceUnavailable ||
+                    (rail === 'credits' && insufficient) ||
+                    (rail === 'mana' && !manaReady)
+                  }
                 >
                   {t('names.buyCta')}
                 </S.PrimaryBtn>
@@ -664,9 +861,8 @@ export function NameBuyModal({
                 </S.NameText>
                 <S.NameSub>{t('names.subtitle')}</S.NameSub>
               </S.NameMeta>
-              <S.RowPrice>
-                <CurrencyIcon />
-                {priceLabel}
+              <S.RowPrice data-testid="name-charged-price" data-currency={chosen?.rail === 'mana' ? 'mana' : 'credits'}>
+                {chargedPrice}
               </S.RowPrice>
             </S.NameRow>
 
@@ -723,11 +919,10 @@ export function NameBuyModal({
                 </S.NameText>
                 <S.NameSub>{t('names.subtitle')}</S.NameSub>
               </S.NameMeta>
-              {/* Credits, not MANA: it is what was charged, and the header states the credits balance two
-                  lines above. (The Figma draws a Polygon mark here — confirmed stale.) */}
-              <S.RowPrice>
-                <CurrencyIcon />
-                {priceLabel}
+              {/* What was charged, in what it was charged in: credits on the credits rails, MANA when that is what
+                  left the wallet. (The Figma draws a Polygon mark here for every rail — confirmed stale.) */}
+              <S.RowPrice data-testid="name-charged-price" data-currency={chosen?.rail === 'mana' ? 'mana' : 'credits'}>
+                {chargedPrice}
               </S.RowPrice>
             </S.NameRow>
 

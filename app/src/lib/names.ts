@@ -45,12 +45,16 @@ import { sendUseCredits } from '~/lib/buy'
 import { idToSalt } from '~/lib/trade-encoding'
 import { readManaUsdRate, manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { friendlyError } from '~/lib/errors'
+import { captureError } from '~/lib/monitoring'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { AuthorizationKind, ensureAuthorization } from '~/lib/authorizations'
-import { requireChain } from '~/lib/network'
+import { isWrongNetworkError, requireChain } from '~/lib/network'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import type { ProviderType } from '@dcl/schemas'
 import { ContractName, getContract } from 'decentraland-transactions'
+// Types only: the module itself is loaded on demand (see loadCrossChain), because the SDK under it is large and
+// only the Polygon MANA rail needs it.
+import type { AxelarProvider, FromAmountParams, RouteResponse } from 'decentraland-transactions/crossChain'
 
 // 100 MANA — the fixed DCLControllerV2.register cost and the useCredits maxCreditedValue. Matches the
 // credits-server's NAME_PRICE_IN_WEI and the marketplace webapp's PRICE_IN_WEI.
@@ -673,6 +677,448 @@ export async function registerNameWithEthereumMana(opts: {
     const failure: Error & { cause?: unknown } = new Error(
       friendlyError(e, "Couldn't register the name. Please try again.", { sale: true })
     )
+    failure.cause = e
+    throw failure
+  }
+}
+
+/**
+ * The cross-chain router, loaded the first time a NAME is priced in Polygon MANA alone and kept after that.
+ * A failed load is forgotten, so the next attempt retries it instead of inheriting the rejection.
+ */
+let crossChain: Promise<AxelarProvider> | null = null
+function loadCrossChain(): Promise<AxelarProvider> {
+  crossChain ??= import('decentraland-transactions/crossChain')
+    .then(m => new m.AxelarProvider(config.squidApiUrl))
+    .catch((e: unknown) => {
+      crossChain = null
+      throw e
+    })
+  return crossChain
+}
+
+// The id `AxelarProvider` registers with the router, sent again with every status read.
+const SQUID_INTEGRATOR_ID = 'decentraland-sdk'
+
+/** No route could be built right now: the router is down, or it cannot deliver the price within its slippage cap. */
+export class NameRouteUnavailableError extends Error {
+  constructor() {
+    super('Paying this NAME in MANA is not available right now.')
+    this.name = 'NameRouteUnavailableError'
+  }
+}
+
+/** The route needs more than the buyer was shown, in MANA or in fee. Nothing was sent. */
+export class NameQuoteMovedError extends Error {
+  constructor() {
+    super('The amount needed moved past what was shown.')
+    this.name = 'NameQuoteMovedError'
+  }
+}
+
+/** The bridge could not register the NAME and gave the buyer's payment back. A retry is safe. */
+export class NameRefundedError extends Error {
+  constructor() {
+    super('The NAME could not be registered and the payment was refunded.')
+    this.name = 'NameRefundedError'
+  }
+}
+
+/** The wallet holds less MANA than the route pulls. Nothing was sent. */
+export class NameManaShortError extends Error {
+  constructor() {
+    super('Not enough MANA for the NAME.')
+    this.name = 'NameManaShortError'
+  }
+}
+
+/** The wallet cannot pay the route's fee in Polygon's native token. Nothing was sent. */
+export class NameFeeShortError extends Error {
+  constructor() {
+    super('Not enough balance for the fee.')
+    this.name = 'NameFeeShortError'
+  }
+}
+
+/** Somebody registered the NAME after it was searched. Nothing was sent. */
+export class NameTakenError extends Error {
+  constructor() {
+    super('The NAME is no longer available.')
+    this.name = 'NameTakenError'
+  }
+}
+
+/** A bridge for this NAME left this browser and has not resolved yet. Paying again would pay twice. */
+export class NameInFlightError extends Error {
+  constructor() {
+    super('A purchase of this NAME is still being completed.')
+    this.name = 'NameInFlightError'
+  }
+}
+
+/**
+ * NAMEs whose bridge has left this browser and not yet resolved, by when it left.
+ *
+ * The NAME reads as free on Ethereum until the bridge lands, minutes later, so neither the availability check
+ * nor the modal can tell that a second tab, or a reopened modal, is about to pay for it again. Local, not
+ * shared: it guards against the buyer's own retries, and it expires so a lost answer cannot lock a NAME away.
+ */
+const IN_FLIGHT_KEY = 'dcl_shop_names_in_flight'
+const IN_FLIGHT_TTL_MS = 2 * 60 * 60 * 1000
+function readInFlight(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(IN_FLIGHT_KEY) ?? '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+function writeInFlight(update: (all: Record<string, number>) => void) {
+  try {
+    const all = readInFlight()
+    update(all)
+    localStorage.setItem(IN_FLIGHT_KEY, JSON.stringify(all))
+  } catch {
+    /* no storage: the availability check is all that is left */
+  }
+}
+function isInFlight(name: string): boolean {
+  const at = readInFlight()[name.toLowerCase()]
+  return at != null && Date.now() - at < IN_FLIGHT_TTL_MS
+}
+const markInFlight = (name: string) => writeInFlight(all => void (all[name.toLowerCase()] = Date.now()))
+const clearInFlight = (name: string) => writeInFlight(all => void delete all[name.toLowerCase()])
+
+/** What paying a NAME in Polygon MANA alone costs this buyer, right now. */
+export type PolygonManaNameQuote = {
+  /** The Polygon MANA the route pulls: the price plus what the bridge needs to deliver it in full. */
+  manaWei: bigint
+  /** The route's own estimate of what it charges on top, in Polygon's native token. */
+  feeWei: bigint
+  /** That fee in dollars, when the router prices the native token; null when it does not. */
+  feeUsd: number | null
+  /**
+   * The native balance the wallet must HOLD to send it: the value the route carries, plus the gas each of its
+   * transactions reserves at the route's own limit and price — twice when the MANA approval is still missing,
+   * since the router sends that one with the same limit. More than `feeWei`, because a wallet refuses on the
+   * reserve, not on what is finally spent.
+   */
+  requiredNativeWei: bigint
+  /** The buyer's balance of that native token. */
+  nativeBalanceWei: bigint
+  route: RouteResponse
+}
+
+/**
+ * A Squid token, as `getFromAmount` takes it. `getSupportedTokens` declares its tokens through a path the
+ * squid-types release pinned beside the SDK (the one the marketplace runs) does not ship, so its own return
+ * type resolves to nothing and is restated here.
+ */
+type SquidToken = FromAmountParams['fromToken'] & { usdPrice?: number }
+
+// The address Squid uses for a chain's native token in its cost estimates.
+const SQUID_NATIVE_TOKEN = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+const ERC20_ALLOWANCE_ABI = ['function allowance(address owner, address spender) view returns (uint256)']
+
+/**
+ * Prices a NAME paid entirely in the buyer's Polygon MANA, the way the marketplace does: a Squid route that
+ * bridges the MANA to Ethereum and registers the NAME there in one post-hook.
+ *
+ * The same two steps as the marketplace's `useCrossChainNameMintingRoute`: how much source MANA delivers the
+ * price, then the route for that amount. `getRegisterNameRoute` may raise the amount so the bridge's minimum
+ * delivery still covers the price, so `manaWei` is read off the route rather than taken from the first step.
+ *
+ * @throws NameRouteUnavailableError when no route can be built.
+ */
+export async function quoteNameWithPolygonMana(opts: { name: string; buyer: string }): Promise<PolygonManaNameQuote> {
+  try {
+    const provider = await loadCrossChain()
+    await provider.init()
+    const tokens = provider.getSupportedTokens() as unknown as SquidToken[]
+    const onChain = (chainId: number, address: string) =>
+      tokens.find(token => String(token.chainId) === String(chainId) && token.address.toLowerCase() === address)
+    const manaOn = (chainId: number) =>
+      onChain(chainId, getContract(ContractName.MANAToken, chainId).address.toLowerCase())
+    const fromToken = manaOn(config.chainId)
+    const toToken = manaOn(config.ethereumChainId)
+    if (!fromToken || !toToken) throw new Error('MANA is not routable between these chains')
+
+    const fromAmount = Number(
+      await provider.getFromAmount({ fromToken, toAmount: ethers.utils.formatEther(NAME_PRICE_IN_WEI), toToken })
+    ).toFixed(6)
+    const route = await provider.getRegisterNameRoute({
+      name: opts.name,
+      fromAddress: opts.buyer,
+      fromAmount: ethers.utils.parseUnits(fromAmount, fromToken.decimals).toString(),
+      fromChain: config.chainId,
+      fromToken: fromToken.address,
+      toAmount: NAME_PRICE_IN_WEI,
+      toChain: config.ethereumChainId
+    })
+
+    const { estimate, params, transactionRequest } = route.route
+    const manaWei = BigInt(params.fromAmount)
+    const router = transactionRequest?.target ?? ''
+    const read = new ethers.providers.JsonRpcProvider(config.rpcUrl)
+    const mana = new ethers.Contract(fromToken.address, ERC20_ALLOWANCE_ABI, read) as ethers.Contract & {
+      allowance(owner: string, spender: string): Promise<ethers.BigNumber>
+    }
+    const [nativeBalance, allowance, networkGasPrice] = await Promise.all([
+      read.getBalance(opts.buyer),
+      mana.allowance(opts.buyer, router),
+      read.getGasPrice()
+    ])
+
+    // Only what is charged in the native token. A fee in MANA is taken out of the amount bridged, so it is
+    // already inside `fromAmount`; adding it here would count it twice.
+    const feeWei = [...estimate.gasCosts, ...estimate.feeCosts]
+      .filter(cost => cost.token.address.toLowerCase() === SQUID_NATIVE_TOKEN)
+      .reduce((total, cost) => total + BigInt(cost.amount), 0n)
+    const nativeUsd = onChain(config.chainId, SQUID_NATIVE_TOKEN)?.usdPrice
+    const feeUsd = typeof nativeUsd === 'number' ? (Number(feeWei) / 1e18) * nativeUsd : null
+
+    const gas = transactionRequest as { value?: string; gasLimit?: string; maxFeePerGas?: string; gasPrice?: string }
+    const gasPrice = BigInt(gas.maxFeePerGas ?? gas.gasPrice ?? networkGasPrice.toString())
+    const reservePerTx = BigInt(gas.gasLimit ?? '0') * gasPrice
+    const approvals = BigInt(allowance.toString()) >= manaWei ? 1n : 2n
+
+    return {
+      manaWei,
+      feeWei,
+      feeUsd,
+      requiredNativeWei: BigInt(gas.value ?? '0') + reservePerTx * approvals,
+      nativeBalanceWei: BigInt(nativeBalance.toString()),
+      route
+    }
+  } catch (e) {
+    console.error('[names] polygon mana quote failed — raw error:', e, { name: opts.name })
+    const unavailable: Error & { cause?: unknown } = new NameRouteUnavailableError()
+    unavailable.cause = e
+    throw unavailable
+  }
+}
+
+/**
+ * What a failed wait proves about a bridge transaction that DID leave the wallet.
+ *
+ * ethers rejects the wait when the wallet replaces the transaction, even when the replacement is the same
+ * call at a higher fee ("Speed up") and it mined; that one IS the purchase. A revert, or a replacement by
+ * something else (the wallet's own "Cancel"), proves the bridge never ran. Anything else says nothing about
+ * it — but the hash is known, so the bridge can still be asked.
+ */
+function waitOutcome(e: unknown): { landed: string } | 'not-run' | 'unknown' {
+  const err = e as {
+    code?: unknown
+    cancelled?: boolean
+    receipt?: { status?: number; transactionHash?: string } | null
+  }
+  if (err.code === 'TRANSACTION_REPLACED') {
+    if (err.cancelled === false && err.receipt?.status === 1 && err.receipt.transactionHash) {
+      return { landed: err.receipt.transactionHash }
+    }
+    return 'not-run'
+  }
+  if (err.receipt?.status === 0) return 'not-run'
+  return 'unknown'
+}
+
+// The bridge's outcomes that end the wait. `needs_gas` does not: express delivery usually covers it.
+const SQUID_TERMINAL = new Set(['success', 'partial_success', 'failed_on_destination', 'refunded'])
+
+/**
+ * Asks the router how the bridge is doing until it settles or the window closes.
+ *
+ * Sends what the marketplace's own status poller sends — the chains and the quote, beside the transaction —
+ * and reports the first failure to read it, since a status that can never be read turns every outcome,
+ * refunds included, into "still on its way".
+ */
+async function pollSquidNameStatus(
+  provider: AxelarProvider,
+  route: RouteResponse,
+  originTxHash: string,
+  opts: { intervalMs?: number; maxAttempts?: number } = {}
+): Promise<string> {
+  const intervalMs = opts.intervalMs ?? 10_000
+  const maxAttempts = opts.maxAttempts ?? 60 // ~10 min at the default interval
+  const query: Parameters<AxelarProvider['squid']['getStatus']>[0] & Record<string, string | undefined> = {
+    transactionId: originTxHash,
+    requestId: route.requestId,
+    integratorId: SQUID_INTEGRATOR_ID,
+    fromChainId: String(config.chainId),
+    toChainId: String(config.ethereumChainId),
+    quoteId: (route.route as { quoteId?: string }).quoteId
+  }
+  let last = 'ongoing'
+  let reported = false
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const status = await provider.squid.getStatus(query)
+      const reading = String(status.squidTransactionStatus ?? 'ongoing')
+      // The marketplace's poller knows the refund as `refund`; the SDK's enum as `refunded`.
+      last = reading === 'refund' ? 'refunded' : reading
+      if (SQUID_TERMINAL.has(last)) return last
+    } catch (e) {
+      if (!reported) captureError(e, { flow: 'name_polygon_mana', step: 'bridge_status' })
+      reported = true
+    }
+    if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, intervalMs))
+  }
+  return last
+}
+
+/**
+ * Registers a NAME paid entirely in the buyer's own Polygon MANA, through the route the marketplace uses.
+ *
+ * SELF-CUSTODY ONLY, for the reason the Ethereum rail is: there is no credit, so there is no relayer, and the
+ * buyer's wallet sends the approval and the bridge and pays their fees in Polygon's native token. Callers
+ * gate on `canPayGasItself`; this throws if that gate was missed.
+ *
+ * The route is quoted again here, because quotes are short-lived, and held to what the buyer was shown: more
+ * MANA, or a fee well past the shown one, is refused before anything is sent.
+ *
+ * @throws NameQuoteMovedError, NameRouteUnavailableError, NameManaShortError, NameFeeShortError, NameTakenError,
+ * NameInFlightError, NameRefundedError, NameNotRegisteredError, NameSettlementUnknownError, a WrongNetworkError,
+ * or an Error with a user-safe message.
+ */
+export async function registerNameWithPolygonMana(opts: {
+  name: string
+  signer: ethers.providers.JsonRpcSigner
+  web3Provider: ethers.providers.Web3Provider
+  providerType?: string | null
+  /** The MANA the buyer agreed to, as it was shown. */
+  shownManaWei: bigint
+  /** The fee the buyer was shown, in Polygon's native token. */
+  shownFeeWei: bigint
+  onProgress?: (stage: NameRegistrationStage) => void
+  // Test seam: shrink the status poll so specs don't wait on real timers.
+  statusPoll?: { intervalMs?: number; maxAttempts?: number }
+}): Promise<NameRegistrationResult & { manaWei: bigint }> {
+  const { name, signer, web3Provider } = opts
+  const progress = (stage: NameRegistrationStage) => {
+    try {
+      opts.onProgress?.(stage)
+    } catch {
+      /* reporting progress must not abort a purchase */
+    }
+  }
+  let buyer = ''
+
+  progress('preparing')
+  try {
+    buyer = (await signer.getAddress()).toLowerCase()
+    if (!canPayGasItself(opts.providerType as ProviderType | null | undefined)) {
+      throw new Error('This wallet cannot pay its own fees on Polygon')
+    }
+    console.info('[names] polygon mana register start', { name, buyer })
+    if (isInFlight(name)) throw new NameInFlightError()
+
+    // A real Polygon transaction from the buyer's wallet, so the wallet has to be there.
+    await requireChain(web3Provider, config.chainId)
+
+    const quote = await quoteNameWithPolygonMana({ name, buyer })
+    if (quote.manaWei > opts.shownManaWei || quote.feeWei > (opts.shownFeeWei * 3n) / 2n) {
+      throw new NameQuoteMovedError()
+    }
+    // The credits rail has the server check this before it signs a route; here nothing would, and a register
+    // that reverts on Ethereum leaves the bridged MANA wherever the router's fallback sends it.
+    if ((await checkNameAvailability(name)) !== 'available') throw new NameTakenError()
+    const provider = await loadCrossChain()
+
+    progress('awaiting-confirmation')
+    /**
+     * The router's own call, as `AxelarProvider.executeRoute` makes it, with two differences.
+     *
+     * The approval is exact rather than infinite: a standing unlimited allowance on a third-party router is the
+     * thing an exploit of that router drains. And the transaction comes back BEFORE its wait, so the bridge's
+     * hash is known the moment it leaves the wallet — a failure from here on is never mistaken for nothing
+     * having been sent, which is what decides whether a retry is safe.
+     *
+     * Anything thrown before it returns left no bridge behind: the router's balance and allowance checks, the
+     * approval, and the wallet's prompts all come first.
+     */
+    const tx = (await provider.squid.executeRoute({
+      route: quote.route.route,
+      signer,
+      executionSettings: { infiniteApproval: false }
+    })) as unknown as ethers.providers.TransactionResponse
+    markInFlight(name)
+    console.info('[names] polygon mana bridge sent', { txHash: tx.hash })
+
+    progress('confirming')
+    let originTxHash = tx.hash
+    let lostSight = false
+    try {
+      const receipt = await tx.wait()
+      originTxHash = receipt.transactionHash
+    } catch (e) {
+      const outcome = waitOutcome(e)
+      if (outcome === 'not-run') {
+        clearInFlight(name)
+        throw e
+      }
+      if (outcome === 'unknown') lostSight = true
+      else originTxHash = outcome.landed
+    }
+
+    // The long one — the bridge and the Ethereum registration, minutes rather than seconds.
+    progress('registering')
+    const status = await pollSquidNameStatus(provider, quote.route, originTxHash, opts.statusPoll)
+    console.info('[names] polygon mana bridge status', { originTxHash, status })
+    if (status === 'success') {
+      clearInFlight(name)
+      return { status: 'registered', originTxHash, destinationTxHash: null, manaWei: quote.manaWei }
+    }
+    if (status === 'refunded') {
+      clearInFlight(name)
+      throw new NameRefundedError()
+    }
+    if (status === 'partial_success' || status === 'failed_on_destination') {
+      clearInFlight(name)
+      throw new NameNotRegisteredError()
+    }
+    // Neither seen to land nor seen on the bridge, or stuck waiting on gas nobody may add: nothing here can
+    // say it will finish, so the buyer is not told it will.
+    if (lostSight || status === 'needs_gas' || status === 'not_found') throw new NameSettlementUnknownError()
+    // Still on its way past the window: the payment left, the NAME will follow.
+    return { status: 'pending', originTxHash, manaWei: quote.manaWei }
+  } catch (e) {
+    console.error('[names] polygon mana register failed — raw error:', e, { name, buyer })
+    if (
+      e instanceof NameQuoteMovedError ||
+      e instanceof NameRouteUnavailableError ||
+      e instanceof NameManaShortError ||
+      e instanceof NameFeeShortError ||
+      e instanceof NameTakenError ||
+      e instanceof NameInFlightError ||
+      e instanceof NameRefundedError ||
+      e instanceof NameNotRegisteredError ||
+      e instanceof NameSettlementUnknownError ||
+      // Unwrapped, so the caller can offer the switch that fixes it.
+      isWrongNetworkError(e)
+    ) {
+      throw e
+    }
+    const err = e as { code?: unknown; cancelled?: boolean; message?: string }
+    const message = err.message ?? ''
+    const typed: (Error & { cause?: unknown }) | null =
+      // The router's own balance check, before any prompt.
+      /insufficient funds for account/i.test(message)
+        ? new NameManaShortError()
+        : // The wallet refusing to send for want of the fee.
+          err.code === 'INSUFFICIENT_FUNDS' || /insufficient funds/i.test(message)
+          ? new NameFeeShortError()
+          : null
+    if (typed) {
+      typed.cause = e
+      throw typed
+    }
+    // A sped-up approval reads `cancelled=false`, which the "you cancelled" match would claim. The buyer did not
+    // cancel anything, and the bridge was never sent, so the plain retry message is the true one.
+    const replacedNotCancelled = err.code === 'TRANSACTION_REPLACED' && err.cancelled === false
+    // No `sale` mapping: this rail spends no credits and buys nothing that can sell out, so neither of those
+    // messages can be true here.
+    const fallback = "Couldn't register the name. Please try again."
+    const failure: Error & { cause?: unknown } = new Error(replacedNotCancelled ? fallback : friendlyError(e, fallback))
     failure.cause = e
     throw failure
   }

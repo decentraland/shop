@@ -82,16 +82,7 @@ export default defineConfig({
       : [])
   ],
   resolve: {
-    alias: [
-      { find: '~', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
-      // Cross-chain SDK we don't use; stub it so decentraland-transactions bundles without it.
-      // Anchored regexes so the /dist/types subpath doesn't get mangled by prefix matching.
-      {
-        find: /^@0xsquid\/sdk\/dist\/types$/,
-        replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url))
-      },
-      { find: /^@0xsquid\/sdk$/, replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url)) }
-    ]
+    alias: [{ find: '~', replacement: fileURLToPath(new URL('./src', import.meta.url)) }]
   },
   build: {
     // Not the default 'assets': that collides with the app's /assets route, and on hosts that serve
@@ -111,7 +102,11 @@ export default defineConfig({
           if (!id.includes('node_modules')) return undefined
           if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id))
             return 'react'
-          if (/[\\/]node_modules[\\/](ethers|@ethersproject)[\\/]/.test(id)) return 'ethers'
+          // The app's own ethers (v5) only: matched on the package a module belongs to at the TOP of node_modules,
+          // so ethers' own nested copies stay with it. The cross-chain SDK a NAME paid in MANA alone loads on
+          // demand ships two ethers v6 copies nested under other packages, and matching those here pulled ~500KB
+          // of them into this eager chunk for every visitor.
+          if (/^(ethers|@ethersproject)[\\/]/.test(id.split(/[\\/]node_modules[\\/]/)[1] ?? '')) return 'ethers'
           // @dcl/schemas is a CommonJS barrel (no ESM, no exports map) so importing a single enum
           // pulls its whole ajv-based validation stack. The app uses a few enums eagerly, so it can't
           // be lazy-loaded — isolate it + ajv into one long-lived cacheable chunk (shared with the

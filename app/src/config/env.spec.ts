@@ -29,6 +29,12 @@ const POLYGON_MAINNET = '137'
 const AMOY = '80002'
 
 describe('per-env config JSONs', () => {
+  // The NAME MANA rail reads no other host for its route, so an absent key would not fall back — it would
+  // build a route against `undefined` and fail every purchase on it.
+  it.each(ENVS)('$name defines the Squid API URL', ({ json }) => {
+    expect(json.SQUID_API_URL).toMatch(/^https:\/\/\S+squidrouter\.com$/)
+  })
+
   it.each(ENVS)('$name defines a relayer URL', ({ json }) => {
     // Absent is the failure mode that shipped: there is deliberately no fallback in code any more, so an
     // empty value would break gasless outright instead of pointing somewhere wrong.

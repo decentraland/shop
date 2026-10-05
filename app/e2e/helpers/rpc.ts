@@ -20,7 +20,8 @@ const SELECTORS = {
   decimals: sel('decimals()'),
   latestRoundData: sel('latestRoundData()'),
   getNonce: sel('getNonce(address)'), // CreditsManager meta-tx nonce (gasless checkout)
-  available: sel('available(string)') // DCLRegistrar — is this NAME free?
+  available: sel('available(string)'), // DCLRegistrar — is this NAME free?
+  symbol: sel('symbol()') // the cross-chain router names the token it checked the balance of
 }
 
 // The MANA balance the mocked ERC20 reports for balanceOf — set per test via launchApp({ manaBalanceWei }).
@@ -52,6 +53,13 @@ function isEthereumRpc(rpcPath: string): boolean {
 let manaAllowanceWei: string | null = null
 export function setManaAllowanceWei(wei: string | null) {
   manaAllowanceWei = wei
+}
+
+// The buyer's native balance, which pays a cross-chain route's fee. None by default — what every other spec
+// was written against — and set per test via launchApp({ nativeBalanceWei }).
+let nativeBalanceWei = 0n
+export function setNativeBalanceWei(wei: bigint) {
+  nativeBalanceWei = wei
 }
 
 // What the DCLRegistrar reports for `available(name)` — the NAMEs page's availability probe. Always free,
@@ -98,6 +106,8 @@ function ethCall(params: any[], rpcPath = ''): string {
       return abi.encode(['bool'], [true]) // already enabled → no tx needed
     case SELECTORS.available:
       return abi.encode(['bool'], [NAME_AVAILABLE])
+    case SELECTORS.symbol:
+      return abi.encode(['string'], ['MANA'])
     case SELECTORS.manaUsdAggregator:
       return abi.encode(['address'], [MOCK_ORACLE])
     case SELECTORS.decimals:
@@ -123,6 +133,8 @@ function one(req: { id: unknown; method: string; params?: any[] }, rpcPath = '')
         return '0x3b9aca00'
       case 'eth_estimateGas':
         return '0x5208'
+      case 'eth_getBalance':
+        return '0x' + nativeBalanceWei.toString(16)
       case 'eth_getBlockByNumber':
         return {
           number: '0x1',
