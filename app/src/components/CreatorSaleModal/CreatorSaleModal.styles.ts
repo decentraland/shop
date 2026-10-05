@@ -22,15 +22,22 @@ export const Scrim = styled.div`
   background: rgba(22, 21, 24, 0.6);
 `
 
+// The card's own padding, which the pinned actions bleed back out over to reach its edges.
+const CARD_PAD = 20
+const CARD_PAD_MOBILE = 16
+
 export const Card = styled.div`
   width: 560px;
   max-width: 100%;
   max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
+  /* Keeps a focused field clear of the pinned actions when the browser scrolls it into view. */
+  scroll-padding-bottom: 104px;
   background: ${colors.fieldBottomWashed};
   border: 1px solid ${hairline};
   border-radius: ${radius.modal};
-  padding: 16px 20px 20px;
+  padding: 16px ${CARD_PAD}px ${CARD_PAD}px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
@@ -55,7 +62,7 @@ export const Card = styled.div`
   }
 
   ${media.maxWidth('mobile')} {
-    padding: 14px 16px 16px;
+    padding: 14px ${CARD_PAD_MOBILE}px ${CARD_PAD_MOBILE}px;
     gap: 16px;
   }
 `
@@ -645,17 +652,37 @@ export const PrimaryBtn = styled(Button)`
   min-height: 48px;
 `
 
-/** The modal's foot: ruled off from the form, the way out on the left and the way on at the right. */
+/**
+ * The modal's foot: ruled off from the form, the way out on the left and the way on at the right. Pinned to
+ * the bottom of the card, so a form taller than the screen never hides the button that moves it on — nor
+ * the reason that button is disabled, which rides in the foot above it.
+ */
 export const Actions = styled.div`
+  position: sticky;
+  bottom: -${CARD_PAD}px;
+  z-index: 3;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 24px;
+  margin: 0 -${CARD_PAD}px -${CARD_PAD}px;
+  padding: 16px ${CARD_PAD}px ${CARD_PAD}px;
   border-top: 0.5px solid rgba(255, 255, 255, 0.3);
+  background: ${colors.fieldBottomWashed};
+  box-shadow: 0 -12px 24px -12px rgba(0, 0, 0, 0.45);
 
   ${media.maxWidth('mobile')} {
-    flex-direction: column-reverse;
+    bottom: -${CARD_PAD_MOBILE}px;
+    margin: 0 -${CARD_PAD_MOBILE}px -${CARD_PAD_MOBILE}px;
+    padding: 12px ${CARD_PAD_MOBILE}px ${CARD_PAD_MOBILE}px;
   }
+`
+
+export const ActionsNote = styled.div`
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `
 
 export const ActionBtn = styled(Button)`
@@ -682,8 +709,21 @@ export const ActionBtn = styled(Button)`
     background: ${colors.glassFaint};
   }
 
+  /* Side by side on a phone: the way on takes the room the way out leaves, and a label longer than that
+     (the busy status, German) wraps inside a taller button. */
   ${media.maxWidth('mobile')} {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-width: 0;
+    height: auto;
+    min-height: 46px;
+    padding-block: 6px;
+    line-height: 1.3;
+    text-align: center;
+
+    &[data-variant='white'] {
+      flex: 0 0 auto;
+      padding-inline: 20px;
+    }
   }
 `
 
