@@ -5,7 +5,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { Price } from '~/components/Price'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { fetchShopItems, type CatalogItem } from '~/lib/api'
-import { genderIcon } from '~/lib/itemIcons'
+import { singleShapeIcon } from '~/lib/itemIcons'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import * as S from './OutfitItemPicker.styles'
@@ -119,7 +119,7 @@ export function OutfitItemPicker({
           {items.map(item => {
             const key = `${item.contractAddress.toLowerCase()}-${item.itemId}`
             const selected = selectedKeys.has(key)
-            const shapeIcon = item.gender === 'male' || item.gender === 'female' ? genderIcon(item.gender) : null
+            const shapeIcon = singleShapeIcon(item)
             return (
               <S.Item
                 key={key}

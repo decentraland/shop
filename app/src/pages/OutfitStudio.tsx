@@ -42,7 +42,7 @@ import {
   type OutfitBodyShape,
   type OutfitDraft
 } from '~/lib/outfits'
-import { genderIcon } from '~/lib/itemIcons'
+import { singleShapeIcon } from '~/lib/itemIcons'
 import { isWearable, outfitPreviewUrns, playingEmote } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
@@ -57,7 +57,7 @@ import * as S from './OutfitStudio.styles'
 const SALE_BLOCKER_KEYS = { sold_out: 'assetCard.soldOut', not_for_sale: 'assetCard.notForSale' } as const
 
 function SelectedTags({ item, playing }: { item: CatalogItem | undefined; playing: boolean }) {
-  const shapeIcon = item?.gender === 'male' || item?.gender === 'female' ? genderIcon(item.gender) : null
+  const shapeIcon = item ? singleShapeIcon(item) : null
   const blocker = item ? creatorSaleBlocker(item) : null
   if (!playing && !shapeIcon && !blocker) return null
   return (
@@ -348,7 +348,11 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     setDraft(prev => prev ?? toDraft(record))
   }, [record])
 
+  const savingRef = useRef(false)
+
   function update(patch: Partial<OutfitDraft>) {
+    // The save replaces the draft with the stored record, which would silently drop an edit made meanwhile.
+    if (savingRef.current) return
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
     // Set in the same tick as the change, not in an effect: a reload right after a save would otherwise
     // still meet the guard armed and stop on the leave-page prompt.
@@ -408,6 +412,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const [thumbError, setThumbError] = useState<string | null>(null)
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [pendingImport, setPendingImport] = useState<ReturnType<typeof parseOutfitImport>>(null)
   // Session-only presentation extras from an imported preview link; never part of the record.
   const [importColors, setImportColors] = useState<{ skin?: string; hair?: string; eyes?: string }>()
   useEffect(
@@ -423,7 +428,12 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       setImportError(t('outfits.studio.importError'))
       return
     }
-    if (draft?.items.length && !window.confirm(t('outfits.studio.importReplaceConfirm'))) return
+    if (draft?.items.length) setPendingImport(parsed)
+    else commitImport(parsed)
+  }
+
+  function commitImport(parsed: NonNullable<ReturnType<typeof parseOutfitImport>>) {
+    setPendingImport(null)
     setImportError(null)
     setImportText('')
     setImportColors(parsed.colors)
@@ -449,6 +459,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     setThumbBusy(true)
     try {
       const hash = await uploadThumbnail(file, session.identity)
+      if (!mountedRef.current) return
       update({ thumbnailHash: hash })
     } catch (e) {
       if (!(e instanceof OutfitsError)) captureError(e, { flow: 'outfit-thumbnail' })
@@ -499,6 +510,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
 
   async function save(published: boolean) {
     if (!session || !draft || saving) return
+    savingRef.current = true
     setSaving(true)
     setSaveError(null)
     try {
@@ -526,6 +538,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       if (!(e instanceof OutfitsError)) captureError(e, { flow: 'outfit-save' })
       setSaveError(t(e instanceof OutfitsError ? outfitErrorKey(e.code) : 'outfits.errors.generic'))
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -876,6 +889,32 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
           )}
         </S.SaveActions>
       </S.SaveBar>
+      {pendingImport ? (
+        <S.ConfirmModal
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('outfits.studio.importReplaceTitle')}
+          data-testid="outfit-studio-import-confirm"
+        >
+          <S.ConfirmScrim onClick={() => setPendingImport(null)} />
+          <S.ConfirmPanel>
+            <S.ConfirmTitle>{t('outfits.studio.importReplaceTitle')}</S.ConfirmTitle>
+            <p className="muted">{t('outfits.studio.importReplaceBody')}</p>
+            <S.ConfirmActions>
+              <Button
+                variant="purple"
+                data-testid="outfit-studio-import-confirm-apply"
+                onClick={() => commitImport(pendingImport)}
+              >
+                {t('outfits.studio.importApply')}
+              </Button>
+              <Button variant="ghost" onClick={() => setPendingImport(null)}>
+                {t('outfits.studio.cancel')}
+              </Button>
+            </S.ConfirmActions>
+          </S.ConfirmPanel>
+        </S.ConfirmModal>
+      ) : null}
     </S.Root>
   )
 }

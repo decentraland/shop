@@ -520,13 +520,16 @@ describe('outfit studio', () => {
 
     const messages: string[] = []
     let accept = false
+    let dialogShown: () => void = () => {}
     page.on('dialog', dialog => {
       messages.push(dialog.message())
       void (accept ? dialog.accept() : dialog.dismiss())
+      dialogShown()
     })
 
+    const declined = new Promise<void>(resolve => (dialogShown = resolve))
     await page.click('[data-testid="outfit-studio-back"]')
-    await page.waitForFunction(() => document.querySelector('[data-testid="outfit-studio-editor"]'))
+    await declined
     expect(messages).toEqual(['You have unsaved changes that will be lost. Continue?'])
     expect(await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)).toBe(
       'Half Finished'
@@ -547,13 +550,15 @@ describe('outfit studio', () => {
     await page.type('[data-testid="outfit-studio-name"]', 'Half Finished')
 
     let asked = 0
-    page.on('dialog', dialog => {
-      asked++
-      void dialog.dismiss()
-    })
+    const dismissed = new Promise<void>(resolve =>
+      page.on('dialog', dialog => {
+        asked++
+        void dialog.dismiss().then(() => resolve())
+      })
+    )
     await page.evaluate(() => history.back())
+    await dismissed
     await page.waitForFunction(() => location.pathname === '/outfits/new', { timeout: 10000 })
-    await new Promise(r => setTimeout(r, 300))
     expect(asked).toBe(1)
     expect(new URL(page.url()).pathname).toBe('/outfits/new')
     expect(await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)).toBe(
@@ -573,16 +578,15 @@ describe('outfit studio', () => {
     const before = (await page.$$('[data-testid="outfit-studio-selected"]')).length
     expect(before).toBeGreaterThan(1)
 
-    let accept = false
-    page.on('dialog', dialog => void (accept ? dialog.accept() : dialog.dismiss()))
-    const link = `?urn=urn:decentraland:matic:collections-v2:${COLLECTION}:1`
-
-    await page.type('[data-testid="outfit-studio-import"]', link)
+    await page.type(
+      '[data-testid="outfit-studio-import"]',
+      `?urn=urn:decentraland:matic:collections-v2:${COLLECTION}:1`
+    )
     await page.click('[data-testid="outfit-studio-import-apply"]')
+    await page.waitForSelector('[data-testid="outfit-studio-import-confirm"]', { timeout: 10000 })
     expect((await page.$$('[data-testid="outfit-studio-selected"]')).length).toBe(before)
 
-    accept = true
-    await page.click('[data-testid="outfit-studio-import-apply"]')
+    await page.click('[data-testid="outfit-studio-import-confirm-apply"]')
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="outfit-studio-selected"]').length === 1, {
       timeout: 10000
     })

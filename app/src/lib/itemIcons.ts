@@ -45,6 +45,11 @@ export function categoryIcon(item: Pick<CatalogItem, 'category' | 'wearableCateg
   return null
 }
 
+/** Gender icon only for items limited to one body shape; null for unisex or unknown. */
+export function singleShapeIcon(item: Pick<CatalogItem, 'gender'>): IconName | null {
+  return item.gender === 'male' || item.gender === 'female' ? genderIcon(item.gender) : null
+}
+
 /** Icon for the gender chip, or null when gender is unknown. */
 export function genderIcon(gender: CatalogItem['gender']): IconName | null {
   if (gender === 'male') return 'gender-male'
