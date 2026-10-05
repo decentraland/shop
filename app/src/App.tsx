@@ -97,7 +97,7 @@ const ReloadCta = styled(Button)`
 // Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
 // The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary. Reuses the home
 // page's empty-state shell.
-function CrashFallback() {
+export function CrashFallback() {
   return (
     <OV.Empty>
       <OV.EmptyTitle>{t('app.crash.title')}</OV.EmptyTitle>

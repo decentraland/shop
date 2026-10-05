@@ -437,6 +437,13 @@ export const NameInput = styled.input`
   }
 `
 
+export const ResolveError = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+`
+
 export const Selected = styled.ul`
   list-style: none;
   margin: 0;

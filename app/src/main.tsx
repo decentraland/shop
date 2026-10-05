@@ -1,10 +1,10 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
-import { App } from '~/App'
+import { createBrowserRouter, RouterProvider, useRouteError } from 'react-router-dom'
+import { App, CrashFallback } from '~/App'
 import { I18nProvider } from '~/intl/I18nProvider'
-import { initSentry } from '~/lib/monitoring'
+import { captureError, initSentry } from '~/lib/monitoring'
 import './styles/index.css'
 
 // Start error monitoring before the first render (no-op unless VITE_SENTRY_DSN is set).
@@ -21,7 +21,16 @@ const { pathname } = window.location
 const routerBasename = pathname === '/shop' || pathname.startsWith('/shop/') ? '/shop' : undefined
 
 // A data router only so editors can block in-app navigation (useBlocker); App still declares every route.
-const router = createBrowserRouter([{ path: '*', element: <App /> }], { basename: routerBasename })
+// The router's own boundary would swallow a crash outside App's Sentry.ErrorBoundary, so report it here.
+function RootCrash() {
+  const error = useRouteError()
+  useEffect(() => captureError(error, { flow: 'root' }), [error])
+  return <CrashFallback />
+}
+
+const router = createBrowserRouter([{ path: '*', element: <App />, errorElement: <RootCrash /> }], {
+  basename: routerBasename
+})
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

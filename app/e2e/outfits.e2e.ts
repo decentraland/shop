@@ -499,8 +499,6 @@ describe('outfit studio', () => {
     )
   })
 
-  // The autosaved draft is a guard against accidental loss (refresh, account-switch reload),
-  // not a persistent form: deliberately navigating away discards it.
   it('drops unsaved edits on reload', async () => {
     const page = await launch('/outfits/new', { outfitCreator: true })
     await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
@@ -561,6 +559,12 @@ describe('outfit studio', () => {
     expect(await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)).toBe(
       'Half Finished'
     )
+  })
+
+  it('warns that a delisted item hides the look from the home page', async () => {
+    const page = await launch(`/outfits/${PARTIAL_ID}/edit`, { outfitCreator: true })
+    await page.waitForSelector('[data-testid="outfit-studio-selected"][data-missing]', { timeout: 20000 })
+    await page.waitForSelector('[data-testid="outfit-studio-hidden-hint"]', { timeout: 10000 })
   })
 
   it('asks before an import replaces the items already in the outfit', async () => {

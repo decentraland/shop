@@ -1044,7 +1044,7 @@
       "items": "Itens",
       "noItems": "Nenhum item ainda. Escolha alguns no catálogo abaixo.",
       "maxItems": "Um look pode ter até 20 itens.",
-      "hiddenFromHome": "Itens marcados como esgotados ou fora de venda ocultam este look da página inicial. Ele continua visível na própria página.",
+      "hiddenFromHome": "Itens marcados como indisponíveis, esgotados ou fora de venda ocultam este look da página inicial. Ele continua visível na própria página.",
       "unsavedConfirm": "Você tem alterações não salvas que serão perdidas. Continuar?",
       "importReplaceConfirm": "Importar substitui os itens que já estão neste look. Continuar?",
       "remove": "Remover",

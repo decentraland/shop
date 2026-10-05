@@ -479,12 +479,14 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       const item = resolution.byKey.get(outfitItemKey(ref))
       return !item || isWearable(item)
     })
-  // The home page row drops any look with an item that fails isBuyableFromCreator, so warn before publishing.
+  // Same rule as the home page row: a look is hidden when any item is gone from the catalog or fails
+  // isBuyableFromCreator, so warn before publishing.
   const hasSaleBlocker =
     !!draft &&
     draft.items.some(ref => {
-      const item = resolution.byKey.get(outfitItemKey(ref))
-      return !!item && creatorSaleBlocker(item) !== null
+      const key = outfitItemKey(ref)
+      const item = resolution.byKey.get(key)
+      return item ? creatorSaleBlocker(item) !== null : resolution.missing.has(key)
     })
   const canPublish =
     !!draft &&
@@ -758,6 +760,14 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
             <S.Label as="span">
               {t('outfits.studio.items')} ({draft.items.length}/{MAX_OUTFIT_ITEMS})
             </S.Label>
+            {resolution.isError ? (
+              <S.ResolveError>
+                <ErrorNotice message={t('outfits.detail.resolveError')} testId="outfit-studio-resolve-error" />
+                <Button variant="outline" data-testid="outfit-studio-retry" onClick={resolution.retry}>
+                  {t('outfits.detail.retry')}
+                </Button>
+              </S.ResolveError>
+            ) : null}
             {draft.items.length === 0 ? (
               <S.Hint>{t('outfits.studio.noItems')}</S.Hint>
             ) : (
@@ -778,6 +788,9 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                         ) : resolution.isLoading ? (
                           // The thumbnail beside this already shimmers, so the name has to as well.
                           <TextSkeleton className="skeleton" width={96} aria-hidden />
+                        ) : resolution.isError ? (
+                          // Not known to be gone, just not loaded: the raw id, never a false "unavailable".
+                          key
                         ) : (
                           t('outfits.card.unavailable')
                         )}
