@@ -54,9 +54,26 @@ describe('parseCampaignVariant', () => {
       expect(parseCampaignVariant('halloween 0x1111')).toEqual({ theme: null, only: [] })
     })
 
+    it('restricts to nobody for a list of names that are not addresses at all', () => {
+      // Guessing from shape alone misses this one: no `0x`, no separator, nothing that looks like a list.
+      expect(parseCampaignVariant('alice.dcl.eth')).toEqual({ theme: null, only: [] })
+      expect(parseCampaignVariant('halloween alice.dcl.eth')).toEqual({ theme: null, only: [] })
+    })
+
+    it('restricts to nobody for a theme name this build cannot paint', () => {
+      // The flip side of the rule above. A payload we cannot act on was a mistake, and the safe reading of
+      // a mistake on this flag is "do not publish".
+      expect(parseCampaignVariant('halloweeen')).toEqual({ theme: null, only: [] })
+      expect(parseCampaignVariant('halloween2026')).toEqual({ theme: null, only: [] })
+    })
+
+    it('restricts to nobody when entries are separated by a semicolon', () => {
+      // `;` separates ENTRIES in the ?ffv and VITE_ overrides, so it cannot also separate addresses.
+      expect(parseCampaignVariant(`halloween:${ALICE};${BOB}`)).toEqual({ theme: 'halloween', only: [] })
+    })
+
     it('still lets a good address through when it is written without the colon', () => {
       expect(parseCampaignVariant(`halloween ${ALICE}`)).toEqual({ theme: null, only: [ALICE] })
-      expect(parseCampaignVariant(`${ALICE};${BOB}`)).toEqual({ theme: null, only: [ALICE, BOB] })
     })
 
     it('drops one bad entry without losing the rest of the list', () => {
@@ -65,8 +82,20 @@ describe('parseCampaignVariant', () => {
   })
 
   it('keeps the kill switch working', () => {
-    // `none` is how an operator takes the skin off without touching the CMS; it must not read as a list.
+    // `none` is how an operator takes the skin off without touching the CMS. It is not a registered theme,
+    // so it has to be let through by name or the rule above would restrict the event to nobody.
     expect(parseCampaignVariant('none')).toEqual({ theme: 'none', only: null })
+    expect(parseCampaignVariant('None')).toEqual({ theme: 'None', only: null })
+  })
+
+  it('forgives the casing of a theme name typed in a dashboard', () => {
+    expect(parseCampaignVariant('Halloween')).toEqual({ theme: 'Halloween', only: null })
+  })
+
+  it('leaves an unknown theme before the colon as just an unknown theme', () => {
+    // With a colon the operator separated the halves themselves, so there is nothing to disambiguate and
+    // no reason to treat a misspelling as a failed restriction.
+    expect(parseCampaignVariant(`prom:${ALICE}`)).toEqual({ theme: 'prom', only: [ALICE] })
   })
 
   it('names nothing and restricts nobody for an absent payload', () => {

@@ -5,7 +5,6 @@ import {
   FeatureFlag,
   getAddressListVariant,
   getIsFeatureEnabled,
-  getVariantValue,
   getFlagWithVariant,
   getIsProceedsToTreasuryEnabled,
   resetFeatureFlagsCache
@@ -250,49 +249,75 @@ describe('featureFlags', () => {
     })
   })
 
-  describe('getVariantValue', () => {
+  describe('the variant payload', () => {
     function mockVariant(value: string) {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
         json: () =>
           Promise.resolve({
-            flags: {},
+            flags: { 'dapps-shop-campaign': true },
             variants: { 'dapps-shop-campaign': { enabled: true, payload: { value } } }
           })
       })
       vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
     }
 
     it("should serve the payload verbatim, since what it means is the caller's business", async () => {
-      mockVariant('halloween')
+      mockVariant('halloween:0xabc')
 
-      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBe('halloween')
+      await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({
+        enabled: true,
+        variant: 'halloween:0xabc'
+      })
     })
 
     it('should read an absent flag as nothing chosen rather than as an empty choice', async () => {
       mockFlags({})
 
-      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBeNull()
+      await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: false, variant: null })
     })
 
     it('should read an empty payload as nothing chosen', async () => {
       mockVariant('')
 
-      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBeNull()
+      await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: true, variant: null })
+    })
+
+    it('should drop a payload whose variant is disabled', async () => {
+      // Worth pinning because of where it lands: for the campaign flag a dropped payload reads as "nothing
+      // was restricted", so disabling the variant to pause a preview publishes it instead.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              flags: { 'dapps-shop-campaign': true },
+              variants: { 'dapps-shop-campaign': { enabled: false, payload: { value: 'halloween:0xabc' } } }
+            })
+        })
+      )
+
+      await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: true, variant: null })
     })
 
     it('should fail closed when the service cannot be reached', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
 
-      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBeNull()
+      await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: false, variant: null })
     })
 
     it('should serve the dev override without consulting the service', async () => {
       vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'shop-campaign:true')
       vi.stubEnv('VITE_FEATURE_FLAG_VARIANT_OVERRIDES', 'shop-campaign:halloween')
       const fetchMock = mockFlags({})
 
-      await expect(getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).resolves.toBe('halloween')
+      await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({
+        enabled: true,
+        variant: 'halloween'
+      })
       expect(fetchMock).not.toHaveBeenCalled()
       vi.unstubAllEnvs()
     })
@@ -436,19 +461,41 @@ describe('preview query overrides', () => {
     expect(await getAddressListVariant(FeatureFlag.SHOP_MY_STORE)).toEqual([ADDRESS.toLowerCase()])
   })
 
-  it('reads a RAW variant payload the same way, so a preview can be given a campaign theme', async () => {
+  it('hands a campaign its whole payload, so a preview can be given a theme and a guest list', async () => {
     mockFlags({})
-    window.history.replaceState({}, '', `/?ffv=shop-campaign:halloween:${ADDRESS}`)
+    window.history.replaceState({}, '', `/?ff=shop-campaign:true&ffv=shop-campaign:halloween:${ADDRESS}`)
 
-    expect(await getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).toBe(`halloween:${ADDRESS}`)
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({
+      enabled: true,
+      variant: `halloween:${ADDRESS}`
+    })
   })
 
-  it('ignores a raw variant payload from the query string on the live Shop', async () => {
+  it('ignores a payload from the query string on the live Shop', async () => {
     mockFlags({})
     config.previewHost = false
-    window.history.replaceState({}, '', '/?ffv=shop-campaign:halloween')
+    window.history.replaceState({}, '', '/?ff=shop-campaign:true&ffv=shop-campaign:halloween')
 
-    expect(await getVariantValue(FeatureFlag.SHOP_CAMPAIGN)).toBeNull()
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: false, variant: null })
+  })
+
+  it('refuses to turn a flag on from the query string while its payload is unknown', async () => {
+    // The pair's promise. `?ff=…:true` with no `?ffv=` and a service that cannot be reached would otherwise
+    // answer "on, nothing restricted" and publish a campaign whose real payload names a handful of accounts.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    window.history.replaceState({}, '', '/?ff=shop-campaign:true')
+
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({ enabled: false, variant: null })
+  })
+
+  it('still honours a flag override when the payload is overridden too', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    window.history.replaceState({}, '', `/?ff=shop-campaign:true&ffv=shop-campaign:halloween:${ADDRESS}`)
+
+    await expect(getFlagWithVariant(FeatureFlag.SHOP_CAMPAIGN)).resolves.toEqual({
+      enabled: true,
+      variant: `halloween:${ADDRESS}`
+    })
   })
 
   it('falls through to the real flag when the value is neither true nor false', async () => {

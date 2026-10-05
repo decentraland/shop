@@ -236,30 +236,10 @@ export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]
 }
 
 /**
- * A flag's variant payload as a plain string, or `null`.
- *
- * The general form of {@link getAddressListVariant} — same source, same dev override, no parsing. What the
- * payload MEANS is the caller's business: for `shop-campaign` it names the seasonal theme to wear.
- *
- * `null` for an absent flag, a disabled variant, an empty payload or an unreachable service, all of which
- * mean "nothing was chosen". Fails closed like every other accessor here, and a caller must not read that
- * as a deliberate choice of anything.
- */
-export async function getVariantValue(flag: FeatureFlag): Promise<string | null> {
-  const override = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
-  if (override !== undefined) return override || null
-  try {
-    return (await getSnapshot()).variants[flagKey(flag)] || null
-  } catch {
-    return null
-  }
-}
-
-/**
  * A flag and its variant payload, read from ONE snapshot.
  *
- * Calling {@link getIsFeatureEnabled} and {@link getVariantValue} in sequence is not the same thing: they
- * take the snapshot twice, so a cache expiry between them can answer "on" from the fresh copy and `null`
+ * Calling {@link getIsFeatureEnabled} and reading the payload separately is not the same thing: that takes
+ * the snapshot twice, so a cache expiry between the two can answer "on" from the fresh copy and `null`
  * from a failed refetch. A caller whose payload RESTRICTS something then reads that as "nothing was
  * restricted" and opens the feature to everyone — the one failure direction an allowlist must not have.
  *
@@ -280,21 +260,31 @@ export async function getFlagWithVariant(flag: FeatureFlag): Promise<{ enabled: 
       variant: variantOverride !== undefined ? variantOverride || null : snapshot.variants[key] || null
     }
   } catch {
-    return { enabled: flagOverride ?? false, variant: variantOverride ?? null }
+    // An override that names the PAYLOAD is still an answer, so it is honoured. One that names only the flag
+    // is not: reporting "on" with an unknown payload is the single combination that publishes a restricted
+    // campaign, and the promise above is that this pair never produces it.
+    if (variantOverride !== undefined) return { enabled: flagOverride ?? false, variant: variantOverride || null }
+    return { enabled: false, variant: null }
   }
 }
 
 /**
- * The addresses in a comma-separated list, lowercased, trimmed and de-duplicated. Anything that is not an
- * address is dropped rather than rejected, so one stray word cannot cost a list its other entries.
+ * The addresses in a list separated by commas or whitespace, lowercased, trimmed and de-duplicated.
+ *
+ * Anything that is not an address is dropped rather than rejected, so one stray word cannot cost a list its
+ * other entries. A list that yields NOTHING returns `[]`, which every caller here reads as "no list"; a
+ * caller for which an empty list would instead mean "nobody" has to tell the two apart itself.
+ *
+ * Not `;`: the variant overrides separate their own ENTRIES on it, so an address written after one would be
+ * torn off into a malformed override and dropped.
  */
 export function parseAddressList(value: string): string[] {
   return Array.from(
     new Set(
       value
-        // Commas, newlines and semicolons all separate. A dashboard field is pasted into by hand, and a list
-        // split across lines with no commas used to glue into one 84-character token and vanish whole.
-        .split(/[\s,;]+/)
+        // Newlines separate as well as commas: a dashboard field is pasted into by hand, and a list split
+        // across lines with no commas used to glue into one 84-character token and vanish whole.
+        .split(/[\s,]+/)
         .map(address => address.toLowerCase().trim())
         .filter(address => /^0x[0-9a-f]{40}$/.test(address))
     )

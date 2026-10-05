@@ -1,3 +1,4 @@
+import { parseCampaignTheme } from '~/lib/campaignTheme'
 import { parseAddressList } from '~/lib/featureFlags'
 
 export type CampaignVariant = {
@@ -16,11 +17,8 @@ export type CampaignVariant = {
 
 const UNRESTRICTED: CampaignVariant = { theme: null, only: null }
 
-/**
- * Anything that marks a payload as an attempt at an address list rather than a theme name: an address
- * prefix, or a separator between entries. A theme is one word and carries none of them.
- */
-const REACHING_FOR_A_LIST = /0x|[,;|]/i
+/** Takes the skin off without touching the CMS. Not a theme, so the registry cannot answer for it. */
+const NO_SKIN = 'none'
 
 /**
  * What the `shop-campaign` variant payload says: which seasonal theme to wear, and who gets to see the
@@ -29,15 +27,19 @@ const REACHING_FOR_A_LIST = /0x|[,;|]/i
  * - `halloween` — the skin, and the event, for everybody.
  * - `halloween:0xa…,0xb…` — the skin, and the event, for those accounts only.
  * - `0xa…,0xb…` — the event for those accounts, themed from the campaign's own tag.
- * - `none` — the event for everybody with no skin. The kill switch for the theme alone.
+ * - `none` — the event for everybody with no skin.
  *
  * A bare address list is recognised without the colon because every OTHER flag in this app carries exactly
  * that, and a payload typed from the habit would otherwise read as a theme name nobody knows.
  *
- * Everything here fails CLOSED. A truncated address, a `;` where a `,` belongs, an entry that is not an
- * address at all: each leaves a restriction that matches nobody, so the event stays hidden and the mistake
- * is visible within a minute. The alternative — reading an unparseable list as "no list" — ships the event
- * to the whole world and looks exactly like success.
+ * Which is why, with no colon to separate the two halves, only a payload this build can ACT on opens the
+ * event to everybody: a registered theme, or `none`. Anything else was a restriction that went wrong, and
+ * it restricts the event to nobody. Guessing from shape instead (does it start with `0x`, does it hold a
+ * separator) leaves a gap for every list that does not look like one, `alice.dcl.eth` among them, and the
+ * event escapes to the whole world while the payload still reads as deliberate.
+ *
+ * With a colon the operator has separated the halves themselves, so an unknown theme there is just an
+ * unknown theme: no skin, and whatever restriction the second half carries.
  */
 export function parseCampaignVariant(payload: string | null | undefined): CampaignVariant {
   if (!payload || payload.trim().length === 0) return UNRESTRICTED
@@ -54,6 +56,8 @@ export function parseCampaignVariant(payload: string | null | undefined): Campai
 
   const only = parseAddressList(payload)
   if (only.length > 0) return { theme: null, only }
-  if (REACHING_FOR_A_LIST.test(payload)) return { theme: null, only: [] }
-  return { theme: payload.trim(), only: null }
+
+  const token = payload.trim()
+  if (parseCampaignTheme(token) !== null || token.toLowerCase() === NO_SKIN) return { theme: token, only: null }
+  return { theme: null, only: [] }
 }
