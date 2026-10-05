@@ -34,6 +34,7 @@ import type { SuggestionChoice } from '~/components/SearchDropdown/SearchDropdow
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
+import { confirmDiscardUnsaved } from '~/lib/unsavedChanges'
 import { t } from '~/intl/i18n'
 import * as S from './NavBar.styles'
 import { theme } from '~/styles/theme'
@@ -351,7 +352,9 @@ export function NavBar() {
         address={address}
         avatar={avatar}
         onClickSignIn={() => signIn()}
-        onClickSignOut={() => void disconnect()}
+        onClickSignOut={() => {
+          if (confirmDiscardUnsaved()) void disconnect()
+        }}
         shopCreditsBalance={shopCredits}
         // The balance chip in the global row is itself a doorway to the pack picker. Undefined inside the iOS
         // web view, so the number still shows (it is the buyer's own balance) without being a way to buy more.

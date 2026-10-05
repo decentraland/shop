@@ -5,6 +5,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { Price } from '~/components/Price'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { fetchShopItems, type CatalogItem } from '~/lib/api'
+import { genderIcon } from '~/lib/itemIcons'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import * as S from './OutfitItemPicker.styles'
@@ -118,6 +119,7 @@ export function OutfitItemPicker({
           {items.map(item => {
             const key = `${item.contractAddress.toLowerCase()}-${item.itemId}`
             const selected = selectedKeys.has(key)
+            const shapeIcon = item.gender === 'male' || item.gender === 'female' ? genderIcon(item.gender) : null
             return (
               <S.Item
                 key={key}
@@ -130,10 +132,22 @@ export function OutfitItemPicker({
               >
                 <S.Thumb src={item.thumbnail} alt="" loading="lazy" />
                 <S.Name>{item.name}</S.Name>
-                <S.Price>
-                  <CurrencyIcon size={12} />
-                  <Price credits={item.priceCredits} />
-                </S.Price>
+                <S.Meta>
+                  <S.Price>
+                    <CurrencyIcon size={12} />
+                    <Price credits={item.priceCredits} />
+                  </S.Price>
+                  {shapeIcon ? (
+                    <S.ShapeChip
+                      data-variant="icon"
+                      data-testid="outfit-picker-body-shape"
+                      data-shape={item.gender}
+                      title={t(`bodyShape.${item.gender}`)}
+                    >
+                      <Icon name={shapeIcon} />
+                    </S.ShapeChip>
+                  ) : null}
+                </S.Meta>
                 {selected ? <S.Check name="check-rounded" size={18} /> : null}
               </S.Item>
             )

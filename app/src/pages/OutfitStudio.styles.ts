@@ -491,10 +491,25 @@ export const SelName = styled.span`
   text-overflow: ellipsis;
 `
 
-// On a phone the row has no width to spare, so the pill wraps onto its own line (order pushes it past
+// On a phone the row has no width to spare, so the tags wrap onto their own line (order pushes them past
 // the price and the remove button) rather than squeezing the item name to nothing.
-export const SelHint = styled.span`
+export const SelTags = styled.span`
   flex: none;
+  display: flex;
+  gap: 6px;
+
+  ${media.maxWidth('mobile')} {
+    order: 1;
+    flex-basis: calc(100% - 50px);
+    margin-left: 50px;
+    flex-wrap: wrap;
+  }
+`
+
+export const SelTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: ${radius.pill};
   border: 1px solid rgba(255, 255, 255, 0.45);
@@ -503,9 +518,10 @@ export const SelHint = styled.span`
   color: ${colors.softWhite};
   white-space: nowrap;
 
-  ${media.maxWidth('mobile')} {
-    order: 1;
-    margin-left: 50px;
+  &[data-variant='warning'] {
+    border-color: ${colors.promptAmber};
+    background: ${colors.promptAmber};
+    color: ${colors.text};
   }
 `
 

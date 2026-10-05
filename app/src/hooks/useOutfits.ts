@@ -75,9 +75,12 @@ export function useOutfitItems(outfits: OutfitLike[] | OutfitLike | undefined): 
   const { data: rate, isLoading: rateLoading, isError: rateError, refetch: refetchRate } = useManaRate()
 
   return useMemo(() => {
-    const priced = (data ?? []).map(item => ({ ...item, priceCredits: displayCredits(item, rate) }))
+    // Without the rate a MANA row would price at 0 and read as not for sale until the rate lands, so
+    // nothing is exposed until every row can carry its real price.
+    const ready = !!data && (!!rate || data.every(item => !item.manaWei))
+    const priced = ready ? data.map(item => ({ ...item, priceCredits: displayCredits(item, rate) })) : []
     const byKey = new Map(priced.map(item => [item.id, item]))
-    const missing = new Set(data ? keys.filter(key => !byKey.has(key)) : [])
+    const missing = new Set(ready ? keys.filter(key => !byKey.has(key)) : [])
     return {
       byKey,
       missing,

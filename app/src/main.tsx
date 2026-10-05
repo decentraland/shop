@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { App } from '~/App'
 import { I18nProvider } from '~/intl/I18nProvider'
 import { initSentry } from '~/lib/monitoring'
@@ -20,13 +20,14 @@ const queryClient = new QueryClient({
 const { pathname } = window.location
 const routerBasename = pathname === '/shop' || pathname.startsWith('/shop/') ? '/shop' : undefined
 
+// A data router only so editors can block in-app navigation (useBlocker); App still declares every route.
+const router = createBrowserRouter([{ path: '*', element: <App /> }], { basename: routerBasename })
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <BrowserRouter basename={routerBasename}>
-          <App />
-        </BrowserRouter>
+        <RouterProvider router={router} />
       </I18nProvider>
     </QueryClientProvider>
   </React.StrictMode>

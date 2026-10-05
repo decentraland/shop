@@ -501,27 +501,87 @@ describe('outfit studio', () => {
 
   // The autosaved draft is a guard against accidental loss (refresh, account-switch reload),
   // not a persistent form: deliberately navigating away discards it.
-  it('restores the draft across a refresh but resets it after navigating away', async () => {
+  it('drops unsaved edits on reload', async () => {
     const page = await launch('/outfits/new', { outfitCreator: true })
     await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
     await page.type('[data-testid="outfit-studio-name"]', 'Half Finished')
 
-    // The dirty draft arms the tab-close beforeunload guard; accept its dialog so reload proceeds.
+    // The unsaved edit arms the beforeunload guard; accept its dialog so the reload proceeds.
     page.on('dialog', dialog => void dialog.accept())
-    // Same reason as the navigation above: the editor selector below is the real wait, and this page's
-    // previews keep the network busy past any idle window.
+    // The editor selector below is the real wait: this page's previews keep the network busy past any idle window.
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
     const afterReload = await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)
-    expect(afterReload).toBe('Half Finished')
+    expect(afterReload).toBe('')
+  })
 
-    // In-app links, not page.goto: a goto is a full page load, which the guard must survive.
+  it('asks before in-app navigation drops unsaved edits', async () => {
+    const page = await launch('/outfits/new', { outfitCreator: true })
+    await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
+    await page.type('[data-testid="outfit-studio-name"]', 'Half Finished')
+
+    const messages: string[] = []
+    let accept = false
+    page.on('dialog', dialog => {
+      messages.push(dialog.message())
+      void (accept ? dialog.accept() : dialog.dismiss())
+    })
+
+    await page.click('[data-testid="outfit-studio-back"]')
+    await page.waitForFunction(() => document.querySelector('[data-testid="outfit-studio-editor"]'))
+    expect(messages).toEqual(['You have unsaved changes that will be lost. Continue?'])
+    expect(await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)).toBe(
+      'Half Finished'
+    )
+    expect(new URL(page.url()).pathname).toBe('/outfits/new')
+
+    accept = true
     await page.click('[data-testid="outfit-studio-back"]')
     await page.waitForSelector('[data-testid="outfit-studio-list"]', { timeout: 20000 })
+    expect(messages).toHaveLength(2)
+  })
+
+  it('asks before the browser back button drops unsaved edits', async () => {
+    const page = await launch('/outfits/manage', { outfitCreator: true })
+    await page.waitForSelector('[data-testid="outfit-studio-new"]', { timeout: 20000 })
     await page.click('[data-testid="outfit-studio-new"]')
     await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
-    const afterReturn = await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)
-    expect(afterReturn).toBe('')
+    await page.type('[data-testid="outfit-studio-name"]', 'Half Finished')
+
+    let asked = 0
+    page.on('dialog', dialog => {
+      asked++
+      void dialog.dismiss()
+    })
+    await page.evaluate(() => history.back())
+    await page.waitForFunction(() => location.pathname === '/outfits/new', { timeout: 10000 })
+    await new Promise(r => setTimeout(r, 300))
+    expect(asked).toBe(1)
+    expect(new URL(page.url()).pathname).toBe('/outfits/new')
+    expect(await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)).toBe(
+      'Half Finished'
+    )
+  })
+
+  it('asks before an import replaces the items already in the outfit', async () => {
+    const page = await launch(`/outfits/${FULL_ID}/edit`, { outfitCreator: true })
+    await page.waitForSelector('[data-testid="outfit-studio-selected"]', { timeout: 20000 })
+    const before = (await page.$$('[data-testid="outfit-studio-selected"]')).length
+    expect(before).toBeGreaterThan(1)
+
+    let accept = false
+    page.on('dialog', dialog => void (accept ? dialog.accept() : dialog.dismiss()))
+    const link = `?urn=urn:decentraland:matic:collections-v2:${COLLECTION}:1`
+
+    await page.type('[data-testid="outfit-studio-import"]', link)
+    await page.click('[data-testid="outfit-studio-import-apply"]')
+    expect((await page.$$('[data-testid="outfit-studio-selected"]')).length).toBe(before)
+
+    accept = true
+    await page.click('[data-testid="outfit-studio-import-apply"]')
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="outfit-studio-selected"]').length === 1, {
+      timeout: 10000
+    })
   })
 
   it('deletes an outfit behind the confirm dialog, with unpublish offered first', async () => {
@@ -670,6 +730,46 @@ describe('outfits that include an emote', () => {
       }
     }
   }
+
+  // The studio flags what will keep a look off the home page row, and the items only one body shape can wear.
+  it('tags single-shape and sold-out items in the studio list', async () => {
+    const base = emoteOutfitFixtures({ soldOut: true })
+    const maleOnly = <T extends { itemId?: string | null }>(l: T) =>
+      l.itemId === '0' ? { ...l, gender: 'male', bodyShapes: ['urn:decentraland:off-chain:base-avatars:BaseMale'] } : l
+    const fixtures = {
+      ...base,
+      shopListings: { ...base.shopListings, data: base.shopListings.data.map(maleOnly) },
+      unifiedListings: { ...base.unifiedListings, data: base.unifiedListings.data.map(maleOnly) }
+    }
+    const page = await launch(`/outfits/${EMOTE_OUTFIT_ID}/edit`, { outfitCreator: true, fixtures })
+    await page.waitForSelector('[data-testid="outfit-studio-sale-blocker"]', { timeout: 20000 })
+
+    const shapes = await page.$$eval('[data-testid="outfit-studio-body-shape"]', els =>
+      els.map(el => [el.getAttribute('data-shape'), el.textContent])
+    )
+    expect(shapes).toEqual([['male', 'Male']])
+    const blockers = await page.$$eval('[data-testid="outfit-studio-sale-blocker"]', els =>
+      els.map(el => [el.getAttribute('data-blocker'), el.closest('li')?.textContent ?? ''])
+    )
+    expect(blockers).toHaveLength(1)
+    expect(blockers[0][0]).toBe('sold_out')
+    expect(blockers[0][1]).toContain(EMOTE_NAME)
+    await page.waitForSelector('[data-testid="outfit-studio-hidden-hint"]')
+    const pickerShapes = await page.$$eval('[data-testid="outfit-picker-body-shape"]', els =>
+      els.map(el => el.getAttribute('data-shape'))
+    )
+    expect(pickerShapes).toEqual(['male'])
+    // White glyph on the dark card, like the browse grid's icon chips.
+    const glyph = await page.$eval('[data-testid="outfit-picker-body-shape"] .ico', el => getComputedStyle(el).color)
+    expect(glyph).toBe('rgb(252, 252, 252)')
+    await page.screenshot({ path: `${SHOTS}/outfits-studio-tags.png`, fullPage: true })
+
+    await page.setViewport({ width: 390, height: 844 })
+    await page.waitForSelector('[data-testid="outfit-studio-sale-blocker"]')
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: `${SHOTS}/outfits-studio-tags-mobile.png`, fullPage: true })
+  })
 
   it('lists the emote with the wearables, counts it in the total and adds it to the cart', async () => {
     const page = await launch(`/items/outfits/${EMOTE_OUTFIT_ID}`, { fixtures: emoteOutfitFixtures() })

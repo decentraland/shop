@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '~/components/Button'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
@@ -17,12 +17,14 @@ import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import { BASE_FEMALE, BASE_MALE, type BodyShapeUrn } from '~/lib/bodyShape'
 import { captureError } from '~/lib/monitoring'
+import { confirmDiscardUnsaved, hasUnsavedChanges, setUnsavedChanges } from '~/lib/unsavedChanges'
 import {
   DEFAULT_OUTFIT_GRADIENT,
   MAX_OUTFIT_ITEMS,
   MIN_OUTFIT_ITEMS,
   MAX_THUMBNAIL_BYTES,
   OutfitsError,
+  creatorSaleBlocker,
   deleteOutfit,
   fetchAllOutfits,
   fetchOutfit,
@@ -40,6 +42,7 @@ import {
   type OutfitBodyShape,
   type OutfitDraft
 } from '~/lib/outfits'
+import { genderIcon } from '~/lib/itemIcons'
 import { isWearable, outfitPreviewUrns, playingEmote } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
@@ -50,6 +53,33 @@ import * as S from './OutfitStudio.styles'
 // The outfit studio: a management list plus a one-page editor, for the addresses in the
 // shop-outfit-creators flag variant. The client gate is COSMETIC — shop-server's OUTFIT_CREATORS
 // allowlist is what actually refuses writes for everyone else.
+
+const SALE_BLOCKER_KEYS = { sold_out: 'assetCard.soldOut', not_for_sale: 'assetCard.notForSale' } as const
+
+function SelectedTags({ item, playing }: { item: CatalogItem | undefined; playing: boolean }) {
+  const shapeIcon = item?.gender === 'male' || item?.gender === 'female' ? genderIcon(item.gender) : null
+  const blocker = item ? creatorSaleBlocker(item) : null
+  if (!playing && !shapeIcon && !blocker) return null
+  return (
+    <S.SelTags>
+      {playing ? (
+        <S.SelTag data-testid="outfit-studio-plays-in-preview">{t('outfits.studio.playsInPreview')}</S.SelTag>
+      ) : null}
+      {shapeIcon && item ? (
+        <S.SelTag data-testid="outfit-studio-body-shape" data-shape={item.gender}>
+          <Icon name={shapeIcon} size={12} />
+          {t(`bodyShape.${item.gender}`)}
+        </S.SelTag>
+      ) : null}
+      {blocker ? (
+        <S.SelTag data-variant="warning" data-testid="outfit-studio-sale-blocker" data-blocker={blocker}>
+          {t(SALE_BLOCKER_KEYS[blocker])}
+        </S.SelTag>
+      ) : null}
+    </S.SelTags>
+  )
+}
+
 export function OutfitStudio() {
   const { id } = useParams<{ id?: string }>()
   const { pathname } = useLocation()
@@ -293,32 +323,13 @@ function toDraft(outfit: Outfit): OutfitDraft {
   }
 }
 
-function readStoredDraft(key: string): OutfitDraft | null {
-  try {
-    const raw = sessionStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as OutfitDraft) : null
-  } catch {
-    return null
-  }
-}
-
 function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const isNew = outfitId === null
-  const storageKey = `outfit-draft:${outfitId ?? 'new'}`
   const session = useWallet(s => s.session)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
-  // Unsaved-work guard: the draft autosaves to sessionStorage on every change and restores here.
-  // It only needs to survive full-page teardowns (refresh, the account-switch reload), where
-  // React never runs effect cleanups — deliberate in-app navigation unmounts the editor and the
-  // cleanup below discards the draft, so coming back starts fresh. beforeunload covers tab-close.
-  const [restored] = useState(() => readStoredDraft(storageKey))
-  const [draft, setDraft] = useState<OutfitDraft | null>(() => restored ?? (isNew ? emptyDraft() : null))
-  const [dirty, setDirty] = useState(!!restored)
-  // What the unload guard reads. Set in the same tick as the change, not in an effect: a reload right
-  // after a save would otherwise still meet the guard armed and stop on the leave-page prompt.
-  const unsaved = useRef(!!restored)
+  const [draft, setDraft] = useState<OutfitDraft | null>(() => (isNew ? emptyDraft() : null))
 
   const {
     data: record,
@@ -332,7 +343,6 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     queryFn: () => fetchOutfit(outfitId as string, session!.identity)
   })
 
-  // Seed from the server unless a restored (newer, unsaved) draft already took the slot.
   useEffect(() => {
     if (!record) return
     setDraft(prev => prev ?? toDraft(record))
@@ -340,28 +350,32 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
 
   function update(patch: Partial<OutfitDraft>) {
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
-    setDirty(true)
-    unsaved.current = true
+    // Set in the same tick as the change, not in an effect: a reload right after a save would otherwise
+    // still meet the guard armed and stop on the leave-page prompt.
+    setUnsavedChanges(t('outfits.studio.unsavedConfirm'))
   }
 
   useEffect(() => {
-    if (!draft || !dirty) return
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(draft))
-    } catch {
-      /* storage full/unavailable — the guard is best-effort */
-    }
-  }, [draft, dirty, storageKey])
-
-  useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (unsaved.current) e.preventDefault()
+      if (hasUnsavedChanges()) e.preventDefault()
     }
     window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
+    return () => {
+      window.removeEventListener('beforeunload', handler)
+      setUnsavedChanges(null)
+    }
   }, [])
 
-  useEffect(() => () => sessionStorage.removeItem(storageKey), [storageKey])
+  const blocker = useBlocker(() => hasUnsavedChanges())
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    if (confirmDiscardUnsaved()) {
+      setUnsavedChanges(null)
+      blocker.proceed()
+    } else {
+      blocker.reset()
+    }
+  }, [blocker])
 
   const resolution = useOutfitItems(draft ?? undefined)
   const selectedKeys = useMemo(() => new Set((draft?.items ?? []).map(outfitItemKey)), [draft])
@@ -409,6 +423,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       setImportError(t('outfits.studio.importError'))
       return
     }
+    if (draft?.items.length && !window.confirm(t('outfits.studio.importReplaceConfirm'))) return
     setImportError(null)
     setImportText('')
     setImportColors(parsed.colors)
@@ -464,6 +479,13 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       const item = resolution.byKey.get(outfitItemKey(ref))
       return !item || isWearable(item)
     })
+  // The home page row drops any look with an item that fails isBuyableFromCreator, so warn before publishing.
+  const hasSaleBlocker =
+    !!draft &&
+    draft.items.some(ref => {
+      const item = resolution.byKey.get(outfitItemKey(ref))
+      return !!item && creatorSaleBlocker(item) !== null
+    })
   const canPublish =
     !!draft &&
     nameValid &&
@@ -480,10 +502,8 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     try {
       const saved = await saveOutfit({ ...draft, published }, session.identity, isNew ? 'create' : 'update')
       if (!mountedRef.current) return
-      sessionStorage.removeItem(storageKey)
       setDraft(toDraft(saved))
-      setDirty(false)
-      unsaved.current = false
+      setUnsavedChanges(null)
       invalidateOutfitQueries(queryClient)
       if (published && !draft.published) {
         track('Shop Outfit Published', { outfit_id: saved.id, item_count: saved.items.length })
@@ -762,11 +782,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                           t('outfits.card.unavailable')
                         )}
                       </S.SelName>
-                      {key === playingKey ? (
-                        <S.SelHint data-testid="outfit-studio-plays-in-preview">
-                          {t('outfits.studio.playsInPreview')}
-                        </S.SelHint>
-                      ) : null}
+                      <SelectedTags item={item} playing={key === playingKey} />
                       {item ? (
                         <S.SelPrice>
                           <CurrencyIcon size={12} />
@@ -796,6 +812,9 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
               </S.SelTotal>
             ) : null}
             {draft.items.length >= MAX_OUTFIT_ITEMS ? <S.Hint>{t('outfits.studio.maxItems')}</S.Hint> : null}
+            {hasSaleBlocker ? (
+              <S.Hint data-testid="outfit-studio-hidden-hint">{t('outfits.studio.hiddenFromHome')}</S.Hint>
+            ) : null}
           </S.Field>
 
           <OutfitItemPicker selectedKeys={selectedKeys} onPick={pick} canPick={canPick} />

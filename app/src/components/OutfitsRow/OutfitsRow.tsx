@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OutfitCard } from '~/components/OutfitCard'
 import { SkeletonOutfitCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
-import { isBuyableFromCreator, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
+import {
+  isBuyableFromCreator,
+  isOutfitsAvailable,
+  orderOutfitsByRecency,
+  outfitItemKey,
+  type Outfit
+} from '~/lib/outfits'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
-import { shuffle } from '~/lib/shuffle'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import * as Row from '~/styles/row.styles'
@@ -22,10 +27,9 @@ const SKELETON_COUNT = 6
 export function OutfitsRow() {
   const { data, isLoading } = useOutfits()
 
-  // The feed comes back newest-first, which would freeze the row in creation order — every visit
-  // shows the same few looks first. Shuffled once per fetched list (not per render), so the order
-  // varies between visits but the cards never re-order under the reader as the catalog settles.
-  const outfits = useMemo(() => shuffle(data ?? []), [data])
+  // Ordered once per fetched list (not per render), so the cards never re-order under the reader as the
+  // catalog settles.
+  const outfits = useMemo(() => orderOutfitsByRecency(data ?? []), [data])
   const resolution = useOutfitItems(outfits)
 
   const trackRef = useRef<HTMLDivElement>(null)
