@@ -58,6 +58,11 @@ import * as S from './NameBuyModal.styles'
  */
 type Phase = 'confirm' | 'completing' | 'success' | 'pending' | 'error'
 
+// Some wallets never settle a switch prompt the buyer ignores; after this the button is theirs again.
+const SWITCH_PROMPT_TIMEOUT_MS = 30_000
+// "A request is already pending": a press while an earlier prompt is still open, not a failure.
+const REQUEST_ALREADY_PENDING = -32002
+
 /**
  * Buy-a-NAME flow. The name is already validated + probed available on the search page; here we make
  * the user RE-ENTER it (a deliberate confirmation gate, per Figma) and then register it with credits
@@ -114,6 +119,8 @@ export function NameBuyModal({
     }
   }, [])
   const switchingRef = useRef(false)
+  // Only the latest press may go on to buy, however late an earlier prompt settles.
+  const switchAttemptRef = useRef(0)
   const [switching, setSwitching] = useState(false)
 
   const matches = reentry.trim().toLowerCase() === name.toLowerCase()
@@ -384,18 +391,28 @@ export function NameBuyModal({
   // Declining the switch leaves the offer standing.
   async function switchAndRetry(chainId: number) {
     if (!session || switchingRef.current) return
-    switchingRef.current = true
-    setSwitching(true)
-    try {
-      await switchChain(session.web3Provider, chainId)
-    } catch (switchErr) {
-      if (!isUserRejection(switchErr)) captureError(switchErr, { flow: 'name_polygon_mana', step: 'switch_chain' })
-      return
-    } finally {
+    const attempt = ++switchAttemptRef.current
+    const isLatest = () => switchAttemptRef.current === attempt
+    const release = () => {
       switchingRef.current = false
       if (mountedRef.current) setSwitching(false)
     }
-    if (!mountedRef.current) return
+    switchingRef.current = true
+    setSwitching(true)
+    const giveBack = setTimeout(release, SWITCH_PROMPT_TIMEOUT_MS)
+    try {
+      await switchChain(session.web3Provider, chainId)
+    } catch (switchErr) {
+      const code = (switchErr as { code?: unknown } | null)?.code
+      if (!isUserRejection(switchErr) && code !== REQUEST_ALREADY_PENDING) {
+        captureError(switchErr, { flow: 'name_polygon_mana', step: 'switch_chain' })
+      }
+      return
+    } finally {
+      clearTimeout(giveBack)
+      if (isLatest()) release()
+    }
+    if (!mountedRef.current || !isLatest()) return
     setSwitchTo(null)
     await buy()
   }

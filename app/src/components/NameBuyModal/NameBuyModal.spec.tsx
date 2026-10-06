@@ -878,19 +878,74 @@ describe('NameBuyModal', () => {
               )
             })
 
-            const askToSwitch = async () => {
+            const reachSwitch = async () => {
               chooseMana()
               await waitFor(() => expect(priceShown()).toBe('102'))
               reenter()
               fireEvent.click(buyButton())
-              fireEvent.click(await waitFor(() => screen.getByTestId('name-switch-and-retry')))
+              return waitFor(() => screen.getByTestId('name-switch-and-retry'))
             }
+            const askToSwitch = async () => fireEvent.click(await reachSwitch())
 
-            it('should ask the wallet only once however often the button is pressed', async () => {
+            it('should hold the button while the wallet decides', async () => {
               await askToSwitch()
-              fireEvent.click(screen.getByTestId('name-switch-and-retry'))
+
+              expect((screen.getByTestId('name-switch-and-retry')).disabled).toBe(true)
+            })
+
+            // Two presses before the screen re-renders both reach the handler, so the button alone cannot stop them.
+            it('should ask the wallet only once when pressed twice at once', async () => {
+              const button = await reachSwitch()
+              act(() => {
+                fireEvent.click(button)
+                fireEvent.click(button)
+              })
 
               expect(switchChain).toHaveBeenCalledTimes(1)
+            })
+
+            describe('and it never answers', () => {
+              let lateAccept: () => void
+
+              beforeEach(() => {
+                vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] })
+                switchChain.mockReset()
+                switchChain
+                  .mockImplementationOnce(
+                    () =>
+                      new Promise<void>(resolve => {
+                        lateAccept = resolve
+                      })
+                  )
+                  .mockResolvedValue(undefined)
+              })
+
+              afterEach(() => {
+                vi.useRealTimers()
+              })
+
+              const waitItOut = () =>
+                act(async () => {
+                  vi.advanceTimersByTime(30_000)
+                })
+
+              it('should give the button back after a while', async () => {
+                await askToSwitch()
+                await waitItOut()
+
+                expect((screen.getByTestId('name-switch-and-retry')).disabled).toBe(false)
+              })
+
+              // The first prompt settling late must not start a second purchase behind the one that ran.
+              it('should buy once when pressed again and the first prompt settles late', async () => {
+                await askToSwitch()
+                await waitItOut()
+                fireEvent.click(screen.getByTestId('name-switch-and-retry'))
+                await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
+                await act(async () => lateAccept())
+
+                expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(2)
+              })
             })
 
             // Nothing would show the approval and bridge prompts that followed, nor their outcome.
