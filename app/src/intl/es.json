@@ -1600,6 +1600,7 @@
       "cta": "Revisar",
       "dismiss": "Cerrar"
     },
+    "learnMore": "Más información",
     "list": {
       "title": "Retiradas durante la actualización de la tienda",
       "count": "{count, plural, one {# artículo} other {# artículos}}",

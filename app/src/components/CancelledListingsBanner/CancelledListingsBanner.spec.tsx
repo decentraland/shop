@@ -4,6 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { CancelledTrade } from '~/lib/cancelled-trades'
 
+const POST_MORTEM_URL =
+  'https://forum.decentraland.org/t/october-2026-off-chain-marketplace-cancelled-order-replay-eip-7702-signature-malleability-post-mortem/25452'
+
 const ADDRESS = '0xabc0000000000000000000000000000000000abc'
 
 let walletAddress: string | undefined
@@ -41,12 +44,24 @@ describe('when the banner is rendered', () => {
 
     it('should say so in the singular', () => {
       expect(screen.getByTestId('cancelled-listings-banner')).toHaveTextContent(
-        'One of your listings was taken down during a store upgrade. Put it back in a few clicks.'
+        'One of your listings was taken down during a store upgrade. Put it back in a few clicks. Learn more'
       )
     })
 
     it('should link to the list of listings', () => {
       expect(screen.getByTestId('cancelled-listings-banner-cta')).toHaveAttribute('href', '/activity?section=listings')
+    })
+
+    it('should link to the write-up about the upgrade', () => {
+      expect(screen.getByTestId('cancelled-listings-banner-learn-more')).toHaveAttribute('href', POST_MORTEM_URL)
+    })
+
+    it('should open the write-up in a new tab', () => {
+      expect(screen.getByTestId('cancelled-listings-banner-learn-more')).toHaveAttribute('target', '_blank')
+    })
+
+    it('should not hand the opener to the new tab', () => {
+      expect(screen.getByTestId('cancelled-listings-banner-learn-more')).toHaveAttribute('rel', 'noopener noreferrer')
     })
 
     it('should not offer to dismiss it', () => {
@@ -65,8 +80,12 @@ describe('when the banner is rendered', () => {
 
     it('should count the offers', () => {
       expect(screen.getByTestId('cancelled-listings-banner')).toHaveTextContent(
-        '3 of your offers were taken down during a store upgrade. Put them back in a few clicks.'
+        '3 of your offers were taken down during a store upgrade. Put them back in a few clicks. Learn more'
       )
+    })
+
+    it('should link to the write-up about the upgrade', () => {
+      expect(screen.getByTestId('cancelled-listings-banner-learn-more')).toHaveAttribute('href', POST_MORTEM_URL)
     })
   })
 
@@ -83,6 +102,10 @@ describe('when the banner is rendered', () => {
 
     it('should hand the dismissal back to the caller', () => {
       expect(onDismiss).toHaveBeenCalledTimes(1)
+    })
+
+    it('should link to the write-up about the upgrade', () => {
+      expect(screen.getByTestId('cancelled-listings-banner-learn-more')).toHaveAttribute('href', POST_MORTEM_URL)
     })
   })
 })

@@ -7,7 +7,7 @@ import { Price } from '~/components/Price'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { t } from '~/intl/i18n'
-import { cancelledTradeCredits, type CancelledTrade } from '~/lib/cancelled-trades'
+import { CANCELLED_TRADES_POST_MORTEM_URL, cancelledTradeCredits, type CancelledTrade } from '~/lib/cancelled-trades'
 import { TradeAssetType } from '@dcl/schemas'
 import { relistTargetFor } from './relistTarget'
 import * as S from './CancelledListings.styles'
@@ -56,7 +56,17 @@ export function CancelledListings({
             {t('cancelledListings.list.count', { count: Math.max(total ?? 0, trades.length) })}
           </S.Count>
         </S.TitleRow>
-        <S.Lede>{t('cancelledListings.list.lede')}</S.Lede>
+        <S.Lede>
+          {t('cancelledListings.list.lede')}{' '}
+          <S.LearnMore
+            href={CANCELLED_TRADES_POST_MORTEM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="cancelled-listings-learn-more"
+          >
+            {t('cancelledListings.learnMore')}
+          </S.LearnMore>
+        </S.Lede>
       </S.Head>
       <S.List>
         {trades.map(trade => {

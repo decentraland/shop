@@ -53,6 +53,21 @@ export const Lede = styled.p`
   color: ${colors.gray5};
 `
 
+export const LearnMore = styled.a`
+  font-weight: 600;
+  color: ${colors.white};
+  text-decoration: underline;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${colors.gray5};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.white};
+    outline-offset: 2px;
+  }
+`
+
 export const List = styled.ul`
   margin: 0;
   padding: 0 12px;

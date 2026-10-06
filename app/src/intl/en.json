@@ -1600,6 +1600,7 @@
       "cta": "Review",
       "dismiss": "Dismiss"
     },
+    "learnMore": "Learn more",
     "list": {
       "title": "Taken down during our store upgrade",
       "count": "{count, plural, one {# item} other {# items}}",

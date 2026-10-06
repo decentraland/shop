@@ -1600,6 +1600,7 @@
       "cta": "Ansehen",
       "dismiss": "Schließen"
     },
+    "learnMore": "Mehr erfahren",
     "list": {
       "title": "Beim Shop-Update entfernt",
       "count": "{count, plural, one {# Artikel} other {# Artikel}}",

@@ -9,6 +9,10 @@ import { manaWeiToCredits, type ManaRate } from '~/lib/mana-convert'
 /** Why a trade was cancelled server-side. Only the signature-index bump is surfaced today. */
 export const SIGNATURE_INDEX_BUMP_REASON = 'contract_signature_index_bump'
 
+/** The public write-up of why the listings were taken down. */
+export const CANCELLED_TRADES_POST_MORTEM_URL =
+  'https://forum.decentraland.org/t/october-2026-off-chain-marketplace-cancelled-order-replay-eip-7702-signature-malleability-post-mortem/25452'
+
 export type CancelledTradeType = 'bid' | 'public_nft_order' | 'public_item_order'
 
 // Server shape (GET /v1/cancelled-trades).

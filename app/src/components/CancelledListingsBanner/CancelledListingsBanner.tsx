@@ -1,5 +1,6 @@
 import { Icon } from '~/components/Icon'
 import { t } from '~/intl/i18n'
+import { CANCELLED_TRADES_POST_MORTEM_URL } from '~/lib/cancelled-trades'
 import { ACTIVITY_LISTINGS_ROUTE } from '~/lib/routes'
 import * as S from './CancelledListingsBanner.styles'
 
@@ -21,7 +22,15 @@ export function CancelledListingsBanner({
         <Icon name="refresh" size={24} />
         <S.Text>
           {t(`cancelledListings.banner.lead.${kind}`, { count })}{' '}
-          <S.Accent>{t('cancelledListings.banner.accent', { count })}</S.Accent>
+          <S.Accent>{t('cancelledListings.banner.accent', { count })}</S.Accent>{' '}
+          <S.LearnMore
+            href={CANCELLED_TRADES_POST_MORTEM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="cancelled-listings-banner-learn-more"
+          >
+            {t('cancelledListings.learnMore')}
+          </S.LearnMore>
         </S.Text>
       </S.Body>
       <S.Actions>

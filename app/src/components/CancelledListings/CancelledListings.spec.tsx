@@ -17,6 +17,9 @@ vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondary
 
 import { CancelledListings } from './CancelledListings'
 
+const POST_MORTEM_URL =
+  'https://forum.decentraland.org/t/october-2026-off-chain-marketplace-cancelled-order-replay-eip-7702-signature-malleability-post-mortem/25452'
+
 function trade(overrides: Partial<CancelledTrade> = {}): CancelledTrade {
   return {
     id: 'trade-1',
@@ -65,6 +68,18 @@ describe('when listing the taken-down listings', () => {
     beforeEach(() => {
       trades = [trade()]
       renderList()
+    })
+
+    it('should link to the write-up about the upgrade under the title', () => {
+      expect(screen.getByTestId('cancelled-listings-learn-more')).toHaveAttribute('href', POST_MORTEM_URL)
+    })
+
+    it('should open the write-up in a new tab', () => {
+      expect(screen.getByTestId('cancelled-listings-learn-more')).toHaveAttribute('target', '_blank')
+    })
+
+    it('should not hand the opener to the new tab', () => {
+      expect(screen.getByTestId('cancelled-listings-learn-more')).toHaveAttribute('rel', 'noopener noreferrer')
     })
 
     it('should show its name', () => {

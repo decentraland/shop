@@ -11,7 +11,22 @@ export {
   Text
 } from '~/components/ManaPricingBanner/ManaPricingBanner.styles'
 
-const { media } = theme
+const { colors, media } = theme
+
+export const LearnMore = styled.a`
+  font-weight: 600;
+  color: ${colors.text};
+  text-decoration: underline;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${colors.gray0};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.text};
+    outline-offset: 2px;
+  }
+`
 
 // Same gutter and max width as `.page`, so the strip lines up with the content under it.
 export const Frame = styled.div`
