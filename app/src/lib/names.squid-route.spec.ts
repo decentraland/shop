@@ -32,7 +32,7 @@ vi.mock('ethers', async importOriginal => {
           getGasPrice: async () => big('50000000000')
         }))
       },
-      Contract: vi.fn(() => ({ allowance: async () => big('0') }))
+      Contract: vi.fn(() => ({ allowance: async () => big('0'), balanceOf: async () => big((10n ** 21n).toString()) }))
     }
   }
 })
@@ -46,6 +46,12 @@ type Internals = {
   init: () => Promise<void>
   getSupportedTokens: () => unknown[]
   getFromAmount: () => Promise<string>
+}
+
+type RouteRequest = {
+  fromAmount: string
+  fromToken: string
+  postHook: { calls: { callData: string }[] }
 }
 
 const BUYER = '0x00000000000000000000000000000000000b0b01'
@@ -73,13 +79,24 @@ describe('when the route is the one decentraland-transactions builds for a NAME'
       { ...token('137', NATIVE), symbol: 'POL', usdPrice: 0.25 }
     ]
     prototype.getFromAmount = async () => '101.5'
-    // The API echoes the request as `params`, and delivers enough for the library's loop to stop at once.
-    Squid.prototype.getRoute = (async (request: Record<string, unknown>) => ({
+    // The API echoes the request as `params`, delivers enough for the library's loop to stop at once, and its
+    // router call carries the amount, the token and the hook, as a real one does.
+    Squid.prototype.getRoute = (async (request: RouteRequest) => ({
       requestId: 'req-1',
       route: {
         params: request,
         estimate: { gasCosts: [], feeCosts: [], toAmountMin: '100500000000000000000' },
-        transactionRequest: { target: SQUID_ROUTER, value: '0', gasLimit: '500000', maxFeePerGas: '100000000000' }
+        transactionRequest: {
+          target: SQUID_ROUTER,
+          data:
+            '0x846a1bc6' +
+            BigInt(request.fromAmount).toString(16).padStart(64, '0') +
+            request.fromToken.slice(2).padStart(64, '0') +
+            request.postHook.calls.map(call => call.callData.slice(2)).join(''),
+          value: '0',
+          gasLimit: '500000',
+          maxFeePerGas: '100000000000'
+        }
       }
     })) as unknown as Squid['getRoute']
   })
@@ -92,7 +109,7 @@ describe('when the route is the one decentraland-transactions builds for a NAME'
 
   it('should accept it', async () => {
     await expect(quoteNameWithPolygonMana({ name: 'my-name', buyer: BUYER })).resolves.toMatchObject({
-      manaWei: 101_500_000_000_000_000_000n
+      manaWei: 104_545_000_000_000_000_000n
     })
   })
 

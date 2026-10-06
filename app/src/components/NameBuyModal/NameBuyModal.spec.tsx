@@ -733,6 +733,19 @@ describe('NameBuyModal', () => {
           renderModal(104)
           fireEvent.click(screen.getByTestId('confirm-payment'))
         }
+
+        // The route pulls about 101.5 MANA, so a balance of exactly the price would only fail a screen later.
+        describe('and the MANA covers the price but not what the route pulls', () => {
+          beforeEach(() => {
+            manaBalances.data = { matic: MANA(100), ethereum: 0n }
+          })
+
+          it('should not offer paying in MANA alone', () => {
+            renderModal(104)
+
+            expect(screen.queryByTestId('pay-with-mana')).toBeNull()
+          })
+        })
         const priceShown = () => screen.getByTestId('name-charged-price').textContent
 
         it('should offer to pay the whole NAME in MANA instead of selling credit packs', () => {
@@ -864,6 +877,43 @@ describe('NameBuyModal', () => {
 
             await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
             expect(switchChain).toHaveBeenCalledWith(session.web3Provider, config.chainId)
+          })
+
+          // The purchase resumes after the switch, so it holds to the price on screen then, not at the click.
+          describe('and the price moves while the wallet switches', () => {
+            let reprice: () => void
+            let acceptSwitch: () => void
+
+            beforeEach(() => {
+              quoteNameWithPolygonMana
+                .mockImplementationOnce(async () => quote)
+                .mockImplementationOnce(
+                  () =>
+                    new Promise(resolve => {
+                      reprice = () => resolve({ ...quote, manaWei: MANA(103) })
+                    })
+                )
+              switchChain.mockImplementation(
+                () =>
+                  new Promise<void>(resolve => {
+                    acceptSwitch = resolve
+                  })
+              )
+            })
+
+            it('should hold the purchase to the new price', async () => {
+              chooseMana()
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+              fireEvent.click(await waitFor(() => screen.getByTestId('name-switch-and-retry')))
+              await act(async () => reprice())
+              await waitFor(() => expect(priceShown()).toBe('103'))
+              await act(async () => acceptSwitch())
+
+              await waitFor(() => expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(2))
+              expect(registerNameWithPolygonMana.mock.calls[1][0]).toMatchObject({ shownManaWei: MANA(103) })
+            })
           })
 
           describe('and the wallet is still deciding on the switch', () => {
@@ -1128,7 +1178,8 @@ describe('NameBuyModal', () => {
             expect(registerNameWithUsdCredits).not.toHaveBeenCalled()
           })
 
-          it('should report the purchase as paid in MANA with no credits leg', async () => {
+          // The NAME's price, as the item flows report a MANA purchase, so revenue does not read it as free.
+          it('should report the purchase as paid in MANA, at the NAME’s price, with no credits leg', async () => {
             await buy()
 
             await waitFor(() => expect(track.mock.calls.some(c => c[0] === 'Shop Completed Purchase')).toBe(true))
@@ -1140,7 +1191,7 @@ describe('NameBuyModal', () => {
             }).toEqual({
               payment_type: 'mana',
               value_credits: null,
-              value_usd: null
+              value_usd: 10.4
             })
           })
 
@@ -1197,6 +1248,24 @@ describe('NameBuyModal', () => {
         describe('and the NAME could not be registered', () => {
           beforeEach(() => {
             registerNameWithPolygonMana.mockRejectedValue(new NameNotRegisteredError())
+          })
+
+          // The route that left was priced again just before it was sent.
+          describe('and the route that was sent took more than the quote showed', () => {
+            beforeEach(() => {
+              registerNameWithPolygonMana.mockRejectedValue(
+                Object.assign(new NameNotRegisteredError(), { manaWei: MANA(103) })
+              )
+            })
+
+            it('should show what that route took', async () => {
+              chooseMana()
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+
+              await waitFor(() => expect(priceShown()).toBe('103'))
+            })
           })
 
           it('should not say credits were used', async () => {

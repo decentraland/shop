@@ -172,7 +172,8 @@ export function NameBuyModal({
   const manaAloneEligible =
     session != null &&
     canPayGasItself(session.providerType) &&
-    polygonManaWei >= BigInt(NAME_PRICE_IN_WEI) &&
+    // What the route pulls, not the bare price: a balance between the two would only fail on the next screen.
+    polygonManaWei >= MANA_ALONE_ESTIMATE_WEI &&
     !manaAloneDismissed
   const manaQuote = useQuery({
     queryKey: ['name-polygon-mana-quote', name, session?.address],
@@ -193,6 +194,11 @@ export function NameBuyModal({
   const manaShort = quote != null && polygonManaWei < quote.manaWei
   const feeShort = quote != null && quote.nativeBalanceWei < quote.requiredNativeWei
   const manaReady = quote != null && !manaShort && !feeShort
+  // `buy` can run from a render that is already gone (after a network switch), so it reads the latest price.
+  const latestMana = useRef({ quote, manaReady })
+  useEffect(() => {
+    latestMana.current = { quote, manaReady }
+  })
   // Offered while it is still being priced; dropped once the price says it cannot work.
   const manaAloneUsable = manaAloneEligible && !manaQuote.isError && (quote == null || manaReady)
 
@@ -287,7 +293,8 @@ export function NameBuyModal({
     // cannot.
     if (!session || !matches || priceUnavailable || startedRef.current) return
     if (rail === 'credits' && insufficient) return
-    if (rail === 'mana' && (quote == null || !manaReady)) return
+    const { quote: liveQuote, manaReady: liveReady } = latestMana.current
+    if (rail === 'mana' && (liveQuote == null || !liveReady)) return
     startedRef.current = true
     // Whole credits, so it matches what the reservation actually charges. Null on the MANA rail, which spends
     // none: there is no credits leg to report.
@@ -304,14 +311,14 @@ export function NameBuyModal({
     setStage('preparing')
     try {
       let result: NameRegistrationResult
-      if (rail === 'mana' && quote != null) {
+      if (rail === 'mana' && liveQuote != null) {
         const paid = await registerNameWithPolygonMana({
           name,
           signer: session.signer,
           web3Provider: session.web3Provider,
           providerType: session.providerType,
-          shownManaWei: quote.manaWei,
-          shownFeeWei: quote.feeWei,
+          shownManaWei: liveQuote.manaWei,
+          shownFeeWei: liveQuote.feeWei,
           onProgress: setStage
         })
         setPaidManaWei(paid.manaWei)
@@ -354,8 +361,13 @@ export function NameBuyModal({
          */
         payment_type: rail === 'mana' ? 'mana' : rail === 'combined' ? 'credits_and_mana' : 'credits',
         value_credits: creditsSpent,
-        // Null rather than zero on the MANA rail: nothing was spent in credits, and a zero reads as a free NAME.
-        value_usd: rail === 'mana' ? null : creditsToUsd(creditsSpent ?? 0),
+        // The NAME's price on the MANA rail, as the item flows report a MANA purchase; it has no credits leg.
+        value_usd:
+          rail === 'mana'
+            ? priceCredits != null
+              ? creditsToUsd(priceCredits)
+              : null
+            : creditsToUsd(creditsSpent ?? 0),
         transaction_hash: result.originTxHash ?? null,
         settlement: result.status
       })
@@ -374,10 +386,12 @@ export function NameBuyModal({
       })
       // The wallet's network is the one failure the buyer can fix from here, on the rail that needs it.
       setSwitchTo(isWrongNetworkError(e) && rail === 'mana' ? config.chainId : null)
-      // Sent before it failed: the quote is the most that left, so the screen does not re-price it.
+      // Sent before it failed: what the route that left took, so the screen does not re-price it.
       const sent =
         e instanceof NameNotRegisteredError || e instanceof NameSettlementUnknownError || e instanceof NameRefundedError
-      if (rail === 'mana' && quote != null && sent) setPaidManaWei(quote.manaWei)
+      if (rail === 'mana' && liveQuote != null && sent) {
+        setPaidManaWei((e as { manaWei?: bigint }).manaWei ?? liveQuote.manaWei)
+      }
       // Show the new figure rather than the old one under "try again".
       if (e instanceof NameQuoteMovedError) void qc.invalidateQueries({ queryKey: ['name-polygon-mana-quote'] })
       setError(nameFailureCopy(e, rail))

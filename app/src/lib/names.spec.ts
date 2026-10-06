@@ -32,6 +32,9 @@ const getBalanceMock = vi.hoisted(() => vi.fn())
 const getGasPriceMock = vi.hoisted(() => vi.fn())
 // The MANA allowance the router already holds, which decides whether the wallet must also fund an approval.
 const allowanceMock = vi.hoisted(() => vi.fn())
+// The buyer's Polygon MANA, and the approval the lib sends when the router already holds more than the amount.
+const balanceOfMock = vi.hoisted(() => vi.fn())
+const approveMock = vi.hoisted(() => vi.fn())
 vi.mock('ethers', async importOriginal => {
   const actual = await importOriginal<typeof import('ethers')>()
   return {
@@ -42,7 +45,13 @@ vi.mock('ethers', async importOriginal => {
         ...actual.ethers.providers,
         JsonRpcProvider: vi.fn(() => ({ getBalance: getBalanceMock, getGasPrice: getGasPriceMock }))
       },
-      Contract: vi.fn(() => ({ available: availableMock, register: registerMock, allowance: allowanceMock }))
+      Contract: vi.fn(() => ({
+        available: availableMock,
+        register: registerMock,
+        allowance: allowanceMock,
+        balanceOf: balanceOfMock,
+        approve: approveMock
+      }))
     }
   }
 })
@@ -936,6 +945,12 @@ function registerHook() {
 }
 const withHookCall = (index: number, change: Record<string, unknown>) =>
   registerHook().map((call, i) => (i === index ? { ...call, ...change } : call))
+// The router call carries the amount, the token and every Ethereum call, as a real one does.
+const routerCalldata = (fromAmount: bigint, calls = registerHook()) =>
+  '0x846a1bc6' +
+  fromAmount.toString(16).padStart(64, '0') +
+  ZERO.slice(2).padStart(64, '0') +
+  calls.map(call => call.callData.slice(2)).join('')
 
 // value 0.5 + gasLimit 500k × maxFee 100 gwei (0.05) = what the wallet must hold for the bridge alone.
 const BRIDGE_RESERVE = 5n * 10n ** 17n + 500_000n * 100_000_000_000n
@@ -965,6 +980,7 @@ function squidRoute() {
       },
       transactionRequest: {
         target: ROUTER,
+        data: routerCalldata(MANA(102)),
         value: '500000000000000000',
         gasLimit: '500000',
         maxFeePerGas: '100000000000'
@@ -983,7 +999,9 @@ function primeSquid() {
   squid.getRegisterNameRoute.mockResolvedValue(squidRoute())
   getBalanceMock.mockResolvedValue({ toString: () => MANA(2).toString() })
   getGasPriceMock.mockResolvedValue({ toString: () => '50000000000' })
-  allowanceMock.mockResolvedValue({ toString: () => MANA(1000).toString() })
+  // Exactly the amount, as a previous exact approval leaves it: no approval needed.
+  allowanceMock.mockResolvedValue({ toString: () => MANA(102).toString() })
+  balanceOfMock.mockResolvedValue({ toString: () => MANA(1386).toString() })
 }
 
 function resetSquid() {
@@ -992,7 +1010,16 @@ function resetSquid() {
   squid.squid.executeRoute.mockReset()
   squid.squid.getStatus.mockReset()
   squid.squid.getRoute.mockReset()
-  for (const fn of [getBalanceMock, getGasPriceMock, allowanceMock, availableMock, captureError]) fn.mockReset()
+  for (const fn of [
+    getBalanceMock,
+    getGasPriceMock,
+    allowanceMock,
+    balanceOfMock,
+    approveMock,
+    availableMock,
+    captureError
+  ])
+    fn.mockReset()
 }
 
 describe('when a NAME is quoted in Polygon MANA alone', () => {
@@ -1004,13 +1031,14 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
     resetSquid()
   })
 
-  it('should ask for the route at the amount the first estimate says delivers the price', async () => {
+  // 3% over the 101.5 estimate, so the library's loop does not stall a hair short of the price.
+  it('should ask for the route from above the amount the first estimate says delivers the price', async () => {
     await quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER })
 
     expect(squid.getRegisterNameRoute).toHaveBeenCalledWith({
       name: 'my-name',
       fromAddress: SQUID_BUYER,
-      fromAmount: '101500000000000000000',
+      fromAmount: '104545000000000000000',
       fromChain: 137,
       fromToken: ZERO,
       toAmount: NAME_PRICE_IN_WEI,
@@ -1049,6 +1077,51 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
     })
   })
 
+  // An unlimited approval from the marketplace is brought back to the amount first, which is a second send.
+  describe('and the router already holds more than the amount', () => {
+    beforeEach(() => {
+      allowanceMock.mockResolvedValue({ toString: () => MANA(1000).toString() })
+    })
+
+    it('should require the gas for that approval as well', async () => {
+      const quote = await quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER })
+
+      expect(quote.requiredNativeWei).toBe(BRIDGE_RESERVE + 500_000n * 100_000_000_000n)
+    })
+  })
+
+  // The SDK sends only the gas limit then, and the wallet picks the price itself.
+  describe('and the route leaves the gas price to the wallet', () => {
+    beforeEach(() => {
+      squid.getRegisterNameRoute.mockResolvedValue({
+        ...squidRoute(),
+        route: {
+          ...squidRoute().route,
+          transactionRequest: { ...squidRoute().route.transactionRequest, maxPriorityFeePerGas: '151000000000' }
+        }
+      })
+    })
+
+    it('should not hold a price it never sends against it', async () => {
+      await expect(quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER })).resolves.toMatchObject({
+        manaWei: MANA(102)
+      })
+    })
+  })
+
+  // Every failure drops the rail, so an outage of the integration has to show up somewhere.
+  describe('and the router cannot be reached', () => {
+    beforeEach(() => {
+      squid.getFromAmount.mockRejectedValue(new Error('Network Error'))
+    })
+
+    it('should report it', async () => {
+      await quoteNameWithPolygonMana({ name: 'my-name', buyer: SQUID_BUYER }).catch(() => undefined)
+
+      expect(captureError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ step: 'quote' }))
+    })
+  })
+
   // Every one of these is the API's to choose, and the buyer is about to approve and send it.
   describe.each([
     ['names another router', { transactionRequest: { ...squidRoute().route.transactionRequest, target: ZERO } }],
@@ -1062,18 +1135,44 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
       'carries more native value than any fee could be',
       { transactionRequest: { ...squidRoute().route.transactionRequest, value: MANA(301).toString() } }
     ],
-    // Charged as sent, through both prompts: 3× the network's 50 gwei is the most a route may ask.
+    // Sent with both prompts when the route sets them: 3× the network's 50 gwei is the most it may ask.
     [
       'pads the fee it pays',
-      { transactionRequest: { ...squidRoute().route.transactionRequest, maxFeePerGas: '151000000000' } }
+      {
+        transactionRequest: {
+          ...squidRoute().route.transactionRequest,
+          setGasPrice: true,
+          maxFeePerGas: '151000000000'
+        }
+      }
     ],
     [
       'pads the tip it pays',
-      { transactionRequest: { ...squidRoute().route.transactionRequest, maxPriorityFeePerGas: '151000000000' } }
+      {
+        transactionRequest: {
+          ...squidRoute().route.transactionRequest,
+          setGasPrice: true,
+          maxPriorityFeePerGas: '151000000000'
+        }
+      }
     ],
     [
       'pads a legacy gas price',
-      { transactionRequest: { ...squidRoute().route.transactionRequest, gasPrice: '151000000000' } }
+      { transactionRequest: { ...squidRoute().route.transactionRequest, setGasPrice: true, gasPrice: '151000000000' } }
+    ],
+    // The calldata is what the wallet sends; it must at least carry what `params` says.
+    [
+      'sends calldata for another amount',
+      { transactionRequest: { ...squidRoute().route.transactionRequest, data: routerCalldata(MANA(105)) } }
+    ],
+    [
+      'sends calldata that registers the NAME to someone else',
+      {
+        transactionRequest: {
+          ...squidRoute().route.transactionRequest,
+          data: routerCalldata(MANA(102), withHookCall(2, { callData: registerCall('my-name', ROUTER) }))
+        }
+      }
     ],
     // The SDK approves a pre-hook's fund token in place of `fromToken`.
     ['funds itself through a pre-hook', { params: { ...squidRoute().route.params, preHook: { fundToken: NATIVE } } }],
@@ -1346,6 +1445,153 @@ describe('when a NAME is paid in Polygon MANA alone', () => {
 
     it('should say the NAME was not registered', async () => {
       await expect(run()).rejects.toBeInstanceOf(NameNotRegisteredError)
+    })
+
+    // The buyer is told not to pay again, so this browser must not let them.
+    it('should keep holding the NAME', async () => {
+      await run().catch(() => undefined)
+
+      await expect(run()).rejects.toBeInstanceOf(NameInFlightError)
+    })
+
+    it('should say how much MANA left, from the route that was sent', async () => {
+      const thrown = (await run().catch((e: unknown) => e)) as { manaWei?: bigint }
+
+      expect(thrown.manaWei).toBe(MANA(102))
+    })
+
+    // Support needs the bridge to trace the money.
+    it('should report it with the bridge', async () => {
+      await run().catch(() => undefined)
+
+      expect(captureError).toHaveBeenCalledWith(
+        expect.any(NameNotRegisteredError),
+        expect.objectContaining({ step: 'settlement', originTxHash: '0xbridge' })
+      )
+    })
+  })
+
+  describe('and the router already holds an unlimited allowance', () => {
+    let approvalWait: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      allowanceMock.mockResolvedValue({ toString: () => MANA(1_000_000).toString() })
+      approvalWait = vi.fn(async () => ({ status: 1 }))
+      approveMock.mockResolvedValue({ hash: '0xapproval', wait: approvalWait })
+    })
+
+    // The calldata is not decoded, so the allowance is what bounds a route that pulls more than it says.
+    it('should bring it back to the amount shown before the route is sent', async () => {
+      await run()
+
+      expect({
+        approved: approveMock.mock.calls[0],
+        mined: approvalWait.mock.calls.length,
+        before: approveMock.mock.invocationCallOrder[0] < squid.squid.executeRoute.mock.invocationCallOrder[0]
+      }).toEqual({ approved: [SQUID_ROUTER, MANA(102).toString()], mined: 1, before: true })
+    })
+
+    describe('and the buyer rejects that approval', () => {
+      beforeEach(() => {
+        approveMock.mockRejectedValue(Object.assign(new Error('user rejected'), { code: 'ACTION_REJECTED' }))
+      })
+
+      it('should not send the route', async () => {
+        await run().catch(() => undefined)
+
+        expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  // Caught before the approval costs gas, instead of by a revert after it.
+  describe('and the fresh route needs more MANA than the buyer holds', () => {
+    beforeEach(() => {
+      balanceOfMock.mockResolvedValue({ toString: () => MANA(101).toString() })
+    })
+
+    it('should say so without sending anything', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameManaShortError)
+      expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the fresh route needs more for its fee than the buyer holds', () => {
+    beforeEach(() => {
+      getBalanceMock.mockResolvedValue({ toString: () => '0' })
+    })
+
+    it('should say so without sending anything', async () => {
+      await expect(run()).rejects.toBeInstanceOf(NameFeeShortError)
+      expect(squid.squid.executeRoute).not.toHaveBeenCalled()
+    })
+  })
+
+  // The provider follows the wallet, so a switch between the check and a prompt would send on the wrong network.
+  describe('and the wallet moves to another network before the bridge is sent', () => {
+    beforeEach(() => {
+      sendTransaction.mockResolvedValue({ hash: '0xout' })
+      squid.squid.executeRoute.mockImplementation(async ({ signer: sender }: { signer: ethers.Signer }) => {
+        chainIdHex = '0x1'
+        await sender.sendTransaction({ to: SQUID_ROUTER })
+      })
+    })
+
+    it('should stop before the wallet sends it', async () => {
+      const thrown = await run().catch((e: unknown) => e)
+
+      expect({ wrongNetwork: thrown instanceof WrongNetworkError, sent: sendTransaction.mock.calls.length }).toEqual({
+        wrongNetwork: true,
+        sent: 0
+      })
+    })
+  })
+
+  // A prompt left open past the mark's window must not let a second tab in.
+  describe('and the prompts outlast the in-flight window', () => {
+    let markAtSend: number | undefined
+
+    beforeEach(() => {
+      sendTransaction.mockResolvedValue({ hash: '0xapproval' })
+      squid.squid.executeRoute.mockImplementation(async ({ signer: sender }: { signer: ethers.Signer }) => {
+        const marks = JSON.parse(localStorage.getItem('dcl_shop_names_in_flight') ?? '{}') as Record<
+          string,
+          { at: number }
+        >
+        marks['my-name'].at = Date.now() - 11 * 60 * 1000
+        localStorage.setItem('dcl_shop_names_in_flight', JSON.stringify(marks))
+        await sender.sendTransaction({ to: ZERO })
+        markAtSend = (
+          JSON.parse(localStorage.getItem('dcl_shop_names_in_flight') ?? '{}') as Record<string, { at: number }>
+        )['my-name'].at
+        return { hash: '0xbridge', wait }
+      })
+    })
+
+    it('should renew the mark before each prompt', async () => {
+      await run()
+
+      expect(Date.now() - (markAtSend ?? 0)).toBeLessThan(60 * 1000)
+    })
+  })
+
+  // Tab A sat at its prompts past the mark's window, and tab B bought the NAME meanwhile.
+  describe('and another tab took the NAME while this attempt sat at its prompts', () => {
+    beforeEach(() => {
+      squid.squid.executeRoute.mockImplementation(async () => {
+        localStorage.setItem(
+          'dcl_shop_names_in_flight',
+          JSON.stringify({ 'my-name': { at: Date.now(), phase: 'sent', owner: 'tab-b' } })
+        )
+        throw Object.assign(new Error('user rejected transaction'), { code: 'ACTION_REJECTED' })
+      })
+    })
+
+    it('should leave the other tab’s mark in place', async () => {
+      await run().catch(() => undefined)
+      squid.squid.executeRoute.mockReset()
+
+      await expect(run()).rejects.toBeInstanceOf(NameInFlightError)
     })
   })
 

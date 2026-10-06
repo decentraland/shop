@@ -278,6 +278,18 @@ let squidStatus = 'success'
 // Route quotes Squid turns away with its per-address 429 before answering one.
 let squidRateLimitedQuotes = 0
 
+function squidRouterCalldata(params: Record<string, unknown>): string {
+  const calls = ((params.postHook as { calls?: { callData: string }[] } | undefined)?.calls ?? []).map(call =>
+    call.callData.slice(2)
+  )
+  return (
+    '0x846a1bc6' +
+    BigInt(String(params.fromAmount)).toString(16).padStart(64, '0') +
+    String(params.fromToken).slice(2).toLowerCase().padStart(64, '0') +
+    calls.join('')
+  )
+}
+
 // The router's view of the two chains a NAME's MANA moves between in this environment (Amoy → Sepolia), at
 // the addresses decentraland-transactions resolves MANA to there.
 const SQUID_MANA = {
@@ -523,7 +535,13 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
               ],
               feeCosts: []
             },
-            transactionRequest: { target: SQUID_ROUTER, data: '0x' + 'ab'.repeat(68), value: '0', gasLimit: '500000' }
+            // The router call carries the amount, the token and the hook, as a real one does.
+            transactionRequest: {
+              target: SQUID_ROUTER,
+              data: squidRouterCalldata(params),
+              value: '0',
+              gasLimit: '500000'
+            }
           }
         })
       })

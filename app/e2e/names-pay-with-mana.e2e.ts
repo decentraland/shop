@@ -120,8 +120,9 @@ describe('paying for a NAME with MANA', () => {
         fixtures: { credits: BROKE }
       })
 
+      // The mocked router's 101.5 estimate, asked for 3% above so the library's loop clears the price at once.
       await page.waitForFunction(
-        () => /101\.5/.test(document.querySelector('[data-testid="pay-with-mana"]')?.textContent ?? ''),
+        () => /104\.5/.test(document.querySelector('[data-testid="pay-with-mana"]')?.textContent ?? ''),
         { timeout: 20000 }
       )
     })
@@ -146,10 +147,10 @@ describe('paying for a NAME with MANA', () => {
       const page = await chooseMana()
 
       await page.waitForFunction(
-        () => /101\.5/.test(document.querySelector('[data-testid="name-charged-price"]')?.textContent ?? ''),
+        () => /104\.5/.test(document.querySelector('[data-testid="name-charged-price"]')?.textContent ?? ''),
         { timeout: 20000 }
       )
-      expect(await priceShown(page)).toContain('101.5')
+      expect(await priceShown(page)).toMatch(/104\.5/)
     })
 
     it('registers the NAME through the route, from the buyer’s wallet, without reserving a credit', async () => {
@@ -161,8 +162,25 @@ describe('paying for a NAME with MANA', () => {
       expect({
         reserved: app!.posts.includes('/credits/authorize'),
         routed: app!.posts.includes('/v2/route'),
-        sentTo: sent.map(tx => tx.to?.toLowerCase())
-      }).toEqual({ reserved: false, routed: true, sentTo: [SQUID_ROUTER] })
+        bridged: sent.at(-1)?.to?.toLowerCase()
+      }).toEqual({ reserved: false, routed: true, bridged: SQUID_ROUTER })
+    })
+
+    // The mock reports an unlimited approval, as the marketplace leaves one; the route is not decoded, so the
+    // approval is what bounds it, and it comes back down to the amount first.
+    it('brings an unlimited approval back to the amount before sending the bridge', async () => {
+      const page = await chooseMana()
+      await clickWhenEnabled(page, 'button', /buy name/i, 20000)
+      await waitForText(page, 'Purchase complete!', 30000)
+
+      const sent = await sentTxs(page)
+      const approval = sent[0]?.data ?? ''
+      expect({
+        approve: sent[0]?.to?.toLowerCase() === AMOY_MANA && approval.startsWith(APPROVE),
+        toRouter: approval.slice(10, 74) === SQUID_ROUTER.slice(2).padStart(64, '0'),
+        bounded: BigInt('0x' + (approval.slice(74, 138) || '0')) < BigInt(MANA(110)),
+        thenBridge: sent[1]?.to?.toLowerCase()
+      }).toEqual({ approve: true, toRouter: true, bounded: true, thenBridge: SQUID_ROUTER })
     })
 
     // A wallet that never let the router move its MANA: the approval goes first, then the bridge.

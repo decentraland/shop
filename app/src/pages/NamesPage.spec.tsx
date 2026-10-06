@@ -13,6 +13,7 @@ vi.mock('~/lib/names', () => ({
   NAME_MIN_LENGTH: 2,
   NAME_MAX_LENGTH: 15,
   NAME_PRICE_IN_WEI: '100000000000000000000',
+  MANA_ALONE_ESTIMATE_WEI: 104545000000000000000n,
   validateName: (raw: string) => {
     const n = raw.trim()
     if (n.length === 0) return { ok: false, reason: 'empty' }
