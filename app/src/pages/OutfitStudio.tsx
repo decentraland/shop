@@ -351,7 +351,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const savingRef = useRef(false)
 
   function update(patch: Partial<OutfitDraft>) {
-    // The save replaces the draft with the stored record, which would silently drop an edit made meanwhile.
+    // Backstop for the disabled form: the save replaces the draft, which would drop an edit made meanwhile.
     if (savingRef.current) return
     setDraft(prev => (prev ? { ...prev, ...patch } : prev))
     // Set in the same tick as the change, not in an effect: a reload right after a save would otherwise
@@ -603,7 +603,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
         </S.StateChip>
       </S.Head>
 
-      <S.Grid>
+      <S.Grid disabled={saving}>
         <S.Side>
           {/* Live backdrop behind the mannequin — the same radial glow the detail page composites
               the look over, from the two colors the creator is choosing. */}
@@ -856,7 +856,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
           <Button
             variant="outline"
             data-testid="outfit-studio-save"
-            disabled={saving || !nameValid}
+            disabled={saving || thumbBusy || !nameValid}
             onClick={() => void save(draft.published)}
           >
             {saving ? t('outfits.studio.saving') : t('outfits.studio.saveDraft')}
@@ -865,7 +865,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
             <Button
               variant="white"
               data-testid="outfit-studio-unpublish"
-              disabled={saving}
+              disabled={saving || thumbBusy}
               onClick={() => void save(false)}
             >
               {t('outfits.studio.unpublish')}
@@ -874,7 +874,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
             <Button
               variant="white"
               data-testid="outfit-studio-publish"
-              disabled={saving || !canPublish}
+              disabled={saving || thumbBusy || !canPublish}
               onClick={() => void save(true)}
             >
               {t('outfits.studio.publish')}

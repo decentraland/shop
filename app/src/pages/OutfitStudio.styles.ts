@@ -225,7 +225,12 @@ export const ConfirmActions = styled.div`
   margin-top: 6px;
 `
 
-export const Grid = styled.div`
+// A fieldset so `disabled` locks every control inside while a save runs.
+export const Grid = styled.fieldset`
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 32px;
