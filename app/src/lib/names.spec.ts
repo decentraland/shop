@@ -982,7 +982,7 @@ function primeSquid() {
   squid.getFromAmount.mockResolvedValue('101.5')
   squid.getRegisterNameRoute.mockResolvedValue(squidRoute())
   getBalanceMock.mockResolvedValue({ toString: () => MANA(2).toString() })
-  getGasPriceMock.mockResolvedValue({ toString: () => '30000000000' })
+  getGasPriceMock.mockResolvedValue({ toString: () => '50000000000' })
   allowanceMock.mockResolvedValue({ toString: () => MANA(1000).toString() })
 }
 
@@ -1061,6 +1061,19 @@ describe('when a NAME is quoted in Polygon MANA alone', () => {
     [
       'carries more native value than any fee could be',
       { transactionRequest: { ...squidRoute().route.transactionRequest, value: MANA(301).toString() } }
+    ],
+    // Charged as sent, through both prompts: 3× the network's 50 gwei is the most a route may ask.
+    [
+      'pads the fee it pays',
+      { transactionRequest: { ...squidRoute().route.transactionRequest, maxFeePerGas: '151000000000' } }
+    ],
+    [
+      'pads the tip it pays',
+      { transactionRequest: { ...squidRoute().route.transactionRequest, maxPriorityFeePerGas: '151000000000' } }
+    ],
+    [
+      'pads a legacy gas price',
+      { transactionRequest: { ...squidRoute().route.transactionRequest, gasPrice: '151000000000' } }
     ],
     // The SDK approves a pre-hook's fund token in place of `fromToken`.
     ['funds itself through a pre-hook', { params: { ...squidRoute().route.params, preHook: { fundToken: NATIVE } } }],

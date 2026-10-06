@@ -946,6 +946,40 @@ describe('NameBuyModal', () => {
 
                 expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(2)
               })
+
+              // The wallet refuses a second prompt while the first is open, so accepting that one must still buy.
+              describe('and a second press finds the first prompt still open', () => {
+                beforeEach(() => {
+                  switchChain.mockReset()
+                  switchChain
+                    .mockImplementationOnce(
+                      () =>
+                        new Promise<void>(resolve => {
+                          lateAccept = resolve
+                        })
+                    )
+                    .mockRejectedValueOnce({ code: -32002 })
+                })
+
+                const pressAgainThenAccept = async () => {
+                  await askToSwitch()
+                  await waitItOut()
+                  await act(async () => fireEvent.click(screen.getByTestId('name-switch-and-retry')))
+                  await act(async () => lateAccept())
+                }
+
+                it('should carry on with the purchase once the first prompt is accepted', async () => {
+                  await pressAgainThenAccept()
+
+                  await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
+                })
+
+                it('should not report the refused press', async () => {
+                  await pressAgainThenAccept()
+
+                  expect(captureError).not.toHaveBeenCalled()
+                })
+              })
             })
 
             // Nothing would show the approval and bridge prompts that followed, nor their outcome.

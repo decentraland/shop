@@ -728,7 +728,7 @@ const SQUID_INTEGRATOR_ID = 'decentraland-sdk'
 export const SQUID_ROUTER = '0xce16f69375520ab01377ce7b88f5ba8c48f8d666'
 
 /** The most MANA a route may pull: the SDK's 1.5% sizing margin plus the 5% it may add to guarantee delivery. */
-export const MAX_ROUTE_MANA_WEI = (BigInt(NAME_PRICE_IN_WEI) * 107n) / 100n
+const MAX_ROUTE_MANA_WEI = (BigInt(NAME_PRICE_IN_WEI) * 107n) / 100n
 
 /** What the method step shows before the route is priced: the SDK's own first estimate. */
 export const MANA_ALONE_ESTIMATE_WEI = (BigInt(NAME_PRICE_IN_WEI) * 1015n) / 1000n
@@ -843,7 +843,16 @@ type SquidToken = FromAmountParams['fromToken'] & { usdPrice?: number }
 const SQUID_NATIVE_TOKEN = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
 const ERC20_ALLOWANCE_ABI = ['function allowance(address owner, address spender) view returns (uint256)']
 
-type RouteRequestGas = { value?: string; gasLimit?: string; maxFeePerGas?: string; gasPrice?: string }
+type RouteRequestGas = {
+  value?: string
+  gasLimit?: string
+  maxFeePerGas?: string
+  maxPriorityFeePerGas?: string
+  gasPrice?: string
+}
+// The SDK sends the route's own gas prices with both prompts, and they are charged as sent. Squid's sit near
+// the network's (about 1.4× at the most), so this leaves room for a spike and none for a padded fee.
+const MAX_ROUTE_GAS_PRICE_MULTIPLE = 3n
 
 type HookCall = {
   target?: string
@@ -1004,6 +1013,10 @@ export async function quoteNameWithPolygonMana(opts: { name: string; buyer: stri
     const nativeUsd = onChain(config.chainId, SQUID_NATIVE_TOKEN)?.usdPrice
     const feeUsd = typeof nativeUsd === 'number' ? (Number(feeWei) / 1e18) * nativeUsd : null
 
+    const gasCeiling = BigInt(networkGasPrice.toString()) * MAX_ROUTE_GAS_PRICE_MULTIPLE
+    if ([gas.maxFeePerGas, gas.maxPriorityFeePerGas, gas.gasPrice].some(v => v != null && BigInt(v) > gasCeiling)) {
+      throw new Error('Squid route rejected: gas price')
+    }
     const gasPrice = BigInt(gas.maxFeePerGas ?? gas.gasPrice ?? networkGasPrice.toString())
     const reservePerTx = BigInt(gas.gasLimit ?? '0') * gasPrice
     // The router sends a missing approval with the bridge's own gas limit, so it reserves as much again.

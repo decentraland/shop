@@ -404,7 +404,11 @@ export function NameBuyModal({
       await switchChain(session.web3Provider, chainId)
     } catch (switchErr) {
       const code = (switchErr as { code?: unknown } | null)?.code
-      if (!isUserRejection(switchErr) && code !== REQUEST_ALREADY_PENDING) {
+      if (code === REQUEST_ALREADY_PENDING) {
+        // The earlier prompt is still open, so accepting it is what carries on to the purchase.
+        if (isLatest()) switchAttemptRef.current = attempt - 1
+        release()
+      } else if (!isUserRejection(switchErr)) {
         captureError(switchErr, { flow: 'name_polygon_mana', step: 'switch_chain' })
       }
       return
