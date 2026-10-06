@@ -270,6 +270,20 @@ describe('useOutfitCart', () => {
     }
   })
 
+  it('should show a credit-priced item without waiting for the rate', async () => {
+    const settled = manaRate.data
+    manaRate.data = undefined as unknown as typeof settled
+    manaRate.isLoading = true
+    try {
+      const { result } = renderHook(useHarness, { wrapper })
+      await waitFor(() => expect(result.current.resolution.byKey.size).toBe(1))
+      expect(result.current.resolution.isLoading).toBe(false)
+    } finally {
+      manaRate.data = settled
+      manaRate.isLoading = false
+    }
+  })
+
   it('should add nothing when the listing read fails — an outage is not a sell-out', async () => {
     vi.mocked(fetchShopItems).mockRejectedValue(new Error('gateway down'))
 
