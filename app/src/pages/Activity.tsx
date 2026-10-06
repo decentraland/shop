@@ -512,9 +512,9 @@ export function Activity() {
 
   // How many classic listings this seller could still move. Undefined until known — the badge renders
   // nothing at all until then, so it never flashes in or badges a zero.
-  const { count: importCount } = useImportable()
+  const { count: importCount, isError: importFailed } = useImportable()
   // …and how many listings they have at all, on either pricing.
-  const { count: listingCount } = useListingCount()
+  const { count: listingCount, isError: listingCountFailed } = useListingCount()
   // Listings taken down by the marketplace upgrade, listed above the tool so they can be put back.
   const cancelled = useCancelledTrades()
   const cancelledCount = cancelled.count
@@ -533,9 +533,10 @@ export function Activity() {
    */
   // BOTH counts, not either: with "at least one known" the chip popped in when the second answer landed,
   // which is the flash the single-count version was written to avoid. They resolve together anyway — both
-  // queries gate on the same address.
-  const countsKnown = importCount !== undefined && listingCount !== undefined
-  const showMigrate = countsKnown && (importCount > 0 || listingCount > 0 || migrating || !!cancelledCount)
+  // queries gate on the same address. A failed read counts as settled, or one error hides the chip for good.
+  const countsKnown = (importCount !== undefined || importFailed) && (listingCount !== undefined || listingCountFailed)
+  const showMigrate =
+    countsKnown && ((importCount ?? 0) > 0 || (listingCount ?? 0) > 0 || migrating || !!cancelledCount)
 
   // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
   // what the migrate panel is allowed to render.

@@ -848,4 +848,43 @@ describe('when the account has listings taken down by the store upgrade', () => 
       expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     })
   })
+
+  describe('and the classic-listings count fails', () => {
+    beforeEach(async () => {
+      fetchImportable.mockRejectedValue(new Error('importable down'))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should still offer the listings chip', async () => {
+      expect(await screen.findByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
+  })
+
+  describe('and the listing count fails', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+      fetchUnified.mockRejectedValue(new Error('feed down'))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should still offer the listings chip', async () => {
+      expect(await screen.findByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
+  })
+
+  describe('and one count fails while the other is still in flight', () => {
+    beforeEach(async () => {
+      fetchImportable.mockReturnValue(new Promise(() => {}))
+      fetchUnified.mockRejectedValue(new Error('feed down'))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+      await waitFor(() => expect(fetchUnified).toHaveBeenCalled())
+    })
+
+    it('should not offer the listings chip yet', () => {
+      expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
+    })
+  })
 })
