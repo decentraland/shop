@@ -221,6 +221,13 @@ export const RowPrice = styled.div`
   }
 `
 
+// Sized to the credits mark beside the same figure on the other rails.
+export const ManaIco = styled.img`
+  width: 22px;
+  height: 22px;
+  display: block;
+`
+
 // Figma 1356:335201 — the lilac confirmation panel.
 export const Confirm = styled.div`
   margin-top: 16px;
@@ -510,6 +517,24 @@ export const OutlineBtn = styled.button`
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
   }
+`
+
+// Full width like the primary action, but quieter.
+export const SecondaryBtn = styled(OutlineBtn)`
+  flex: none;
+  display: block;
+  width: 100%;
+  height: 46px;
+  margin-top: 12px;
+  border-radius: 12px;
+`
+
+export const FeeNote = styled.p`
+  margin: 6px 0 0;
+  text-align: right;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: ${theme.colors.muted};
 `
 
 export const RubyBtn = styled.a`

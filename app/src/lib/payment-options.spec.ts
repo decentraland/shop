@@ -417,12 +417,10 @@ describe('what the buyer is shown', () => {
 })
 
 /**
- * A NAME is registered on Ethereum through a server-signed external call that only
- * `CreditsManager.useCredits` can make, and that reverts with `NoCredits()` on an empty credits array.
- * There is no marketplace.accept to fall back to, so MANA can only ever cover a REMAINDER — the buyer
- * always spends at least one credit. Offering a MANA-alone row there would be offering a revert.
+ * A NAME paid without a credit has no gasless route: it is the cross-chain route the buyer sends themselves,
+ * so a wallet that cannot pay its own fees must not be offered it. The mixed rail stays — it is gasless.
  */
-describe('when the purchase can only settle through the CreditsManager', () => {
+describe('when the purchase cannot be paid in MANA alone', () => {
   it('should not offer the MANA-alone rail, however much MANA the buyer holds', () => {
     const o = opts({ manaBalanceWei: PRICE_MANA * 100n, manaOnlyRail: false })
 

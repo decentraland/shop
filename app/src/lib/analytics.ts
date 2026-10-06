@@ -169,8 +169,10 @@ export function purchaseItemsProps(items: Array<CatalogItem & PurchaseProvenance
 
 // Coarse error bucket for purchase/listing failure events (never the raw message).
 export function errorCode(e: unknown): string {
-  const err = e as { code?: number | string; message?: string }
-  if (err?.code === 4001) return 'user_rejected'
+  const err = e as { code?: number | string; message?: string; cause?: unknown }
+  // A friendly wrapper's message is in the buyer's language, so the wallet's own code underneath is what counts.
+  const causeCode = (err?.cause as { code?: number | string } | null | undefined)?.code
+  if (err?.code === 4001 || causeCode === 4001 || causeCode === 'ACTION_REJECTED') return 'user_rejected'
   const msg = (err?.message ?? '').toLowerCase()
   if (msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) return 'user_rejected'
   if (msg.includes('insufficient')) return 'insufficient_credits'

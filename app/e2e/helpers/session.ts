@@ -50,6 +50,20 @@ export function sessionInitScript(session: TestSession): string {
     const SIG = '${CANNED_SIG}';
     const CHAIN = '${CHAIN_HEX}';
     const FAKE_TX = '0x' + 'cd'.repeat(32);
+    // Token reads a real wallet answers from its own RPC, forwarded to the mocked one: the cross-chain router
+    // checks the buyer's balance and allowance through the WALLET, not the app's read provider. Everything
+    // else keeps the canned empty answer the other specs were written against.
+    const FORWARDED_READS = ${JSON.stringify([ethers.utils.id('balanceOf(address)').slice(0, 10), ethers.utils.id('allowance(address,address)').slice(0, 10), ethers.utils.id('symbol()').slice(0, 10)])};
+    const forwardRead = async params => {
+      const res = await fetch('https://rpc.decentraland.org/amoy', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params })
+      });
+      return (await res.json()).result;
+    };
+    // What the wallet was asked to send, in order, for specs that assert on it.
+    window.__sentTxs = [];
     const handle = async (method, params) => {
       switch (method) {
         case 'eth_requestAccounts':
@@ -60,13 +74,18 @@ export function sessionInitScript(session: TestSession): string {
         case 'eth_signTypedData':
         case 'personal_sign':
         case 'eth_sign': return SIG;
-        case 'eth_sendTransaction': return FAKE_TX;
+        case 'eth_sendTransaction':
+          window.__sentTxs.push({ to: params && params[0] && params[0].to, data: params && params[0] && params[0].data });
+          return FAKE_TX;
         case 'eth_getTransactionByHash':
           return { hash: (params && params[0]) || FAKE_TX, from: ADDR, to: null, blockNumber: '0x1', blockHash: '0x' + '00'.repeat(32), transactionIndex: '0x0', nonce: '0x0', value: '0x0', gas: '0x5208', gasPrice: '0x1', input: '0x' };
         case 'eth_getTransactionReceipt':
           return { status: '0x1', transactionHash: (params && params[0]) || FAKE_TX, blockNumber: '0x1', blockHash: '0x' + '00'.repeat(32), transactionIndex: '0x0', from: ADDR, to: null, gasUsed: '0x5208', cumulativeGasUsed: '0x5208', contractAddress: null, logs: [], logsBloom: '0x' + '00'.repeat(256), type: '0x2', effectiveGasPrice: '0x1' };
         case 'eth_blockNumber': return '0x1';
-        case 'eth_call': return '0x';
+        case 'eth_call':
+          return params && params[0] && FORWARDED_READS.includes(String(params[0].data || '').slice(0, 10))
+            ? forwardRead(params)
+            : '0x';
         case 'eth_estimateGas': return '0x5208';
         case 'wallet_switchEthereumChain':
         case 'wallet_addEthereumChain': return null;

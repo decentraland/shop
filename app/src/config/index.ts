@@ -113,6 +113,12 @@ export const config = {
   ethereumChainId: Number(env.VITE_ETHEREUM_CHAIN_ID ?? base.get('ETHEREUM_CHAIN_ID')),
   ethereumRpcUrl: env.VITE_ETHEREUM_RPC_URL ?? base.get('ETHEREUM_RPC_URL'),
   /**
+   * Squid, the cross-chain router a NAME paid in Polygon MANA alone rides, the same way the marketplace sells
+   * one. The same mainnet API in every environment, as the marketplace has it: Squid has no testnet route
+   * between Amoy and Sepolia, so the rail is only live where those chains are mainnet.
+   */
+  squidApiUrl: env.VITE_SQUID_API_URL ?? base.get('SQUID_API_URL'),
+  /**
    * Meta-transaction relayer (transactions-server shape; the POST target is `${relayerUrl}/transactions`).
    *
    * CHAIN-BOUND, which is why it sits next to rpcUrl: a relayer only submits on the chain it is configured

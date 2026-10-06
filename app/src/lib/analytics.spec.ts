@@ -224,6 +224,20 @@ describe('analytics wrapper', () => {
     expect(errorCode({ message: 'MetaMask Tx Signature: User rejected' })).toBe('user_rejected')
   })
 
+  // The wrapper's message is translated ("Vorgang abgebrochen"), so only the wallet's code can say it was declined.
+  it('errorCode maps a translated wrapper around a wallet rejection to user_rejected', () => {
+    expect(errorCode(Object.assign(new Error('Vorgang abgebrochen'), { cause: { code: 4001 } }))).toBe('user_rejected')
+    expect(errorCode(Object.assign(new Error('Vorgang abgebrochen'), { cause: { code: 'ACTION_REJECTED' } }))).toBe(
+      'user_rejected'
+    )
+  })
+
+  it('errorCode does not call a wrapper a rejection when the error under it is something else', () => {
+    expect(errorCode(Object.assign(new Error('Fehlgeschlagen'), { cause: { code: 'TRANSACTION_REPLACED' } }))).toBe(
+      'unknown'
+    )
+  })
+
   it('errorCode returns unknown for null/undefined/plain errors', () => {
     expect(errorCode(null)).toBe('unknown')
     expect(errorCode(undefined)).toBe('unknown')

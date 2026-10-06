@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 import { RESUME_NAME_KEY } from '~/lib/resume-name'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
@@ -9,7 +9,17 @@ import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import { NameBuyModal } from './NameBuyModal'
 // Resolves to the MOCKED module below, which is what makes the modal's `instanceof` check meaningful here:
 // both sides get the same class object.
-import { NameNotRegisteredError, NameRouteCostTooHighError, NameSettlementUnknownError } from '~/lib/names'
+import {
+  NameInFlightError,
+  NameNotRegisteredError,
+  NameQuoteMovedError,
+  NameRefundedError,
+  NameRouteCostTooHighError,
+  NameSettlementUnknownError,
+  NameTakenError
+} from '~/lib/names'
+import { WrongNetworkError } from '~/lib/network'
+import { config } from '~/config'
 
 /**
  * The NAME purchase modal — the last step of a CROSS-CHAIN money path, and the layer that decides what the
@@ -29,6 +39,8 @@ import { NameNotRegisteredError, NameRouteCostTooHighError, NameSettlementUnknow
 // to resolve under vitest (ERR_UNSUPPORTED_DIR_IMPORT). The error class is defined inside the factory so it
 // is not read during hoisting, and the spec imports it back from here.
 const registerNameWithUsdCredits = vi.fn()
+const quoteNameWithPolygonMana = vi.fn()
+const registerNameWithPolygonMana = vi.fn()
 vi.mock('~/lib/names', () => {
   class NameRouteCostTooHighError extends Error {
     constructor() {
@@ -51,15 +63,76 @@ vi.mock('~/lib/names', () => {
       this.name = 'NameNotRegisteredError'
     }
   }
+  // The MANA-alone rail's own failures, raw-worded for the same reason.
+  class NameQuoteMovedError extends Error {
+    constructor() {
+      super('RAW_QUOTE_MOVED_INTERNAL')
+      this.name = 'NameQuoteMovedError'
+    }
+  }
+  class NameRefundedError extends Error {
+    constructor() {
+      super('RAW_REFUNDED_INTERNAL')
+      this.name = 'NameRefundedError'
+    }
+  }
+  class NameRouteUnavailableError extends Error {
+    constructor() {
+      super('RAW_ROUTE_UNAVAILABLE_INTERNAL')
+      this.name = 'NameRouteUnavailableError'
+    }
+  }
+  class NameManaShortError extends Error {
+    constructor() {
+      super('RAW_MANA_SHORT_INTERNAL')
+      this.name = 'NameManaShortError'
+    }
+  }
+  class NameFeeShortError extends Error {
+    constructor() {
+      super('RAW_FEE_SHORT_INTERNAL')
+      this.name = 'NameFeeShortError'
+    }
+  }
+  class NameTakenError extends Error {
+    constructor() {
+      super('RAW_TAKEN_INTERNAL')
+      this.name = 'NameTakenError'
+    }
+  }
+  class NameInFlightError extends Error {
+    constructor() {
+      super('RAW_IN_FLIGHT_INTERNAL')
+      this.name = 'NameInFlightError'
+    }
+  }
   return {
     NameRouteCostTooHighError,
     NameNotRegisteredError,
     NameSettlementUnknownError,
+    NameQuoteMovedError,
+    NameRefundedError,
+    NameRouteUnavailableError,
+    NameManaShortError,
+    NameFeeShortError,
+    NameTakenError,
+    NameInFlightError,
     registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a),
+    quoteNameWithPolygonMana: (...a: unknown[]) => quoteNameWithPolygonMana(...a),
+    registerNameWithPolygonMana: (...a: unknown[]) => registerNameWithPolygonMana(...a),
     // The fixed on-chain price the MANA rails are sized against.
-    NAME_PRICE_IN_WEI: '100000000000000000000'
+    NAME_PRICE_IN_WEI: '100000000000000000000',
+    // The MANA-alone row's figure before its route is priced: the price plus the router's 1.5% margin.
+    MANA_ALONE_ESTIMATE_WEI: 101500000000000000000n
   }
 })
+
+// The real network module — the real WrongNetworkError — with only the wallet switch stubbed.
+const switchChain = vi.fn()
+vi.mock('~/lib/network', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  switchChain: (...a: unknown[]) => switchChain(...a)
+}))
 
 // The buyer's own MANA, per chain. Zero by default so the existing cases keep exercising the credits-only
 // flow they were written for; the MANA cases raise it.
@@ -104,6 +177,7 @@ const session = {
   address: '0x1111111111111111111111111111111111111111',
   identity: {} as never,
   signer: {} as never,
+  web3Provider: { web3: true } as never,
   providerType: 'magic'
 }
 vi.mock('~/store/wallet', () => ({
@@ -141,6 +215,9 @@ const buyButton = () => screen.getByRole('button', { name: /buy name/i })
 describe('NameBuyModal', () => {
   beforeEach(() => {
     registerNameWithUsdCredits.mockReset()
+    quoteNameWithPolygonMana.mockReset()
+    registerNameWithPolygonMana.mockReset()
+    switchChain.mockReset()
     track.mockReset()
     createPackCheckout.mockReset()
     captureError.mockReset()
@@ -525,9 +602,9 @@ describe('NameBuyModal', () => {
   /**
    * Choosing HOW to pay, before the NAME is confirmed.
    *
-   * A NAME costs a fixed 100 MANA, so a buyer holding MANA can cover part (Polygon, mixed with credits) or
-   * all of it (Ethereum, spending no credits at all). The question is only asked when there is something to
-   * choose — a credits-only buyer goes straight to the re-entry gate, as before.
+   * A NAME costs a fixed 100 MANA, so a buyer holding Polygon MANA can cover part of it (mixed with credits)
+   * or all of it (spending no credits at all). The question is only asked when there is something to choose —
+   * a credits-only buyer goes straight to the re-entry gate, as before.
    */
   describe('and the buyer holds MANA of their own', () => {
     const MANA = (n: number) => BigInt(n) * 10n ** 18n
@@ -562,6 +639,646 @@ describe('NameBuyModal', () => {
 
       expect(screen.queryByTestId('credit-packs')).toBeNull()
       expect(screen.getByTestId('pay-with-mana')).toBeTruthy()
+    })
+
+    /**
+     * Unloaded, the credit balance reads as zero — so MANA would be the only rail, preselected, and kept once
+     * the real balance arrived. Someone with plenty of credits could pay in MANA without meaning to.
+     */
+    describe('and the credit balance is not known yet', () => {
+      beforeEach(() => {
+        // Self-custody, so MANA alone WOULD be offered — otherwise this passes for the wrong reason.
+        session.providerType = 'injected'
+        balance = undefined
+        manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      })
+
+      it('should not ask how to pay until it is', () => {
+        renderModal(67)
+
+        expect(screen.queryByTestId('pay-with-mana')).toBeNull()
+      })
+    })
+
+    // Spending MANA instead of credits is the buyer's call, as it is for an item — given a wallet that can pay
+    // the route's fees itself.
+    it('should offer MANA alongside credits to a self-custody buyer who could pay with either', () => {
+      session.providerType = 'injected'
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      renderModal(67)
+
+      expect({
+        credits: screen.getByTestId('pay-with-credits').getAttribute('data-selected'),
+        mana: screen.getByTestId('pay-with-mana').getAttribute('data-selected')
+      }).toEqual({ credits: 'true', mana: 'false' })
+    })
+
+    // Their credits already pay, so the large router SDK is not loaded on the chance they pick MANA.
+    it('should not price MANA alone for a buyer whose credits already cover the NAME', async () => {
+      session.providerType = 'injected'
+      manaBalances.data = { matic: MANA(500), ethereum: 0n }
+      renderModal(67)
+
+      await waitFor(() => expect(screen.getByTestId('pay-with-mana').textContent).toContain('101.5'))
+      expect(quoteNameWithPolygonMana).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The case this rail exists for: no credits at all, and more than enough MANA. It used to fall through to
+     * the pack picker, asking a buyer holding several times the price to spend $29.99 on credits instead.
+     */
+    describe('and no credits at all', () => {
+      beforeEach(() => {
+        balance = { balanceCents: 0, credits: 0 }
+        manaBalances.data = { matic: MANA(1386), ethereum: 0n }
+        creditPacks.packs = [{ id: 'p260', credits: 260, usd: 29.99 }]
+      })
+
+      // MANA alone is the route the wallet sends and pays the fees of, which a managed wallet cannot.
+      describe('and a wallet that cannot pay its own fees', () => {
+        it('should still sell credit packs', () => {
+          renderModal(104)
+
+          expect({
+            packs: screen.queryByTestId('credit-packs') != null,
+            mana: screen.queryByTestId('pay-with-mana')
+          }).toEqual({ packs: true, mana: null })
+        })
+      })
+
+      describe('and a self-custody wallet', () => {
+        let quote: {
+          manaWei: bigint
+          feeWei: bigint
+          feeUsd: number | null
+          requiredNativeWei: bigint
+          nativeBalanceWei: bigint
+          route: unknown
+        }
+
+        beforeEach(() => {
+          session.providerType = 'injected'
+          quote = {
+            manaWei: MANA(102),
+            feeWei: 5n * 10n ** 17n,
+            feeUsd: 0.25,
+            requiredNativeWei: 6n * 10n ** 17n,
+            nativeBalanceWei: MANA(2),
+            route: { id: 'route' }
+          }
+          quoteNameWithPolygonMana.mockImplementation(async () => quote)
+        })
+
+        const chooseMana = () => {
+          renderModal(104)
+          fireEvent.click(screen.getByTestId('confirm-payment'))
+        }
+
+        // The route pulls about 101.5 MANA, so a balance of exactly the price would only fail a screen later.
+        describe('and the MANA covers the price but not what the route pulls', () => {
+          beforeEach(() => {
+            manaBalances.data = { matic: MANA(100), ethereum: 0n }
+          })
+
+          it('should not offer paying in MANA alone', () => {
+            renderModal(104)
+
+            expect(screen.queryByTestId('pay-with-mana')).toBeNull()
+          })
+        })
+        const priceShown = () => screen.getByTestId('name-charged-price').textContent
+
+        it('should offer to pay the whole NAME in MANA instead of selling credit packs', () => {
+          renderModal(104)
+
+          expect({
+            packs: screen.queryByTestId('credit-packs'),
+            mana: screen.getByTestId('pay-with-mana').getAttribute('data-selected'),
+            credits: screen.getByTestId('pay-with-credits').getAttribute('data-disabled')
+          }).toEqual({ packs: null, mana: 'true', credits: 'true' })
+        })
+
+        // The NAME is 100 MANA on Ethereum; what leaves the wallet is the route's figure, so that is the price.
+        it('should show what the route will take before anything is bought', async () => {
+          chooseMana()
+
+          await waitFor(() => expect(priceShown()).toBe('102'))
+          expect(screen.getByTestId('name-charged-price').getAttribute('data-currency')).toBe('mana')
+        })
+
+        describe('and the price is still being fetched', () => {
+          beforeEach(() => {
+            quoteNameWithPolygonMana.mockImplementation(() => new Promise(() => {}))
+          })
+
+          it('should say so and hold the purchase', () => {
+            chooseMana()
+            reenter()
+
+            expect({
+              reason: screen.getByTestId('name-blocked-reason').textContent,
+              disabled: (buyButton() as HTMLButtonElement).disabled
+            }).toEqual({ reason: expect.stringMatching(/latest price/i), disabled: true })
+          })
+        })
+
+        // Priced before it is chosen, so the step can state what the route really takes.
+        it('should show the route’s own amount on the MANA row', async () => {
+          renderModal(104)
+
+          await waitFor(() => expect(screen.getByTestId('pay-with-mana').textContent).toContain('102'))
+        })
+
+        it('should state the processing fee before the buyer agrees', async () => {
+          chooseMana()
+
+          await waitFor(() => expect(screen.getByTestId('name-mana-fee').textContent).toMatch(/\$0\.25/))
+        })
+
+        /**
+         * A rail that cannot work goes away rather than lead to a dead button. With no credits, the buyer is
+         * back where they were before MANA was offered at all: the pack picker.
+         */
+        describe('and the balance cannot cover the fee', () => {
+          beforeEach(() => {
+            quote = { ...quote, nativeBalanceWei: 0n }
+          })
+
+          it('should drop paying in MANA alone and sell credit packs instead', async () => {
+            renderModal(104)
+
+            await waitFor(() => expect(screen.queryByTestId('credit-packs')).not.toBeNull())
+            expect(screen.queryByTestId('pay-with-mana')).toBeNull()
+          })
+        })
+
+        describe('and no route can be built', () => {
+          beforeEach(() => {
+            quoteNameWithPolygonMana.mockImplementation(async () => {
+              throw new Error('router down')
+            })
+          })
+
+          it('should drop paying in MANA alone and sell credit packs instead', async () => {
+            renderModal(104)
+
+            await waitFor(() => expect(screen.queryByTestId('credit-packs')).not.toBeNull())
+            expect(screen.queryByTestId('pay-with-mana')).toBeNull()
+          })
+        })
+
+        // Chosen while it worked, then repriced past what the wallet holds: a way out, not a dead button.
+        describe('and the route stops being affordable after it was chosen', () => {
+          beforeEach(() => {
+            quoteNameWithPolygonMana
+              .mockImplementationOnce(async () => quote)
+              .mockImplementation(async () => ({ ...quote, nativeBalanceWei: 0n }))
+            registerNameWithPolygonMana.mockRejectedValue(new NameQuoteMovedError())
+          })
+
+          it('should explain why and offer another way to pay', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+            await waitFor(() => expect(screen.getByText(/amount needed changed/i)).toBeTruthy())
+            fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+
+            await waitFor(() =>
+              expect(screen.getByTestId('name-blocked-reason').textContent).toMatch(/processing fee/i)
+            )
+            fireEvent.click(screen.getByTestId('name-choose-another-way'))
+
+            expect(screen.queryByTestId('credit-packs')).not.toBeNull()
+          })
+        })
+
+        // The route is a Polygon transaction the wallet sends, so a wallet elsewhere is fixable from here.
+        describe('and the wallet is on another network', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana
+              .mockRejectedValueOnce(new WrongNetworkError(1, config.chainId))
+              .mockResolvedValue({
+                status: 'registered',
+                originTxHash: '0xb',
+                destinationTxHash: null,
+                manaWei: MANA(102)
+              })
+            switchChain.mockResolvedValue(undefined)
+          })
+
+          it('should switch it and carry on with the purchase', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+            const switchButton = await waitFor(() => screen.getByTestId('name-switch-and-retry'))
+            fireEvent.click(switchButton)
+
+            await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
+            expect(switchChain).toHaveBeenCalledWith(session.web3Provider, config.chainId)
+          })
+
+          // The purchase resumes after the switch, so it holds to the price on screen then, not at the click.
+          describe('and the price moves while the wallet switches', () => {
+            let reprice: () => void
+            let acceptSwitch: () => void
+
+            beforeEach(() => {
+              quoteNameWithPolygonMana
+                .mockImplementationOnce(async () => quote)
+                .mockImplementationOnce(
+                  () =>
+                    new Promise(resolve => {
+                      reprice = () => resolve({ ...quote, manaWei: MANA(103) })
+                    })
+                )
+              switchChain.mockImplementation(
+                () =>
+                  new Promise<void>(resolve => {
+                    acceptSwitch = resolve
+                  })
+              )
+            })
+
+            it('should hold the purchase to the new price', async () => {
+              chooseMana()
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+              fireEvent.click(await waitFor(() => screen.getByTestId('name-switch-and-retry')))
+              await act(async () => reprice())
+              await waitFor(() => expect(priceShown()).toBe('103'))
+              await act(async () => acceptSwitch())
+
+              await waitFor(() => expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(2))
+              expect(registerNameWithPolygonMana.mock.calls[1][0]).toMatchObject({ shownManaWei: MANA(103) })
+            })
+          })
+
+          describe('and the wallet is still deciding on the switch', () => {
+            let acceptSwitch: () => void
+
+            beforeEach(() => {
+              switchChain.mockImplementation(
+                () =>
+                  new Promise<void>(resolve => {
+                    acceptSwitch = resolve
+                  })
+              )
+            })
+
+            const reachSwitch = async () => {
+              chooseMana()
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+              return waitFor(() => screen.getByTestId('name-switch-and-retry'))
+            }
+            const askToSwitch = async () => fireEvent.click(await reachSwitch())
+
+            it('should hold the button while the wallet decides', async () => {
+              await askToSwitch()
+
+              expect(screen.getByTestId<HTMLButtonElement>('name-switch-and-retry').disabled).toBe(true)
+            })
+
+            // Two presses before the screen re-renders both reach the handler, so the button alone cannot stop them.
+            it('should ask the wallet only once when pressed twice at once', async () => {
+              const button = await reachSwitch()
+              act(() => {
+                fireEvent.click(button)
+                fireEvent.click(button)
+              })
+
+              expect(switchChain).toHaveBeenCalledTimes(1)
+            })
+
+            describe('and it never answers', () => {
+              let lateAccept: () => void
+
+              beforeEach(() => {
+                vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] })
+                switchChain.mockReset()
+                switchChain
+                  .mockImplementationOnce(
+                    () =>
+                      new Promise<void>(resolve => {
+                        lateAccept = resolve
+                      })
+                  )
+                  .mockResolvedValue(undefined)
+              })
+
+              afterEach(() => {
+                vi.useRealTimers()
+              })
+
+              const waitItOut = () =>
+                act(async () => {
+                  vi.advanceTimersByTime(30_000)
+                })
+
+              it('should give the button back after a while', async () => {
+                await askToSwitch()
+                await waitItOut()
+
+                expect(screen.getByTestId<HTMLButtonElement>('name-switch-and-retry').disabled).toBe(false)
+              })
+
+              // The first prompt settling late must not start a second purchase behind the one that ran.
+              it('should buy once when pressed again and the first prompt settles late', async () => {
+                await askToSwitch()
+                await waitItOut()
+                fireEvent.click(screen.getByTestId('name-switch-and-retry'))
+                await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
+                await act(async () => lateAccept())
+
+                expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(2)
+              })
+
+              // The wallet refuses a second prompt while the first is open, so accepting that one must still buy.
+              describe('and a second press finds the first prompt still open', () => {
+                beforeEach(() => {
+                  switchChain.mockReset()
+                  switchChain
+                    .mockImplementationOnce(
+                      () =>
+                        new Promise<void>(resolve => {
+                          lateAccept = resolve
+                        })
+                    )
+                    .mockRejectedValueOnce({ code: -32002 })
+                })
+
+                const pressAgainThenAccept = async () => {
+                  await askToSwitch()
+                  await waitItOut()
+                  await act(async () => fireEvent.click(screen.getByTestId('name-switch-and-retry')))
+                  await act(async () => lateAccept())
+                }
+
+                it('should carry on with the purchase once the first prompt is accepted', async () => {
+                  await pressAgainThenAccept()
+
+                  await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
+                })
+
+                it('should not report the refused press', async () => {
+                  await pressAgainThenAccept()
+
+                  expect(captureError).not.toHaveBeenCalled()
+                })
+              })
+            })
+
+            // Nothing would show the approval and bridge prompts that followed, nor their outcome.
+            it('should not buy once the modal has been closed', async () => {
+              const { unmount } = renderModal(104)
+              fireEvent.click(screen.getByTestId('confirm-payment'))
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+              fireEvent.click(await waitFor(() => screen.getByTestId('name-switch-and-retry')))
+              unmount()
+              await act(async () => acceptSwitch())
+
+              expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(1)
+            })
+          })
+        })
+
+        describe('and the NAME has not landed on Ethereum yet', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockResolvedValue({
+              status: 'pending',
+              originTxHash: '0xbridge',
+              destinationTxHash: null,
+              manaWei: MANA(102)
+            })
+          })
+
+          it('should say the purchase is in progress rather than complete', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/in progress/i)).toBeTruthy())
+            expect(screen.queryByText(/purchase complete/i)).toBeNull()
+          })
+        })
+
+        // The MANA may already be on its way, so a second purchase could pay twice.
+        describe('and whether the purchase went through cannot be confirmed', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameSettlementUnknownError())
+          })
+
+          const fail = async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+            await waitFor(() => expect(screen.getByText(/couldn’t confirm/i)).toBeTruthy())
+          }
+
+          it('should offer no retry', async () => {
+            await fail()
+
+            expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+          })
+
+          it('should keep showing the amount that may have left', async () => {
+            await fail()
+
+            expect(priceShown()).toBe('102')
+          })
+
+          it('should not price the route again', async () => {
+            await fail()
+            await act(async () => {})
+
+            expect(quoteNameWithPolygonMana).toHaveBeenCalledTimes(1)
+          })
+        })
+
+        describe('and an earlier purchase of this NAME is still being completed', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameInFlightError())
+          })
+
+          it('should say so and offer no retry', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/still being completed/i)).toBeTruthy())
+            expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+          })
+        })
+
+        describe('and somebody registered the NAME meanwhile', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameTakenError())
+          })
+
+          it('should say it is taken and offer no retry', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/this name is taken/i)).toBeTruthy())
+            expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+          })
+        })
+
+        describe('and the buyer confirms', () => {
+          let invalidate: MockInstance<QueryClient['invalidateQueries']>
+
+          beforeEach(() => {
+            invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
+            registerNameWithPolygonMana.mockResolvedValue({
+              status: 'registered',
+              originTxHash: '0xbridge',
+              destinationTxHash: null,
+              manaWei: MANA(101)
+            })
+          })
+
+          afterEach(() => {
+            invalidate.mockRestore()
+          })
+
+          const buy = async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+            await waitFor(() => expect(registerNameWithPolygonMana).toHaveBeenCalledTimes(1))
+          }
+
+          it('should hold the purchase to the amount it showed, from the buyer’s own wallet', async () => {
+            await buy()
+
+            expect(registerNameWithPolygonMana.mock.calls[0][0]).toMatchObject({
+              name: 'hodor',
+              shownManaWei: MANA(102),
+              shownFeeWei: 5n * 10n ** 17n,
+              providerType: 'injected',
+              web3Provider: session.web3Provider
+            })
+          })
+
+          it('should spend no credits', async () => {
+            await buy()
+
+            expect(registerNameWithUsdCredits).not.toHaveBeenCalled()
+          })
+
+          // The NAME's price, as the item flows report a MANA purchase, so revenue does not read it as free.
+          it('should report the purchase as paid in MANA, at the NAME’s price, with no credits leg', async () => {
+            await buy()
+
+            await waitFor(() => expect(track.mock.calls.some(c => c[0] === 'Shop Completed Purchase')).toBe(true))
+            const done = track.mock.calls.find(c => c[0] === 'Shop Completed Purchase')![1] as Record<string, unknown>
+            expect({
+              payment_type: done.payment_type,
+              value_credits: done.value_credits,
+              value_usd: done.value_usd
+            }).toEqual({
+              payment_type: 'mana',
+              value_credits: null,
+              value_usd: 10.4
+            })
+          })
+
+          // The route can come in under its quote; the receipt is what was paid.
+          it('should show what the route actually took once the NAME is registered', async () => {
+            await buy()
+
+            await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
+            expect(priceShown()).toBe('101')
+          })
+
+          // A second NAME offered off the balance from before this one would revert.
+          it('should refresh the MANA balance it spent from', async () => {
+            await buy()
+
+            await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['mana-balances'] }))
+          })
+        })
+
+        describe('and the route asks for more than it showed', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameQuoteMovedError())
+          })
+
+          it('should say the amount changed and fetch the new one', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/amount needed changed/i)).toBeTruthy())
+            await waitFor(() => expect(quoteNameWithPolygonMana).toHaveBeenCalledTimes(2))
+          })
+        })
+
+        describe('and the bridge gives the payment back', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameRefundedError())
+          })
+
+          // Nothing was spent, so trying again is safe — and is offered.
+          it('should say the payment was returned and offer another try', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/payment was returned/i)).toBeTruthy())
+            expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+          })
+        })
+
+        // "Your Credits were used" would send someone looking for a debit that never happened.
+        describe('and the NAME could not be registered', () => {
+          beforeEach(() => {
+            registerNameWithPolygonMana.mockRejectedValue(new NameNotRegisteredError())
+          })
+
+          // The route that left was priced again just before it was sent.
+          describe('and the route that was sent took more than the quote showed', () => {
+            beforeEach(() => {
+              registerNameWithPolygonMana.mockRejectedValue(
+                Object.assign(new NameNotRegisteredError(), { manaWei: MANA(103) })
+              )
+            })
+
+            it('should show what that route took', async () => {
+              chooseMana()
+              await waitFor(() => expect(priceShown()).toBe('102'))
+              reenter()
+              fireEvent.click(buyButton())
+
+              await waitFor(() => expect(priceShown()).toBe('103'))
+            })
+          })
+
+          it('should not say credits were used', async () => {
+            chooseMana()
+            await waitFor(() => expect(priceShown()).toBe('102'))
+            reenter()
+            fireEvent.click(buyButton())
+
+            await waitFor(() => expect(screen.getByText(/payment went through/i)).toBeTruthy())
+            expect(screen.queryByText(/Credits were used/i)).toBeNull()
+          })
+        })
+      })
     })
 
     it('should reserve only the credits leg when the mixed rail is confirmed', async () => {
