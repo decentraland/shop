@@ -480,11 +480,6 @@ export async function getIsCreatorSalesEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
 }
 
-/** Whether the cancelled-listings banner and relist list are shown. */
-export async function getIsCancelledListingsEnabled(): Promise<boolean> {
-  return getIsFeatureEnabled(FeatureFlag.SHOP_CANCELLED_LISTINGS)
-}
-
 /** Whether the creator's store dashboard is reachable. */
 export async function getIsMyStoreEnabled(): Promise<boolean> {
   return getIsFeatureEnabled(FeatureFlag.SHOP_MY_STORE)

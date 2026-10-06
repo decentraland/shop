@@ -2,7 +2,7 @@ import signedFetch from 'decentraland-crypto-fetch'
 import { TradeAssetType } from '@dcl/schemas'
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
-import { usdWeiToCents } from '~/lib/api'
+import { API_SIGNER, usdWeiToCents } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToCredits, type ManaRate } from '~/lib/mana-convert'
 
@@ -51,7 +51,7 @@ export async function fetchCancelledTrades(
   const res = await signedFetch(`${config.marketplaceServerUrl}/v1/cancelled-trades?${qs.toString()}`, {
     method: 'GET',
     identity,
-    metadata: { signer: 'dcl:marketplace' }
+    metadata: { signer: API_SIGNER }
   })
   if (!res.ok) {
     void res.body?.cancel()

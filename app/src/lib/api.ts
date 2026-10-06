@@ -1449,7 +1449,7 @@ export async function fetchTokenById(contractAddress: string, tokenId: string): 
 
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),
 // NOT the wallet — the wallet is proven via the auth-chain headers built from `identity`.
-const API_SIGNER = 'dcl:marketplace'
+export const API_SIGNER = 'dcl:marketplace'
 
 // Posts an already-signed TradeCreation. Reuses decentraland-dapps' TradeService only for the
 // authenticated POST (auth-chain headers, intent dcl:create-trade) — the signing is ours.

@@ -6,7 +6,7 @@ import {
   type CancelledTrade,
   type CancelledTradesPage
 } from '~/lib/cancelled-trades'
-import { getIsCancelledListingsEnabled } from '~/lib/featureFlags'
+import { useCancelledListingsEnabled } from '~/hooks/useCancelledListingsEnabled'
 import { useWallet } from '~/store/wallet'
 
 const QUERY_KEY = 'cancelled-trades'
@@ -32,12 +32,7 @@ export function useCancelledTrades(): CancelledTradesState {
   const session = useWallet(s => s.session)
   const address = session?.address
 
-  const { data: enabled } = useQuery({
-    queryKey: ['feature-flag', 'shop-cancelled-listings'],
-    queryFn: getIsCancelledListingsEnabled,
-    staleTime: 60_000,
-    retry: 1
-  })
+  const enabled = useCancelledListingsEnabled()
 
   const query = useInfiniteQuery({
     queryKey: [QUERY_KEY, address],
@@ -49,7 +44,7 @@ export function useCancelledTrades(): CancelledTradesState {
       const loaded = pages.reduce((n, page) => n + page.items.length, 0)
       return loaded < pages[0].total ? loaded : undefined
     },
-    enabled: enabled === true && !!address,
+    enabled: enabled && !!address,
     staleTime: 5 * 60_000
   })
 
@@ -63,18 +58,22 @@ export function useCancelledTrades(): CancelledTradesState {
   const complete = !!pages && !query.hasNextPage
 
   // The banner's wording needs the offer count, which a partial first page cannot give.
-  const { data: remoteOffers } = useQuery({
+  const { data: remoteOffers, isError: offersFailed } = useQuery({
     queryKey: [QUERY_KEY, address, 'offers-total'],
     queryFn: () => fetchCancelledTrades(session!.identity, { first: 1, types: ['bid'] }).then(page => page.total),
     enabled: !!pages && !complete && !!count,
     staleTime: 5 * 60_000
   })
   const offers = complete ? trades.filter(trade => trade.type === 'bid').length : remoteOffers
+  let kind: CancelledTradesState['kind']
+  if (count !== undefined && offers !== undefined) kind = cancelledTradesKind(count, offers)
+  // Without the offer total, the wording that covers both.
+  else if (count !== undefined && offersFailed) kind = 'mixed'
 
   return {
     trades,
     count,
-    kind: count !== undefined && offers !== undefined ? cancelledTradesKind(count, offers) : undefined,
+    kind,
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     isFetchNextPageError: query.isFetchNextPageError,

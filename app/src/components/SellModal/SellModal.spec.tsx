@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -63,8 +63,11 @@ const asset = {
   chainId: 80002
 } as never
 
-function renderModal(providerType = 'injected', edit?: ListingEdit) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderModal(
+  providerType = 'injected',
+  edit?: ListingEdit,
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
   const onClose = vi.fn()
   const onListed = vi.fn()
   const { unmount } = render(
@@ -136,6 +139,26 @@ describe('SellModal authorization step', () => {
       // No discrete step, and no pre-list status read — approval happens silently via ensureApproval.
       expect(getAuthorizationStatus).not.toHaveBeenCalled()
       expect(ensureApproval).toHaveBeenCalledTimes(1)
+    })
+  })
+})
+
+describe('SellModal listing', () => {
+  describe('when the listing goes live', () => {
+    let invalidate: MockInstance<QueryClient['invalidateQueries']>
+    let onListed: ReturnType<typeof renderModal>['onListed']
+
+    beforeEach(async () => {
+      getAuthorizationStatus.mockResolvedValue(true)
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      invalidate = vi.spyOn(client, 'invalidateQueries')
+      onListed = renderModal('injected', undefined, client).onListed
+      await userEvent.click(screen.getByRole('button', { name: /put up for sale/i }))
+      await waitFor(() => expect(onListed).toHaveBeenCalled())
+    })
+
+    it('should refresh the listings taken down by the store upgrade', () => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['cancelled-trades'] })
     })
   })
 })

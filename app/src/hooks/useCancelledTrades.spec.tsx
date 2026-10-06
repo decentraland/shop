@@ -4,9 +4,9 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CancelledTrade, CancelledTradesPage, CancelledTradeType } from '~/lib/cancelled-trades'
 
-const getIsCancelledListingsEnabled = vi.fn()
-vi.mock('~/lib/featureFlags', () => ({
-  getIsCancelledListingsEnabled: () => getIsCancelledListingsEnabled()
+let enabled: boolean
+vi.mock('~/hooks/useCancelledListingsEnabled', () => ({
+  useCancelledListingsEnabled: () => enabled
 }))
 
 const fetchCancelledTrades = vi.fn()
@@ -41,7 +41,7 @@ describe('when reading the account’s taken-down listings', () => {
   beforeEach(() => {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     session = { address: '0xabc', identity: IDENTITY }
-    getIsCancelledListingsEnabled.mockResolvedValue(true)
+    enabled = true
   })
 
   afterEach(() => {
@@ -100,6 +100,23 @@ describe('when reading the account’s taken-down listings', () => {
     })
   })
 
+  describe('and the offer total cannot be read for more than one page', () => {
+    beforeEach(async () => {
+      fetchCancelledTrades.mockImplementation(
+        async (_identity: unknown, opts: FetchOpts = {}): Promise<CancelledTradesPage> => {
+          if (opts.types?.includes('bid')) throw new Error('fetchCancelledTrades 500')
+          return { items: rows(0, 100), total: 250 }
+        }
+      )
+      hook = renderHook(() => useCancelledTrades(), { wrapper })
+      await waitFor(() => expect(hook.result.current.kind).toBeDefined())
+    })
+
+    it('should word the banner for both listings and offers', () => {
+      expect(hook.result.current.kind).toBe('mixed')
+    })
+  })
+
   describe('and every row fits on the first page', () => {
     beforeEach(async () => {
       fetchCancelledTrades.mockResolvedValueOnce({ items: [...rows(0, 2), ...rows(2, 3, 'bid')], total: 3 })
@@ -137,10 +154,9 @@ describe('when reading the account’s taken-down listings', () => {
   })
 
   describe('and the flag is off', () => {
-    beforeEach(async () => {
-      getIsCancelledListingsEnabled.mockResolvedValue(false)
+    beforeEach(() => {
+      enabled = false
       hook = renderHook(() => useCancelledTrades(), { wrapper })
-      await waitFor(() => expect(getIsCancelledListingsEnabled).toHaveBeenCalled())
     })
 
     it('should not fetch', () => {
@@ -153,10 +169,9 @@ describe('when reading the account’s taken-down listings', () => {
   })
 
   describe('and the visitor is signed out', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       session = null
       hook = renderHook(() => useCancelledTrades(), { wrapper })
-      await waitFor(() => expect(getIsCancelledListingsEnabled).toHaveBeenCalled())
     })
 
     it('should not fetch', () => {
