@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { BatFlight } from '~/components/BatFlight'
@@ -98,7 +98,7 @@ const ReloadCta = styled(Button)`
 // Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
 // The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary. Reuses the home
 // page's empty-state shell.
-function CrashFallback() {
+export function CrashFallback() {
   return (
     <OV.Empty>
       <OV.EmptyTitle>{t('app.crash.title')}</OV.EmptyTitle>
@@ -113,10 +113,11 @@ function CrashFallback() {
 // Redirect for a route whose PREFIX was renamed, forwarding whatever followed it: /assets/creator/0x1?q=a
 // → /items/creator/0x1?q=a. A plain <Navigate to="/items"> can't do this — it takes a literal path, so it
 // would drop both the sub-path and the query, landing a shared creator or outfit link on the bare grid.
-function RenamedPathRedirect({ to }: { to: string }) {
-  const rest = useParams()['*']
-  const { search, hash } = useLocation()
-  return <Navigate to={`${to}${rest ? `/${rest}` : ''}${search}${hash}`} replace />
+// The sub-path is cut from the pathname, not read from the `*` param: the app mounts under a catch-all
+// route whose own splat would leak into this one and turn /assets into /items/assets.
+function RenamedPathRedirect({ from, to }: { from: string; to: string }) {
+  const { pathname, search, hash } = useLocation()
+  return <Navigate to={`${to}${pathname.slice(from.length)}${search}${hash}`} replace />
 }
 
 // Alias to a fixed path, carrying the incoming query and hash. The root alias needs it most: every
@@ -273,9 +274,9 @@ export function App() {
                   (/assets/outfits/:id) have been shared as links. The splat covers both of those plus
                   anything added under the prefix later; the bare /assets is listed separately so the
                   redirect doesn't depend on a splat matching zero segments. */}
-              <Route path="/assets" element={<RenamedPathRedirect to="/items" />} />
-              <Route path="/assets/*" element={<RenamedPathRedirect to="/items" />} />
-              <Route path="/my-assets" element={<RenamedPathRedirect to="/my-items" />} />
+              <Route path="/assets" element={<RenamedPathRedirect from="/assets" to="/items" />} />
+              <Route path="/assets/*" element={<RenamedPathRedirect from="/assets" to="/items" />} />
+              <Route path="/my-assets" element={<RenamedPathRedirect from="/my-assets" to="/my-items" />} />
               {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
                   it has been the target of the My Items nudge for months, so it is in histories and
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}

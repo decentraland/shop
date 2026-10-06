@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { ProviderType } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useCart } from '~/store/cart'
+import { confirmDiscardUnsaved, setUnsavedChanges } from '~/lib/unsavedChanges'
 
 // EIP-1193 events we care about from an injected wallet (MetaMask, Rabby, ...).
 type Eip1193 = {
@@ -40,6 +41,9 @@ export function useAccountWatcher() {
        * has no stored identity, so `restoreSession` reports no session at all and the cart is never told
        * anything. Hand it over here, the one moment we know an account actually changed and which one to.
        */
+      // Ask before the cart is handed over: a cancelled leave prompt would keep the old session with the new cart.
+      if (!confirmDiscardUnsaved()) return
+      setUnsavedChanges(null)
       useCart.getState().reloadFor(next ?? null)
       window.location.reload()
     }

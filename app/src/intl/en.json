@@ -1044,6 +1044,8 @@
       "items": "Items",
       "noItems": "No items yet — pick some from the catalog below.",
       "maxItems": "An outfit can have up to 20 items.",
+      "hiddenFromHome": "Items marked unavailable, sold out or not for sale hide this outfit from the home page. It still shows on its own page.",
+      "unsavedConfirm": "You have unsaved changes that will be lost. Continue?",
       "remove": "Remove",
       "playsInPreview": "Plays in preview",
       "needsWearable": "Add at least one wearable to publish.",

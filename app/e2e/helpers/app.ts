@@ -253,7 +253,7 @@ function toCatalogRow(l: any) {
     // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
     // showcase-clip lookup exercise the same field they read in production.
     utility: l.utility ?? null,
-    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart } }
+    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart, bodyShapes: l.bodyShapes } }
   }
 }
 
