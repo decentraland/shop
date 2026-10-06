@@ -5,10 +5,14 @@ vi.mock('~/config', () => ({ config: { marketplaceUrl: 'https://market.example' 
 import type { CancelledTrade } from '~/lib/cancelled-trades'
 import { relistTargetFor, type RelistTarget } from './relistTarget'
 
-type Input = Pick<CancelledTrade, 'type' | 'asset'>
+type Input = Pick<CancelledTrade, 'type' | 'network' | 'asset'>
 
-function input(type: CancelledTrade['type'], asset: Partial<CancelledTrade['asset']> = {}): Input {
-  return { type, asset: { contractAddress: '0xc011', tokenId: null, itemId: null, name: null, image: null, ...asset } }
+function input(type: CancelledTrade['type'], asset: Partial<CancelledTrade['asset']> = {}, network = 'MATIC'): Input {
+  return {
+    type,
+    network,
+    asset: { contractAddress: '0xc011', tokenId: null, itemId: null, name: null, image: null, ...asset }
+  }
 }
 
 describe('when picking where a cancelled trade is put back up', () => {
@@ -55,6 +59,17 @@ describe('when picking where a cancelled trade is put back up', () => {
 
       it('should send the account to the token page in the Shop', () => {
         expect(target).toEqual({ kind: 'shop', to: '/token/0xc011/42' })
+      })
+    })
+
+    describe('and the token is on Ethereum', () => {
+      beforeEach(() => {
+        trade = input('public_nft_order', { tokenId: '42' }, 'ETHEREUM')
+        target = relistTargetFor(trade, { secondarySales: true })
+      })
+
+      it('should send the account to the token on the marketplace', () => {
+        expect(target).toEqual({ kind: 'marketplace', href: 'https://market.example/contracts/0xc011/tokens/42' })
       })
     })
 
