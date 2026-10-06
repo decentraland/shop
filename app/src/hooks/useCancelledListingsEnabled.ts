@@ -9,8 +9,8 @@ import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
  */
 export function useCancelledListingsEnabled(): boolean {
   const { data } = useQuery({
-    queryKey: ['feature-flag', FeatureFlag.SHOP_CANCELLED_LISTINGS],
-    queryFn: () => getIsFeatureEnabled(FeatureFlag.SHOP_CANCELLED_LISTINGS),
+    queryKey: ['feature-flag', FeatureFlag.CANCELLED_ORDERS_BANNER],
+    queryFn: () => getIsFeatureEnabled(FeatureFlag.CANCELLED_ORDERS_BANNER),
     // The lib caches for 60s behind this; keeping react-query's window in step avoids two competing TTLs.
     staleTime: 60_000,
     refetchOnWindowFocus: true,

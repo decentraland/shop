@@ -143,8 +143,9 @@ export enum FeatureFlag {
   /**
    * Whether the Shop tells an account about the listings and offers taken down when the older marketplace
    * versions were retired, and lists them so they can be put back up. Off hides the banner and the list.
+   * Shared with the marketplace and the Builder, so one switch turns the banner on everywhere.
    */
-  SHOP_CANCELLED_LISTINGS = 'shop-cancelled-listings'
+  CANCELLED_ORDERS_BANNER = 'cancelled-orders-banner'
 }
 
 /** The application whose flag file carries the flags above. */

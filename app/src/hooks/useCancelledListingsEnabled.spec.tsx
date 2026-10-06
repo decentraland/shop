@@ -28,7 +28,7 @@ describe('when reading whether taken-down listings are shown', () => {
 
   describe('and the flag has not resolved yet', () => {
     beforeEach(() => {
-      vi.stubGlobal('fetch', flagResponse({ 'dapps-shop-cancelled-listings': true }))
+      vi.stubGlobal('fetch', flagResponse({ 'dapps-cancelled-orders-banner': true }))
       hook = renderHook(() => useCancelledListingsEnabled(), { wrapper })
     })
 
@@ -63,7 +63,7 @@ describe('when reading whether taken-down listings are shown', () => {
 
   describe('and the flag is on', () => {
     beforeEach(async () => {
-      vi.stubGlobal('fetch', flagResponse({ 'dapps-shop-cancelled-listings': true }))
+      vi.stubGlobal('fetch', flagResponse({ 'dapps-cancelled-orders-banner': true }))
       hook = renderHook(() => useCancelledListingsEnabled(), { wrapper })
       await waitFor(() => expect(hook.result.current).toBe(true))
     })
