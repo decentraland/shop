@@ -29,9 +29,13 @@ export const Frame = styled.div`
   ${media.maxWidth('mobile')} {
     padding: 12px 16px 0;
 
-    &[data-route='/overview'],
     &[data-route='/event'] {
       padding-bottom: 12px;
+    }
+
+    /* The overview hero pulls itself 16px up on mobile, which would eat the gap and overlap the strip. */
+    &[data-route='/overview'] {
+      padding-bottom: 28px;
     }
   }
 `
