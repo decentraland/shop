@@ -73,12 +73,12 @@ const ITEMS = [
   item({ oldTradeId: 'old-3', name: 'Comet Boots', suggestedCredits: 60 })
 ]
 
-function renderTool() {
+function renderTool(props: { hideWhenDone?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ImportListings />
+        <ImportListings {...props} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -229,6 +229,40 @@ describe('when the seller has nothing left to move', () => {
     expect(screen.getByTestId('import-empty')).toBeInTheDocument()
     expect(screen.getByText('Learn More About Credits')).toBeInTheDocument()
     expect(screen.getByText('What are Credits?')).toBeInTheDocument()
+  })
+})
+
+describe('when the tool is told to hide its all-set state', () => {
+  describe('and nothing is left to move', () => {
+    beforeEach(() => {
+      useImportable.mockReturnValue({ items: [], count: 0, isLoading: false })
+      renderTool({ hideWhenDone: true })
+    })
+
+    it('should not show the all-set card', () => {
+      expect(screen.queryByTestId('import-empty')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and the rows are still loading', () => {
+    beforeEach(() => {
+      useImportable.mockReturnValue({ items: [], count: undefined, isLoading: true })
+      renderTool({ hideWhenDone: true })
+    })
+
+    it('should not show the tool yet', () => {
+      expect(screen.queryByTestId('import-progress')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and rows are left to move', () => {
+    beforeEach(() => {
+      renderTool({ hideWhenDone: true })
+    })
+
+    it('should show the tool', () => {
+      expect(screen.getByTestId('import-count')).toHaveTextContent('3')
+    })
   })
 })
 

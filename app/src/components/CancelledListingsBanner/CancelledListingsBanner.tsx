@@ -1,14 +1,13 @@
 import { Icon } from '~/components/Icon'
 import { t } from '~/intl/i18n'
+import { ACTIVITY_LISTINGS_ROUTE } from '~/lib/routes'
 import * as S from './CancelledListingsBanner.styles'
-
-export const CANCELLED_LISTINGS_ROUTE = '/activity?section=listings'
 
 /** Site-wide notice that some of the account's listings or offers were taken down and can be put back. */
 export function CancelledListingsBanner({
   count,
   kind,
-  to = CANCELLED_LISTINGS_ROUTE,
+  to = ACTIVITY_LISTINGS_ROUTE,
   onDismiss
 }: {
   count: number

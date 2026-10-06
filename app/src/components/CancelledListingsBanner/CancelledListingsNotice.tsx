@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useCancelledTrades } from '~/hooks/useCancelledTrades'
 import { CANCELLED_LISTINGS_PROMPT, dismissPrompt, isPromptDismissed } from '~/lib/dismissed-prompts'
+import { isListingsSection } from '~/lib/routes'
 import { useWallet } from '~/store/wallet'
 import { CancelledListingsBanner } from './CancelledListingsBanner'
 import * as S from './CancelledListingsBanner.styles'
@@ -17,7 +18,7 @@ export function CancelledListingsNotice() {
   if (!address || !count || !kind) return null
   if (dismissedFor === address || isPromptDismissed(CANCELLED_LISTINGS_PROMPT, address)) return null
   // Already looking at the list the banner points to.
-  if (pathname === '/activity' && new URLSearchParams(search).get('section') === 'listings') return null
+  if (pathname === '/activity' && isListingsSection(new URLSearchParams(search))) return null
 
   function dismiss() {
     dismissPrompt(CANCELLED_LISTINGS_PROMPT, address)

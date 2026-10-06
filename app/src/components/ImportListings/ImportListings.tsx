@@ -56,7 +56,8 @@ function manaLabel(wei: string): string | null {
   }
 }
 
-export function ImportListings() {
+/** `hideWhenDone`: render nothing instead of the "all set" card (and while loading), staying mounted. */
+export function ImportListings({ hideWhenDone = false }: { hideWhenDone?: boolean } = {}) {
   const { session } = useWallet()
   const qc = useQueryClient()
 
@@ -218,6 +219,7 @@ export function ImportListings() {
   // questions a creator with nothing left to migrate has just as much reason to ask, and this page is the
   // link we hand them to read the answers. The early return used to stop at the empty card, so reaching
   // "all set" silently took the explanation away at the exact moment it became shareable.
+  if (hideWhenDone && (isLoading || all.length === 0)) return null
   if (!isLoading && all.length === 0) {
     return (
       <S.Root>

@@ -90,7 +90,9 @@ vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => true }))
 // The migration tool is lazy-loaded and covered by its own spec; this one is about the chip that
 // opens it and what replaces the feed when it does.
 vi.mock('~/components/ImportListings', () => ({
-  ImportListings: () => <div data-testid="import-panel" />
+  ImportListings: ({ hideWhenDone }: { hideWhenDone?: boolean }) => (
+    <div data-testid="import-panel" data-hide-when-done={String(!!hideWhenDone)} />
+  )
 }))
 
 const useCancelledTrades = vi.fn()
@@ -794,8 +796,12 @@ describe('when the account has listings taken down by the store upgrade', () => 
       expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-auto', 'true')
     })
 
-    it('should not show the migration tool and its all-set card', () => {
-      expect(screen.queryByTestId('import-panel')).not.toBeInTheDocument()
+    it('should keep the migration tool mounted, so a run’s re-check is not cut short', () => {
+      expect(screen.getByTestId('import-panel')).toBeInTheDocument()
+    })
+
+    it('should hide the migration tool’s all-set card', () => {
+      expect(screen.getByTestId('import-panel')).toHaveAttribute('data-hide-when-done', 'true')
     })
   })
 
@@ -803,7 +809,8 @@ describe('when the account has listings taken down by the store upgrade', () => 
     beforeEach(async () => {
       fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
       renderPage('/activity?section=listings')
-      await screen.findByTestId('import-panel')
+      // The badge lands with the classic count, which decides how the list loads.
+      await screen.findByTestId('activity-migrate-count')
     })
 
     it('should show the taken-down listings above the migration tool', () => {
@@ -827,6 +834,18 @@ describe('when the account has listings taken down by the store upgrade', () => 
 
     it('should offer the listings chip', () => {
       expect(screen.getByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
+  })
+
+  describe('and the listing counts are still in flight', () => {
+    beforeEach(async () => {
+      fetchImportable.mockReturnValue(new Promise(() => {}))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should not offer the listings chip yet', () => {
+      expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     })
   })
 })

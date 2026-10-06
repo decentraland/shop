@@ -10,7 +10,13 @@ import {
   resumeCreditOrder,
   type CreditOrder
 } from '~/lib/credits'
-import { detailRouteFor } from '~/lib/routes'
+import {
+  detailRouteFor,
+  isListingsSection,
+  LEGACY_VIEW_PARAM,
+  LISTINGS_SECTION,
+  LISTINGS_SECTION_PARAM
+} from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
 import { foldOrderLines, purchaseOrderPill, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
@@ -49,19 +55,9 @@ const PAGE_SIZE = 24
 
 const FILTERS: ActivityFilter[] = ['all', 'purchases', 'sales']
 
-/**
- * The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
- * bookmark and a reload all land on it — the feed is the default for everything else.
- *
- * `?section=listings` is the spelling to hand out: it says what the link opens, which matters because the
- * point of it is pasting it to creators. `?view=migrate` was the original and is still read, so the links
- * already in circulation (and the /import redirect) keep working — reading both costs one comparison,
- * while renaming outright would quietly 'work' by dropping people on the feed instead.
- */
-const SECTION_PARAM = 'section'
-const LISTINGS_SECTION = 'listings'
-const LEGACY_VIEW_PARAM = 'view'
-const LEGACY_MIGRATE_VIEW = 'migrate'
+// The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
+// bookmark and a reload all land on it — the feed is the default for everything else. See
+// `isListingsSection` for the two spellings it is read under.
 
 function formatDate(ms: number): string {
   try {
@@ -510,8 +506,7 @@ export function Activity() {
   const { session, signIn } = useWallet()
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const [params, setParams] = useSearchParams()
-  const migrating =
-    params.get(SECTION_PARAM) === LISTINGS_SECTION || params.get(LEGACY_VIEW_PARAM) === LEGACY_MIGRATE_VIEW
+  const migrating = isListingsSection(params)
 
   useSeo({ title: migrating ? t('seo.import.title') : t('nav.activity'), noindex: true })
 
@@ -540,7 +535,7 @@ export function Activity() {
   // which is the flash the single-count version was written to avoid. They resolve together anyway — both
   // queries gate on the same address.
   const countsKnown = importCount !== undefined && listingCount !== undefined
-  const showMigrate = (countsKnown && (importCount > 0 || listingCount > 0 || migrating)) || !!cancelledCount
+  const showMigrate = countsKnown && (importCount > 0 || listingCount > 0 || migrating || !!cancelledCount)
 
   // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
   // what the migrate panel is allowed to render.
@@ -643,13 +638,13 @@ export function Activity() {
     if (!migrating) return
     const q = new URLSearchParams(params)
     // Clear both spellings, or leaving via a legacy link would keep re-opening the section.
-    q.delete(SECTION_PARAM)
+    q.delete(LISTINGS_SECTION_PARAM)
     q.delete(LEGACY_VIEW_PARAM)
     setParams(q, { replace: true })
   }
   function openMigrate() {
     const q = new URLSearchParams(params)
-    q.set(SECTION_PARAM, LISTINGS_SECTION)
+    q.set(LISTINGS_SECTION_PARAM, LISTINGS_SECTION)
     q.delete(LEGACY_VIEW_PARAM)
     setParams(q, { replace: true })
   }
@@ -708,8 +703,9 @@ export function Activity() {
               autoLoad={!importCount}
             />
           ) : null}
-          {/* Its "all set" card would contradict the list above it. */}
-          {!cancelledCount || (importCount ?? 0) > 0 ? <ImportListings /> : null}
+          {/* Kept mounted so a run's re-check outlives its last row; only its "all set" card is hidden, which
+              would contradict the list above it. */}
+          <ImportListings hideWhenDone={!!cancelledCount} />
         </Suspense>
       ) : isLoading ? (
         <S.List>

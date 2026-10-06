@@ -195,6 +195,17 @@ describe('when the notice decides whether to show', () => {
     })
   })
 
+  describe('and the account is on the list through the legacy link', () => {
+    beforeEach(() => {
+      path = '/activity?view=migrate'
+      renderNotice()
+    })
+
+    it('should show nothing', () => {
+      expect(screen.queryByTestId('cancelled-listings-banner')).not.toBeInTheDocument()
+    })
+  })
+
   describe('and the account dismisses it', () => {
     beforeEach(async () => {
       renderNotice()
