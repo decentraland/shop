@@ -890,7 +890,7 @@ describe('NameBuyModal', () => {
             it('should hold the button while the wallet decides', async () => {
               await askToSwitch()
 
-              expect((screen.getByTestId('name-switch-and-retry')).disabled).toBe(true)
+              expect(screen.getByTestId<HTMLButtonElement>('name-switch-and-retry').disabled).toBe(true)
             })
 
             // Two presses before the screen re-renders both reach the handler, so the button alone cannot stop them.
@@ -933,7 +933,7 @@ describe('NameBuyModal', () => {
                 await askToSwitch()
                 await waitItOut()
 
-                expect((screen.getByTestId('name-switch-and-retry')).disabled).toBe(false)
+                expect(screen.getByTestId<HTMLButtonElement>('name-switch-and-retry').disabled).toBe(false)
               })
 
               // The first prompt settling late must not start a second purchase behind the one that ran.
