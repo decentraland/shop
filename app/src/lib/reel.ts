@@ -119,6 +119,7 @@ type ServicePerson = {
   userName?: string
   userAddress?: string
   wearables?: string[]
+  isEmoting?: boolean
   screenRect?: unknown
 }
 
@@ -180,7 +181,9 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
     itemCategory: '',
     wearerRect: toScreenRect(wearer?.screenRect),
     // Present but empty is the client saying the wearer is outside the saved crop. Absent is an older photo.
-    wearerOffPhoto: wearer?.screenRect != null && !toScreenRect(wearer.screenRect),
+    // Except while emoting: the client measured the photographer's own avatar from a collider that emotes
+    // switch off, so an emoting wearer in plain view came out empty too, and is treated as not placed.
+    wearerOffPhoto: wearer?.screenRect != null && !wearer.isEmoting && !toScreenRect(wearer.screenRect),
     otherRects: people
       .filter(person => person !== wearer)
       .map(person => toScreenRect(person.screenRect))
