@@ -278,6 +278,30 @@ describe('when ranking the photos of an item', () => {
     await expect(fetchItemReel(ITEM)).resolves.toEqual([])
   })
 
+  it('should keep an emoting wearer with an empty rectangle, ranked as not placed', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [
+          serviceImage({}, [
+            {
+              userName: 'Dancer',
+              userAddress: '0xbbb',
+              wearables: [WORN],
+              isEmoting: true,
+              screenRect: { x: 0, y: 0, width: 0, height: 0 }
+            }
+          ])
+        ]
+      })
+    })
+
+    const reel = await fetchItemReel(ITEM)
+
+    expect(reel).toHaveLength(1)
+    expect(reel[0]).toMatchObject({ wearerRect: null, wearerOffPhoto: false })
+  })
+
   it('should leave crowds out, where the item is a speck', () => {
     const ranked = rankReelPhotos([
       photo({ id: 'five', people: 5, userAddress: '0x1', place: 'a' }),
