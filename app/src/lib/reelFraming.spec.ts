@@ -21,6 +21,17 @@ describe('when reading a rectangle from the service', () => {
 
   it('and it runs off the photo it should have no rectangle', () => {
     expect(toScreenRect({ x: 0.8, y: 0, width: 0.5, height: 0.5 })).toBeNull()
+    expect(toScreenRect({ x: -0.3, y: 0, width: 0.5, height: 0.5 })).toBeNull()
+  })
+
+  it('and rounding leaves it a hair past either edge it should clamp it into the photo, on every side alike', () => {
+    const left = toScreenRect({ x: -0.01, y: 0.2, width: 0.3, height: 0.4 })
+    const right = toScreenRect({ x: 0.71, y: 0.2, width: 0.3, height: 0.4 })
+
+    expect(left?.x).toBe(0)
+    expect(left?.width).toBeCloseTo(0.29)
+    expect(right?.x).toBeCloseTo(0.71)
+    expect(right?.width).toBeCloseTo(0.29)
   })
 })
 

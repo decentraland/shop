@@ -73,42 +73,47 @@ function isCrowd(photo: ReelPhoto): boolean {
 }
 
 /**
- * Whether the photo can still make the strip. A crowd shot is only ruled out when nobody knows where the
- * wearer stands: with a rectangle, a large wearer in front of a crowd still shows the item.
+ * How many of the best-ranked photos have their wearers' outfits read from the Catalyst: enough to fill the
+ * strip twice over when some turn out to hide the item, and few enough that the lookup stays one or two
+ * requests rather than one per photo on the page.
  */
-function mayShow(photo: ReelPhoto): boolean {
-  return !!photo.wearerRect || !isCrowd(photo)
-}
-
-// The Catalyst reads a batch of pointers per request; a strip's candidates can carry a few hundred.
-const RULES_BATCH = 100
+const SHORTLIST = SHOWN * 2
 
 /**
- * Photos where the item is actually rendered on its wearer.
- *
- * A photo is tagged with everything the wearer has on, including pieces the renderer did not draw: a long
- * robe declares that it hides lower_body, and trousers under it never appear in the shot. Those are
- * dropped here, from the same Catalyst rules the fitting room uses. When the rules cannot be read the
- * photos are kept, since a strip must not depend on this lookup.
+ * Wearables read per person. An avatar has fewer slots than this, so a longer list is not an outfit, and
+ * capping it keeps one photo's metadata from deciding how many lookups every visitor to the item makes.
  */
-async function withItemVisible(photos: ReelPhoto[]): Promise<ReelPhoto[]> {
-  const candidates = photos.filter(photo => mayShow(photo) && photo.itemUrn)
-  const urns = [...new Set(candidates.flatMap(photo => [photo.itemUrn, ...photo.wearerWearables]))]
+const MAX_WEARABLES = 20
+
+// The Catalyst reads a batch of pointers per request.
+const RULES_BATCH = 100
+
+/** The Catalyst rules for these urns, by lowercased urn. Empty when they cannot be read: the lookup fails soft. */
+async function fetchRules(urns: string[]): Promise<Map<string, WearableRule>> {
+  const unique = [...new Set(urns.filter(Boolean))]
   const batches: string[][] = []
-  for (let i = 0; i < urns.length; i += RULES_BATCH) batches.push(urns.slice(i, i + RULES_BATCH))
+  for (let i = 0; i < unique.length; i += RULES_BATCH) batches.push(unique.slice(i, i + RULES_BATCH))
   const rules = new Map<string, WearableRule>()
   for (const rule of (await Promise.all(batches.map(fetchWearableRules))).flat())
     rules.set(rule.urn.toLowerCase(), rule)
+  return rules
+}
 
-  return photos
-    .map(photo => ({ ...photo, itemCategory: rules.get(photo.itemUrn.toLowerCase())?.category ?? '' }))
-    .filter(photo => {
-      if (!photo.itemCategory) return true
-      return !photo.wearerWearables.some(urn => {
-        const rule = urn.toLowerCase() === photo.itemUrn.toLowerCase() ? undefined : rules.get(urn.toLowerCase())
-        return !!rule && hiddenBy(rule).has(photo.itemCategory)
-      })
-    })
+/**
+ * Whether the item is actually rendered on its wearer.
+ *
+ * A photo is tagged with everything the wearer has on, including pieces the renderer did not draw: a long
+ * robe declares that it hides lower_body, and trousers under it never appear in the shot. That is read from
+ * the same Catalyst rules the fitting room uses. A rule that could not be read hides nothing, since a strip
+ * must not depend on this lookup.
+ */
+function itemVisible(photo: ReelPhoto, rules: Map<string, WearableRule>): boolean {
+  if (!photo.itemCategory) return true
+  const item = photo.itemUrn.toLowerCase()
+  return !photo.wearerWearables.some(urn => {
+    const rule = urn.toLowerCase() === item ? undefined : rules.get(urn.toLowerCase())
+    return !!rule && hiddenBy(rule).has(photo.itemCategory)
+  })
 }
 
 /** At most this many photos by the same person, or in the same place, so the strip is not one scene. */
@@ -138,30 +143,55 @@ type ServiceImage = {
   }
 }
 
-/** The item's own urn for a token urn (drops the token id), which is what the Catalyst answers for. */
+/**
+ * The item's own urn for a token urn (drops the token id), which is what the Catalyst answers for. Only
+ * on-chain collections carry a token id there: a third-party urn keeps every part, or its item is lost.
+ */
 function itemPointer(urn: string): string {
   const parts = urn.split(':')
-  return parts.length > 6 && parts[3]?.startsWith('collections-') ? parts.slice(0, 6).join(':') : urn
+  return parts.length > 6 && /^collections-v[12]$/i.test(parts[3] ?? '') ? parts.slice(0, 6).join(':') : urn
+}
+
+/** What the person has on, as item urns, read from photo metadata and so capped and kept to Decentraland urns. */
+function outfit(person: ServicePerson): string[] {
+  return (person.wearables ?? [])
+    .filter(urn => typeof urn === 'string' && urn.toLowerCase().startsWith('urn:decentraland:'))
+    .slice(0, MAX_WEARABLES)
+    .map(itemPointer)
 }
 
 /** This item's urn on the person, whichever copy of it they own, or null when they do not wear it. */
 function wornItem(person: ServicePerson, itemKey: string): string | null {
   const [contract, itemId] = itemKey.split('-')
   const urn = (person.wearables ?? []).find(urn => {
+    if (typeof urn !== 'string') return false
     const parts = urn.split(':')
     return parts.length >= 7 && parts[4].toLowerCase() === contract && parts[5] === itemId
   })
   return urn ? itemPointer(urn) : null
 }
 
-function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
+/**
+ * The photo once per person in it wearing the item, in the order the client listed them, or once with no
+ * wearer when nobody does. The credit names one wearer, and which one is settled later: the first whose
+ * item is not hidden under something else.
+ */
+function toPhotos(image: ServiceImage, itemKey: string): ReelPhoto[] {
   const metadata = image.metadata
-  if (!metadata) return null
+  if (!metadata) return []
+  const people = Array.isArray(metadata.visiblePeople) ? metadata.visiblePeople : []
+  const wearers = people.filter(person => wornItem(person, itemKey))
+  return (wearers.length > 0 ? wearers : [undefined]).map(wearer => toPhoto(image, people, wearer, itemKey))
+}
 
-  const people = metadata.visiblePeople ?? []
+function toPhoto(
+  image: ServiceImage,
+  people: ServicePerson[],
+  wearer: ServicePerson | undefined,
+  itemKey: string
+): ReelPhoto {
+  const metadata = image.metadata ?? {}
   const shooter = (metadata.userAddress ?? '').toLowerCase()
-  // The first match is enough: the credit names one wearer, even if several people in the shot own the item.
-  const wearer = people.find(person => wornItem(person, itemKey))
   const wearerAddress = (wearer?.userAddress ?? '').toLowerCase()
   const location = metadata.scene?.location
 
@@ -176,7 +206,7 @@ function toPhoto(image: ServiceImage, itemKey: string): ReelPhoto | null {
     place: metadata.scene?.name ?? '',
     placeId: metadata.placeId ?? '',
     position: location?.x != null && location?.y != null ? `${location.x},${location.y}` : '',
-    wearerWearables: (wearer?.wearables ?? []).map(itemPointer),
+    wearerWearables: wearer ? outfit(wearer) : [],
     itemUrn: wearer ? (wornItem(wearer, itemKey) ?? '') : '',
     itemCategory: '',
     wearerRect: toScreenRect(wearer?.screenRect),
@@ -251,7 +281,19 @@ export async function fetchItemReel(item: Pick<CatalogItem, 'contractAddress' | 
   if (!res.ok) throw new Error(`fetchItemReel ${res.status}`)
 
   const body = (await res.json()) as { images?: ServiceImage[] }
-  const photos = (body.images ?? []).map(image => toPhoto(image, key)).filter((p): p is ReelPhoto => !!p)
+  const shots = (body.images ?? []).map(image => toPhotos(image, key)).filter(variants => variants.length > 0)
 
-  return rankReelPhotos(await withItemVisible(photos))
+  // The item's category first: where it sits on the body decides how a cut-off wearer is scored.
+  const itemRules = await fetchRules(shots.flat().map(photo => photo.itemUrn))
+  const categorized = shots.map(variants =>
+    variants.map(photo => ({ ...photo, itemCategory: itemRules.get(photo.itemUrn.toLowerCase())?.category ?? '' }))
+  )
+
+  // Then the outfits, only for the photos that could make the strip, each credited to its first wearer.
+  const variantsOf = new Map(categorized.map(variants => [variants[0], variants]))
+  const shortlist = rankReelPhotos([...variantsOf.keys()], SHORTLIST).map(photo => variantsOf.get(photo) ?? [photo])
+  const outfitRules = await fetchRules(shortlist.flat().flatMap(photo => photo.wearerWearables))
+
+  const visible = shortlist.flatMap(variants => variants.filter(photo => itemVisible(photo, outfitRules)).slice(0, 1))
+  return rankReelPhotos(visible)
 }

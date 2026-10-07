@@ -50,16 +50,27 @@ const HEAD_CATEGORIES = new Set([
   'mouth'
 ])
 
-/** A rectangle from the service, or null when it is missing, empty or not a rectangle of the photo. */
+/**
+ * A rectangle from the service, or null when it is missing, empty or not a rectangle of the photo.
+ *
+ * Rounding can leave a rectangle a hair past any edge, so up to `EDGE` of overflow is accepted on every side
+ * alike and clamped back into the photo; anything further out is not a rectangle of it.
+ */
 export function toScreenRect(raw: unknown): ScreenRect | null {
   if (!raw || typeof raw !== 'object') return null
   const { x, y, width, height } = raw as Record<string, unknown>
   const values = [x, y, width, height]
   if (!values.every(v => typeof v === 'number' && Number.isFinite(v))) return null
-  const rect = { x: x as number, y: y as number, width: width as number, height: height as number }
-  if (rect.width <= 0 || rect.height <= 0) return null
-  if (rect.x < 0 || rect.y < 0 || rect.x + rect.width > 1 + EDGE || rect.y + rect.height > 1 + EDGE) return null
-  return rect
+  const [left, top, w, h] = values as number[]
+  if (w <= 0 || h <= 0) return null
+  if (left < -EDGE || top < -EDGE || left + w > 1 + EDGE || top + h > 1 + EDGE) return null
+  if (left >= 0 && top >= 0 && left + w <= 1 && top + h <= 1) return { x: left, y: top, width: w, height: h }
+  const x0 = Math.max(0, left)
+  const y0 = Math.max(0, top)
+  const x1 = Math.min(1, left + w)
+  const y1 = Math.min(1, top + h)
+  if (x1 <= x0 || y1 <= y0) return null
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
 }
 
 function contains(rect: ScreenRect, x: number, y: number): boolean {
