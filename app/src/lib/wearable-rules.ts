@@ -92,11 +92,12 @@ type ActiveEntity = {
 
 // One POST for a batch of urns. The Catalyst holds the wearable's own definition, so both readers here come
 // through it. Rejects like any fetch; each caller decides what "no answer" means for it.
-async function fetchActiveEntities(urns: string[]): Promise<ActiveEntity[]> {
+async function fetchActiveEntities(urns: string[], signal?: AbortSignal): Promise<ActiveEntity[]> {
   const res = await fetch(`${config.peerUrl}/content/entities/active`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ pointers: urns })
+    body: JSON.stringify({ pointers: urns }),
+    signal
   })
   if (!res.ok) return []
   return (await res.json()) as ActiveEntity[]
@@ -125,12 +126,12 @@ export async function fetchVrmExportBlocked(urn: string): Promise<boolean | null
  * we cannot read cannot be shown to hide anything.
  *
  * Fail-soft: an empty list means "no rules known", and every caller then leaves the avatar alone. Dressing
- * the avatar must never depend on this succeeding.
+ * the avatar must never depend on this succeeding. An aborted `signal` counts as a failure too.
  */
-export async function fetchWearableRules(urns: string[]): Promise<WearableRule[]> {
+export async function fetchWearableRules(urns: string[], signal?: AbortSignal): Promise<WearableRule[]> {
   if (urns.length === 0) return []
   try {
-    const entities = await fetchActiveEntities(urns)
+    const entities = await fetchActiveEntities(urns, signal)
     const byUrn = new Map<string, WearableRule>()
     for (const entity of entities) {
       const data = entity.metadata?.data
