@@ -212,20 +212,22 @@ describe('notifications panel', () => {
 
     const first = await page.$$eval(ITEM, els => {
       const e = els[0]
-      // ui2 wraps the whole description in a bare <a> with no href; the real inline link is the one that
-      // actually points somewhere.
-      const link = e.querySelector('a[href]')
+      // ui2 makes the title a link too when the row has somewhere to go, so a row carries two anchors: the
+      // title and the inline one on the item's name. Read them apart instead of taking the first.
+      const links = [...e.querySelectorAll('a[href]')].map(a => ({
+        text: a.textContent || '',
+        href: a.getAttribute('href')
+      }))
       return {
         text: e.textContent || '',
         hasIcon: !!e.querySelector('svg, img'),
-        linkText: link?.textContent || null,
-        linkHref: link?.getAttribute('href') || null
+        links
       }
     })
     expect(first.hasIcon).toBe(true)
     expect(first.text).toMatch(/item sold/i)
-    expect(first.linkText).toBe('Nebula Jacket')
-    expect(first.linkHref).toBe('/activity')
+    expect(first.links.find(l => /item sold/i.test(l.text))?.href).toBe('/activity')
+    expect(first.links.find(l => l.text === 'Nebula Jacket')?.href).toBe('/activity')
     // date-fns formatDistanceToNow output, e.g. "about 1 year".
     expect(first.text).toMatch(/\b(seconds?|minutes?|hours?|days?|months?|years?)\b/i)
   })

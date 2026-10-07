@@ -1,4 +1,5 @@
 import { config } from '~/config'
+import { persistSegmentKillSwitch } from '~/lib/analytics-proxy'
 
 /**
  * Decentraland feature flags, read from the same service every other dapp reads.
@@ -138,7 +139,21 @@ export enum FeatureFlag {
    * the event, a payload we cannot act on is likelier to be a restriction gone wrong than a deliberate
    * launch, so it is read as the former.
    */
-  SHOP_CAMPAIGN = 'shop-campaign'
+  SHOP_CAMPAIGN = 'shop-campaign',
+
+  /**
+   * Kill switch back to Segment's own hosts. ON means analytics.js and its events go STRAIGHT to Segment;
+   * off (or absent, which reads the same) keeps them on our first party proxy, which is what every
+   * environment ships with — ad blockers drop Segment's hosts, so the proxy is what makes the funnel
+   * complete at all.
+   *
+   * Shared with the other dapps under this same key, so one flip moves every one of them off the proxy.
+   *
+   * Read differently from every other flag here: the provider mounts at boot and this accessor is async,
+   * so the value is PERSISTED as each snapshot arrives and the boot decides with the persisted one. See
+   * lib/analytics-proxy.
+   */
+  SEGMENT_ALTERNATIVE = 'seg-alt'
 }
 
 /** The application whose flag file carries the flags above. */
@@ -209,6 +224,10 @@ async function getSnapshot(): Promise<Snapshot> {
     inFlight = fetchSnapshot()
       .then(fresh => {
         snapshot = fresh
+        // Recorded here, on the one place a fresh snapshot lands, because the analytics provider mounts
+        // before any flag can be fetched and must not wait for one. Riding on this fetch rather than
+        // asking for its own keeps the kill switch off the boot path entirely.
+        persistSegmentKillSwitch(fresh.flags[flagKey(FeatureFlag.SEGMENT_ALTERNATIVE)] === true)
         return fresh
       })
       .finally(() => {
