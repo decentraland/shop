@@ -143,6 +143,58 @@ const builderItem = (bid: string, name: string) => ({
 const noOverflow = (page: App['page']) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
+/**
+ * Whether an element is on screen and on top: inside the viewport, its text inside its box, and the thing
+ * a tap at its centre would land on, so nothing pinned over it counts as visible.
+ */
+const onScreen = (page: App['page'], testId: string) =>
+  page.$eval(`[data-testid="${testId}"]`, el => {
+    const box = el.getBoundingClientRect()
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    return (
+      box.top >= 0 && box.bottom <= window.innerHeight && el.scrollWidth <= el.clientWidth && !!hit && el.contains(hit)
+    )
+  })
+
+/** Whether the card scrolls, which is what makes the pinned actions matter. */
+const cardScrolls = (page: App['page']) =>
+  page.$eval('[data-testid="creator-sale-modal"]', el => el.scrollHeight > el.clientHeight)
+
+const text = (page: App['page'], testId: string) =>
+  page.$eval(`[data-testid="${testId}"]`, el => (el as HTMLElement).innerText.trim())
+
+const modalHeight = (page: App['page']) =>
+  page.$eval('[data-testid="creator-sale-modal"]', el => Math.round(el.getBoundingClientRect().height))
+
+/** Waits out an element's own animations, so a press lands on it rather than on a part still clipped away. */
+const settle = (page: App['page'], selector: string) =>
+  page.$eval(selector, el => Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished)))
+
+/** The buyer's-eye preview of the priciest item: its sale price, the struck one, and whether the credits mark leads. */
+const previewPrices = (page: App['page']) =>
+  page.evaluate(() => {
+    const now = document.querySelector('[data-testid="creator-sale-preview-now"]')
+    const mark = now?.firstElementChild
+    const style = mark && getComputedStyle(mark)
+    return {
+      now: now?.textContent?.trim(),
+      was: document.querySelector('[data-testid="creator-sale-preview-was"]')?.textContent?.trim(),
+      mark: !!style && (style.maskImage || style.webkitMaskImage || 'none') !== 'none'
+    }
+  })
+
+/**
+ * The last two pickable days of the month the calendar opens on. It opens on the month holding the default
+ * window's end, two days out, and allows 30 days from today, so those two days are always after today.
+ */
+const pickFutureDays = async (page: App['page']) => {
+  const days = await page.$$('[data-testid="creator-sale-range-picker"] [role="option"][aria-disabled="false"]')
+  const visible = []
+  for (const day of days) if (await day.evaluate(el => getComputedStyle(el).visibility !== 'hidden')) visible.push(day)
+  await visible[visible.length - 2].click()
+  await visible[visible.length - 1].click()
+}
+
 describe('creator sales', () => {
   it('puts a collection on sale from My Creations, on a phone-sized screen', async () => {
     app = await launchApp({
@@ -168,32 +220,37 @@ describe('creator sales', () => {
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
     await waitForText(page, 'Galaxy Drip')
     await waitForText(page, '1 item listed')
-    // 20% off by default: the cheapest listed item (30 credits) previews at 24.
-    await waitForText(page, 'sells for 24')
-    // The sentence names the unit with the currency mark rather than the word, and the mark comes first.
-    const amounts = await page.$$eval('[data-testid="creator-sale-preview"] b', els =>
-      els.map(el => {
-        const mark = el.firstElementChild
-        const style = mark && getComputedStyle(mark)
-        const masked = !!style && (style.maskImage || style.webkitMaskImage || 'none') !== 'none'
-        return `${masked ? 'mark' : 'no mark'}|${el.textContent}`
-      })
-    )
-    expect(amounts).toEqual(['mark|30', 'mark|24'])
+    // 20% off by default: the listed item (30 credits) shows the buyer 24, with 30 struck through.
+    expect(await previewPrices(page)).toEqual({ now: '24', was: '30', mark: true })
     expect(await noOverflow(page)).toBe(true)
 
     // The collection is the scope, not a choice: it is stated, with nothing to untick.
     expect(await page.$('[data-testid="creator-sale-collections"] input')).toBeNull()
 
-    // Pick 30% → the example follows.
-    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^30% off$/i)).toBe(true)
-    await waitForText(page, 'sells for 21')
+    // Pick 30% → the preview follows.
+    await page.click('[data-testid="creator-sale-pct-30"]')
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="creator-sale-preview-now"]')?.textContent?.trim() === '21'
+    )
+
+    // The form is taller than a phone, so the actions stay pinned in view rather than below the fold.
+    expect(await cardScrolls(page)).toBe(true)
+    expect(await onScreen(page, 'creator-sale-continue')).toBe(true)
+
+    // And so does the reason Continue is refused, which rides in the pinned foot rather than below the form.
+    await page.type('[data-testid="creator-sale-cap"]', '0')
+    await page.waitForSelector('[data-testid="creator-sale-error"]')
+    expect(await onScreen(page, 'creator-sale-error')).toBe(true)
+    await page.click('[data-testid="creator-sale-cap"]', { count: 3 })
+    await page.keyboard.press('Backspace')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-error"]'))
 
     // Nothing is signed from the form — the terms go to a review first.
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
     await waitForText(page, '1 item gets the discount')
     expect(await noOverflow(page)).toBe(true)
+    expect(await onScreen(page, 'creator-sale-submit')).toBe(true)
 
     // One signature, one POST, then the success view with its countdown.
     await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
@@ -321,7 +378,7 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Cape')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Every listed item, with what it costs now and what it will cost. 20% off: 30 → 24, 10 → 8.
@@ -347,10 +404,10 @@ describe('creator sales', () => {
     // Uncapped, so the ceiling is the listed items' own remaining supply (100 + 100 for two rares).
     await waitForText(page, 'available at the discounted price')
 
-    // Back returns to the terms with them intact.
+    // Back returns to the terms with them intact: the priciest item leads the preview, still at 24.
     expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await waitForText(page, 'sells for 24')
+    expect((await previewPrices(page)).now).toBe('24')
   })
 
   // The case the review gets wrong if it only knows "listed" and "not listed": an item the shop DOES
@@ -393,7 +450,7 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Cape')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Its own group, named for what it is — and NOT among the ones that are not for sale.
@@ -417,7 +474,7 @@ describe('creator sales', () => {
     expect(why).toMatch(/Activity . Listings/)
   })
 
-  it('grades the discount chips by how deep the cut is, and opens each input in its chip', async () => {
+  it('offers the discounts as one segmented control, and opens the custom one in its segment', async () => {
     app = await launchApp({
       path: '/my-items?section=creations',
       creatorSales: true,
@@ -434,42 +491,44 @@ describe('creator sales', () => {
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
 
-    // Four distinct steps, warming as the discount deepens — not one colour repeated.
-    const fills = await page.$$eval('[data-testid="creator-sale-discounts"] button[data-heat]', els =>
-      els.map(e => getComputedStyle(e).backgroundColor)
-    )
-    expect(fills).toHaveLength(4)
-    expect(new Set(fills).size).toBe(4)
+    // One segment per preset, lettered the way the card's tag reads.
+    const tags = await page.$$eval('[data-testid^="creator-sale-pct-"]', els => els.map(e => e.textContent?.trim()))
+    expect(tags.map(t => t?.replace(/[^\d%-]/g, ''))).toEqual(['-10%', '-20%', '-30%', '-50%'])
 
-    // The chip IS the field: picking Custom collapses the button away and opens the input in its place.
-    const width = (sel: string) => page.$eval(sel, el => (el as HTMLElement).getBoundingClientRect().width)
-    const settled = (sel: string, open: boolean) =>
-      page.waitForFunction(
-        (s: string, o: boolean) => {
-          const el = document.querySelector(s)
-          if (!el) return false
-          const w = el.getBoundingClientRect().width
-          return o ? w > 0 : w === 0
-        },
-        { timeout: 5000 },
-        sel,
-        open
-      )
+    // Custom is a segment of its own that turns into the field when picked.
+    expect(await page.$('[data-testid="creator-sale-custom-pct-field"]')).toBeNull()
+    await page.click('[data-testid="creator-sale-custom-pct-chip"]')
+    await page.waitForSelector('[data-testid="creator-sale-custom-pct-field"] input')
+    expect(await page.$('[data-testid="creator-sale-custom-pct-chip"]')).toBeNull()
+  })
 
-    expect(await width('[data-testid="creator-sale-custom-pct-chip"]')).toBeGreaterThan(0)
-    expect(await width('[data-testid="creator-sale-custom-pct-field"]')).toBe(0)
+  it('picks how long it runs on the Shop calendar, floating over the modal rather than growing it', async () => {
+    app = await launchApp({
+      path: '/my-items?section=creations',
+      creatorSales: true,
+      fixtures: {
+        importable: { data: [] },
+        shopListings: galaxyListed,
+        unifiedListings: { data: [] },
+        collectionSaleState: galaxyListed
+      }
+    })
+    const { page } = app
 
-    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^custom$/i)).toBe(true)
-    await settled('[data-testid="creator-sale-custom-pct-chip"]', false)
-    expect(await width('[data-testid="creator-sale-custom-pct-field"]')).toBeGreaterThan(0)
+    await waitForText(page, 'Galaxy Hat')
+    await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    expect(await text(page, 'creator-sale-when')).toBe('3 days, starting now')
 
-    // Same for the two date pickers, which used to drop a field below the row.
-    expect(await width('[data-testid="creator-sale-custom-end-field"]')).toBe(0)
-    expect(await clickByText(page, '[data-testid="creator-sale-durations"] button', /^pick an end$/i)).toBe(true)
-    // Settle on the chip reaching zero, not on the field appearing: the tracks interpolate, so mid-flight
-    // the collapsing half is briefly WIDER than either end state.
-    await settled('[data-testid="creator-sale-custom-end-chip"]', false)
-    expect(await width('[data-testid="creator-sale-custom-end-field"]')).toBeGreaterThan(0)
+    const before = await modalHeight(page)
+    await page.click('[data-testid="creator-sale-when"]')
+    await page.waitForSelector('[data-testid="creator-sale-range-picker"]')
+    await settle(page, '[data-testid="creator-sale-range-picker"]')
+    expect(await modalHeight(page)).toBe(before)
+
+    await page.click('[data-testid="creator-sale-when-7d"]')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-range-picker"]'))
+    expect(await text(page, 'creator-sale-when')).toBe('7 days, starting now')
   })
 
   it('keeps the modal the same height whatever the terms are', async () => {
@@ -510,28 +569,32 @@ describe('creator sales', () => {
     }
 
     const heights: number[] = [await height()]
-    for (const label of [/^10% off$/i, /^50% off$/i, /^custom$/i]) {
-      expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', label)).toBe(true)
+    for (const pct of ['10', '50']) {
+      await page.click(`[data-testid="creator-sale-pct-${pct}"]`)
       heights.push(await height())
     }
-    for (const label of [/^pick an end$/i, /^7d$/i]) {
-      expect(await clickByText(page, '[data-testid="creator-sale-durations"] button', label)).toBe(true)
-      heights.push(await height())
-    }
-    expect(await clickByText(page, 'button', /^on a date$/i)).toBe(true)
+    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^custom$/i)).toBe(true)
     heights.push(await height())
-    await page.click('[data-testid="creator-sale-cap-toggle"]')
+    for (const preset of ['24h', '14d']) {
+      await page.click('[data-testid="creator-sale-when"]')
+      await page.waitForSelector(`[data-testid="creator-sale-when-${preset}"]`)
+      await settle(page, '[data-testid="creator-sale-range-picker"]')
+      await page.click(`[data-testid="creator-sale-when-${preset}"]`)
+      await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-range-picker"]'))
+      heights.push(await height())
+    }
+    await page.type('[data-testid="creator-sale-cap"]', '5')
     heights.push(await height())
 
-    // One height, every combination. The example line rewraps with the numbers in it and the date and cap
-    // fields used to arrive as whole new rows, so the card grew and shrank underneath the pointer.
+    // One height, every combination. The cap field used to arrive as a whole new row and the calendar
+    // opened inside the card, so the card grew and shrank underneath the pointer.
     // A couple of pixels of slack for font metrics, which differ between a laptop and CI's headless
     // Chrome; a row arriving or leaving is 40px, so this cannot hide the thing the test is for.
     const spread = Math.max(...heights) - Math.min(...heights)
     expect(spread, `heights across the terms: ${heights.join(', ')}`).toBeLessThanOrEqual(2)
   })
 
-  it('times the start and the end separately, in the discount’s own colour', async () => {
+  it('times the start and the end separately, and schedules a window picked on the calendar', async () => {
     app = await launchApp({
       path: '/my-items?section=creations',
       creatorSales: true,
@@ -547,10 +610,16 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Hat')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    // Schedule it, so the start is a moment in the future with its own time left.
-    expect(await clickByText(page, 'button', /^on a date$/i)).toBe(true)
-    expect(await clickByText(page, '[data-testid="creator-sale-discounts"] button', /^50% off$/i)).toBe(true)
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    // Schedule it on the calendar, so the start is a day in the future with its own time left.
+    await page.click('[data-testid="creator-sale-when"]')
+    await page.waitForSelector('[data-testid="creator-sale-range-picker"]')
+    await settle(page, '[data-testid="creator-sale-range-picker"]')
+    await pickFutureDays(page)
+    await page.click('[data-testid="creator-sale-range-apply"]')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="creator-sale-range-picker"]'))
+    await page.waitForSelector('[data-testid="creator-sale-when-hint"]')
+    await page.click('[data-testid="creator-sale-pct-50"]')
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     // Each end of the window is its own row, and each says how long until it.
@@ -560,30 +629,9 @@ describe('creator sales', () => {
       expect(text).toMatch(/\d+[dhms]/)
     }
 
-    // One colour per step, everywhere it shows: the badge here, the discounted price here, and the chip
-    // back on the terms. They drifted apart once — a bright ring on the chip against a darker price —
-    // and the review read as a different discount from the one that had been picked.
-    const heat = await page.evaluate(() => {
-      const badge = document.querySelector('[data-testid="creator-sale-review-pct"]') as Element
-      const price = document.querySelector('[data-testid="review-now"]') as Element
-      return {
-        step: [badge.getAttribute('data-heat'), price.getAttribute('data-heat')],
-        badgeColor: getComputedStyle(badge).color,
-        badgeBorder: getComputedStyle(badge).borderTopColor,
-        priceColor: getComputedStyle(price).color
-      }
-    })
-    expect(heat.step).toEqual(['max', 'max'])
-    expect(heat.priceColor).toBe(heat.badgeColor)
-    expect(heat.badgeBorder).toBe(heat.badgeColor)
-
-    expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
-    await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    const chipColor = await page.$eval(
-      '[data-testid="creator-sale-discounts"] button[data-selected]',
-      el => getComputedStyle(el).color
-    )
-    expect(chipColor).toBe(heat.priceColor)
+    // The review wears the same tag the chip did.
+    expect((await text(page, 'creator-sale-review-pct')).replace(/[^\d%-]/g, '')).toBe('-50%')
+    expect(await page.$eval('[data-testid="creator-sale-submit"]', el => el.textContent)).toMatch(/schedule discount/i)
   })
 
   it('drops a failed attempt when the creator goes back to change the terms', async () => {
@@ -603,7 +651,7 @@ describe('creator sales', () => {
     await waitForText(page, 'Galaxy Hat')
     await clickWhenEnabled(page, '[data-testid="creation-group-sale"]', /start a discount/i)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
 
     await clickWhenEnabled(page, '[data-testid="creator-sale-submit"]', /start discount/i)
@@ -613,7 +661,7 @@ describe('creator sales', () => {
     expect(await clickByText(page, '[data-testid="creator-sale-back"]', /back/i)).toBe(true)
     await page.waitForSelector('[data-testid="creator-sale-modal"]')
     expect(await page.$('[data-testid="creator-sale-error"]')).toBeNull()
-    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /review discount/i)
+    await clickWhenEnabled(page, '[data-testid="creator-sale-continue"]', /continue/i)
     await page.waitForSelector('[data-testid="creator-sale-review"]')
     expect(await page.$('[data-testid="creator-sale-error"]')).toBeNull()
   })

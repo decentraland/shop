@@ -34,6 +34,7 @@ function aCampaign(over: Partial<Campaign> = {}): Campaign {
     mainTag: 'halloween',
     tags: ['halloween'],
     collections: [],
+    items: [],
     banners: {},
     assets: {},
     ...over
@@ -63,6 +64,16 @@ describe('the event page', () => {
       renderEvent()
 
       expect(assetsProps.mock.calls[0][0].contracts).toEqual([A, B])
+    })
+
+    it('should pin the grid to the individual items the campaign names as well', () => {
+      // Unioned with the collections server-side: a curated list lives in collections the event does not
+      // want whole, so it cannot be expressed by naming collections.
+      const items = ['0x81a377fd28e619e4d794aefccc96acc232d17147-0']
+      useCampaign.mockReturnValue({ campaign: aCampaign({ items }), isPending: false, isError: false })
+      renderEvent()
+
+      expect(assetsProps.mock.calls[0][0].itemIds).toEqual(items)
     })
 
     it('should pin the status filter to on-sale', () => {

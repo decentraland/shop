@@ -252,6 +252,95 @@ export const PerfHead = styled.div`
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+
+  ${theme.media.maxWidth('sm')} {
+    position: relative;
+    z-index: 1;
+  }
+`
+
+/** The dashboard's sections as the Builder's filter pills: white when picked, a translucent pill otherwise. */
+export const Tabs = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+
+  &[hidden] {
+    display: none;
+  }
+  ${theme.media.maxWidth('mobile')} {
+    flex: 1 1 100%;
+    gap: 8px;
+  }
+`
+
+export const Tab = styled.button`
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: ${theme.colors.white};
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+
+  &:hover:not([aria-selected='true']) {
+    background: rgba(255, 255, 255, 0.28);
+  }
+  &[aria-selected='true'] {
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    padding: 0 12px;
+  }
+`
+
+/** The count on a tab, pinned to its corner the way the Builder marks a filter with something waiting. */
+export const TabCount = styled.span`
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 2px;
+  border-radius: 100px;
+  background: ${theme.colors.dclRed};
+  color: ${theme.colors.white};
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+`
+
+/** The tab's panel: the same stack and spacing the page itself lays its sections out with. */
+export const TabPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 `
 
 export const PerfTitle = styled.h2`
@@ -263,20 +352,25 @@ export const PerfTitle = styled.h2`
   color: ${theme.colors.white};
 `
 
-export const Periods = styled.div`
-  display: flex;
-  gap: 4px;
-  max-width: 100%;
-  padding: 4px;
-  border-radius: ${theme.radius.pill};
-  background: rgba(0, 0, 0, 0.22);
-  /* Six presets outgrow a phone: the row scrolls rather than wrapping into a second pill. */
-  overflow-x: auto;
-  scrollbar-width: none;
+/** The audience band's title, when the page lays every section out at once. */
+export const SectionHead = styled.div`
+  margin: 10px 0 -4px;
+`
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
+export const SectionTitle = styled.h2`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: ${theme.colors.softWhite};
+`
+
+export const SectionSub = styled.p`
+  margin: 4px 0 0;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  color: rgba(252, 252, 252, 0.62);
 `
 
 export const PerfControls = styled.div`
@@ -286,6 +380,10 @@ export const PerfControls = styled.div`
   justify-content: flex-end;
   gap: 8px;
   max-width: 100%;
+
+  &[data-hidden] {
+    display: none;
+  }
 `
 
 export const CurrencySwitch = styled.div`
@@ -322,10 +420,77 @@ export const Dollar = styled.span`
   opacity: 0.8;
 `
 
-/** Anchors the range picker under the period row, outside its scroller so the popup is not clipped. */
+/** Anchors the range picker under its trigger. */
 export const PeriodsWrap = styled.div`
+  /* Its own layer: the trigger and picker stack inside it, above the page and under the sticky nav. */
   position: relative;
+  z-index: 1;
+  min-width: 0;
   max-width: 100%;
+
+  /* On a phone the calendar spans the whole header rather than hanging off the trigger. */
+  ${theme.media.maxWidth('sm')} {
+    position: static;
+
+    [data-testid='store-range-picker'] {
+      left: 0;
+      right: 0;
+    }
+  }
+`
+
+export const RangeTrigger = styled.button`
+  /* Above the picker, which slides out from behind it. */
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 14px;
+  border: 0;
+  border-radius: ${theme.radius.pill};
+  background: rgba(0, 0, 0, 0.22);
+  color: ${theme.colors.softWhite};
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  span:not(.ico) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ico {
+    transition: transform 0.2s ease;
+  }
+  .ico[data-open] {
+    transform: rotate(180deg);
+  }
+  &:hover {
+    background: rgba(0, 0, 0, 0.32);
+  }
+  /* Opaque while open: the picker slides out from behind it, and a see-through trigger would show it there. */
+  &[aria-expanded='true'] {
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ico {
+      transition: none;
+    }
+  }
+  ${theme.media.maxWidth('sm')} {
+    min-height: 44px;
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
 `
 
 export const Period = styled.button`
@@ -1739,32 +1904,6 @@ export const Delta = styled.span`
 `
 
 /**
- * The heading over a band of panels, on the purple field rather than inside a card.
- *
- * The page was one stack of white panels, which made every part of it read as equally important. A band
- * with its own title says where the sales figures end and the people behind them begin.
- */
-export const SectionHead = styled.div`
-  margin: 10px 0 -4px;
-`
-
-export const SectionTitle = styled.h2`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: ${theme.colors.softWhite};
-`
-
-export const SectionSub = styled.p`
-  margin: 4px 0 0;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: rgba(252, 252, 252, 0.62);
-`
-
-/**
  * The band's two figures, under its title.
  *
  * Capped rather than stretched: a tile is a figure and a line about it, and given the full width of the
@@ -1773,9 +1912,9 @@ export const SectionSub = styled.p`
  */
 export const AudienceTiles = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 300px));
+  /* Shares the row evenly and at one height, so two tiles never sit as a short and a tall one in a corner. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
-  align-items: start;
 
   ${theme.media.maxWidth('mobile')} {
     grid-template-columns: minmax(0, 1fr);
@@ -1807,7 +1946,8 @@ export const TileAction = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 2px -4px -6px;
+  /* Auto on top pins it to the tile's foot when its neighbour in the row is taller. */
+  margin: auto -4px -6px;
   padding: 6px 4px;
   border: 0;
   background: none;
@@ -1819,6 +1959,12 @@ export const TileAction = styled.button`
   text-transform: uppercase;
   text-decoration: underline;
   cursor: pointer;
+
+  /* A finger's worth to tap on a phone, where this is how the overview reaches the discounts. */
+  ${theme.media.maxWidth('mobile')} {
+    min-height: 44px;
+    margin-bottom: -12px;
+  }
 
   &:hover {
     color: ${theme.colors.navViolet};

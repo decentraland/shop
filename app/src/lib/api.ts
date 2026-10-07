@@ -594,6 +594,14 @@ export type ShopListingFilters = {
    * to nothing must not issue the request at all.
    */
   contractAddresses?: string[]
+  /**
+   * Restrict to INDIVIDUAL items, as `<contract>-<itemId>`. UNIONED with `contractAddresses` server-side,
+   * not intersected: a campaign names whole collections AND loose items from collections it does not want
+   * entirely.
+   *
+   * Like the set above, AN EMPTY ARRAY MUST NEVER BE SENT — an absent filter reads as "no filter".
+   */
+  itemIds?: string[]
   itemId?: string
   creator?: string
   rarities?: string[]
@@ -886,6 +894,9 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   } else if (filters.contractAddress) {
     qs.set('contractAddress', filters.contractAddress)
   }
+  // Comma-separated, for the same query-string reason as the collections above. Sent alongside them
+  // rather than instead of them: the server unions the two.
+  if (filters.itemIds?.length) qs.set('items', filters.itemIds.join(','))
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
   if (filters.creator) qs.set('creator', filters.creator)
   if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))

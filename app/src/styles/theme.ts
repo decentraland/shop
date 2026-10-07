@@ -39,6 +39,12 @@ const colors = {
   media: '#ecebed', // Neutrals/Gray 5 — selected/expanded section fill
   panel: '#f5f5f5',
   chip: '#ecebed',
+  // The page field's bottom gradient stop with the standard 20% wash already composited in (#4b1a6b at
+  // 80%). It is what an OPAQUE surface has to be to sit on the field where the field is darkest — the
+  // docked mobile summary bar, which scrolls over content and so cannot be translucent. Named here, and
+  // mirrored in styles/index.css beside the gradient, so it moves with the field rather than drifting.
+  fieldBottomWashed: '#3c1556',
+  modalViolet: '#4c147c', // the builder's dark modal surface (Create Collection, Item Details)
   accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)

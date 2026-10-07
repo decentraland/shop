@@ -10,6 +10,7 @@ import {
   ORACLE_RATE
 } from './rpc'
 import * as fx from '../fixtures'
+import { DISCOUNTS_ANNOUNCEMENT_PROMPT, DISMISSED_PROMPTS_KEY } from '../../src/lib/dismissed-prompts'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 
@@ -256,7 +257,7 @@ function toCatalogRow(l: any) {
     // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
     // showcase-clip lookup exercise the same field they read in production.
     utility: l.utility ?? null,
-    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart } }
+    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart, bodyShapes: l.bodyShapes } }
   }
 }
 
@@ -1216,6 +1217,11 @@ export async function launchApp(
      */
     creatorSales?: boolean
     /**
+     * Whether the creator still has the one-time discounts announcement to see. Defaults to FALSE: with
+     * creator sales on it would open over whatever page a spec is about. Its own spec passes true.
+     */
+    discountsAnnouncement?: boolean
+    /**
      * Whether the mocked flag file reports the personalised rail as available. Defaults to FALSE, the
      * shipped state; the suggested-for-you spec passes true to exercise the row.
      */
@@ -1292,6 +1298,23 @@ export async function launchApp(
   if (!opts.signedOut) {
     const sess = await session()
     await page.evaluateOnNewDocument(sessionInitScript(sess))
+  }
+  if (!opts.discountsAnnouncement) {
+    await page.evaluateOnNewDocument(
+      (key: string, prompt: string, account: string) => {
+        try {
+          const store = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, string[]>
+          const seen = store[account] ?? []
+          if (!seen.includes(prompt)) store[account] = [...seen, prompt]
+          localStorage.setItem(key, JSON.stringify(store))
+        } catch {
+          // Storage refused: the announcement may show, which the spec that needs it to stay away will report.
+        }
+      },
+      DISMISSED_PROMPTS_KEY,
+      DISCOUNTS_ANNOUNCEMENT_PROMPT,
+      fx.TEST_ADDRESS.toLowerCase()
+    )
   }
   if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)

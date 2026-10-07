@@ -15,13 +15,19 @@ import { storeFixtures } from './myStore.fixtures'
 const text = (app: App, testId: string) =>
   app.page.$eval(`[data-testid="${testId}"]`, el => (el as HTMLElement).innerText.trim())
 
+/** Opens one of the dashboard's tabs and waits for it to be the one shown. */
+const showTab = async (app: App, tab: 'overview' | 'collections' | 'discounts' | 'audience') => {
+  await app.page.click(`[data-testid="store-tab-${tab}"]`)
+  await app.page.waitForSelector(`[data-testid="store-tab-${tab}"][aria-selected="true"]`)
+}
+
 describe('when a creator opens their store', () => {
   it('should summarise the period, name what needs attention, and open a collection to its items', async () => {
     app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
     const { page } = app
     await page.setViewport({ width: 1440, height: 1200 })
     await waitForText(page, 'My Store')
-    await page.waitForSelector('[data-testid="store-collection"]')
+    await page.waitForSelector('[data-testid="store-sold"]')
 
     // The window's figures, from the one sales fetch the page makes.
     expect(await text(app, 'store-sold')).toBe('15')
@@ -30,10 +36,14 @@ describe('when a creator opens their store', () => {
     // The tile's bottom line names the window it compares against rather than leaving it to a tooltip.
     expect(await text(app, 'store-delta')).toContain('30 days')
     expect(await text(app, 'store-discounts')).toBe('1')
-    const body = await bodyText(page)
 
     // What is selling across the whole store, which no single collection's breakdown can answer.
     await page.waitForSelector('[data-testid="store-best"]')
+
+    // The collections have a tab of their own.
+    await showTab(app, 'collections')
+    await page.waitForSelector('[data-testid="store-collection"]')
+    const body = await bodyText(page)
 
     // The collection wears the discount that is running on it.
     expect(await text(app, 'store-collection-name')).toBe('Galaxy Drip')
@@ -151,8 +161,41 @@ describe('when a creator opens their store', () => {
     expect(rows[1]).toMatch(/^1 Galaxy Boots/)
   })
 
-  it('should fit a phone without scrolling sideways', async () => {
+  it.each([
+    ['desktop', 1440, 1200],
+    ['phone', 390, 844]
+  ])('should switch the period from a preset in the calendar on %s', async (_, width, height) => {
     app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width, height })
+    await page.waitForSelector('[data-testid="store-sold"]')
+    expect(await text(app, 'store-period-trigger')).toBe('Last 30 days')
+
+    await page.click('[data-testid="store-period-trigger"]')
+    await page.waitForSelector('[data-testid="store-range-picker"]')
+    const picker = await page.$eval('[data-testid="store-range-picker"]', el => {
+      const r = el.getBoundingClientRect()
+      return { left: r.left, right: r.right }
+    })
+    expect(picker.left).toBeGreaterThanOrEqual(0)
+    expect(picker.right).toBeLessThanOrEqual(width)
+
+    // While it grows, its clip still cuts away the presets, and a press there falls through to the page.
+    await page.$eval('[data-testid="store-range-picker"]', el =>
+      Promise.all(el.getAnimations({ subtree: true }).map(animation => animation.finished))
+    )
+    await page.click('[data-testid="store-period-7d"]')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="store-range-picker"]'))
+    expect(await text(app, 'store-period-trigger')).toBe('Last 7 days')
+  })
+
+  it('should fit a phone without scrolling sideways', async () => {
+    app = await launchApp({
+      path: '/my-store?tab=collections',
+      myStore: true,
+      creatorSales: true,
+      fixtures: storeFixtures
+    })
     const { page } = app
     await page.setViewport({ width: 390, height: 844 })
     await page.waitForSelector('[data-testid="store-collection"]')
@@ -185,6 +228,42 @@ describe('when a creator opens their store', () => {
     })
     expect(report.fits, `overflowing: ${report.offenders.join(' | ')}`).toBe(true)
   })
+
+  it('should split the dashboard into tabs, open one from a link, and reach the discounts from their tile', async () => {
+    app = await launchApp({
+      path: '/my-store?tab=audience',
+      myStore: true,
+      creatorSales: true,
+      fixtures: storeFixtures
+    })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+
+    // A link straight to a tab opens it, with nothing of the others on screen.
+    await page.waitForSelector('[data-testid="store-tab-audience"][aria-selected="true"]')
+    await page.waitForSelector('[data-testid="store-buyer"]')
+    expect(await page.$('[data-testid="store-collection"]')).toBeNull()
+    expect(await page.$('[data-testid="store-best"]')).toBeNull()
+
+    // The running discount's tile leads to the tab that lists it.
+    await showTab(app, 'overview')
+    await page.click('[data-testid="store-discounts-open"]')
+    await page.waitForSelector('[data-testid="store-tab-discounts"][aria-selected="true"]')
+    await page.waitForSelector('[data-testid="creator-sale"]')
+  })
+
+  it('should lay every section out on one page when tabs are switched off', async () => {
+    app = await launchApp({ path: '/my-store?tabs=off', myStore: true, creatorSales: true, fixtures: storeFixtures })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1200 })
+
+    // The single page, for comparing with the tabbed one: no tab bar, and every section at once.
+    await page.waitForSelector('[data-testid="store-collection"]')
+    expect(await page.$eval('[role="tablist"]', el => getComputedStyle(el).display)).toBe('none')
+    for (const id of ['store-sold', 'store-best', 'store-discounts-panel', 'store-buyer']) {
+      await page.waitForSelector(`[data-testid="${id}"]`)
+    }
+  })
 })
 
 /**
@@ -196,18 +275,23 @@ describe('when a creator reads how their store is doing', () => {
     app = await launchApp({ path: '/my-store', myStore: true, creatorSales: true, fixtures: storeFixtures })
     const { page } = app
     await page.setViewport({ width: 1440, height: 1300 })
-    await page.waitForSelector('[data-testid="store-collection"]')
-    const body = await bodyText(page)
+    await page.waitForSelector('[data-testid="store-sold"]')
 
     // 15 sold in the window against 6 in the one before it, which the harness derives from the same rows.
     expect(await text(app, 'store-delta')).toContain('150%')
+    await showTab(app, 'audience')
+    await page.waitForSelector('[data-testid="store-collectors"]')
+    const audience = await bodyText(page)
     // Four buyers, one of whom took more than half, which is the fact that reframes the rest.
     expect(await text(app, 'store-collectors')).toBe('4')
     // Nine of the fifteen went to one of them, which is the reading the bare count cannot give.
     // Nine of the fourteen FIRST sales went to one of them. The resale in the fixture is left out: a token
     // the creator flipped is not a customer of their store.
-    expect(body).toContain('1 buyer is 64% of sales')
+    expect(audience).toContain('1 buyer is 64% of sales')
     // The discount is reported on the row it applies to, with how much of it has been taken.
+    await showTab(app, 'collections')
+    await page.waitForSelector('[data-testid="store-collection"]')
+    const body = await bodyText(page)
     expect(body).toContain('-30%')
     expect(body).toMatch(/of \d+ sold at this price/)
   })
@@ -231,19 +315,11 @@ describe('when every figure on the dashboard has something to report', () => {
     })
     const { page } = app
     await page.setViewport({ width: 1440, height: 1250 })
-    await page.waitForSelector('[data-testid="store-collection"]')
     await page.waitForSelector('[data-testid="store-best"]')
-    const body = await bodyText(page)
 
     // Twenty-four this month against six the month before, all four buyers counted, one of them most of it.
     expect(await text(app, 'store-sold')).toBe('24')
-    // Copies changing hands between collectors, which is the half of the page a first sale cannot report.
-    expect(await page.$('[data-testid="store-royalties"]')).not.toBeNull()
     expect(await text(app, 'store-delta')).toContain('%')
-    expect(await text(app, 'store-collectors')).toBe('4')
-    expect(body).toContain('% of sales')
-    // A collection with nothing left wears the chip.
-    expect(await page.$('[data-testid="store-collection-soldout"]')).not.toBeNull()
 
     // The tiles are grid cells, so one of them running to a second line grows every card beside it. They
     // are measured rather than eyeballed: equal heights are the whole reason the copy is kept short.
@@ -253,10 +329,19 @@ describe('when every figure on the dashboard has something to report', () => {
     })
     expect(new Set(heights).size).toBe(1)
 
-    // The audience band: the people behind the figures, ranked by what they spent. Four buyers, and the
+    // A collection with nothing left wears the chip.
+    await showTab(app, 'collections')
+    await page.waitForSelector('[data-testid="store-collection-soldout"]')
+
+    // The audience tab: the people behind the figures, ranked by what they spent. Four buyers, and the
     // one at the top bought the same item over and over rather than spreading across the store.
+    await showTab(app, 'audience')
+    await page.waitForSelector('[data-testid="store-buyer"]')
     expect(await page.$$eval('[data-testid="store-buyer"]', rows => rows.length)).toBe(4)
-    expect(body).toContain('Your audience')
+    expect(await text(app, 'store-collectors')).toBe('4')
+    // Copies changing hands between collectors, which is the half of the page a first sale cannot report.
+    expect(await page.$('[data-testid="store-royalties"]')).not.toBeNull()
+    expect(await bodyText(page)).toContain('% of sales')
 
     // A tall viewport rather than fullPage: the page's field is a fixed background, which a stitched
     // full-page capture renders once and leaves white underneath.
@@ -362,5 +447,41 @@ describe('when the store dashboard is rolled out to a list of creators', () => {
     await app.page.waitForSelector('[data-testid="nav-my-store"]')
 
     expect(await app.page.$('[data-testid="filter-collections"]')).toBeNull()
+  })
+})
+
+describe('when a creator who has not seen it yet arrives with creator sales on', () => {
+  it('should announce discounts once and open the flow on the announced collection', async () => {
+    app = await launchApp({
+      path: '/my-store?tab=audience',
+      myStore: true,
+      creatorSales: true,
+      discountsAnnouncement: true,
+      fixtures: storeFixtures
+    })
+    const { page } = app
+    await page.setViewport({ width: 1440, height: 1000 })
+
+    // The collection's own priciest item, at the example's 30% off: 30 credits shows as 21.
+    await page.waitForSelector('[data-testid="discounts-announcement"]')
+    await page.waitForSelector('[data-testid="discounts-announcement-item"]')
+    const first = await page.$eval('[data-testid="discounts-announcement-item"]', el => el.textContent ?? '')
+    expect(first).toContain('Galaxy Hat')
+    expect(first).toContain('21')
+
+    // Its call to action lands on the store's collections with the flow already on that collection.
+    await page.click('[data-testid="discounts-announcement-create"]')
+    await page.waitForSelector('[data-testid="creator-sale-modal"]')
+    expect(await page.$('[data-testid="creator-sale-pick-row"]')).toBeNull()
+    await page.waitForFunction(() => !location.search.includes('discount='))
+    expect(new URL(page.url()).searchParams.get('tab')).toBe('collections')
+    expect(await page.$('[data-testid="discounts-announcement"]')).toBeNull()
+
+    // Spent once the flow it promised has opened, and spent for this account, so no later visit shows it.
+    const seen = await page.evaluate(
+      account => JSON.parse(localStorage.getItem('shop:dismissed-prompts') ?? '{}')[account] ?? [],
+      TEST_ADDRESS.toLowerCase()
+    )
+    expect(seen).toContain('discounts-announcement')
   })
 })

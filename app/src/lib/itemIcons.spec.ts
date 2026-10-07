@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { categoryIcon, genderIcon } from '~/lib/itemIcons'
+import { categoryIcon, genderIcon, singleShapeIcon } from '~/lib/itemIcons'
 
 const item = (over: Partial<Parameters<typeof categoryIcon>[0]> = {}) => ({
   category: 'wearable',
@@ -43,5 +43,14 @@ describe('genderIcon', () => {
 
   it('returns null when gender is absent', () => {
     expect(genderIcon(null)).toBeNull()
+  })
+})
+
+describe('singleShapeIcon', () => {
+  it('shows an icon only for items limited to one body shape', () => {
+    expect(singleShapeIcon({ gender: 'male' })).toBe('gender-male')
+    expect(singleShapeIcon({ gender: 'female' })).toBe('gender-female')
+    expect(singleShapeIcon({ gender: 'unisex' })).toBeNull()
+    expect(singleShapeIcon({ gender: null })).toBeNull()
   })
 })

@@ -166,7 +166,7 @@ describe('store settings', () => {
 
     await page.click('[data-testid="store-settings-back"]')
     await page.waitForFunction(() => window.location.pathname === '/my-store', { timeout: 20000 })
-    await page.waitForSelector('[data-testid="store-collection"]')
+    await page.waitForSelector('[data-testid="store-sold"]')
     expect(await page.evaluate(() => (window as unknown as { __spa?: boolean }).__spa)).toBe(true)
   })
 

@@ -7,6 +7,17 @@ export const List = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  &[data-tone='dark'] > [data-testid='creator-sale'] {
+    border-color: ${colors.cardLine};
+    background: rgba(255, 255, 255, 0.06);
+  }
+  &[data-tone='dark'] [data-part='name'] {
+    color: ${colors.softWhite};
+  }
+  &[data-tone='dark'] [data-part='meta'] {
+    color: ${colors.gray4};
+  }
 `
 
 /** The collection's mosaic, at the same 40px the My Creations headers draw it. */
@@ -43,7 +54,8 @@ export const Row = styled.div`
   ${media.maxWidth('mobile')} {
     grid-template-columns: auto minmax(0, 1fr);
 
-    > :last-child {
+    /* Only the action wraps under the row; a read-only row keeps its text beside the mosaic. */
+    > [data-part='action'] {
       grid-column: 1 / -1;
     }
   }

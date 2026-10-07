@@ -3,6 +3,14 @@ export function formatDateTime(ms: number): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(ms))
 }
 
+/** Two days as one span in the viewer's locale, e.g. "Sep 1, 2026 – Sep 8, 2026". */
+export function formatDateRange(from: number, to: number): string {
+  const format = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+  return from <= to
+    ? `${format.format(new Date(from))} – ${format.format(new Date(to))}`
+    : format.format(new Date(from))
+}
+
 /** A camera reel photo's date. The service hands epoch SECONDS, as a string. */
 export function formatPhotoDate(dateTime: string): string {
   const seconds = Number(dateTime)

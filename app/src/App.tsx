@@ -1,13 +1,17 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
+import { BatFlight } from '~/components/BatFlight'
+import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
+import { DiscountsAnnouncementHost } from '~/components/DiscountsAnnouncementHost'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { useCampaignThemeAttribute } from '~/hooks/useCampaignTheme'
 import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
@@ -76,7 +80,7 @@ const ReloadCta = styled(Button)`
 // Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
 // The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary. Reuses the home
 // page's empty-state shell.
-function CrashFallback() {
+export function CrashFallback() {
   return (
     <OV.Empty>
       <OV.EmptyTitle>{t('app.crash.title')}</OV.EmptyTitle>
@@ -91,10 +95,11 @@ function CrashFallback() {
 // Redirect for a route whose PREFIX was renamed, forwarding whatever followed it: /assets/creator/0x1?q=a
 // → /items/creator/0x1?q=a. A plain <Navigate to="/items"> can't do this — it takes a literal path, so it
 // would drop both the sub-path and the query, landing a shared creator or outfit link on the bare grid.
-function RenamedPathRedirect({ to }: { to: string }) {
-  const rest = useParams()['*']
-  const { search, hash } = useLocation()
-  return <Navigate to={`${to}${rest ? `/${rest}` : ''}${search}${hash}`} replace />
+// The sub-path is cut from the pathname, not read from the `*` param: the app mounts under a catch-all
+// route whose own splat would leak into this one and turn /assets into /items/assets.
+function RenamedPathRedirect({ from, to }: { from: string; to: string }) {
+  const { pathname, search, hash } = useLocation()
+  return <Navigate to={`${to}${pathname.slice(from.length)}${search}${hash}`} replace />
 }
 
 // Alias to a fixed path, carrying the incoming query and hash. The root alias needs it most: every
@@ -114,11 +119,29 @@ export function AliasRedirect({ to }: { to: string }) {
   return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
 }
 
+/**
+ * Pages that keep the plain page field while a campaign skin is on. A creator's dashboard is read, not
+ * browsed: its charts and tables sit on translucent panels, and a seasonal pattern under them is noise.
+ */
+const PLAIN_FIELD_ROUTES = new Set(['/my-store'])
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
   useDialogScrollLock()
   const location = useLocation()
+  // Paints the running event's skin onto <html>; a no-op the rest of the year.
+  const campaignTheme = useCampaignThemeAttribute()
+  // The skin stays on (the nav's event tab still wears it); only the page field and its decorations go.
+  const plainField = PLAIN_FIELD_ROUTES.has(location.pathname)
+  useEffect(() => {
+    if (!plainField) return
+    const root = document.documentElement
+    root.dataset.campaignField = 'plain'
+    return () => {
+      delete root.dataset.campaignField
+    }
+  }, [plainField])
 
   // Start the silent wallet restore HERE, not only in the navbar. The navbar used to be the only caller,
   // which made every consumer of the session depend on that one component staying mounted. The store
@@ -144,6 +167,23 @@ export function App() {
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />
+      {/* Boundaried like the decorations below: a failed read or chunk must never take the shell with it. */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <DiscountsAnnouncementHost />
+      </Sentry.ErrorBoundary>
+      {/* Seasonal decoration, mounted only while that skin is on — it brings its own lazy chunk, so an
+          ordinary day neither renders nor downloads it.
+
+          Boundaried for the same reason the footer below is, and it matters more here: these live outside
+          the main ErrorBoundary, and a rejected lazy import (chunk 404, ad blocker, a drop in coverage
+          mid-navigation) is NOT caught by Suspense. Without this, a decoration failing to download takes
+          the nav, the cart and the checkout down with it — on the busiest days of the campaign. */}
+      {campaignTheme === 'halloween' && !plainField ? (
+        <Sentry.ErrorBoundary fallback={<></>}>
+          <BatFlight />
+          <SpiderDrop />
+        </Sentry.ErrorBoundary>
+      ) : null}
       <NavBar />
       {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
           whose content is genuinely short (the credits packs) look better with the footer visible than
@@ -191,9 +231,9 @@ export function App() {
                   (/assets/outfits/:id) have been shared as links. The splat covers both of those plus
                   anything added under the prefix later; the bare /assets is listed separately so the
                   redirect doesn't depend on a splat matching zero segments. */}
-              <Route path="/assets" element={<RenamedPathRedirect to="/items" />} />
-              <Route path="/assets/*" element={<RenamedPathRedirect to="/items" />} />
-              <Route path="/my-assets" element={<RenamedPathRedirect to="/my-items" />} />
+              <Route path="/assets" element={<RenamedPathRedirect from="/assets" to="/items" />} />
+              <Route path="/assets/*" element={<RenamedPathRedirect from="/assets" to="/items" />} />
+              <Route path="/my-assets" element={<RenamedPathRedirect from="/my-assets" to="/my-items" />} />
               {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
                   it has been the target of the My Items nudge for months, so it is in histories and
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}

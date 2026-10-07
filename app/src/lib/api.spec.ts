@@ -821,6 +821,48 @@ describe('when filtering the unified feed by a set of collections', () => {
   })
 })
 
+/**
+ * A SET of INDIVIDUAL items, which is how a campaign curates a list rather than naming whole collections.
+ *
+ * Sent ALONGSIDE the collections rather than instead of them: the server unions the two, so a campaign can
+ * name collections and loose items at once.
+ */
+describe('when filtering the unified feed by a set of items', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  it('should send the set comma-separated under its own key', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ itemIds: [`${A}-3`, `${B}-7`] })
+
+    expect(decodeURIComponent(lastUrl())).toContain(`items=${A}-3,${B}-7`)
+  })
+
+  it('should send it alongside the collections, since the server unions them', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddresses: [A], itemIds: [`${B}-7`] })
+
+    const url = decodeURIComponent(lastUrl())
+    expect(url).toContain(`contractAddress=${A}`)
+    expect(url).toContain(`items=${B}-7`)
+  })
+
+  it('should apply no item filter when none is given, or when the set is empty', async () => {
+    // Unlike the collections, an empty set needs no stand-in value: the caller that resolved to nothing
+    // never issues the request (see the grid's `selectsNothing`), and an omitted key is the correct
+    // encoding for "no item filter" whenever collections still carry the selection.
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({})
+    expect(lastUrl()).not.toContain('items=')
+
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({ itemIds: [] })
+    expect(lastUrl()).not.toContain('items=')
+  })
+})
+
 describe('when fetching the item-unified browse feed', () => {
   // A representative item row: same shape as a unified listing row plus the per-item listingCount.
   const itemRow = {

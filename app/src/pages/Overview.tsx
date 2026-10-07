@@ -217,6 +217,8 @@ export function Overview() {
   // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
   // which is the normal state — the Shop's own art, headline and credits CTA below are what render.
   const campaignHero = useCampaignHero(CAMPAIGN_HERO_SLOT)
+  // Empty on purpose when a campaign ships artwork that carries its own headline; see the render below.
+  const heroTitle = campaignHero ? campaignHero.title : t('overview.heroTitle')
 
   function renderHeroCta() {
     // Hidden inside the iOS web view, where the Shop may not sell credits at all. That covers a campaign's
@@ -295,7 +297,10 @@ export function Overview() {
 
   return (
     <S.Overview className="overview">
-      <S.Hero>
+      <S.Hero
+        // The blurred filler beside the artwork reads its URL from here; see Overview.styles.ts.
+        style={{ ['--banner-art' as string]: `url(${campaignHero?.desktopImage ?? heroBanner})` }}
+      >
         {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
             wide banner — the mobile frame is a different composition, not a resize. */}
         <picture>
@@ -309,7 +314,11 @@ export function Overview() {
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
-          <S.HeroTitle data-testid="hero-title">{campaignHero?.title || t('overview.heroTitle')}</S.HeroTitle>
+          {/* A campaign that ships NO title has its headline in the artwork — seasonal banners carry it as
+              lettering, not as a font we could set — so nothing is drawn over it. The Shop's own default
+              is for when there is no campaign at all, not for one that deliberately left the field blank;
+              falling back to it there stamped "A New Way to Shop" across a campaign's own wordmark. */}
+          {heroTitle ? <S.HeroTitle data-testid="hero-title">{heroTitle}</S.HeroTitle> : null}
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
               sending the click to browse would leave the buyer one step short of what it advertises.
               Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
@@ -344,18 +353,16 @@ export function Overview() {
         />
       ) : null}
 
-      {/* "Suggested for you" sits directly under Trending: the two answer opposite questions — what
-          everyone is buying, and what THIS visitor is likely to want — so they read as a pair, and a
-          visitor the Shop knows nothing about simply sees Trending alone. The row owns its own query,
-          its own flag and its own visibility; it renders nothing unless the server both personalised
-          the answer and returned enough of it. */}
-      <SuggestedForYouRow />
-
-      {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
-          Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings
-          branch below on purpose — it self-fetches from the outfit feed, so on an environment with no
-          shop-server the section is simply absent rather than gated on a query it does not use. */}
+      {/* "Buy the Look" sits right under Trending, per the section order design settled on: Trending →
+          Buy the Look → Suggested for you → New Creations → the promo tiles → creators. Outside the
+          listings branch below on purpose — it self-fetches from the outfit feed, so on an environment
+          with no shop-server the section is simply absent rather than gated on a query it does not use. */}
       <OutfitsRow />
+
+      {/* Under the outfits rather than above them, so a tall personal rail does not push the outfits down
+          the page. The row owns its own query, its own flag and its own visibility; it renders nothing
+          unless the server both personalised the answer and returned enough of it. */}
+      <SuggestedForYouRow />
 
       {isLoading || items.length > 0 ? (
         <>

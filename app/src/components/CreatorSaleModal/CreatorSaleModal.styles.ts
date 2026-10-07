@@ -1,13 +1,15 @@
-import { css } from '@emotion/react'
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
-import { calendarPopup } from '~/styles/datePicker'
+import { SaleTag } from '~/components/SaleTag'
 import { theme } from '~/styles/theme'
 
-// Creator sale modal: the same shell as PrimaryListModal (white rounded card, header + close, muted field
-// labels, purple full-width CTA, green success banner) with chip pickers for the discount, the window and the
-// start. Kept self-contained like the other modals so they stay decoupled.
+const { colors, radius, font, media } = theme
+
+/** A surface inside the card: one step lighter than it, the way My Store lays panels on the page field. */
+const raised = 'rgba(255, 255, 255, 0.06)'
+const hairline = 'rgba(255, 255, 255, 0.12)'
 
 export const Scrim = styled.div`
   position: fixed;
@@ -17,21 +19,52 @@ export const Scrim = styled.div`
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(22, 21, 24, 0.55);
+  background: rgba(22, 21, 24, 0.6);
 `
+
+// The card's own padding, which the pinned actions bleed back out over to reach its edges.
+const CARD_PAD = 20
+const CARD_PAD_MOBILE = 16
 
 export const Card = styled.div`
   width: 560px;
   max-width: 100%;
   max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: ${theme.radius.modal};
-  padding: 12px 16px 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  /* Keeps a focused field clear of the pinned actions when the browser scrolls it into view. */
+  scroll-padding-bottom: 104px;
+  background: ${colors.fieldBottomWashed};
+  border: 1px solid ${hairline};
+  border-radius: ${radius.modal};
+  padding: 16px ${CARD_PAD}px ${CARD_PAD}px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
   gap: 20px;
+  color: ${colors.softWhite};
+  font-family: ${font.sans};
+
+  /* The credits mark is pinned near-black for white cards (Icon.css); on this one it has to be light. */
+  .ccy-mark,
+  .ccy {
+    color: ${colors.softWhite};
+  }
+
+  /* The shared notice is drawn for white surfaces: dark red text that disappears on this card. */
+  [data-testid='creator-sale-error'] {
+    border-color: rgba(255, 45, 85, 0.5);
+    background: rgba(255, 45, 85, 0.16);
+    color: ${colors.dclRed};
+  }
+  [data-testid='creator-sale-error'] > span {
+    color: ${colors.white};
+  }
+
+  ${media.maxWidth('mobile')} {
+    padding: 14px ${CARD_PAD_MOBILE}px ${CARD_PAD_MOBILE}px;
+    gap: 16px;
+  }
 `
 
 export const Head = styled.div`
@@ -39,70 +72,71 @@ export const Head = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
 `
 
 export const Title = styled.h2`
   margin: 0;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
   font-size: 22px;
-  line-height: 1.6;
-  color: ${theme.colors.text};
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: ${colors.white};
 `
 
 export const Close = styled.button`
   flex: none;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
+  margin-right: -8px;
   border: 0;
+  border-radius: 50%;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${colors.softWhite};
 
   .ico {
     width: 18px;
     height: 18px;
+  }
+  &:hover:not(:disabled) {
+    background: ${raised};
   }
   &:disabled {
     opacity: 0.4;
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
   }
 `
 
 export const Subtitle = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 15px;
-  line-height: 1.57;
-  color: ${theme.colors.text2};
+  margin: -8px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: ${colors.gray4};
 `
 
 export const Field = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 `
 
 export const FieldLabel = styled.span`
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: ${theme.colors.muted};
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${colors.softWhite};
 `
 
-export const CollectionList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 220px;
-  overflow-y: auto;
+export const FieldHint = styled.p`
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: ${colors.gray4};
 `
 
 export const CollectionRow = styled.div`
@@ -110,27 +144,49 @@ export const CollectionRow = styled.div`
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid ${theme.colors.line};
-  border-radius: ${theme.radius.card};
-
-  &[data-selected] {
-    border-color: ${theme.colors.accent};
-    background: ${theme.colors.promptLilac};
-  }
-  /* Stating the scope, not offering it: no pointer affordance and nothing to click. */
-  &[data-readonly] {
-    cursor: default;
-  }
+  border: 1px solid ${hairline};
+  border-radius: ${radius.card};
+  background: ${raised};
 `
 
 /** The mosaic's frame: a fixed, rounded square so rows stay aligned whatever each collection holds. */
 export const RowThumb = styled.span`
   flex: none;
-  width: 40px;
-  height: 40px;
-  border-radius: ${theme.radius.btn};
+  width: 44px;
+  height: 44px;
+  border-radius: ${radius.btn};
   overflow: hidden;
-  background: ${theme.colors.media};
+  background: ${colors.media};
+`
+
+export const Search = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid ${hairline};
+  border-radius: ${radius.card};
+  background: ${raised};
+  color: ${colors.gray4};
+
+  &:focus-within {
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font-family: ${font.sans};
+    font-size: 15px;
+    color: ${colors.white};
+
+    &::placeholder {
+      color: ${colors.gray4};
+    }
+  }
 `
 
 /** The choose-a-collection step: the same row, made clickable. */
@@ -138,9 +194,8 @@ export const PickList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 340px;
+  max-height: 360px;
   overflow-y: auto;
-  margin-top: 4px;
 `
 
 export const PickRow = styled.button`
@@ -148,25 +203,30 @@ export const PickRow = styled.button`
   align-items: center;
   gap: 12px;
   width: 100%;
+  min-height: 64px;
   padding: 10px 12px;
-  border: 1px solid ${theme.colors.line};
-  border-radius: ${theme.radius.card};
-  background: ${theme.colors.white};
+  border: 1px solid ${hairline};
+  border-radius: ${radius.card};
+  background: ${raised};
+  color: inherit;
   cursor: pointer;
   text-align: left;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 
   &:hover {
-    border-color: ${theme.colors.accent};
-    background: ${theme.colors.promptLilac};
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.1);
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
   }
   .ico {
     margin-left: auto;
     transform: rotate(-90deg);
-    color: ${theme.colors.muted};
+    color: ${colors.gray4};
   }
 `
 
@@ -177,136 +237,121 @@ export const RowText = styled.span`
   min-width: 0;
 `
 
-export const RowInfo = styled.span`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-`
+export const RowInfo = RowText
 
 export const RowName = styled.span`
-  font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
-  color: ${theme.colors.text};
+  color: ${colors.white};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
 export const RowMeta = styled.span`
-  font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.muted};
+  color: ${colors.gray4};
 `
 
+/** The discounts as separate pills, the Builder's filter chips: soft white once picked. */
 export const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  gap: 12px;
+
+  ${media.maxWidth('mobile')} {
+    gap: 8px;
+  }
 `
 
-// Preset pickers. Comfortable to tap (≥ 40px tall) so the same control works on mobile.
 export const Chip = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   height: 40px;
-  padding: 0 14px;
-  border: 1px solid ${theme.colors.gray4};
-  border-radius: ${theme.radius.pill};
-  background: ${theme.colors.white};
-  color: ${theme.colors.text};
-  font-family: ${theme.font.sans};
+  padding: 0 16px;
+  border: 0;
+  border-radius: 20px;
+  background: ${colors.glass};
+  color: ${colors.white};
+  font-family: ${font.sans};
   font-weight: 600;
   font-size: 14px;
+  letter-spacing: 0.46px;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 
-  &[data-selected] {
-    background: ${theme.colors.accent};
-    border-color: ${theme.colors.accent};
-    color: ${theme.colors.white};
-  }
   &:hover:not(:disabled):not([data-selected]) {
-    border-color: ${theme.colors.lineStrong};
+    background: ${colors.glassHover};
   }
-
-  /* Discount chips carry their step of the heat ramp at rest, so the scale is readable before anything is
-     picked; the chosen one keeps the tint and gains the ring plus a halo. Selection is a ring, not a
-     colour swap, because the colour is already saying something else here. */
-  ${Object.entries(theme.saleHeat)
-    .map(
-      ([step, { tint, ink }]) => `
-  &[data-heat='${step}'] {
-    background: ${tint};
-    border-color: ${tint};
-    color: ${ink};
+  &[data-selected] {
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
-  &[data-heat='${step}']:hover:not(:disabled):not([data-selected]) {
-    border-color: ${ink};
-  }
-  &[data-heat='${step}'][data-selected] {
-    background: ${tint};
-    border: 2px solid ${ink};
-    color: ${ink};
-    font-weight: 700;
-    box-shadow: 0 0 0 3px ${ink}33;
-    /* The 2px border eats a pixel of the box; take it back from the padding so the row doesn't shift. */
-    padding: 0 13px;
-  }`
-    )
-    .join('')}
   &:disabled {
     opacity: 0.5;
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 `
 
-// A short framed number input with a unit suffix (the custom percentage, the unit limit).
+/** A short framed number input with a unit around it (the custom percentage, the unit limit). */
 export const InlineInput = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  /* Fields stack in a column, whose default stretch would blow a two-character number box out to the
-     full width of the modal. */
+  gap: 2px;
   width: fit-content;
-  height: 40px;
-  padding: 0 10px;
-  border: 0.5px solid ${theme.colors.text};
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.white};
-  font-family: ${theme.font.sans};
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: ${radius.pill};
+  background: ${raised};
   font-size: 14px;
-  color: ${theme.colors.muted};
+  font-weight: 600;
+  color: ${colors.softWhite};
 
   &:focus-within {
-    border-color: ${theme.colors.magenta};
+    border-color: ${colors.softWhite};
   }
   &[aria-invalid='true'] {
-    border-color: ${theme.colors.err};
+    border-color: ${colors.dclRed};
+  }
+  /* The custom discount, open in its own pill: lit like a picked one. */
+  &[data-selected] {
+    height: 40px;
+    padding: 0 16px;
+    border-color: ${colors.softWhite};
+    border-radius: 20px;
+    background: ${colors.softWhite};
+    color: ${colors.text};
+
+    input {
+      color: ${colors.text};
+    }
+  }
+  &[data-selected][aria-invalid='true'] {
+    border-color: ${colors.dclRed};
   }
 
-  /* Takes the heat of whatever has been typed, so the custom value reads on the same scale as the presets. */
-  ${Object.entries(theme.saleHeat)
-    .map(
-      ([step, { tint, ink }]) => `
-  &[data-heat='${step}'] {
-    background: ${tint};
-    border-color: ${ink};
-  }`
-    )
-    .join('')}
-
   input {
-    width: 64px;
+    width: 3ch;
     border: 0;
     outline: none;
     background: transparent;
-    font-family: ${theme.font.sans};
-    font-size: 14px;
-    color: ${theme.colors.text};
+    font-family: ${font.sans};
+    font-size: 15px;
+    font-weight: 700;
+    color: ${colors.white};
 
     &::-webkit-outer-spin-button,
     &::-webkit-inner-spin-button {
@@ -320,99 +365,261 @@ export const InlineInput = styled.span`
   }
 `
 
+/** Anchors the calendar under its trigger; the trigger stacks above it so the calendar slides out from behind. */
+export const WhenWrap = styled.div`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+`
+
 /**
- * The end / start field: the Shop's own calendar, not the browser's.
- *
- * A native `datetime-local` cannot be themed — its popup is Chrome's, drawn in Chrome's blue, and it
- * arrived in the middle of a modal that is otherwise entirely ours. react-datepicker is already a
- * dependency and already wears this theme in the sell flow, so the two calendars now match.
- *
- * The field keeps the chip's exact metrics: it opens inside a row of chips, and two pixels of difference
- * there resized the whole modal.
+ * The calendar's anchor, laid over the trigger at body level. The card scrolls, so a popup inside it would be
+ * clipped; out here it floats over the page. Transparent to presses itself, so the trigger under it still works.
  */
-export const DateField = styled.div`
-  .react-datepicker-wrapper {
-    display: block;
-  }
-  .react-datepicker__input-container {
-    display: flex;
-    align-items: center;
-  }
-  .react-datepicker__input-container input {
-    height: 40px;
-    /* Explicit, so the row's fit never depends on font metrics or on the locale's date format. */
-    width: 208px;
-    box-sizing: border-box;
-    padding: 0 10px;
-    border: 0.5px solid ${theme.colors.text};
-    border-radius: ${theme.radius.btn};
-    background: ${theme.colors.white};
-    font-family: ${theme.font.sans};
-    font-size: 14px;
-    color: ${theme.colors.text};
-    outline: none;
-    max-width: 100%;
-  }
-  .react-datepicker__input-container input:focus {
-    border-color: ${theme.colors.magenta};
+export const WhenAnchor = styled.div`
+  position: fixed;
+  z-index: ${theme.z.overlay + 1};
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
   }
 `
 
-export const CapRow = styled.div`
+/** Drawn like the Builder's Select trigger: an outlined field whose border turns white while it is open. */
+export const WhenTrigger = styled.button`
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  min-height: 40px;
-  font-family: ${theme.font.sans};
-  font-size: 14px;
-  color: ${theme.colors.text};
+  width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border: 1px solid ${colors.muted2};
+  border-radius: 6px;
+  background: transparent;
+  color: ${colors.softWhite};
+  font-family: ${font.sans};
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: left;
   cursor: pointer;
 
-  /* Only the checkbox, not the number field the row can open. */
-  > label > input {
-    width: 18px;
-    height: 18px;
-    accent-color: ${theme.colors.accent};
-    cursor: pointer;
+  > span:not(.ico) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ico {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    transition: transform 0.15s ease;
+  }
+  .ico[data-open] {
+    transform: rotate(180deg);
+  }
+  &:focus-visible,
+  &[aria-expanded='true'] {
+    border-color: ${colors.white};
+    outline: 0;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ico {
+      transition: none;
+    }
   }
 `
 
 export const CapLabel = styled.label`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${colors.softWhite};
 `
 
-// The worked example: what one listed item costs during the sale.
-/**
- * The hint under the terms. Always two lines tall, even when one would do: the sentence wraps or unwraps
- * with the numbers in it, and letting that resize the modal made the whole card jump while picking.
- */
-export const Preview = styled.p`
+export const CapInput = styled.div`
   display: flex;
   align-items: center;
+  gap: 8px;
+  height: 54px;
+  padding: 8px;
+  border: 1.5px solid ${colors.white};
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: ${colors.softWhite};
+    font-family: ${font.sans};
+    font-size: 16px;
+    outline: 0;
+  }
+  input::placeholder {
+    color: ${colors.gray5};
+    opacity: 1;
+  }
+  > span {
+    flex: none;
+    font-size: 14px;
+    color: ${colors.gray5};
+    font-variant-numeric: tabular-nums;
+  }
+  &[data-disabled] {
+    opacity: 0.6;
+  }
+`
+
+export const CapHint = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: 0;
-  padding: 10px 12px;
-  min-height: calc(2 * 1.5em + 20px);
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.panel};
-  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${colors.muted2};
+`
+
+/** What buyers will see: every listed item, priciest first, in a row that scrolls sideways. */
+export const PreviewHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+export const StripArrows = styled.div`
+  display: flex;
+  gap: 6px;
+
+  /* A phone swipes the row; the arrows are for a pointer. */
+  ${media.maxWidth('mobile')} {
+    display: none;
+  }
+`
+
+export const StripArrow = styled.button`
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid ${hairline};
+  border-radius: 50%;
+  background: ${raised};
+  color: ${colors.softWhite};
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.softWhite};
+    outline-offset: 2px;
+  }
+`
+
+export const PreviewStrip = styled.div`
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
+export const PreviewCard = styled.div`
+  flex: none;
+  width: 148px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: ${radius.card};
+  background: ${raised};
+  border: 1px solid ${hairline};
+`
+
+export const PreviewMedia = styled.div`
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: ${radius.btn};
+  overflow: hidden;
+  background: ${colors.media};
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`
+
+export const PreviewTag = styled(SaleTag)`
+  position: absolute;
+  top: 6px;
+  left: 6px;
+`
+
+export const PreviewName = styled.span`
   font-size: 14px;
-  line-height: 1.5;
-  color: ${theme.colors.text2};
+  font-weight: 600;
+  color: ${colors.white};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const PreviewPrices = styled.span`
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+export const PreviewNow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 16px;
+  font-weight: 700;
+  color: ${colors.white};
+`
+
+export const PreviewWas = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${colors.gray4};
+  text-decoration: line-through;
 `
 
 /**
- * Text wearing the currency mark in front: an amount in the example line, the currency's own name in the
- * hint. Either way the mark leads, the way every price in the Shop reads.
- *
- * Plain inline, not the inline-flex the price rows use — a flex box here makes `innerText` break the line
- * around it, which is the text the e2e suite reads the sentence from.
+ * Text wearing the currency mark in front. Plain inline, not inline-flex — a flex box here makes `innerText`
+ * break the line around it, which is the text the e2e suite reads the sentence from.
  */
 export const Marked = styled.b`
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${colors.white};
   white-space: nowrap;
 
   .ico {
@@ -425,85 +632,98 @@ export const ManaMark = styled.img`
   width: 1em;
   height: 1em;
   vertical-align: -0.125em;
+  /* Drawn dark for white cards; this card is dark. */
+  filter: brightness(0) invert(1);
 `
 
 export const Status = styled.p`
   margin: 0;
-  font-family: ${theme.font.sans};
   font-size: 14px;
-  color: ${theme.colors.muted};
+  color: ${colors.gray4};
   text-align: center;
 `
 
-export const PrimaryBtn = styled.button`
+export const PrimaryBtn = styled(Button)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  height: 48px;
-  border: 0;
-  border-radius: ${theme.radius.modal};
-  cursor: pointer;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.white};
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-  &:disabled {
-    cursor: not-allowed;
-    background: rgba(105, 31, 169, 0.2);
-    color: ${theme.colors.white};
-  }
+  min-height: 48px;
 `
 
+/**
+ * The modal's foot: ruled off from the form, the way out on the left and the way on at the right. Pinned to
+ * the bottom of the card, so a form taller than the screen never hides the button that moves it on — nor
+ * the reason that button is disabled, which rides in the foot above it.
+ */
 export const Actions = styled.div`
+  position: sticky;
+  bottom: -${CARD_PAD}px;
+  z-index: 3;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 12px;
+  margin: 0 -${CARD_PAD}px -${CARD_PAD}px;
+  padding: 16px ${CARD_PAD}px ${CARD_PAD}px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.3);
+  background: ${colors.fieldBottomWashed};
+  box-shadow: 0 -12px 24px -12px rgba(0, 0, 0, 0.45);
 
-  ${theme.media.maxWidth('mobile')} {
-    flex-direction: column;
+  ${media.maxWidth('mobile')} {
+    bottom: -${CARD_PAD_MOBILE}px;
+    margin: 0 -${CARD_PAD_MOBILE}px -${CARD_PAD_MOBILE}px;
+    padding: 12px ${CARD_PAD_MOBILE}px ${CARD_PAD_MOBILE}px;
   }
 `
 
-const actionBtn = `
-  flex: 1 1 0;
-  height: 48px;
-  border-radius: ${theme.radius.modal};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
+export const ActionsNote = styled.div`
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const ActionBtn = styled(Button)`
+  flex: 0 1 242px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 13px;
   font-weight: 600;
-  font-size: 15px;
   letter-spacing: 0.46px;
-  text-transform: uppercase;
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
+
+  /* The secondary action is an outline on this card, not a white slab. */
+  &[data-variant='white'] {
+    border: 0.5px solid ${colors.softWhite};
+    background: transparent;
+    color: ${colors.softWhite};
   }
-`
+  &[data-variant='white']:hover:not(:disabled),
+  &[data-variant='white']:active:not(:disabled) {
+    background: ${colors.glassFaint};
+  }
 
-export const OutlineBtn = styled.button`
-  ${actionBtn}
-  border: 1px solid ${theme.colors.accent};
-  background: ${theme.colors.white};
-  color: ${theme.colors.accent};
-`
+  /* Side by side on a phone: the way on takes the room the way out leaves, and a label longer than that
+     (the busy status, German) wraps inside a taller button. */
+  ${media.maxWidth('mobile')} {
+    flex: 1 1 0;
+    min-width: 0;
+    height: auto;
+    min-height: 46px;
+    padding-block: 6px;
+    line-height: 1.3;
+    text-align: center;
 
-export const PurpleBtn = styled.button`
-  ${actionBtn}
-  border: 0;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.white};
-
-  &:hover {
-    background: ${theme.colors.accentHover};
+    &[data-variant='white'] {
+      flex: 0 0 auto;
+      padding-inline: 20px;
+    }
   }
 `
 
@@ -511,10 +731,11 @@ export const SuccessBanner = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 24px 16px;
-  border-radius: ${theme.radius.modal};
-  background: rgba(193, 238, 207, 0.5);
+  border-radius: ${radius.modal};
+  background: ${raised};
+  border: 1px solid ${hairline};
   text-align: center;
 `
 
@@ -524,8 +745,8 @@ export const SuccessCheck = styled.div`
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: ${theme.colors.ok};
-  color: ${theme.colors.white};
+  background: ${colors.ok};
+  color: ${colors.white};
 
   .ico {
     width: 34px;
@@ -535,10 +756,9 @@ export const SuccessCheck = styled.div`
 
 export const SuccessText = styled.p`
   margin: 0;
-  font-family: ${theme.font.sans};
   font-size: 22px;
   line-height: 1.4;
-  color: ${theme.colors.text};
+  color: ${colors.white};
 `
 
 export const SuccessDetail = styled.p`
@@ -548,132 +768,57 @@ export const SuccessDetail = styled.p`
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  font-family: ${theme.font.sans};
   font-size: 15px;
-  color: ${theme.colors.text2};
-`
-
-/**
- * A chip that becomes its own input.
- *
- * Two grid columns swapping between 0fr and 1fr: the chip collapses to nothing while the field opens in
- * its place, and because both tracks stay content-sized the animation survives translation — no measured
- * or hardcoded widths to go stale when "Custom" becomes "Personalizado".
- */
-export const Morph = styled.div`
-  display: inline-grid;
-  grid-template-columns: 1fr 0fr;
-  align-items: center;
-  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
-
-  &[data-open] {
-    grid-template-columns: 0fr 1fr;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-/** Morph's sibling for a field with no chip to swap with — a checkbox opens it in place instead. */
-export const Reveal = styled.div`
-  display: inline-grid;
-  grid-template-columns: 0fr;
-  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
-
-  &[data-open] {
-    grid-template-columns: 1fr;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-`
-
-export const MorphCell = styled.div`
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-
-  /* The collapsed half is still in the DOM (it has to be, to animate back), so stop it catching clicks. */
-  &[data-off] {
-    pointer-events: none;
-  }
+  color: ${colors.gray4};
 `
 
 /** The review step: what the sale will do, item by item, before anything is signed. */
 export const ReviewSummary = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.panel};
+  gap: 10px;
+  padding: 14px;
+  border-radius: ${radius.card};
+  background: ${raised};
+  border: 1px solid ${hairline};
 `
 
-/** The chosen discount, wearing the same colours its chip wore on the step before. */
 export const ReviewPct = styled.span`
-  display: inline-flex;
-  align-items: center;
-  /* Hugs its label: it sits in the same 1fr column the dates fill, which would otherwise stretch it. */
   justify-self: start;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: ${theme.radius.pill};
-  border: 2px solid transparent;
-  font-family: ${theme.font.sans};
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-
-  ${Object.entries(theme.saleHeat)
-    .map(
-      ([step, { tint, ink }]) => `
-  &[data-heat='${step}'] {
-    background: ${tint};
-    border-color: ${ink};
-    color: ${ink};
-  }`
-    )
-    .join('')}
+  display: inline-flex;
 `
 
 /** One row of the summary: its label, the value, and — for the window — how long until it. */
 export const ReviewWhenRow = styled.div`
   display: grid;
   /* Fixed, not content-sized: each row is its own grid, so a max-content track would line each label up
-     with nothing. 78px clears the longest label in either locale ("Descuento" measures ~70px). */
-  grid-template-columns: 78px minmax(0, 1fr) auto;
+     with nothing. 86px clears the longest label in any locale. */
+  grid-template-columns: 86px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 28px;
-  font-family: ${theme.font.sans};
   font-size: 15px;
   line-height: 1.5;
 `
 
 export const ReviewWhenLabel = styled.span`
-  color: ${theme.colors.muted};
-  font-size: 14px;
+  color: ${colors.gray4};
+  font-size: 13px;
 `
 
 export const ReviewWhenValue = styled.b`
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${colors.white};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
-/**
- * Plain meta text, not the default pill: three filled pills in one small panel (the discount badge plus
- * one per row) fought each other, and the one that should win is the discount.
- */
 export const ReviewWhenLeft = styled(SaleCountdown)`
   flex: none;
   padding: 0;
   background: none;
-  color: ${theme.colors.muted};
+  color: ${colors.gray4};
   font-size: 14px;
   font-weight: 600;
 `
@@ -686,10 +831,9 @@ export const ReviewGroup = styled.div`
 
 export const ReviewGroupTitle = styled.h3`
   margin: 0;
-  font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 14px;
-  color: ${theme.colors.text};
+  color: ${colors.white};
 `
 
 export const ReviewList = styled.ul`
@@ -710,115 +854,86 @@ export const ReviewRow = styled.li`
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.line};
+  border-radius: ${radius.btn};
+  background: ${raised};
+  border: 1px solid ${hairline};
 
   &[data-muted] {
-    background: ${theme.colors.panel};
-    border-color: ${theme.colors.panel};
+    opacity: 0.7;
   }
 `
 
 export const ReviewThumb = styled.img`
   width: 40px;
   height: 40px;
-  border-radius: ${theme.radius.btn};
+  border-radius: ${radius.btn};
   object-fit: cover;
-  background: ${theme.colors.media};
+  background: ${colors.media};
 `
 
 export const ReviewName = styled.span`
-  font-family: ${theme.font.sans};
   font-size: 15px;
-  color: ${theme.colors.text};
+  color: ${colors.white};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
 
-/**
- * Two fixed columns rather than an inline run: the old and the new price line up down the list, so the
- * column of what things cost now and the column of what they will cost can be read as columns.
- */
-/**
- * Two right-aligned columns so the prices line up down the list. The tracks are only as wide as the
- * numbers need — wider ones left a gulf between what an item costs and what it will cost, which read as
- * two unrelated figures rather than a before and an after.
- */
+/** Two right-aligned columns so the old and new prices line up down the list. */
 export const ReviewPrices = styled.span`
   display: grid;
   grid-template-columns: minmax(34px, auto) minmax(46px, auto);
   align-items: center;
   gap: 6px;
-  font-family: ${theme.font.sans};
   white-space: nowrap;
 `
 
-/**
- * The price being left behind. `muted` rather than the lighter `muted2`: a line through a number already
- * costs it legibility, and at Gray 3 on white the two together were closer to decoration than to a figure
- * anyone could read.
- */
 export const ReviewWas = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
-  color: ${theme.colors.muted};
+  color: ${colors.gray4};
   text-decoration: line-through;
   font-weight: 600;
-  font-size: 17px;
+  font-size: 15px;
 `
 
-/**
- * The number the sale is actually about, so it is the biggest thing in the row — and it carries the ink of
- * its step, the same one the discount badge above is lettered in.
- */
 export const ReviewNow = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
   font-weight: 700;
-  font-size: 20px;
-
-  ${Object.entries(theme.saleHeat)
-    .map(
-      ([step, { ink }]) => `
-  &[data-heat='${step}'] {
-    color: ${ink};
-  }`
-    )
-    .join('')}
+  font-size: 19px;
+  color: ${colors.white};
 `
 
 export const ReviewUnaffected = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: ${theme.colors.muted};
+  color: ${colors.gray4};
   white-space: nowrap;
 `
 
 /** Opens the reason a row is excluded. Focusable, so the explanation is reachable without a hover. */
 export const UnaffectedInfo = styled(Icon)`
-  /* Drawn at 14px, hit at 26px: padding cancelled by an equal negative margin, so a finger has something
-     to land on without the glyph moving or the row growing. */
+  /* Drawn at 14px, hit at 26px: padding cancelled by an equal negative margin. */
   width: 14px;
   height: 14px;
   padding: 6px;
   margin: -6px;
   box-sizing: content-box;
-  color: ${theme.colors.muted2};
+  color: ${colors.gray4};
   cursor: help;
 
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
     border-radius: 50%;
   }
@@ -826,65 +941,24 @@ export const UnaffectedInfo = styled(Icon)`
 
 export const ReviewFoot = styled.p`
   margin: 0;
-  padding: 12px;
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.promptLilac};
-  font-family: ${theme.font.sans};
-  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: ${radius.card};
+  background: rgba(255, 45, 85, 0.14);
+  border: 1px solid rgba(255, 45, 85, 0.32);
+  font-size: 14px;
   line-height: 1.45;
-  color: ${theme.colors.text};
+  color: ${colors.softWhite};
 
   b {
     font-weight: 700;
+    color: ${colors.white};
   }
 `
 
 /** The one line that says what to do about a group the discount cannot reach. */
 export const ReviewFootNote = styled.p`
   margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
-  color: ${theme.colors.muted};
-`
-
-/**
- * The calendar lives in a node of its own at body level (see CALENDAR_PORTAL), so this component's own
- * scoped styles cannot reach it — a portalled popup is outside the tree Emotion generated the class for.
- * Keyed on the portal's id instead, and lifted above the modal, which otherwise paints over it.
- */
-export const calendarPortalStyles = css`
-  #creator-sale-calendar {
-    position: relative;
-    /* Above the modal, which paints over anything at the document's own level. */
-    z-index: ${theme.z.overlay + 1};
-
-    ${calendarPopup}
-
-    /* The time column, which the sell flow's date-only picker never shows. */
-    .react-datepicker__time-container,
-    .react-datepicker__time,
-    .react-datepicker__time-box {
-      background: ${theme.colors.white};
-    }
-    .react-datepicker__time-list-item {
-      color: ${theme.colors.text};
-    }
-    .react-datepicker__time-list-item:hover {
-      background: rgba(105, 31, 169, 0.1) !important;
-    }
-    .react-datepicker__time-list-item--selected {
-      background: ${theme.colors.accent} !important;
-      color: ${theme.colors.white} !important;
-      font-weight: 600 !important;
-    }
-    .react-datepicker__header--time {
-      padding: 12px 0 8px;
-    }
-    .react-datepicker-time__header {
-      color: ${theme.colors.text};
-      font-weight: 600;
-      font-size: 13px;
-    }
-  }
+  color: ${colors.gray4};
 `

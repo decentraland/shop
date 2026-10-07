@@ -76,6 +76,32 @@ const rainbow = keyframes`
   }
 `
 
+// A guttering candle, on the SAME 6s period as the gradient drift above.
+//
+// It ran at 4.5s first, and two animations on co-prime periods beat against each other: the dip landed at
+// a different point of the colour sweep every cycle, so the tab read as two effects stacked — the colours
+// going by, and then an unrelated blink. Locked to one period they always coincide, and the label reads as
+// one guttering flame.
+//
+// Shallow on purpose, and still far under the three-flashes-per-second that makes a flashing element a
+// seizure risk: this sits in the nav for a whole session.
+const gutter = keyframes`
+  0%,
+  26%,
+  30%,
+  68%,
+  72%,
+  100% {
+    opacity: 1;
+  }
+  28% {
+    opacity: 0.62;
+  }
+  70% {
+    opacity: 0.52;
+  }
+`
+
 export const Tabs = styled.nav`
   /**
    * WIDE VIEWPORTS: the strip does not shrink, so no tab label is cut.
@@ -160,8 +186,52 @@ export const Tabs = styled.nav`
     animation: ${rainbow} 6s ease-in-out infinite;
   }
 
+  /* HALLOWEEN. html[…] rather than :root[…], which is the same element: stylis reads a selector that
+     STARTS with a colon as a pseudo-class of the component and concatenates the generated class onto it,
+     so :root here compiled to a rule demanding the nav BE the document root, which silently never
+     matched while the build and the unit tests stayed green.
+
+     Same mechanism as above — a gradient drifting behind transparent text — repainted in the
+     season's colours and given a second animation, because colour alone still reads as the generic
+     rainbow. The glyphs gutter like a candle and carry a pumpkin glow.
+
+     drop-shadow rather than text-shadow: the label has no colour of its own, so a text shadow would paint
+     its haze OVER the clipped gradient and wash the letters out. A filter takes the element as rendered,
+     so the glow sits behind the glyph shape where it belongs.
+
+     Repeated across hover and active for the same reason the base rule is. */
+  html[data-campaign-theme='halloween'] & a[data-event],
+  html[data-campaign-theme='halloween'] & a[data-event]:hover,
+  html[data-campaign-theme='halloween'] & a[data-event].active {
+    /* Jack-o'-lantern: candle amber down through pumpkin to a charred low, and nothing else. An earlier
+       pass spent two stops on witch purple and toxic green, and the sweep kept parking the violet over
+       the whole word — at that moment the tab reads as the generic rainbow it replaced.
+
+       The charred stop is a deep BURNT ORANGE, not the black the palette suggests: this strip sits on a
+       dark purple bar, so a true black band travelling through a four-letter label eats it. This one
+       still reads as charred and stays legible against the bar. */
+    background: linear-gradient(to right, #ffb300 0%, #ff7a18 20%, #ff4d00 40%, #a33500 55%, #ff6a00 75%, #ffb300 100%);
+    background-size: 400% 100%;
+    /* Re-stated, not inherited from the rule above: the background SHORTHAND resets background-clip to
+       border-box, so leaving these out paints the tab as a solid gradient block with the label invisible
+       inside it. */
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      ${rainbow} 6s ease-in-out infinite,
+      ${gutter} 6s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(255, 106, 0, 0.55));
+  }
+
+  /* Listed explicitly: the themed rules above outrank the unqualified selector on specificity, so a bare
+     reset would leave the Halloween tab animating for a reader who asked for stillness. The glow is a
+     static filter and stays — it is not motion. */
   @media (prefers-reduced-motion: reduce) {
-    & a[data-event] {
+    & a[data-event],
+    html[data-campaign-theme='halloween'] & a[data-event],
+    html[data-campaign-theme='halloween'] & a[data-event]:hover,
+    html[data-campaign-theme='halloween'] & a[data-event].active {
       animation: none;
     }
   }
