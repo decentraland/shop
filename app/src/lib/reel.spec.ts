@@ -6,7 +6,7 @@ vi.mock('~/config', () => ({ config: { cameraReelUrl: 'https://camera-reel.examp
 const fetchWearableRules = vi.fn()
 vi.mock('~/lib/wearable-rules', async importOriginal => ({
   ...(await importOriginal<typeof import('~/lib/wearable-rules')>()),
-  fetchWearableRules: (urns: string[]) => fetchWearableRules(urns)
+  fetchWearableRules: (urns: string[], signal?: AbortSignal) => fetchWearableRules(urns, signal)
 }))
 
 import { fetchItemReel, rankReelPhotos, reelKey, type ReelPhoto } from '~/lib/reel'
@@ -167,7 +167,7 @@ describe('when reading the photos of an item', () => {
 
     const photos = await fetchItemReel(ITEM)
 
-    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([ITEM_URN, ROBE]))
+    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([ITEM_URN, ROBE]), expect.any(AbortSignal))
     expect(photos.map(p => p.id)).toEqual(['on-show'])
   })
 
@@ -183,7 +183,7 @@ describe('when reading the photos of an item', () => {
     fetchWearableRules.mockResolvedValue([])
 
     await expect(fetchItemReel(ITEM)).resolves.toHaveLength(1)
-    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([ROBE]))
+    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([ROBE]), expect.any(AbortSignal))
   })
 
   it('and only the outfit rules cannot be read it should keep the photos', async () => {
@@ -255,7 +255,7 @@ describe('when reading the photos of an item', () => {
     ])
 
     await expect(fetchItemReel(ITEM)).resolves.toEqual([])
-    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([LINKED]))
+    expect(fetchWearableRules).toHaveBeenCalledWith(expect.arrayContaining([LINKED]), expect.any(AbortSignal))
   })
 
   it('should credit the next wearer when the first has the item hidden', async () => {
@@ -280,6 +280,124 @@ describe('when reading the photos of an item', () => {
     const [photo] = await fetchItemReel(ITEM)
 
     expect(photo.wearerName).toBe('Plain')
+  })
+
+  it('should credit the wearer the shot frames best, not the first one listed', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [
+          serviceImage({}, [
+            {
+              userName: 'Speck',
+              userAddress: '0xbbb',
+              wearables: [WORN],
+              screenRect: { x: 0.1, y: 0.4, width: 0.02, height: 0.05 }
+            },
+            {
+              userName: 'Model',
+              userAddress: '0xccc',
+              wearables: [WORN],
+              screenRect: { x: 0.35, y: 0.1, width: 0.3, height: 0.8 }
+            }
+          ])
+        ]
+      })
+    })
+    fetchWearableRules.mockResolvedValue([
+      { urn: WORN.replace(':7', ''), category: 'upper_body', hides: [], replaces: [] }
+    ])
+
+    const [photo] = await fetchItemReel(ITEM)
+
+    expect(photo.wearerName).toBe('Model')
+  })
+
+  it('and the best-framed wearer has the item hidden it should credit the next best-framed one', async () => {
+    const ITEM_URN = WORN.replace(':7', '')
+    const ROBE = 'urn:decentraland:matic:collections-v2:0xrobe:0'
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [
+          serviceImage({}, [
+            {
+              userName: 'Robed',
+              userAddress: '0xbbb',
+              wearables: [`${ROBE}:3`, WORN],
+              screenRect: { x: 0.35, y: 0.1, width: 0.3, height: 0.8 }
+            },
+            {
+              userName: 'Speck',
+              userAddress: '0xccc',
+              wearables: [WORN],
+              screenRect: { x: 0.1, y: 0.4, width: 0.02, height: 0.05 }
+            },
+            {
+              userName: 'Model',
+              userAddress: '0xddd',
+              wearables: [WORN],
+              screenRect: { x: 0.7, y: 0.1, width: 0.2, height: 0.6 }
+            }
+          ])
+        ]
+      })
+    })
+    fetchWearableRules.mockResolvedValue([
+      { urn: ITEM_URN, category: 'lower_body', hides: [], replaces: [] },
+      { urn: ROBE, category: 'upper_body', hides: ['lower_body'], replaces: [] }
+    ])
+
+    const [photo] = await fetchItemReel(ITEM)
+
+    expect(photo.wearerName).toBe('Model')
+  })
+
+  it('should read the outfits of only the first few wearers in a shot', async () => {
+    const wearers = Array.from({ length: 200 }, (_, i) => ({
+      userName: `Wearer ${i}`,
+      userAddress: `0x${i}`,
+      wearables: [WORN, ...Array.from({ length: 19 }, (_, j) => `urn:decentraland:matic:collections-v2:0x${i}:${j}:1`)],
+      screenRect: { x: 0.35, y: 0.1, width: 0.3, height: 0.8 }
+    }))
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ images: [serviceImage({}, wearers)] }) })
+
+    await fetchItemReel(ITEM)
+
+    const asked = new Set(fetchWearableRules.mock.calls.flatMap(([urns]) => urns as string[]))
+    expect(asked.size).toBeLessThanOrEqual(100)
+  })
+
+  it('should give the Catalyst lookup a deadline', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [serviceImage({}, [{ userName: 'Model', userAddress: '0xbbb', wearables: [WORN] }])]
+      })
+    })
+
+    await fetchItemReel(ITEM)
+
+    expect(fetchWearableRules.mock.calls[0][1]).toBeInstanceOf(AbortSignal)
+  })
+
+  it('should survive metadata of the wrong shape', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        images: [
+          serviceImage({}, [
+            null,
+            { userName: 'Odd', userAddress: '0xccc', wearables: 'x' },
+            { userName: 'Model', userAddress: '0xbbb', wearables: [WORN] }
+          ] as unknown as Record<string, unknown>[])
+        ]
+      })
+    })
+
+    const [photo] = await fetchItemReel(ITEM)
+
+    expect(photo.wearerName).toBe('Model')
   })
 
   it('should read only a capped outfit of Decentraland urns per person', async () => {

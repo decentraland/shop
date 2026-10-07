@@ -85,16 +85,24 @@ const SHORTLIST = SHOWN * 2
  */
 const MAX_WEARABLES = 20
 
-// The Catalyst reads a batch of pointers per request.
+/** People per photo whose outfit is read: past the crowd cap, a photo's metadata could list any number. */
+const MAX_WEARERS = MAX_PEOPLE
+
+// The Catalyst reads a batch of pointers per request, and a page view never makes more than a few of them.
 const RULES_BATCH = 100
+const MAX_RULES = RULES_BATCH * 3
+
+// A slow Catalyst must not hold the strip back: past this the lookup counts as failed, and fails soft.
+const RULES_TIMEOUT_MS = 4000
 
 /** The Catalyst rules for these urns, by lowercased urn. Empty when they cannot be read: the lookup fails soft. */
 async function fetchRules(urns: string[]): Promise<Map<string, WearableRule>> {
-  const unique = [...new Set(urns.filter(Boolean))]
+  const unique = [...new Set(urns.filter(Boolean))].slice(0, MAX_RULES)
   const batches: string[][] = []
   for (let i = 0; i < unique.length; i += RULES_BATCH) batches.push(unique.slice(i, i + RULES_BATCH))
+  const signal = AbortSignal.timeout(RULES_TIMEOUT_MS)
   const rules = new Map<string, WearableRule>()
-  for (const rule of (await Promise.all(batches.map(fetchWearableRules))).flat())
+  for (const rule of (await Promise.all(batches.map(batch => fetchWearableRules(batch, signal)))).flat())
     rules.set(rule.urn.toLowerCase(), rule)
   return rules
 }
@@ -123,7 +131,8 @@ const PER_PLACE = 2
 type ServicePerson = {
   userName?: string
   userAddress?: string
-  wearables?: string[]
+  // Read from photo metadata, which is not checked against any shape: guard every use.
+  wearables?: unknown
   isEmoting?: boolean
   screenRect?: unknown
 }
@@ -154,16 +163,21 @@ function itemPointer(urn: string): string {
 
 /** What the person has on, as item urns, read from photo metadata and so capped and kept to Decentraland urns. */
 function outfit(person: ServicePerson): string[] {
-  return (person.wearables ?? [])
-    .filter(urn => typeof urn === 'string' && urn.toLowerCase().startsWith('urn:decentraland:'))
+  return wearablesOf(person)
+    .filter((urn): urn is string => typeof urn === 'string' && urn.toLowerCase().startsWith('urn:decentraland:'))
     .slice(0, MAX_WEARABLES)
     .map(itemPointer)
+}
+
+/** The person's wearables as the metadata lists them, or none when it lists something else. */
+function wearablesOf(person: ServicePerson): unknown[] {
+  return Array.isArray(person.wearables) ? person.wearables : []
 }
 
 /** This item's urn on the person, whichever copy of it they own, or null when they do not wear it. */
 function wornItem(person: ServicePerson, itemKey: string): string | null {
   const [contract, itemId] = itemKey.split('-')
-  const urn = (person.wearables ?? []).find(urn => {
+  const urn = wearablesOf(person).find((urn): urn is string => {
     if (typeof urn !== 'string') return false
     const parts = urn.split(':')
     return parts.length >= 7 && parts[4].toLowerCase() === contract && parts[5] === itemId
@@ -172,15 +186,17 @@ function wornItem(person: ServicePerson, itemKey: string): string | null {
 }
 
 /**
- * The photo once per person in it wearing the item, in the order the client listed them, or once with no
- * wearer when nobody does. The credit names one wearer, and which one is settled later: the first whose
- * item is not hidden under something else.
+ * The photo once per person in it wearing the item (the first few, in the order the client listed them), or
+ * once with no wearer when nobody does. The credit names one wearer, and which one is settled later: see
+ * `leadWearer`.
  */
 function toPhotos(image: ServiceImage, itemKey: string): ReelPhoto[] {
   const metadata = image.metadata
   if (!metadata) return []
-  const people = Array.isArray(metadata.visiblePeople) ? metadata.visiblePeople : []
-  const wearers = people.filter(person => wornItem(person, itemKey))
+  const people = (Array.isArray(metadata.visiblePeople) ? metadata.visiblePeople : []).filter(
+    (person): person is ServicePerson => !!person && typeof person === 'object'
+  )
+  const wearers = people.filter(person => wornItem(person, itemKey)).slice(0, MAX_WEARERS)
   return (wearers.length > 0 ? wearers : [undefined]).map(wearer => toPhoto(image, people, wearer, itemKey))
 }
 
@@ -222,6 +238,23 @@ function toPhoto(
     dateTime: metadata.dateTime ?? '',
     people: people.length
   }
+}
+
+/**
+ * The version of a shot to rank it by when several people in it wear the item: the one whose wearer it frames
+ * best, or the first listed when it frames none of them (no rectangles, or all too small or cut off).
+ */
+function leadWearer(variants: ReelPhoto[]): ReelPhoto {
+  let best = variants[0]
+  let bestScore: number | null = null
+  for (const photo of variants) {
+    const score = photo.wearerRect && framingScore(photo.wearerRect, photo.otherRects, photo.itemCategory)
+    if (score != null && (bestScore == null || score > bestScore)) {
+      best = photo
+      bestScore = score
+    }
+  }
+  return best
 }
 
 /**
@@ -289,11 +322,15 @@ export async function fetchItemReel(item: Pick<CatalogItem, 'contractAddress' | 
     variants.map(photo => ({ ...photo, itemCategory: itemRules.get(photo.itemUrn.toLowerCase())?.category ?? '' }))
   )
 
-  // Then the outfits, only for the photos that could make the strip, each credited to its first wearer.
-  const variantsOf = new Map(categorized.map(variants => [variants[0], variants]))
+  // Then the outfits, only for the photos that could make the strip, each led by its best-framed wearer.
+  const variantsOf = new Map(categorized.map(variants => [leadWearer(variants), variants]))
   const shortlist = rankReelPhotos([...variantsOf.keys()], SHORTLIST).map(photo => variantsOf.get(photo) ?? [photo])
   const outfitRules = await fetchRules(shortlist.flat().flatMap(photo => photo.wearerWearables))
 
-  const visible = shortlist.flatMap(variants => variants.filter(photo => itemVisible(photo, outfitRules)).slice(0, 1))
+  // Credit goes to the best-framed wearer whose item is not hidden; a shot where every wearer hides it goes.
+  const visible = shortlist.flatMap(variants => {
+    const shown = variants.filter(photo => itemVisible(photo, outfitRules))
+    return shown.length > 0 ? [leadWearer(shown)] : []
+  })
   return rankReelPhotos(visible)
 }
