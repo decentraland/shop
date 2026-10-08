@@ -1654,6 +1654,8 @@
       "stop": "Detener",
       "stopping": "Deteniendo…",
       "leaveConfirm": "Todavía se están enviando regalos. ¿Salir igual? La lista se detiene después del regalo que se está enviando y puedes continuarla más tarde: nadie recibe dos veces.",
+      "notSaved": "Este navegador no pudo guardar la lista, así que no se envió nada. Los regalos solo se envían una vez guardada la lista, para poder reintentar una respuesta perdida sin regalarle dos veces a nadie. Permite que este sitio guarde datos (puede estar bloqueado o lleno) e inténtalo de nuevo.",
+      "listChanged": "Esta lista se reemplazó u olvidó en otra pestaña, o este navegador dejó de guardarla, así que no se envió nada más desde aquí. Cierra esto y vuelve a abrir Regalar Créditos para ver cómo quedó.",
       "stopped": "Se detuvo: {reason}. Resuélvelo y presiona Continuar: los jugadores que ya recibieron su regalo no lo recibirán dos veces.",
       "left": "{count, plural, one {Queda # jugador} other {Quedan # jugadores}} de una lista que empezaste el {date}. Continúala: los jugadores que ya recibieron su regalo no lo recibirán dos veces.",
       "done": "Listo.",

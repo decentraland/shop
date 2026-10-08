@@ -8,6 +8,7 @@ import {
   getMyStudios,
   giftFromStudio,
   isBatchRunning,
+  isSameBatch,
   MAX_SLOW_DOWNS_PER_GIFT,
   parsePastedRows,
   parseTypedTotal,
@@ -697,6 +698,64 @@ describe('when an unfinished batch is kept in the browser', () => {
     expect({ ...read, left: store.entries.size }).toEqual({ same: batch, otherAccount: null, left: 0 })
   })
 
+  it('should say whether a batch was stored, so a list the browser refuses is never sent', () => {
+    const refusing = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('quota')
+      },
+      removeItem: () => undefined
+    }
+
+    // A browser with no storage at all: reading `localStorage` throws, as it does when site data is blocked.
+    const noStorage = (() => {
+      const blocked = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+        throw new Error('blocked')
+      })
+      try {
+        return writePendingBatch(ACCOUNT_A, STUDIO, batch)
+      } finally {
+        blocked.mockRestore()
+      }
+    })()
+
+    expect({
+      stored: writePendingBatch(ACCOUNT_A, STUDIO, batch, memory()),
+      refused: writePendingBatch(ACCOUNT_A, STUDIO, batch, refusing),
+      noStorage
+    }).toEqual({ stored: true, refused: false, noStorage: false })
+  })
+
+  it('should not save progress the browser refuses to store', () => {
+    const store = memory()
+    const row = { key: 'k-a', account: ACCOUNT_B, credits: 10, reason: 'x', status: 'pending' as const }
+    const list = { studioId: STUDIO, createdAt: 1, rows: [row] }
+    writePendingBatch(ACCOUNT_A, STUDIO, list, store)
+    const full = {
+      ...store,
+      setItem: () => {
+        throw new Error('quota')
+      }
+    }
+
+    expect(saveBatchProgress(ACCOUNT_A, STUDIO, { ...list, rows: [{ ...row, status: 'gifted' }] }, full)).toBe(false)
+  })
+
+  it('should read a batch naming another studio as nothing pending, and tell lists apart', () => {
+    const store = memory()
+    const row = { key: 'k-a', account: ACCOUNT_B, credits: 10, reason: 'x', status: 'pending' as const }
+    const list = { studioId: STUDIO, createdAt: 1, rows: [row] }
+    store.setItem(`shop.studio.pendingGifts.${ACCOUNT_A}.${STUDIO}`, JSON.stringify({ ...list, studioId: 'another' }))
+
+    expect({
+      otherStudio: readPendingBatch(ACCOUNT_A, STUDIO, store),
+      same: isSameBatch({ ...list, rows: [{ ...row, status: 'gifted' }] }, list),
+      otherList: isSameBatch({ ...list, rows: [{ ...row, key: 'k-c' }] }, list),
+      otherDate: isSameBatch({ ...list, createdAt: 2 }, list),
+      nothing: isSameBatch(null, list)
+    }).toEqual({ otherStudio: null, same: true, otherList: false, otherDate: false, nothing: false })
+  })
+
   it('should read corrupted storage as nothing pending, and never throw when storage is refused', () => {
     const store = memory()
     store.setItem(`shop.studio.pendingGifts.${ACCOUNT_A}.${STUDIO}`, '{nope')
@@ -713,10 +772,7 @@ describe('when an unfinished batch is kept in the browser', () => {
     expect({
       corrupted: readPendingBatch(ACCOUNT_A, STUDIO, store),
       refusedRead: readPendingBatch(ACCOUNT_A, STUDIO, refusing),
-      refusedWrite: (() => {
-        writePendingBatch(ACCOUNT_A, STUDIO, batch, refusing)
-        return 'ok'
-      })()
-    }).toEqual({ corrupted: null, refusedRead: null, refusedWrite: 'ok' })
+      refusedWrite: writePendingBatch(ACCOUNT_A, STUDIO, batch, refusing)
+    }).toEqual({ corrupted: null, refusedRead: null, refusedWrite: false })
   })
 })

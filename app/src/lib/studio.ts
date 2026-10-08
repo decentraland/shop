@@ -645,22 +645,23 @@ export function readPendingBatch(
   try {
     const raw = store?.getItem(pendingKey(account, studioId))
     const batch: unknown = raw ? JSON.parse(raw) : null
-    return isPendingBatch(batch) ? batch : null
+    // Saved under this studio's key, so it must name this studio too: anything else was not saved by this page.
+    return isPendingBatch(batch) && batch.studioId === studioId ? batch : null
   } catch {
     return null
   }
 }
 
 /** Whether two saved batches are the same list. Its keys are made once per list, so its first key names it. */
-function sameBatch(a: PendingBatch | null, b: PendingBatch): boolean {
-  return a !== null && a.createdAt === b.createdAt && a.rows[0]?.key === b.rows[0]?.key
+export function isSameBatch(a: PendingBatch | null, b: PendingBatch): boolean {
+  return a !== null && a.studioId === b.studioId && a.createdAt === b.createdAt && a.rows[0]?.key === b.rows[0]?.key
 }
 
 /**
  * Saves a run's progress, only over the same list. Once that list was forgotten or a new one saved, a run that is
  * still finishing writes nothing, so it can never bring back a forgotten list or replace the one that followed it.
  *
- * @returns Whether it was saved.
+ * @returns Whether it was saved: false when the list is no longer the one saved, or the browser refused to save.
  */
 export function saveBatchProgress(
   account: string,
@@ -668,9 +669,8 @@ export function saveBatchProgress(
   batch: PendingBatch,
   store: KeyValueStore | undefined = browserStore()
 ): boolean {
-  if (!sameBatch(readPendingBatch(account, studioId, store), batch)) return false
-  writePendingBatch(account, studioId, batch, store)
-  return true
+  if (!isSameBatch(readPendingBatch(account, studioId, store), batch)) return false
+  return writePendingBatch(account, studioId, batch, store)
 }
 
 /**
@@ -690,17 +690,25 @@ export function readUnfinishedBatch(
   return batch
 }
 
-/** Saves a batch, or forgets it (`null`). Never throws: losing the copy only loses recovery after a reload. */
+/**
+ * Saves a batch, or forgets it (`null`). Never throws.
+ *
+ * @returns Whether it was stored. False when the browser has no storage or refuses it (blocked, full): a batch
+ *   that is not stored must not be sent, because its keys would not survive a reload, and sending the same list
+ *   again after a lost answer would then gift twice.
+ */
 export function writePendingBatch(
   account: string,
   studioId: string,
   batch: PendingBatch | null,
   store: KeyValueStore | undefined = browserStore()
-): void {
+): boolean {
+  if (!store) return false
   try {
-    if (batch) store?.setItem(pendingKey(account, studioId), JSON.stringify(batch))
-    else store?.removeItem(pendingKey(account, studioId))
+    if (batch) store.setItem(pendingKey(account, studioId), JSON.stringify(batch))
+    else store.removeItem(pendingKey(account, studioId))
+    return true
   } catch {
-    // Storage full or blocked: the batch still runs.
+    return false
   }
 }

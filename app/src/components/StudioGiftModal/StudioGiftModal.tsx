@@ -14,6 +14,7 @@ import {
   giftFromStudio,
   isBlankRow,
   isRetryable,
+  isSameBatch,
   MAX_REASON_LENGTH,
   parsePastedRows,
   parseTypedTotal,
@@ -106,6 +107,10 @@ export function StudioGiftModal({
   const [stopping, setStopping] = useState(false)
   const [waitingSeconds, setWaitingSeconds] = useState<number | null>(null)
   const [stoppedBy, setStoppedBy] = useState<string | undefined>()
+  // The browser would not save a new list, so it was not sent.
+  const [notSaved, setNotSaved] = useState(false)
+  // The list on screen is no longer the one saved (another tab replaced or forgot it, or saving stopped working).
+  const [listChanged, setListChanged] = useState(false)
   // Each review asks for the recent gifts; only the latest one's answer may be shown.
   const latestReview = useRef(0)
 
@@ -157,13 +162,20 @@ export function StudioGiftModal({
     setRunning(true)
     setStopping(false)
     setStoppedBy(undefined)
-    // Started from the batch as last saved: a run that was still finishing may have moved it on since `initial`.
+    setListChanged(false)
+    // Started from the batch as last saved: a run that was still finishing may have moved it on since `initial`. Only
+    // ever THIS list, though: if another one is saved now, or none, nothing is sent and the operator looks again.
     let batch = initial
     const result = await startGiftBatch(
       account,
       studio.id,
       () => {
-        batch = readPendingBatch(account, studio.id) ?? initial
+        const stored = readPendingBatch(account, studio.id)
+        if (!stored || !isSameBatch(stored, initial)) {
+          setListChanged(true)
+          return null
+        }
+        batch = stored
         return batch.rows
       },
       row =>
@@ -176,7 +188,13 @@ export function StudioGiftModal({
       changed => {
         setWaitingSeconds(null)
         const next = { ...batch, rows: changed }
-        if (saveBatchProgress(account, studio.id, next)) onPendingChange(next)
+        if (saveBatchProgress(account, studio.id, next)) {
+          onPendingChange(next)
+        } else {
+          // Progress that can't be saved over this list must not keep being made: stop after the gift being sent.
+          setListChanged(true)
+          void stopBatch(account, studio.id)
+        }
       },
       { onWait: setWaitingSeconds }
     )
@@ -190,8 +208,13 @@ export function StudioGiftModal({
 
   const gift = async () => {
     const batch: PendingBatch = { studioId: studio.id, rows: createGiftRows(rows, sharedReason), createdAt: Date.now() }
-    // Saved before anything is sent: from here on, this batch is what gets resumed.
-    writePendingBatch(account, studio.id, batch)
+    // Saved before anything is sent, or not sent at all: an unsaved list loses its keys on a reload, and sending it
+    // again after a lost answer would gift twice. From here on, this batch is what gets resumed.
+    if (!writePendingBatch(account, studio.id, batch)) {
+      setNotSaved(true)
+      return
+    }
+    setNotSaved(false)
     onPendingChange(batch)
     setStep('run')
     await run(batch)
@@ -468,6 +491,9 @@ export function StudioGiftModal({
                 </S.Problem>
               ) : null}
             </S.Label>
+            {notSaved ? (
+              <S.ErrorText data-testid="studio-gift-not-saved">{t('studio.modal.notSaved')}</S.ErrorText>
+            ) : null}
             <M.Actions>
               <Button variant="outline" onClick={() => setStep('edit')}>
                 {t('studio.modal.back')}
@@ -481,6 +507,20 @@ export function StudioGiftModal({
               </Button>
             </M.Actions>
           </>
+        )}
+
+        {listChanged ? (
+          <S.Note data-tone="warning" data-testid="studio-gift-list-changed">
+            {t('studio.modal.listChanged')}
+          </S.Note>
+        ) : null}
+
+        {step === 'run' && !pending && (
+          <M.Actions>
+            <Button variant="outline" onClick={onClose} data-testid="studio-gift-close">
+              {t('studio.modal.close')}
+            </Button>
+          </M.Actions>
         )}
 
         {step === 'run' && pending && (

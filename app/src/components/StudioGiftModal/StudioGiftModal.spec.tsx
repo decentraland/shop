@@ -257,3 +257,53 @@ describe('when Stop is pressed while gifts are being sent', () => {
     })
   })
 })
+
+describe('when the browser cannot save the list', () => {
+  it('should send nothing and say why, so a lost answer can never lead to gifting twice', async () => {
+    const refuse = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota')
+    })
+    try {
+      renderModal()
+      type('studio-gift-shared-reason', 'Top player')
+      fillRow(PLAYER_A, '10')
+      fireEvent.click(screen.getByTestId('studio-gift-review'))
+      await waitFor(() => expect(screen.getByTestId('studio-gift-confirm-total')).toBeInTheDocument())
+      type('studio-gift-confirm-total', '10')
+      await waitFor(() => expect(screen.getByTestId('studio-gift-send')).toBeEnabled())
+
+      fireEvent.click(screen.getByTestId('studio-gift-send'))
+
+      expect({
+        message: await screen.findByTestId('studio-gift-not-saved'),
+        sent: giftFromStudioMock.mock.calls.length,
+        stillReviewing: screen.getByTestId('studio-gift-modal').getAttribute('data-step')
+      }).toEqual({ message: expect.anything(), sent: 0, stillReviewing: 'confirm' })
+    } finally {
+      refuse.mockRestore()
+    }
+  })
+})
+
+describe('when another tab replaced the list before it is continued', () => {
+  const listFor = (key: string, createdAt: number): PendingBatch => ({
+    studioId: studio.id,
+    createdAt,
+    rows: [{ key, account: PLAYER_A, credits: 10, reason: 'Top player', status: 'notSent' }]
+  })
+
+  it('should send nothing from the list on screen and say the list changed', async () => {
+    const reviewed = listFor('k-reviewed', 1)
+    const storageKey = `shop.studio.pendingGifts.${ACCOUNT}.${studio.id}`
+    window.localStorage.setItem(storageKey, JSON.stringify(reviewed))
+    renderModal({ pending: reviewed })
+    window.localStorage.setItem(storageKey, JSON.stringify(listFor('k-other-tab', 2)))
+
+    fireEvent.click(screen.getByTestId('studio-gift-continue'))
+
+    expect({
+      message: await screen.findByTestId('studio-gift-list-changed'),
+      sent: giftFromStudioMock.mock.calls.length
+    }).toEqual({ message: expect.anything(), sent: 0 })
+  })
+})

@@ -1654,6 +1654,8 @@
       "stop": "Parar",
       "stopping": "Parando…",
       "leaveConfirm": "Os presentes ainda estão sendo enviados. Sair mesmo assim? A lista para depois do presente que está sendo enviado e você pode continuá-la depois: ninguém recebe duas vezes.",
+      "notSaved": "Este navegador não conseguiu salvar a lista, então nada foi enviado. Os presentes só são enviados depois que a lista é salva, para que uma resposta perdida possa ser repetida sem presentear ninguém duas vezes. Permita que este site armazene dados (pode estar bloqueado ou cheio) e tente de novo.",
+      "listChanged": "Esta lista foi substituída ou esquecida em outra aba, ou este navegador parou de salvá-la, então nada mais foi enviado daqui. Feche isto e abra Presentear Créditos de novo para ver como ficou.",
       "stopped": "Parou: {reason}. Resolva e toque em Continuar: quem já recebeu não receberá duas vezes.",
       "left": "{count, plural, one {Resta # jogador} other {Restam # jogadores}} de uma lista que você começou em {date}. Continue: quem já recebeu não receberá duas vezes.",
       "done": "Pronto.",

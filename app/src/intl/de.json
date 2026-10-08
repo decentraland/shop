@@ -1654,6 +1654,8 @@
       "stop": "Anhalten",
       "stopping": "Wird angehalten…",
       "leaveConfirm": "Es werden noch Geschenke gesendet. Trotzdem verlassen? Die Liste hält nach dem Geschenk an, das gerade gesendet wird, und du kannst sie später fortsetzen: Niemand wird zweimal beschenkt.",
+      "notSaved": "Dieser Browser konnte die Liste nicht speichern, deshalb wurde nichts gesendet. Geschenke werden erst gesendet, wenn die Liste gespeichert ist, damit eine verlorene Antwort wiederholt werden kann, ohne jemanden doppelt zu beschenken. Erlaube dieser Seite, Daten zu speichern (vielleicht blockiert oder voll), und versuch es noch einmal.",
+      "listChanged": "Diese Liste wurde in einem anderen Tab ersetzt oder verworfen, oder dieser Browser speichert sie nicht mehr, deshalb wurde von hier nichts mehr gesendet. Schließ das und öffne Credits verschenken erneut, um den Stand zu sehen.",
       "stopped": "Angehalten: {reason}. Behebe das und tippe auf Fortsetzen: Wer schon beschenkt wurde, bekommt es nicht zweimal.",
       "left": "Von einer Liste, die du am {date} begonnen hast, {count, plural, one {ist noch # Spieler} other {sind noch # Spieler}} übrig. Setze sie fort: Wer schon beschenkt wurde, bekommt es nicht zweimal.",
       "done": "Fertig.",
