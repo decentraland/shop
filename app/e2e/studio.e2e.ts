@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { launchApp, type App, type StudioMock } from './helpers/app'
+import { launchApp, setMockStudioStatus, type App, type StudioMock } from './helpers/app'
 import { waitForText } from './helpers/dom'
 
 let app: App | undefined
@@ -122,6 +122,36 @@ describe('when a studio gifts Credits to its players', () => {
       balance: '1,940 Credits',
       listed: 3,
       unfinished: null
+    })
+  })
+
+  it('should stop when the studio is paused partway, and finish the list once it is active again', async () => {
+    app = await launchApp({ path: '/studio', fixtures: { studios: studios({ pauseAfterGifts: 1 }) } })
+    await app.page.waitForSelector('[data-testid="studio-gift"]', { timeout: 20000 })
+
+    await giftList(app, [`${PLAYER_A}, 10`, `${PLAYER_B}, 20`, `${PLAYER_C}, 30`], 60)
+    await app.page.waitForSelector('[data-testid="studio-gift-stopped"]', { timeout: 20000 })
+    const whilePaused = await statuses(app)
+
+    setMockStudioStatus(STUDIO_ID, 'active')
+    await app.page.reload({ waitUntil: 'domcontentloaded' })
+    await app.page.waitForSelector('[data-testid="studio-unfinished"]', { timeout: 20000 })
+    await app.page.click('[data-testid="studio-gift"]')
+    await app.page.waitForSelector('[data-testid="studio-gift-continue"]')
+    await app.page.click('[data-testid="studio-gift-continue"]')
+    await app.page.waitForSelector('[data-testid="studio-gift-done"]', { timeout: 20000 })
+    const resumed = await statuses(app)
+    await app.page.click('[data-testid="studio-gift-close"]')
+    await waitForText(app.page, '1,940 Credits')
+
+    expect({
+      whilePaused,
+      resumed,
+      listed: await app.page.$$eval('[data-testid="studio-gift-entry"]', els => els.length)
+    }).toEqual({
+      whilePaused: ['gifted', 'blocked', 'notSent'],
+      resumed: ['gifted', 'gifted', 'gifted'],
+      listed: 3
     })
   })
 

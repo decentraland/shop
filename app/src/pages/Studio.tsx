@@ -7,7 +7,8 @@ import { useMyStudio, useMyStudios } from '~/hooks/useStudios'
 import { t } from '~/intl/i18n'
 import { formatCreditsAmount as credits, usdCentsToCreditsFloor } from '~/lib/currency'
 import { shortAddress } from '~/lib/address'
-import { isRetryable, readUnfinishedBatch, type PendingBatch, type StudioGift } from '~/lib/studio'
+import { formatDateTime } from '~/lib/dates'
+import { isRetryable, readUnfinishedBatch, uniqueGifts, type PendingBatch } from '~/lib/studio'
 import { Button } from '~/components/Button'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -15,21 +16,6 @@ import { StudioGiftModal } from '~/components/StudioGiftModal'
 import signInIllustration from '~/assets/empty/signin-empty.svg'
 import emptyIllustration from '~/assets/empty/items-empty.svg'
 import * as S from './Studio.styles'
-
-/**
- * The gifts of every loaded page, each once. Pages are read by offset over a newest-first list, so a gift made
- * between two pages pushes the last one of a page onto the next.
- */
-function uniqueGifts(pages: Array<{ gifts: StudioGift[] }>): StudioGift[] {
-  const seen = new Set<string>()
-  return pages
-    .flatMap(page => page.gifts)
-    .filter(gift => {
-      if (seen.has(gift.creditId)) return false
-      seen.add(gift.creditId)
-      return true
-    })
-}
 
 /**
  * A studio's page (/studio): the budget Decentraland gave the studio, gifting Credits from it to players, and the
@@ -140,7 +126,7 @@ export function Studio() {
       {paused ? <S.Notice data-testid="studio-paused">{t('studio.paused')}</S.Notice> : null}
       {leftRows > 0 && pending ? (
         <S.Notice data-testid="studio-unfinished">
-          <span>{t('studio.unfinished', { count: leftRows, date: new Date(pending.createdAt).toLocaleString() })}</span>
+          <span>{t('studio.unfinished', { count: leftRows, date: formatDateTime(pending.createdAt) })}</span>
           <Button size="sm" onClick={() => setGifting(true)}>
             {t('studio.continue')}
           </Button>
@@ -180,7 +166,7 @@ export function Studio() {
                 <strong>{credits(usdCentsToCreditsFloor(gift.usdCents))}</strong>
                 <span data-cell="reason">{gift.reason ?? '—'}</span>
                 <small data-cell="when">
-                  {new Date(gift.createdAt).toLocaleString()} · {t('studio.by')} {shortAddress(gift.grantedBy)}
+                  {formatDateTime(gift.createdAt)} · {t('studio.by', { account: shortAddress(gift.grantedBy) })}
                 </small>
               </S.Gift>
             ))}

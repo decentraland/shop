@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import type { AuthIdentity } from '@dcl/crypto'
 import type { PendingBatch, StudioGift } from '~/lib/studio'
 
@@ -10,10 +12,11 @@ vi.mock('~/lib/studio', async importOriginal => ({
   giftFromStudio: vi.fn()
 }))
 
-import { getMyStudio } from '~/lib/studio'
+import { getMyStudio, giftFromStudio } from '~/lib/studio'
 import { StudioGiftModal } from './StudioGiftModal'
 
 const getMyStudioMock = vi.mocked(getMyStudio)
+const giftFromStudioMock = vi.mocked(giftFromStudio)
 
 const ACCOUNT = '0x' + '0e'.repeat(20)
 const PLAYER_A = '0x' + 'a1'.repeat(20)
@@ -29,21 +32,41 @@ const studio = {
 
 const recentGifts = (gifts: StudioGift[]) => ({ studio, gifts, total: gifts.length, limits: { maxGrantCents: 50000 } })
 
-function renderModal(props: { pending?: PendingBatch | null } = {}) {
-  const onPendingChange = vi.fn()
-  const onClose = vi.fn()
-  render(
+/** The dialog as the studio page holds it: the saved batch kept in state and handed back on every change. */
+function Harness(props: {
+  initial: PendingBatch | null
+  onPendingChange: (batch: PendingBatch | null) => void
+  onClose: () => void
+}) {
+  const [pending, setPending] = useState(props.initial)
+  return (
     <StudioGiftModal
       studio={studio}
       account={ACCOUNT}
       identity={{} as AuthIdentity}
       maxGrantCents={50000}
-      pending={props.pending ?? null}
-      onPendingChange={onPendingChange}
+      pending={pending}
+      onPendingChange={batch => {
+        setPending(batch)
+        props.onPendingChange(batch)
+      }}
       onGifted={vi.fn()}
-      onClose={onClose}
+      onClose={props.onClose}
     />
   )
+}
+
+function renderModal(props: { pending?: PendingBatch | null } = {}) {
+  const onPendingChange = vi.fn()
+  const onClose = vi.fn()
+  // A data router, as in the app: the dialog blocks leaving the page while gifts are being sent.
+  const router = createMemoryRouter([
+    {
+      path: '/',
+      element: <Harness initial={props.pending ?? null} onPendingChange={onPendingChange} onClose={onClose} />
+    }
+  ])
+  render(<RouterProvider router={router} />)
   return { onPendingChange, onClose }
 }
 
@@ -58,6 +81,7 @@ function fillRow(account: string, credits: string, index = 0) {
 beforeEach(() => {
   getMyStudioMock.mockReset()
   getMyStudioMock.mockResolvedValue(recentGifts([]))
+  giftFromStudioMock.mockReset()
   window.localStorage.clear()
 })
 
@@ -195,5 +219,34 @@ describe('when the rest of an unfinished list is forgotten', () => {
       cleared: 0,
       closed: 0
     })
+  })
+})
+
+describe('when Stop is pressed while gifts are being sent', () => {
+  it('should finish the gift being sent and leave the rest for later', async () => {
+    let release: () => void = () => undefined
+    giftFromStudioMock.mockImplementationOnce(
+      () => new Promise(resolve => (release = () => resolve({ replayed: false })))
+    )
+    renderModal()
+    type('studio-gift-shared-reason', 'Top player')
+    fillRow(PLAYER_A, '10')
+    fireEvent.click(screen.getByTestId('studio-gift-add'))
+    fillRow(PLAYER_B, '20', 1)
+    fireEvent.click(screen.getByTestId('studio-gift-review'))
+    await waitFor(() => expect(screen.getByTestId('studio-gift-confirm-total')).toBeInTheDocument())
+    type('studio-gift-confirm-total', '30')
+    await waitFor(() => expect(screen.getByTestId('studio-gift-send')).toBeEnabled())
+    fireEvent.click(screen.getByTestId('studio-gift-send'))
+    await waitFor(() => expect(giftFromStudioMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByTestId('studio-gift-stop'))
+    release()
+
+    await waitFor(() => expect(screen.getByTestId('studio-gift-stopped')).toBeInTheDocument())
+    expect({
+      statuses: screen.getAllByTestId('studio-gift-outcome').map(row => row.getAttribute('data-status')),
+      sent: giftFromStudioMock.mock.calls.length
+    }).toEqual({ statuses: ['gifted', 'notSent'], sent: 1 })
   })
 })

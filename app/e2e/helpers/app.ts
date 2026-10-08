@@ -113,6 +113,16 @@ export type StudioMock = {
   operatorAccounts?: string[]
   /** Accounts whose first gift is MADE but answered 502, the way a lost answer looks to the page. */
   lostAnswerAccounts?: string[]
+  /** The studio is paused once this many gifts have been made, the way ops pausing it mid-list looks to the page. */
+  pauseAfterGifts?: number
+}
+
+/** Sets a mocked studio's status while a spec runs, the way ops pausing or resuming it from internal-tools would. */
+export function setMockStudioStatus(studioId: string, status: 'active' | 'paused'): void {
+  const studio = studioStore?.studios.find(item => item.id === studioId)
+  if (!studio) throw new Error(`No mocked studio ${studioId}`)
+  studio.status = status
+  if (studioStore) studioStore.pauseAfterGifts = undefined
 }
 
 function defaults(): Fixtures {
@@ -252,6 +262,9 @@ function studioRoute(req: HTTPRequest, path: string): Promise<void> | null {
   studio.grantedCents += cents
   studio.grantCount += 1
   studioKeys.add(body.idempotencyKey)
+  if (studioStore.pauseAfterGifts !== undefined && studio.grantCount >= studioStore.pauseAfterGifts) {
+    studio.status = 'paused'
+  }
   gifts.unshift({
     creditId: `studio-credit-${studio.grantCount}`,
     recipient: account,

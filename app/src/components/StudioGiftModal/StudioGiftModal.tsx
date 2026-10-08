@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useBlocker } from 'react-router-dom'
 import type { AuthIdentity } from '@dcl/crypto'
 import { Button } from '~/components/Button'
 import { t } from '~/intl/i18n'
 import { formatCreditsAmount as credits, formatCreditsFull, usdCentsToCreditsFloor } from '~/lib/currency'
+import { formatDateTime } from '~/lib/dates'
 import { shortAddress } from '~/lib/address'
+import { confirmDiscardUnsaved, hasUnsavedChanges, setUnsavedChanges } from '~/lib/unsavedChanges'
 import {
   createGiftRows,
   findLikelyRepeats,
@@ -13,7 +16,10 @@ import {
   isRetryable,
   MAX_REASON_LENGTH,
   parsePastedRows,
+  parseTypedTotal,
   readPendingBatch,
+  readUnfinishedBatch,
+  saveBatchProgress,
   startGiftBatch,
   stopBatch,
   validateRows,
@@ -30,13 +36,8 @@ import * as S from './StudioGiftModal.styles'
 
 type Step = 'edit' | 'confirm' | 'run'
 
-const EMPTY_ROW: DraftRow = { account: '', credits: '', reason: '' }
-
-/** What the operator typed as the total, read whatever grouping they used: "1,250", "1.250" and "1250" all match. */
-const typedTotal = (text: string): number | null => {
-  const digits = text.replace(/[\s.,'\u00a0\u202f]/g, '')
-  return /^\d+$/.test(digits) ? Number(digits) : null
-}
+/** A row being edited, with an id of its own so removing one never moves another's input or focus. */
+type EditRow = DraftRow & { id: number }
 
 function rowProblemText(problem: RowProblem): string {
   switch (problem.code) {
@@ -61,9 +62,12 @@ function batchProblemText(problem: BatchProblem): string {
  *
  * The batch, with each row's idempotency key, is saved in this browser before the first gift is sent and kept
  * until every row is settled; closing this or reloading the page and coming back resumes THAT batch, and rows
- * already gifted are answered by the server as such instead of being gifted again. Leaving the page while it runs
- * stops it after the gift being sent (the browser asks first); a run never starts while another one for the same
- * studio is still finishing (see `startGiftBatch`).
+ * already gifted are answered by the server as such instead of being gifted again.
+ *
+ * While gifts are being sent, leaving (another page, signing out, switching account, closing the tab) asks first;
+ * leaving anyway, or pressing Stop, stops the batch after the gift being sent. A run never starts while another one
+ * of the same batch is still finishing, and a run that is still finishing never saves over a list that was
+ * forgotten or replaced since (see `startGiftBatch` and `saveBatchProgress`).
  */
 export function StudioGiftModal({
   studio,
@@ -85,8 +89,13 @@ export function StudioGiftModal({
   onGifted: () => void
   onClose: () => void
 }) {
+  const nextRowId = useRef(0)
+  const newRow = (row: DraftRow = { account: '', credits: '', reason: '' }): EditRow => ({
+    ...row,
+    id: nextRowId.current++
+  })
   const [step, setStep] = useState<Step>(pending?.rows.some(isRetryable) ? 'run' : 'edit')
-  const [rows, setRows] = useState<DraftRow[]>([EMPTY_ROW])
+  const [rows, setRows] = useState<EditRow[]>(() => [newRow()])
   const [sharedReason, setSharedReason] = useState('')
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
@@ -94,6 +103,7 @@ export function StudioGiftModal({
   const [confirmTotal, setConfirmTotal] = useState('')
   const [repeats, setRepeats] = useState<ReturnType<typeof findLikelyRepeats> | null>(null)
   const [running, setRunning] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [waitingSeconds, setWaitingSeconds] = useState<number | null>(null)
   const [stoppedBy, setStoppedBy] = useState<string | undefined>()
   // Each review asks for the recent gifts; only the latest one's answer may be shown.
@@ -105,23 +115,18 @@ export function StudioGiftModal({
   )
   const playerCount = rows.filter(row => !isBlankRow(row)).length
   const canReview = check.rowProblems.every(problem => problem === null) && check.batchProblems.length === 0
-  const totalConfirmed = typedTotal(confirmTotal) === check.totalCredits
+  const totalConfirmed = parseTypedTotal(confirmTotal) === check.totalCredits
   const leftToSend = pending ? pending.rows.filter(isRetryable).length : 0
 
-  const save = (batch: PendingBatch | null) => {
-    writePendingBatch(account, studio.id, batch)
-    onPendingChange(batch)
-  }
-
-  const updateRow = (index: number, patch: Partial<DraftRow>) =>
-    setRows(current => current.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+  const updateRow = (id: number, patch: Partial<DraftRow>) =>
+    setRows(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)))
 
   const addPasted = () => {
     const { rows: added, ...report } = parsePastedRows(pasteText)
     setPasted(report)
     if (added.length > 0) {
       // Pasted rows replace a lone empty row instead of following it.
-      setRows(current => [...current.filter(row => !isBlankRow(row)), ...added])
+      setRows(current => [...current.filter(row => !isBlankRow(row)), ...added.map(row => newRow(row))])
       setPasteText('')
       setPasteOpen(false)
     }
@@ -150,6 +155,7 @@ export function StudioGiftModal({
 
   const run = async (initial: PendingBatch) => {
     setRunning(true)
+    setStopping(false)
     setStoppedBy(undefined)
     // Started from the batch as last saved: a run that was still finishing may have moved it on since `initial`.
     let batch = initial
@@ -166,16 +172,18 @@ export function StudioGiftModal({
           { account: row.account, credits: row.credits, reason: row.reason, key: row.key },
           identity
         ),
-      // Saved before the next row is sent, so a reload finds exactly where the batch stood.
+      // Saved before the next row is sent, so a reload finds exactly where the batch stood; never over another list.
       changed => {
         setWaitingSeconds(null)
-        save({ ...batch, rows: changed })
+        const next = { ...batch, rows: changed }
+        if (saveBatchProgress(account, studio.id, next)) onPendingChange(next)
       },
       { onWait: setWaitingSeconds }
     )
     setWaitingSeconds(null)
     setStoppedBy(result?.stoppedBy)
     setRunning(false)
+    setStopping(false)
     if (!result) onPendingChange(readPendingBatch(account, studio.id))
     onGifted()
   }
@@ -183,21 +191,28 @@ export function StudioGiftModal({
   const gift = async () => {
     const batch: PendingBatch = { studioId: studio.id, rows: createGiftRows(rows, sharedReason), createdAt: Date.now() }
     // Saved before anything is sent: from here on, this batch is what gets resumed.
-    save(batch)
+    writePendingBatch(account, studio.id, batch)
+    onPendingChange(batch)
     setStep('run')
     await run(batch)
   }
 
+  const stop = () => {
+    setStopping(true)
+    void stopBatch(account, studio.id)
+  }
+
   const close = () => {
     if (running) return
-    // A batch with nothing left to send or confirm is done; one with rows left stays to be resumed.
-    if (pending && !pending.rows.some(isRetryable)) save(null)
+    // A batch with nothing left to send or confirm is done and forgotten; one with rows left stays to be resumed.
+    if (pending) onPendingChange(readUnfinishedBatch(account, studio.id))
     onClose()
   }
 
   const forget = () => {
     if (!window.confirm(t('studio.modal.forgetConfirm'))) return
-    save(null)
+    writePendingBatch(account, studio.id, null)
+    onPendingChange(null)
     onClose()
   }
 
@@ -209,19 +224,34 @@ export function StudioGiftModal({
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // While gifts are being sent, leaving the site asks first. Nothing is lost either way: the batch is saved.
+  // While gifts are being sent, everything that leaves asks first: the tab closing (beforeunload), another page in
+  // the app (the blocker), and signing out or switching account (they ask `confirmDiscardUnsaved`).
   useEffect(() => {
     if (!running) return
+    setUnsavedChanges(t('studio.modal.leaveConfirm'))
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
+      if (hasUnsavedChanges()) event.preventDefault()
     }
     window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+      setUnsavedChanges(null)
+    }
   }, [running])
 
-  // Leaving the page (another route, signing out) stops the batch after the gift being sent, so it never keeps
-  // sending for a page nobody is looking at. Continuing later picks it up with the same keys.
+  const blocker = useBlocker(() => running && hasUnsavedChanges())
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    if (confirmDiscardUnsaved()) {
+      setUnsavedChanges(null)
+      blocker.proceed()
+    } else {
+      blocker.reset()
+    }
+  }, [blocker])
+
+  // Leaving anyway stops every run of the batch after the gift being sent, so nothing keeps sending for a page
+  // nobody is looking at. Continuing later picks it up with the same keys.
   useEffect(() => () => void stopBatch(account, studio.id), [account, studio.id])
 
   return (
@@ -267,13 +297,13 @@ export function StudioGiftModal({
                 const problem = check.rowProblems[index]
                 const touched = row.account !== '' || row.credits !== ''
                 return (
-                  <S.Row key={index} data-testid="studio-gift-row">
+                  <S.Row key={row.id} data-testid="studio-gift-row">
                     <S.Cell data-cell="account">
                       <S.Input
                         aria-label={t('studio.modal.account')}
                         placeholder={t('studio.modal.account')}
                         value={row.account}
-                        onChange={event => updateRow(index, { account: event.target.value })}
+                        onChange={event => updateRow(row.id, { account: event.target.value })}
                         aria-invalid={touched && problem ? 'true' : undefined}
                         data-testid="studio-gift-account"
                       />
@@ -284,7 +314,7 @@ export function StudioGiftModal({
                         placeholder={t('studio.credits')}
                         inputMode="numeric"
                         value={row.credits}
-                        onChange={event => updateRow(index, { credits: event.target.value })}
+                        onChange={event => updateRow(row.id, { credits: event.target.value })}
                         data-testid="studio-gift-credits"
                       />
                     </S.Cell>
@@ -294,14 +324,16 @@ export function StudioGiftModal({
                         placeholder={sharedReason || t('studio.modal.rowReason')}
                         maxLength={MAX_REASON_LENGTH}
                         value={row.reason}
-                        onChange={event => updateRow(index, { reason: event.target.value })}
+                        onChange={event => updateRow(row.id, { reason: event.target.value })}
                       />
                     </S.Cell>
                     <S.RemoveButton
                       type="button"
                       aria-label={t('studio.modal.remove')}
                       onClick={() =>
-                        setRows(current => (current.length === 1 ? [EMPTY_ROW] : current.filter((_, i) => i !== index)))
+                        setRows(current =>
+                          current.length === 1 ? [newRow()] : current.filter(item => item.id !== row.id)
+                        )
                       }
                     >
                       ×
@@ -320,7 +352,7 @@ export function StudioGiftModal({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setRows(current => [...current, EMPTY_ROW])}
+                onClick={() => setRows(current => [...current, newRow()])}
                 data-testid="studio-gift-add"
               >
                 {t('studio.modal.addPlayer')}
@@ -415,7 +447,7 @@ export function StudioGiftModal({
                     {t('studio.modal.repeatLine', {
                       account: shortAddress(repeat.account),
                       credits: credits(repeat.credits),
-                      date: new Date(repeat.giftedAt).toLocaleDateString()
+                      date: formatDateTime(repeat.giftedAt)
                     })}
                   </S.RepeatLine>
                 ))}
@@ -465,7 +497,7 @@ export function StudioGiftModal({
               </S.Note>
             ) : leftToSend > 0 ? (
               <S.Note data-tone="warning">
-                {t('studio.modal.left', { count: leftToSend, date: new Date(pending.createdAt).toLocaleString() })}
+                {t('studio.modal.left', { count: leftToSend, date: formatDateTime(pending.createdAt) })}
               </S.Note>
             ) : (
               <S.Note data-tone="success" data-testid="studio-gift-done">
@@ -494,9 +526,15 @@ export function StudioGiftModal({
                   {t('studio.modal.forget')}
                 </Button>
               ) : null}
-              <Button variant="outline" onClick={close} disabled={running} data-testid="studio-gift-close">
-                {t('studio.modal.close')}
-              </Button>
+              {running ? (
+                <Button variant="outline" onClick={stop} disabled={stopping} data-testid="studio-gift-stop">
+                  {stopping ? t('studio.modal.stopping') : t('studio.modal.stop')}
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={close} data-testid="studio-gift-close">
+                  {t('studio.modal.close')}
+                </Button>
+              )}
               {!running && leftToSend > 0 ? (
                 <Button onClick={() => void run(pending)} data-testid="studio-gift-continue">
                   {t('studio.modal.continue', { count: leftToSend })}

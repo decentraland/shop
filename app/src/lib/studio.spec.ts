@@ -8,12 +8,16 @@ import {
   getMyStudios,
   giftFromStudio,
   isBatchRunning,
+  MAX_SLOW_DOWNS_PER_GIFT,
   parsePastedRows,
+  parseTypedTotal,
   readPendingBatch,
   readUnfinishedBatch,
   ROW_REFUSAL_CODES,
   runGiftBatch,
+  saveBatchProgress,
   startGiftBatch,
+  uniqueGifts,
   stopBatch,
   STUDIO_STOP_CODES,
   StudioRateLimitedError,
@@ -203,6 +207,42 @@ describe('when players are pasted from a list', () => {
 
   it('should keep a first line with a name instead of an account as a row too', () => {
     expect(parsePastedRows('Alice, 100').rows).toEqual([{ account: 'Alice', credits: '100', reason: '' }])
+  })
+})
+
+describe('when the total is typed to confirm a list', () => {
+  it.each([
+    ['1250', 1250],
+    ['1,250', 1250],
+    ['1.250', 1250],
+    [' 1 250 ', 1250],
+    ["1'250", 1250],
+    ['12.500.000', 12_500_000]
+  ])('should read %s as %s, whatever the grouping', (typed, total) => {
+    expect(parseTypedTotal(typed)).toBe(total)
+  })
+
+  it.each(['', 'abc', '12a', '-5', '1.25', '1,2500', '1.250,5'])('should read %j as no total', typed => {
+    expect(parseTypedTotal(typed)).toBeNull()
+  })
+})
+
+describe('when the pages of gifts are put together', () => {
+  const gift = (creditId: string): StudioGift => ({
+    creditId,
+    recipient: ACCOUNT_A,
+    usdCents: 100,
+    reason: null,
+    grantedBy: ACCOUNT_B,
+    createdAt: 1
+  })
+
+  it('should list a gift pushed onto the next page by a newer one only once, in order', () => {
+    expect(
+      uniqueGifts([{ gifts: [gift('c-3'), gift('c-2')] }, { gifts: [gift('c-2'), gift('c-1')] }]).map(
+        item => item.creditId
+      )
+    ).toEqual(['c-3', 'c-2', 'c-1'])
   })
 })
 
@@ -432,6 +472,55 @@ describe('when a gift batch runs', () => {
     }).toEqual({ statuses: ['gifted', 'gifted'], keys: ['key-1', 'key-1', 'key-2'], waits: [3000] })
   })
 
+  it('should leave a row that may already hold its gift as it is when the batch stops, marking only unsent ones', async () => {
+    const [a, b, c] = rowsFor(ACCOUNT_A, ACCOUNT_B, ACCOUNT_C)
+    const rows: GiftRow[] = [a, { ...b, status: 'unknown', code: 'unknown' }, { ...c, status: 'blocked' }]
+
+    const stopped = await runGiftBatch(rows, vi.fn(), () => undefined, { shouldStop: () => true })
+    const paused = await runGiftBatch(
+      [a, { ...b, status: 'unknown', code: 'unknown' }],
+      async () => {
+        throw new StudioRequestError('Paused', 409, 'STUDIO_PAUSED')
+      },
+      () => undefined
+    )
+
+    expect({
+      stopped: stopped.rows.map(row => row.status),
+      paused: paused.rows.map(row => row.status)
+    }).toEqual({ stopped: ['notSent', 'unknown', 'blocked'], paused: ['blocked', 'unknown'] })
+  })
+
+  it('should stop once one gift is asked to slow down too many times in a row', async () => {
+    const gift = vi.fn<(row: GiftRow) => Promise<GiftResult>>(async () => {
+      throw new StudioRateLimitedError(1)
+    })
+
+    const result = await runGiftBatch(rowsFor(ACCOUNT_A, ACCOUNT_B), gift, () => undefined, { wait: async () => {} })
+
+    expect({
+      statuses: result.rows.map(row => row.status),
+      stoppedBy: result.stoppedBy,
+      sent: gift.mock.calls.length
+    }).toEqual({ statuses: ['notSent', 'notSent'], stoppedBy: 'rateLimited', sent: MAX_SLOW_DOWNS_PER_GIFT + 1 })
+  })
+
+  it('should cut a wait short when it is stopped, instead of sitting out what the server asked', async () => {
+    let stop = false
+    const gift = vi.fn(async (): Promise<GiftResult> => {
+      stop = true
+      throw new StudioRateLimitedError(30)
+    })
+    const started = Date.now()
+
+    const result = await runGiftBatch(rowsFor(ACCOUNT_A), gift, () => undefined, { shouldStop: () => stop })
+
+    expect({ stoppedBy: result.stoppedBy, quick: Date.now() - started < 2000 }).toEqual({
+      stoppedBy: 'interrupted',
+      quick: true
+    })
+  })
+
   it('should report every change, so the batch is saved before the next row is sent', async () => {
     const snapshots: string[][] = []
 
@@ -488,6 +577,47 @@ describe('when a batch is started while another run of it is still going', () =>
       runningAfter: false
     })
   })
+
+  it('should stop a run still waiting its turn too, so it sends nothing once the first one ends', async () => {
+    let next = 0
+    const rows = createGiftRows(
+      [ACCOUNT_B, ACCOUNT_C].map(account => ({ account, credits: '10', reason: 'x' })),
+      'x',
+      () => `key-${++next}`
+    )
+    let release: () => void = () => undefined
+    const sent: string[] = []
+    const gift = async (row: GiftRow): Promise<GiftResult> => {
+      sent.push(row.key)
+      if (sent.length === 1) await new Promise<void>(resolve => (release = resolve))
+      return { replayed: false }
+    }
+
+    const first = startGiftBatch(
+      ACCOUNT_A,
+      STUDIO,
+      () => rows,
+      gift,
+      () => undefined
+    )
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    const queued = startGiftBatch(
+      ACCOUNT_A,
+      STUDIO,
+      () => rows,
+      gift,
+      () => undefined
+    )
+    const stopped = stopBatch(ACCOUNT_A, STUDIO)
+    release()
+    await stopped
+
+    expect({ queued: await queued, first: (await first)?.stoppedBy, sent }).toEqual({
+      queued: null,
+      first: 'interrupted',
+      sent: ['key-1']
+    })
+  })
 })
 
 describe('when an unfinished batch is kept in the browser', () => {
@@ -518,6 +648,30 @@ describe('when an unfinished batch is kept in the browser', () => {
       left: 0,
       unfinished
     })
+  })
+
+  it('should save a run’s progress only over the same list, never over a forgotten or newer one', () => {
+    const store = memory()
+    const row = { key: 'k-a', account: ACCOUNT_B, credits: 10, reason: 'x', status: 'pending' as const }
+    const listA = { studioId: STUDIO, createdAt: 1, rows: [row] }
+    const progressA = { ...listA, rows: [{ ...row, status: 'gifted' as const }] }
+    const listC = { studioId: STUDIO, createdAt: 2, rows: [{ ...row, key: 'k-c' }] }
+
+    writePendingBatch(ACCOUNT_A, STUDIO, listA, store)
+    const sameList = saveBatchProgress(ACCOUNT_A, STUDIO, progressA, store)
+    writePendingBatch(ACCOUNT_A, STUDIO, null, store)
+    const afterForget = saveBatchProgress(ACCOUNT_A, STUDIO, progressA, store)
+    const forgottenStaysGone = readPendingBatch(ACCOUNT_A, STUDIO, store)
+    writePendingBatch(ACCOUNT_A, STUDIO, listC, store)
+    const overNewer = saveBatchProgress(ACCOUNT_A, STUDIO, progressA, store)
+
+    expect({
+      sameList,
+      afterForget,
+      forgottenStaysGone,
+      overNewer,
+      stored: readPendingBatch(ACCOUNT_A, STUDIO, store)
+    }).toEqual({ sameList: true, afterForget: false, forgottenStaysGone: null, overNewer: false, stored: listC })
   })
 
   it('should read a saved batch of another shape as nothing pending', () => {

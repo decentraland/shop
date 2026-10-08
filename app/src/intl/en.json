@@ -1618,7 +1618,7 @@
     "credits": "Credits",
     "reason": "Reason",
     "date": "Date",
-    "by": "By",
+    "by": "By {account}",
     "loadMore": "Load more",
     "modal": {
       "title": "Gift Credits",
@@ -1651,6 +1651,9 @@
       "giftTo": "Gift to {count, plural, one {# player} other {# players}}",
       "running": "Gifting… If this closes, opening it again picks up where it left off.",
       "waiting": "Sending a bit slower, as the server asked. Next gift in {seconds, plural, one {# second} other {# seconds}}…",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "leaveConfirm": "Gifts are still being sent. Leave anyway? The list stops after the gift being sent, and you can continue it later: nobody is gifted twice.",
       "stopped": "Stopped: {reason}. Fix it and press Continue: players already gifted won't get it twice.",
       "left": "{count, plural, one {# player is} other {# players are}} left from a list you started on {date}. Continue it: players already gifted won't get it twice.",
       "done": "Done.",
@@ -1692,7 +1695,8 @@
         "GRANTS_NOT_CONFIGURED": "gifts aren't available right now",
         "unknown": "we didn't get a confirmation",
         "unrecognized": "something went wrong",
-        "interrupted": "the page was left before the list was finished"
+        "interrupted": "the list was stopped before it was finished",
+        "rateLimited": "the server asked to slow down too many times in a row"
       }
     }
   }

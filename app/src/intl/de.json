@@ -1618,7 +1618,7 @@
     "credits": "Credits",
     "reason": "Grund",
     "date": "Datum",
-    "by": "Von",
+    "by": "Von {account}",
     "loadMore": "Mehr laden",
     "modal": {
       "title": "Credits verschenken",
@@ -1651,6 +1651,9 @@
       "giftTo": "{count, plural, one {# Spieler} other {# Spieler}} beschenken",
       "running": "Wird verschenkt… Wenn sich das schließt, geht es beim nächsten Öffnen dort weiter.",
       "waiting": "Wird etwas langsamer gesendet, wie der Server es verlangt. Nächstes Geschenk in {seconds, plural, one {# Sekunde} other {# Sekunden}}…",
+      "stop": "Anhalten",
+      "stopping": "Wird angehalten…",
+      "leaveConfirm": "Es werden noch Geschenke gesendet. Trotzdem verlassen? Die Liste hält nach dem Geschenk an, das gerade gesendet wird, und du kannst sie später fortsetzen: Niemand wird zweimal beschenkt.",
       "stopped": "Angehalten: {reason}. Behebe das und tippe auf Fortsetzen: Wer schon beschenkt wurde, bekommt es nicht zweimal.",
       "left": "Von einer Liste, die du am {date} begonnen hast, {count, plural, one {ist noch # Spieler} other {sind noch # Spieler}} übrig. Setze sie fort: Wer schon beschenkt wurde, bekommt es nicht zweimal.",
       "done": "Fertig.",
@@ -1692,7 +1695,8 @@
         "GRANTS_NOT_CONFIGURED": "Geschenke sind gerade nicht verfügbar",
         "unknown": "wir haben keine Bestätigung erhalten",
         "unrecognized": "etwas ist schiefgelaufen",
-        "interrupted": "die Seite wurde verlassen, bevor die Liste fertig war"
+        "interrupted": "die Liste wurde angehalten, bevor sie fertig war",
+        "rateLimited": "der Server hat zu oft hintereinander gebeten, langsamer zu senden"
       }
     }
   }

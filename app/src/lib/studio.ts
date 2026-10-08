@@ -315,6 +315,33 @@ export function parsePastedRows(text: string): PastedRows {
   return result
 }
 
+/**
+ * The total the operator typed to confirm a list, read whatever grouping they used: "1,250", "1.250", "1 250" and
+ * "1250" are all 1250. A separator is only read as grouping between groups of three digits, so "1.25" is no total
+ * at all rather than 125. Null when it is not a whole number written one of those ways.
+ */
+export function parseTypedTotal(text: string): number | null {
+  const typed = text.trim()
+  if (/^\d+$/.test(typed)) return Number(typed)
+  if (/^\d{1,3}(?:[.,'\s\u00a0\u202f]\d{3})+$/.test(typed)) return Number(typed.replace(/\D/g, ''))
+  return null
+}
+
+/**
+ * The gifts of every loaded page, each once. Pages are read by offset over a newest-first list, so a gift made
+ * between two pages pushes the last one of a page onto the next.
+ */
+export function uniqueGifts(pages: Array<{ gifts: StudioGift[] }>): StudioGift[] {
+  const seen = new Set<string>()
+  return pages
+    .flatMap(page => page.gifts)
+    .filter(gift => {
+      if (seen.has(gift.creditId)) return false
+      seen.add(gift.creditId)
+      return true
+    })
+}
+
 /** A row nothing was typed in, such as the one "Add player" leaves: ignored rather than counted or checked. */
 export const isBlankRow = (row: DraftRow): boolean => !row.account.trim() && !row.credits.trim() && !row.reason.trim()
 
@@ -417,22 +444,36 @@ export function classifyGiftOutcome(outcome: { result: GiftResult } | { error: u
 }
 
 export type RunOptions = {
-  /** Asked before each row: true stops the batch there, as if it had been stopped by a refusal. */
+  /** Asked before each row and while waiting: true stops the batch there (code `interrupted`). */
   shouldStop?: () => boolean
   /** Told how long the batch waits when the server asks it to slow down. */
   onWait?: (seconds: number) => void
-  /** How the batch waits; a test hands in one that does not. */
-  wait?: (ms: number) => Promise<void>
+  /** How the batch waits; a test hands in one that does not. Given `shouldStop`, so a wait can end early. */
+  wait?: (ms: number, shouldStop: () => boolean) => Promise<void>
 }
 
+/** How many times in a row one gift may be answered "slow down" before the batch stops and leaves it for later. */
+export const MAX_SLOW_DOWNS_PER_GIFT = 5
+
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+/** Waits `ms`, or less once `shouldStop` says so: a stop never sits out the rest of a wait. */
+async function stoppableWait(ms: number, shouldStop: () => boolean): Promise<void> {
+  const end = Date.now() + ms
+  while (!shouldStop() && Date.now() < end) await sleep(Math.min(200, end - Date.now()))
+}
 
 /**
  * Sends every retryable row of a batch, in order, one at a time, reporting each change through `onChange` before
  * the next row is sent. Rows already gifted or refused are left alone, so running a batch again resumes it.
+ *
  * Stops at the first outcome that would repeat for every remaining row, or when `shouldStop` says so (code
- * `interrupted`); the rows after it are marked `notSent`. When the server asks to slow down, the batch waits as long
- * as it says and sends the same row again: nothing was made, and its key would answer for it if it had been.
+ * `interrupted`). Rows not sent yet in this run are then marked `notSent`; a row that is `unknown` or `blocked`
+ * keeps that status, because it may already hold its gift and "Not sent" would say it does not.
+ *
+ * When the server asks to slow down, the batch waits as long as it says and sends the same row again: nothing was
+ * made, and its key would answer for it if it had been. After {@link MAX_SLOW_DOWNS_PER_GIFT} such answers in a
+ * row it stops (code `rateLimited`).
  */
 export async function runGiftBatch(
   rows: GiftRow[],
@@ -440,15 +481,16 @@ export async function runGiftBatch(
   onChange: (rows: GiftRow[]) => void,
   options: RunOptions = {}
 ): Promise<{ rows: GiftRow[]; stoppedBy?: string }> {
-  const { shouldStop = () => false, onWait, wait = sleep } = options
+  const { shouldStop = () => false, onWait, wait = stoppableWait } = options
   let current = rows.map(row => ({ ...row }))
   const stopAt = (index: number, code: string) => {
     current = current.map((row, i) =>
-      i >= index && isRetryable(row) ? { ...row, status: 'notSent', code: undefined } : row
+      i >= index && row.status === 'pending' ? { ...row, status: 'notSent', code: undefined } : row
     )
     onChange(current)
     return { rows: current, stoppedBy: code }
   }
+  let slowDowns = 0
   for (let index = 0; index < current.length; index++) {
     if (!isRetryable(current[index])) continue
     if (shouldStop()) return stopAt(index, 'interrupted')
@@ -457,13 +499,15 @@ export async function runGiftBatch(
       outcome = classifyGiftOutcome({ result: await gift(current[index]) })
     } catch (error) {
       if (error instanceof StudioRateLimitedError) {
+        if (++slowDowns > MAX_SLOW_DOWNS_PER_GIFT) return stopAt(index, 'rateLimited')
         onWait?.(error.retryAfterSeconds)
-        await wait(error.retryAfterSeconds * 1000)
+        await wait(error.retryAfterSeconds * 1000, shouldStop)
         index--
         continue
       }
       outcome = classifyGiftOutcome({ error })
     }
+    slowDowns = 0
     current = current.map((row, i) => (i === index ? { ...row, status: outcome.status, code: outcome.code } : row))
     if (outcome.stopsBatch) return stopAt(index + 1, outcome.code ?? 'unrecognized')
     onChange(current)
@@ -472,34 +516,30 @@ export async function runGiftBatch(
 }
 
 /**
- * The batches this tab is sending, by account and studio. A batch keeps running when its dialog closes or the page
- * changes, so this is what stops a second run over the same rows from starting while the first one is still going:
- * the two would send the same keys and overwrite each other's saved progress.
+ * The runs of a batch this tab has started, by account and studio, oldest first: the one sending, then any waiting
+ * for it. A batch keeps running when its dialog closes, so this is what stops a second run over the same rows from
+ * starting while the first is still going (the two would send the same keys and overwrite each other's progress),
+ * and what lets leaving the page stop every run of the batch, including one still waiting its turn.
  */
-const runningBatches = new Map<string, { stop: () => void; done: Promise<unknown> }>()
+type BatchRun = { stopped: boolean; done: Promise<void> }
+const batchRuns = new Map<string, BatchRun[]>()
 
 const batchId = (account: string, studioId: string) => `${account.toLowerCase()}.${studioId}`
 
 export const isBatchRunning = (account: string, studioId: string): boolean =>
-  runningBatches.has(batchId(account, studioId))
+  (batchRuns.get(batchId(account, studioId))?.length ?? 0) > 0
 
-/** Asks a running batch to stop before its next row; resolves once it has (at once when none is running). */
+/** Stops every run of the batch, the one sending after its current gift; resolves once they have all ended. */
 export async function stopBatch(account: string, studioId: string): Promise<void> {
-  const running = runningBatches.get(batchId(account, studioId))
-  if (!running) return
-  running.stop()
-  await running.done
-}
-
-/** Resolves once no batch is running for this account and studio in this tab. */
-export async function batchSettled(account: string, studioId: string): Promise<void> {
-  await runningBatches.get(batchId(account, studioId))?.done
+  const runs = batchRuns.get(batchId(account, studioId)) ?? []
+  for (const run of runs) run.stopped = true
+  await Promise.all(runs.map(run => run.done))
 }
 
 /**
- * {@link runGiftBatch}, registered as this tab's run for the account and studio. A run already going there is let
- * end first, and only then are the rows read with `load`: what it saved is where this one starts, never an older
- * copy. Null when `load` finds nothing to send.
+ * {@link runGiftBatch}, as one of this tab's runs of the batch. It is registered at once, so a stop reaches it even
+ * while it waits; it waits for every earlier run to end, and only then reads its rows with `load`, so it starts from
+ * what they saved, never from an older copy. Null when it was stopped while waiting, or `load` finds nothing to send.
  */
 export async function startGiftBatch(
   account: string,
@@ -510,17 +550,21 @@ export async function startGiftBatch(
   options: Omit<RunOptions, 'shouldStop'> = {}
 ): Promise<{ rows: GiftRow[]; stoppedBy?: string } | null> {
   const id = batchId(account, studioId)
-  // Checked and taken with nothing awaited in between, so two calls at once still run one after the other.
-  for (let running = runningBatches.get(id); running; running = runningBatches.get(id)) await running.done
-  let stopped = false
   let finish: () => void = () => undefined
-  runningBatches.set(id, { stop: () => (stopped = true), done: new Promise<void>(resolve => (finish = resolve)) })
+  const run: BatchRun = { stopped: false, done: new Promise<void>(resolve => (finish = resolve)) }
+  const runs = batchRuns.get(id) ?? []
+  const earlier = [...runs]
+  batchRuns.set(id, [...runs, run])
   try {
+    for (const previous of earlier) await previous.done
+    if (run.stopped) return null
     const rows = load()
     if (!rows || !rows.some(isRetryable)) return null
-    return await runGiftBatch(rows, gift, onChange, { ...options, shouldStop: () => stopped })
+    return await runGiftBatch(rows, gift, onChange, { ...options, shouldStop: () => run.stopped })
   } finally {
-    runningBatches.delete(id)
+    const left = (batchRuns.get(id) ?? []).filter(item => item !== run)
+    if (left.length > 0) batchRuns.set(id, left)
+    else batchRuns.delete(id)
     finish()
   }
 }
@@ -605,6 +649,28 @@ export function readPendingBatch(
   } catch {
     return null
   }
+}
+
+/** Whether two saved batches are the same list. Its keys are made once per list, so its first key names it. */
+function sameBatch(a: PendingBatch | null, b: PendingBatch): boolean {
+  return a !== null && a.createdAt === b.createdAt && a.rows[0]?.key === b.rows[0]?.key
+}
+
+/**
+ * Saves a run's progress, only over the same list. Once that list was forgotten or a new one saved, a run that is
+ * still finishing writes nothing, so it can never bring back a forgotten list or replace the one that followed it.
+ *
+ * @returns Whether it was saved.
+ */
+export function saveBatchProgress(
+  account: string,
+  studioId: string,
+  batch: PendingBatch,
+  store: KeyValueStore | undefined = browserStore()
+): boolean {
+  if (!sameBatch(readPendingBatch(account, studioId, store), batch)) return false
+  writePendingBatch(account, studioId, batch, store)
+  return true
 }
 
 /**
