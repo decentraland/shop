@@ -212,22 +212,65 @@ describe('notifications panel', () => {
 
     const first = await page.$$eval(ITEM, els => {
       const e = els[0]
-      // ui2 wraps the whole description in a bare <a> with no href; the real inline link is the one that
-      // actually points somewhere.
-      const link = e.querySelector('a[href]')
+      // The row's title links to where the notification leads (ui2 makes the whole row clickable), and the
+      // item named in the body is an inline link of its own.
+      const links = [...e.querySelectorAll('a[href]')].map(a => ({
+        text: a.textContent || '',
+        href: a.getAttribute('href')
+      }))
       return {
         text: e.textContent || '',
         hasIcon: !!e.querySelector('svg, img'),
-        linkText: link?.textContent || null,
-        linkHref: link?.getAttribute('href') || null
+        links
       }
     })
     expect(first.hasIcon).toBe(true)
     expect(first.text).toMatch(/item sold/i)
-    expect(first.linkText).toBe('Nebula Jacket')
-    expect(first.linkHref).toBe('/activity')
+    expect(first.links).toEqual([
+      { text: 'Item Sold', href: '/activity' },
+      { text: 'Nebula Jacket', href: '/activity' }
+    ])
     // date-fns formatDistanceToNow output, e.g. "about 1 year".
     expect(first.text).toMatch(/\b(seconds?|minutes?|hours?|days?|months?|years?)\b/i)
+  })
+
+  it("words a studio's gift of Credits and an old season grant the way each happened", async () => {
+    app = await launchApp({
+      path: '/overview',
+      fixtures: {
+        notifications: {
+          notifications: [
+            notification('studio-gift', {
+              type: 'credits_on_demand_granted',
+              metadata: {
+                creditsGranted: 100,
+                denomination: 'USD',
+                studioName: 'Pixel Forge',
+                link: 'https://decentraland.org/shop'
+              }
+            }),
+            notification('season-grant', { type: 'credits_on_demand_granted', metadata: { creditsGranted: 50 } })
+          ]
+        }
+      }
+    })
+    const { page } = app
+
+    await openBell(page)
+    await waitForText(page, 'A gift from Pixel Forge')
+    const rows = await page.$$eval(ITEM, els =>
+      els.map(e => ({
+        text: e.textContent || '',
+        links: [...e.querySelectorAll('a[href]')].map(a => a.getAttribute('href'))
+      }))
+    )
+
+    expect({
+      gift: rows[0].text.includes('Pixel Forge gifted you 100 Credits. They never expire: spend them in the Shop.'),
+      giftLinksToShop: rows[0].links.includes('https://decentraland.org/shop'),
+      season: rows[1].text.includes('You received 50 bonus Credits.'),
+      seasonAsksToUseThem: rows[1].text.includes('expire')
+    }).toEqual({ gift: true, giftLinksToShop: true, season: true, seasonAsksToUseThem: false })
   })
 
   it('shows the unread dot while the panel is open, and clears it once it closes', async () => {
