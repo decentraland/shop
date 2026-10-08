@@ -5,7 +5,8 @@
     "soldOrRemoved": "Este artículo acaba de venderse o eliminarse.",
     "cantBuyOwn": "No puedes comprar tu propia publicación.",
     "wrongNetwork": "Tu wallet está en {current}. Cámbiala a {required} para continuar.",
-    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verifica que siga conectada al shop y en la red correcta, y prueba de nuevo."
+    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verifica que siga conectada al shop y en la red correcta, y prueba de nuevo.",
+    "purchasesPaused": "Las compras de esta publicación están en pausa por ahora. El vendedor necesita publicarla de nuevo."
   },
   "nav": {
     "overview": "Inicio",
@@ -204,20 +205,23 @@
     "allUnavailable": "Ninguno de estos artículos está disponible. Elimínalos para seguir comprando.",
     "availability": {
       "soldOut": "Agotado",
-      "unavailable": "Ya no está disponible"
+      "unavailable": "Ya no está disponible",
+      "paused": "En pausa"
     },
     "youMightAlsoLike": "También te puede gustar",
     "error": {
       "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
       "noneAvailable": "Ninguno de estos artículos está disponible para comprar en este momento.",
       "listingChanged": "Uno o más artículos cambiaron. Revisa tu carrito e inténtalo de nuevo.",
-      "partiallyBought": "Una parte de tu compra se completó: ya tienes esos artículos en Mis artículos. El resto sigue en tu carrito, así que puedes intentarlo de nuevo sin pagar dos veces."
+      "partiallyBought": "Una parte de tu compra se completó: ya tienes esos artículos en Mis artículos. El resto sigue en tu carrito, así que puedes intentarlo de nuevo sin pagar dos veces.",
+      "paused": "Algunos artículos están en pausa y quedaron fuera. Revisa tu carrito y vuelve a intentarlo."
     },
     "drop": {
       "unavailable": "{count, plural, one {# que ya no está disponible} other {# que ya no están disponibles}}",
       "own": "{count} que no puedes comprar (tu propia publicación)",
       "and": "y",
-      "removed": "Eliminamos {items} de tu carrito."
+      "removed": "Eliminamos {items} de tu carrito.",
+      "paused": "{count, plural, one {# artículo en pausa quedó} other {# artículos en pausa quedaron}} fuera de este pedido."
     },
     "suggestedTitle": "Combina con tu carrito"
   },
@@ -313,7 +317,9 @@
     "soldOut": "Agotado",
     "notForSale": "No en venta",
     "view": "Ver",
-    "unitsLeftAtThisPrice": "Solo quedan {count} a este precio"
+    "unitsLeftAtThisPrice": "Solo quedan {count} a este precio",
+    "paused": "En pausa",
+    "pausedHint": "Las compras de esta publicación están en pausa por ahora."
   },
   "notifyMe": {
     "label": "Avísame cuando esté disponible",
@@ -498,7 +504,13 @@
     "cancelRelayReverted": "No se completó — tu publicación sigue activa. Puedes darla de baja ahora pagando la comisión de red, o dejarla y probar más tarde.",
     "cancelRelayRetry": "No pudimos darla de baja ahora. Prueba de nuevo en un momento.",
     "cancelSlowManaged": "Seguimos terminando. Puede tardar unos minutos — puedes dejar esto abierto.",
-    "becauseYouOwn": "Por lo que ya tienes"
+    "becauseYouOwn": "Por lo que ya tienes",
+    "paused": "En pausa",
+    "pausedHint": "Las compras de esta publicación están en pausa hasta que se vuelva a publicar.",
+    "pausedResaleHint": "La publicación del creador está en pausa, así que esta oferta es una reventa de otro dueño.",
+    "resaleSeller": "Vendido por {name}",
+    "pausedSellerHint": "Los compradores no pueden comprar esta publicación por ahora. Publícala de nuevo para seguir vendiendo; aún puedes quitarla.",
+    "manageRelist": "Publicar de nuevo"
   },
   "transfer": {
     "title": "Transferir artículo",
@@ -1167,7 +1179,8 @@
     "selectedSummary": "{count, plural, one {# artículo seleccionado} other {# artículos seleccionados}} · ${usd}",
     "listAll": "Publicar {count, plural, one {# artículo} other {# artículos}} ({count})",
     "toastFailed": "No pudimos actualizar tus publicaciones. Inténtalo de nuevo.",
-    "toastPartial": "Algunas publicaciones no se pudieron actualizar."
+    "toastPartial": "Algunas publicaciones no se pudieron actualizar.",
+    "pausedHint": "Los compradores no pueden comprar esta publicación por ahora. Publícala de nuevo para seguir vendiendo."
   },
   "faq": {
     "title": "Más información sobre los Créditos",

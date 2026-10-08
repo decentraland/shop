@@ -9,6 +9,7 @@ import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
+import { unavailableLabel } from '~/lib/cart-line-label'
 import * as S from './CartPopover.styles'
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
@@ -33,7 +34,6 @@ function CartRow({
   const atStockCap = typeof item.available === 'number' && qty >= item.available
   const subtotal = item.priceCredits * qty
   const unavailable = !isLineBuyable(status)
-  const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
   return (
     <S.Card data-unavailable={unavailable || undefined}>
       <S.Thumb data-thumb>
@@ -52,7 +52,7 @@ function CartRow({
             /* Warning + reason. The trash button remains the one-tap remove. */
             <S.Unavailable>
               <S.Warn name="warning-fill" size={24} />
-              {unavailableLabel}
+              {unavailableLabel(status)}
             </S.Unavailable>
           ) : (
             <>
@@ -108,12 +108,13 @@ export function CartPopover() {
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Validate each line's live trade while the drawer is open (optimistic until resolved). Unavailable
-  // lines stay visible with their reason but are excluded from the total and the unit count.
+  // lines stay visible with their reason but are excluded from the total.
   const availability = useCartAvailability(items, open)
 
   const buyable = items.filter(i => isLineBuyable(availability[i.id]))
   const total = buyable.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
-  // Count reflects total buyable units (Σ quantity), not the number of distinct lines.
+  // The header counts what the cart holds (as the nav badge does); the total counts what can be bought.
+  const heldUnits = items.reduce((n, i) => n + i.quantity, 0)
   const count = buyable.reduce((n, i) => n + i.quantity, 0)
 
   // Escape closes the drawer (outside-click is handled by the scrim). No auto-dismiss: a full drawer
@@ -140,7 +141,7 @@ export function CartPopover() {
       <S.Scrim onClick={() => setOpen(false)} />
       <S.Panel ref={panelRef}>
         <S.Head>
-          <S.Title>{t('cartPopover.title', { count })}</S.Title>
+          <S.Title>{t('cartPopover.title', { count: heldUnits })}</S.Title>
           <S.Close onClick={() => setOpen(false)} aria-label={t('cartPopover.close')}>
             <Icon name="close" size={18} />
           </S.Close>

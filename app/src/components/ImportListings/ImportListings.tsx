@@ -332,6 +332,15 @@ export function ImportListings({ hideWhenDone = false }: { hideWhenDone?: boolea
                               <Icon name={catIco} aria-hidden />
                             </S.Chip>
                           ) : null}
+                          {item.paused ? (
+                            <S.Chip
+                              data-variant="paused"
+                              data-testid="import-row-paused"
+                              title={t('importListings.pausedHint')}
+                            >
+                              {t('assetCard.paused')}
+                            </S.Chip>
+                          ) : null}
                         </S.Chips>
                       </S.Info>
 

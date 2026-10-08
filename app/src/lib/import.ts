@@ -37,7 +37,11 @@ export type ImportListing = {
   available: number
   network: string
   chainId: number
+  // The old listing can no longer be bought, so moving it is the only way to keep selling it.
+  paused?: boolean
 }
+
+type ImportListingRaw = Omit<ImportListing, 'paused'> & { isPaused?: boolean }
 
 // With the auto-converted (rounded-up) suggested price in credits.
 export type ImportItem = ImportListing & { suggestedCredits: number }
@@ -46,8 +50,8 @@ export type ImportItem = ImportListing & { suggestedCredits: number }
 export async function fetchImportable(seller: string): Promise<{ creations: ImportItem[]; owned: ImportItem[] }> {
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/importable?seller=${seller.toLowerCase()}`)
   if (!res.ok) throw new Error(`fetchImportable ${res.status}`)
-  const { data } = (await res.json()) as { data: ImportListing[] }
-  const listings = data ?? []
+  const { data } = (await res.json()) as { data: ImportListingRaw[] }
+  const listings: ImportListing[] = (data ?? []).map(({ isPaused, ...l }) => ({ ...l, paused: isPaused === true }))
   if (listings.length === 0) return { creations: [], owned: [] }
 
   // The marketplace is resolved on config.chainId, NOT on the listing's: readManaUsdRate dials

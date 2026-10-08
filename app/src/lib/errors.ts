@@ -1,6 +1,8 @@
 import { t } from '~/intl/i18n'
 import { CURRENCY } from '~/lib/currency'
+import type { ProviderType } from '@dcl/schemas'
 import { chainLabel, isWalletUnauthorizedError, isWrongNetworkError } from '~/lib/network'
+import { canPayGasItself } from '~/lib/wallet-kind'
 
 // Central, safe mapping from a thrown error to a localized, user-facing string. The golden rule:
 // NEVER surface raw backend/exception text to the buyer (it's unpredictable, untranslated, and can
@@ -21,6 +23,39 @@ export function isRejection(e: unknown): boolean {
 export function isInsufficient(e: unknown): boolean {
   const err = e as ErrLike
   return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
+}
+
+/** Thrown before any money moves when the listing's marketplace version no longer accepts purchases. */
+export class ListingPausedError extends Error {
+  constructor() {
+    super('listing paused')
+    this.name = 'ListingPausedError'
+  }
+}
+
+// 0xd93c0665 is the selector of OpenZeppelin's EnforcedPause(), which a relayer may echo without decoding it.
+const ENFORCED_PAUSE_SELECTOR = '0xd93c0665'
+const PAUSE_REVERT = /\bPausable: paused\b|\bEnforcedPause\b|(?<![0-9a-fx])0xd93c0665(?![0-9a-f])/i
+
+/**
+ * A purchase refused because the listing's marketplace version is paused: our own pre-check, or the revert
+ * itself when the feed lags. Only the exact revert forms count, so "Pausable: not paused" or "unpaused" do not.
+ */
+export function isPausedError(e: unknown): boolean {
+  if (e instanceof ListingPausedError) return true
+  if (!e || typeof e !== 'object') return false
+  const err = e as ErrLike & { reason?: string; data?: unknown; error?: { message?: string; data?: unknown } }
+  const revertData = [err.data, (err.data as { data?: unknown })?.data, err.error?.data]
+  if (revertData.some(d => typeof d === 'string' && d.toLowerCase() === ENFORCED_PAUSE_SELECTOR)) return true
+  return [err.message, err.reason, err.error?.message].some(m => typeof m === 'string' && PAUSE_REVERT.test(m))
+}
+
+/**
+ * Whether a failed gasless purchase may be retried on the direct rail. Only a self-custody wallet can pay its
+ * own gas, and a paused marketplace refuses the direct rail just the same.
+ */
+export function mayFallBackToDirect(e: unknown, providerType?: ProviderType | null): boolean {
+  return canPayGasItself(providerType) && !isPausedError(e)
 }
 
 /**
@@ -45,6 +80,7 @@ export function friendlyError(e: unknown, fallback: string, opts: { sale?: boole
   // the buyer is told the transaction failed on-chain when it never left their wallet.
   if (isWalletUnauthorizedError(e)) return t('errors.walletUnauthorized')
   if (opts.sale) {
+    if (isPausedError(e)) return t('errors.purchasesPaused')
     const msg = ((e as ErrLike).message ?? '').toLowerCase()
     if (msg.includes('insufficient')) return t('errors.insufficient', { currency: CURRENCY.name })
     if (/not for sale|not found|no active listing|404/.test(msg)) return t('errors.soldOrRemoved')

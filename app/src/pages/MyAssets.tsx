@@ -118,7 +118,7 @@ function builderNameUrl(name: string): string {
 // the item detail). `priceCredits`/`tradeId` reflect the open listing when on sale (else 0 → "not for
 // sale"). The authoritative shop (USD-pegged) listing — resolved from the shop feed by tokenId — wins
 // over the row's legacy `order` fields, which don't carry the credit price for a shop resale.
-function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string }): CatalogItem {
+function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string; paused: boolean }): CatalogItem {
   return {
     id: a.id,
     name: a.name,
@@ -135,7 +135,8 @@ function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string 
     isSmart: false,
     tokenId: a.tokenId,
     issuedId: a.issuedId,
-    tradeId: sale?.tradeId ?? a.tradeId
+    tradeId: sale?.tradeId ?? a.tradeId,
+    paused: sale?.paused ?? a.listingPaused
   }
 }
 
@@ -171,7 +172,8 @@ function publishableToItem(
     ...(sale?.compareAtCredits != null ? { compareAtCredits: sale.compareAtCredits } : {}),
     ...(sale?.saleEndsAt != null ? { saleEndsAt: sale.saleEndsAt } : {}),
     gender: null,
-    isSmart: false
+    isSmart: false,
+    paused: !!sale?.paused
   }
 }
 
@@ -320,7 +322,7 @@ export function MyAssets() {
     enabled: ownedContracts.length > 0,
     queryFn: async () => {
       const maps = await Promise.all(ownedContracts.map(async ca => [ca, await fetchSecondarySaleState(ca)] as const))
-      const merged: Record<string, { priceCredits: number; tradeId: string }> = {}
+      const merged: Record<string, { priceCredits: number; tradeId: string; paused: boolean }> = {}
       for (const [ca, m] of maps) {
         for (const [tokenId, v] of Object.entries(m)) merged[`${ca}-${tokenId}`] = v
       }

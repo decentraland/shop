@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
+import { fetchOpenTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Price } from '~/components/Price'
@@ -14,13 +14,13 @@ import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { getMarketplaceForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
-import { isRejection } from '~/lib/errors'
+import { isPausedError, isRejection, ListingPausedError, mayFallBackToDirect } from '~/lib/errors'
 import { captureError } from '~/lib/monitoring'
+import { notePausedPurchase } from '~/lib/cart-availability'
 import { createSpendGuard } from '~/lib/spend-guard'
 import * as S from './MarketCheckout.styles'
 import type { SuccessNavState } from '~/pages/Success'
@@ -29,6 +29,7 @@ import type { SuccessNavState } from '~/pages/Success'
 // refetches live prices on this failure), so it maps locally rather than via the shared soldOrRemoved.
 function friendlyError(e: unknown): string {
   if (isRejection(e)) return t('errors.rejected')
+  if (isPausedError(e)) return t('errors.purchasesPaused')
   const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('marketCheckout.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('not found') || msg.includes('no active listing') || msg.includes('404')) {
@@ -67,7 +68,7 @@ type Phase = 'confirm' | 'working' | 'error'
  * The price is ours: `manaWeiToUsdCents` converts the listing at the live rate and the credits-server
  * charges what it is sent, rounded up to a whole credit — which is the same rounding the display already
  * applies. So the amount can be shown before anything is reserved. Flow:
- *   1) fetch the full signed trade (fetchTrade) and quote the listing
+ *   1) fetch the full signed trade (fetchOpenTrade) and quote the listing
  *   2) show the price + Confirm
  *   3) confirm → authorize the USD amount, reserving the dollars against a signed ephemeral credit whose
  *      maxCreditedValue is sized at the server's own oracle read
@@ -90,6 +91,12 @@ export function MarketCheckout({
   const { data: balance, isError: balanceError } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
+
+  // Every failure lands here; a pause the purchase itself hit also marks the listing on hold everywhere.
+  function failWith(e: unknown) {
+    if (isPausedError(e)) notePausedPurchase(qc, toCatalogItem(listing), [listing.tradeId])
+    setError(friendlyError(e))
+  }
 
   const [phase, setPhase] = useState<Phase>('confirm')
   const [status, setStatus] = useState<string>(t('marketCheckout.checkingListing'))
@@ -153,8 +160,9 @@ export function MarketCheckout({
 
     const checkListing = async () => {
       try {
-        const trade = await fetchTrade(listing.tradeId)
-        if (!trade) throw new Error('not found')
+        const trade = await fetchOpenTrade(listing.tradeId)
+        // Before anything is quoted or reserved, and before the top-up route below can be offered.
+        if (trade.paused) throw new ListingPausedError()
         // Same gate the cart's review applies: the rails settle a trade on the marketplace its address
         // names on its own chain, so a pair the registry does not deploy has nowhere to settle. Reads as
         // sold or removed, before anything is quoted or reserved.
@@ -177,7 +185,7 @@ export function MarketCheckout({
           value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100
         })
         setPhase('error')
-        setError(friendlyError(e))
+        failWith(e)
       }
     }
 
@@ -280,7 +288,7 @@ export function MarketCheckout({
           value_usd: quote.usdCents / 100
         })
         setStatus('')
-        setError(friendlyError(e))
+        failWith(e)
         setPhase('error')
         return
       }
@@ -335,7 +343,7 @@ export function MarketCheckout({
              * POL, so it would revert with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on — and gas
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
-            if (!canPayGasItself(session.providerType)) throw gaslessErr
+            if (!mayFallBackToDirect(gaslessErr, session.providerType)) throw gaslessErr
             txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
           } else {
             /**
@@ -372,7 +380,7 @@ export function MarketCheckout({
         value_usd: reserved.usdCents / 100
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e))
+      failWith(e)
       setPhase('error')
       const raw = ((e as { message?: string }).message ?? '').toLowerCase()
       if (raw.includes('not found') || raw.includes('no active listing') || raw.includes('404')) onSold()

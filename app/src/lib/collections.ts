@@ -4,7 +4,8 @@ import {
   fetchCreatorPeggedPrimaryPrices,
   fetchPeggedPrimaryPrices,
   fetchShopListingsRaw,
-  type CatalogItem
+  type CatalogItem,
+  type PeggedPrimaryPrice
 } from '~/lib/api'
 import { toCatalogItem, type RawCollectionItem } from '~/lib/catalogItem'
 
@@ -33,6 +34,8 @@ export type CollectionSaleState = {
    */
   compareAtCredits?: number
   saleEndsAt?: number
+  /** The listing can no longer be bought and has to be listed again. */
+  paused?: boolean
 }
 
 /** One page of catalogue rows, scoped to a collection or to a creator. */
@@ -79,19 +82,22 @@ async function fetchAllCatalogRows(
 
 // The two feeds folded into one answer per row: the shop feed prices a USD-pegged listing exactly; a row
 // on sale but absent from it is MANA-denominated, so its price is MANA wei for a live conversion.
-function toSaleState(
-  row: RawCollectionItem,
-  peg: { priceCredits: number; tradeId?: string; compareAtCredits?: number; saleEndsAt?: number } | undefined
-): CollectionSaleState {
+function toSaleState(row: RawCollectionItem, peg: PeggedPrimaryPrice | undefined): CollectionSaleState {
   return peg
     ? {
         isOnSale: true,
         priceCredits: peg.priceCredits,
         ...(peg.tradeId ? { tradeId: peg.tradeId } : {}),
         ...(peg.compareAtCredits != null ? { compareAtCredits: peg.compareAtCredits } : {}),
-        ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {})
+        ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {}),
+        ...(peg.paused || row.isPaused ? { paused: true } : {})
       }
-    : { isOnSale: true, priceCredits: row.priceCredits ?? 0, ...(row.price ? { manaWei: row.price } : {}) }
+    : {
+        isOnSale: true,
+        priceCredits: row.priceCredits ?? 0,
+        ...(row.price ? { manaWei: row.price } : {}),
+        ...(row.isPaused ? { paused: true } : {})
+      }
 }
 
 /**

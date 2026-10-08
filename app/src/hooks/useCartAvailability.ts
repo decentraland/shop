@@ -1,6 +1,6 @@
 import { useQueries } from '@tanstack/react-query'
 import type { CartItem } from '~/store/cart'
-import { resolveLineAvailability, type CartLineAvailability } from '~/lib/cart-availability'
+import { cartAvailabilityKey, resolveLineAvailability, type CartLineAvailability } from '~/lib/cart-availability'
 
 /**
  * Validate every CURRENT cart line's live trade when the cart opens — one bounded query per line, so
@@ -17,9 +17,7 @@ import { resolveLineAvailability, type CartLineAvailability } from '~/lib/cart-a
 export function useCartAvailability(items: CartItem[], enabled = true): Record<string, CartLineAvailability> {
   const results = useQueries({
     queries: items.map(item => ({
-      // Key on the identity that determines the trade to resolve: a re-priced/re-signed line (new
-      // tradeId) revalidates, while an unchanged line reuses its cached result across reopens.
-      queryKey: ['cart-availability', item.id, item.tradeId ?? null, item.itemId ?? null, item.contractAddress],
+      queryKey: cartAvailabilityKey(item),
       queryFn: () => resolveLineAvailability(item),
       enabled,
       staleTime: 30_000,

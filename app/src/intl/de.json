@@ -5,7 +5,8 @@
     "soldOrRemoved": "Dieser Artikel wurde gerade verkauft oder entfernt.",
     "cantBuyOwn": "Du kannst dein eigenes Angebot nicht kaufen.",
     "wrongNetwork": "Deine Wallet ist auf {current}. Wechsle zu {required}, um fortzufahren.",
-    "walletUnauthorized": "Deine Wallet hat diese Anfrage blockiert. Prüfe, ob sie noch mit dem Shop verbunden und im richtigen Netzwerk ist, und versuch es dann noch mal."
+    "walletUnauthorized": "Deine Wallet hat diese Anfrage blockiert. Prüfe, ob sie noch mit dem Shop verbunden und im richtigen Netzwerk ist, und versuch es dann noch mal.",
+    "purchasesPaused": "Käufe dieses Angebots sind vorerst pausiert. Der Verkäufer muss es neu einstellen."
   },
   "nav": {
     "overview": "Übersicht",
@@ -204,20 +205,23 @@
     "allUnavailable": "Keiner dieser Artikel ist mehr verfügbar. Entferne sie, um weiter einzukaufen.",
     "availability": {
       "soldOut": "Ausverkauft",
-      "unavailable": "Nicht mehr verfügbar"
+      "unavailable": "Nicht mehr verfügbar",
+      "paused": "Pausiert"
     },
     "youMightAlsoLike": "Das könnte dir auch gefallen",
     "error": {
       "insufficient": "Du hast nicht genug {currency} – kauf zuerst welche dazu.",
       "noneAvailable": "Keiner dieser Artikel kann gerade gekauft werden.",
       "listingChanged": "Mindestens ein Artikel hat sich geändert – prüfe deinen Warenkorb und versuch es noch mal.",
-      "partiallyBought": "Ein Teil deines Kaufs hat geklappt. Diese Artikel findest du unter „Meine Artikel“ – der Rest ist noch in deinem Warenkorb, du kannst es also noch mal versuchen, ohne doppelt zu zahlen."
+      "partiallyBought": "Ein Teil deines Kaufs hat geklappt. Diese Artikel findest du unter „Meine Artikel“ – der Rest ist noch in deinem Warenkorb, du kannst es also noch mal versuchen, ohne doppelt zu zahlen.",
+      "paused": "Einige Artikel sind pausiert und wurden ausgelassen. Prüfe deinen Warenkorb und versuche es erneut."
     },
     "drop": {
       "unavailable": "{count} nicht mehr verfügbar",
       "own": "{count}, die du nicht kaufen kannst (dein eigenes Angebot)",
       "and": "und",
-      "removed": "Wir haben {items} aus deinem Warenkorb entfernt."
+      "removed": "Wir haben {items} aus deinem Warenkorb entfernt.",
+      "paused": "{count, plural, one {# pausierter Artikel wurde} other {# pausierte Artikel wurden}} bei dieser Bestellung ausgelassen."
     },
     "suggestedTitle": "Passt zu deinem Warenkorb"
   },
@@ -313,7 +317,9 @@
     "soldOut": "Ausverkauft",
     "notForSale": "Nicht zum Verkauf",
     "view": "Ansehen",
-    "unitsLeftAtThisPrice": "Nur noch {count} zu diesem Preis"
+    "unitsLeftAtThisPrice": "Nur noch {count} zu diesem Preis",
+    "paused": "Pausiert",
+    "pausedHint": "Käufe dieses Angebots sind vorerst pausiert."
   },
   "notifyMe": {
     "label": "Benachrichtige mich, wenn verfügbar",
@@ -498,7 +504,13 @@
     "cancelRelayReverted": "Das hat nicht geklappt – dein Angebot ist noch aktiv. Du kannst es jetzt entfernen, indem du die Netzwerkgebühr selbst zahlst, oder es so lassen und später noch mal versuchen.",
     "cancelRelayRetry": "Wir konnten es gerade nicht entfernen. Bitte versuch es gleich noch mal.",
     "cancelSlowManaged": "Wird noch abgeschlossen. Das kann ein paar Minuten dauern – du kannst das hier offen lassen.",
-    "becauseYouOwn": "Passend zu dem, was du besitzt"
+    "becauseYouOwn": "Passend zu dem, was du besitzt",
+    "paused": "Pausiert",
+    "pausedHint": "Käufe dieses Angebots sind pausiert, bis es neu eingestellt wird.",
+    "pausedResaleHint": "Das Angebot des Creators ist pausiert, deshalb ist dies ein Wiederverkauf von einem anderen Besitzer.",
+    "resaleSeller": "Verkauft von {name}",
+    "pausedSellerHint": "Käufer können dieses Angebot gerade nicht kaufen. Stell es neu ein, um weiter zu verkaufen – entfernen kannst du es weiterhin.",
+    "manageRelist": "Neu einstellen"
   },
   "transfer": {
     "title": "Artikel übertragen",
@@ -1167,7 +1179,8 @@
     "selectedSummary": "{count, plural, one {# Artikel} other {# Artikel}} ausgewählt · ${usd}",
     "listAll": "{count, plural, one {# Artikel} other {# Artikel}} anbieten ({count})",
     "toastFailed": "Deine Angebote konnten nicht aktualisiert werden. Bitte versuch es noch mal.",
-    "toastPartial": "Einige Angebote konnten nicht aktualisiert werden."
+    "toastPartial": "Einige Angebote konnten nicht aktualisiert werden.",
+    "pausedHint": "Käufer können dieses Angebot gerade nicht kaufen. Stell es neu ein, um weiter zu verkaufen."
   },
   "faq": {
     "title": "Mehr über Credits erfahren",

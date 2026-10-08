@@ -26,6 +26,7 @@ export type RawCollectionItem = {
   tradeId?: string | null
   available?: string | number | null
   isOnSale?: boolean
+  isPaused?: boolean
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
     emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
@@ -73,7 +74,8 @@ export function toCatalogItem(r: RawCollectionItem): CatalogItem {
      * item page and the cart read) does carry that discriminator.
      */
     ...(r.tradeId == null && r.isOnSale && r.price ? { manaWei: r.price, available: toAvailable(r.available) } : {}),
-    gender: toGender(r.data?.wearable?.bodyShapes)
+    gender: toGender(r.data?.wearable?.bodyShapes),
+    paused: r.isPaused === true
   }
 }
 

@@ -739,6 +739,39 @@ export const Approx = styled.span`
   margin-right: -2px;
 `
 
+export const PausedTag = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: ${colors.flareAmber};
+`
+
+export const PausedNote = styled.p`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: ${colors.gray5};
+
+  & .ico {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: ${colors.flareAmber};
+  }
+
+  /* Right under the price and its ON HOLD tag, above the divider that closes the buy section. */
+  ${media.maxWidth('lg')} {
+    order: 4;
+  }
+`
+
 export const MarketNote = styled.div`
   font-size: 13px;
   margin-top: 6px;
@@ -1430,6 +1463,12 @@ export const SoTag = styled.span`
 `
 
 export const SoStock = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.text2};
+`
+
+export const SoSeller = styled.span`
   font-size: 14px;
   font-weight: 600;
   color: ${colors.text2};

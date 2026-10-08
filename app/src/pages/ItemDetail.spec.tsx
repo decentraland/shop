@@ -532,7 +532,8 @@ describe('when the seeded price is out of date', () => {
       ...item({ id: 'a', name: 'AT', itemId: '1', priceCredits: 1, tradeId: 'open-trade', available: 999 }),
       source: 'native',
       acquisition: 'trade',
-      manaWei: null
+      manaWei: null,
+      paused: false
     })
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -569,7 +570,8 @@ describe('when the seeded stock is out of date', () => {
       ...item({ id: 'b', name: 'BT', itemId: '1', priceCredits: 165, tradeId: 't-1', available: 47 }),
       source: 'native',
       acquisition: 'trade',
-      manaWei: null
+      manaWei: null,
+      paused: false
     })
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -608,7 +610,8 @@ describe('when the seeded stock is out of date', () => {
       ...item({ id: 'c', name: 'CT', itemId: '1', priceCredits: 99, available: 46 }),
       source: 'legacy',
       acquisition: 'store',
-      manaWei: null
+      manaWei: null,
+      paused: false
     })
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })

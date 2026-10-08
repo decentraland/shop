@@ -97,7 +97,8 @@ function resaleToLegacyListing(r: UnifiedListing): LegacyListing {
     available: 1,
     network: r.network,
     chainId: r.chainId,
-    createdAt: 0
+    createdAt: 0,
+    paused: r.paused
   }
 }
 
@@ -164,7 +165,12 @@ function ResellerRow({
   )
 
   return (
-    <tr data-testid="resale-row" data-source={r.source} data-own={isOwn ? 'true' : undefined}>
+    <tr
+      data-testid="resale-row"
+      data-source={r.source}
+      data-own={isOwn ? 'true' : undefined}
+      data-paused={!isOwn && r.paused ? 'true' : undefined}
+    >
       <td data-label={labels.owner}>
         {seller ? (
           <S.OwnerButton type="button" onClick={() => navigate(`/items/creator/${seller}`)}>
@@ -191,9 +197,13 @@ function ResellerRow({
             <CurrencyIcon className="ccy" />
             <span>{formatCredits(r.priceCredits)}</span>
           </span>
-          <S.Actions data-persistent={isOwn ? 'true' : undefined}>
+          <S.Actions data-persistent={isOwn || r.paused ? 'true' : undefined}>
             {isOwn ? (
               <S.OwnChip data-testid="resale-own">{t('resales.yourListing')}</S.OwnChip>
+            ) : r.paused ? (
+              <S.PausedChip data-testid="resale-paused" title={t('assetCard.pausedHint')}>
+                {t('assetCard.paused')}
+              </S.PausedChip>
             ) : isLegacy ? (
               // Legacy (MANA) resale: Buy-only via the market/credits checkout (no cart — the cart
               // assumes fixed credit prices; a MANA line's price floats with the rate).

@@ -5,7 +5,8 @@
     "soldOrRemoved": "This item was just sold or removed.",
     "cantBuyOwn": "You can't buy your own listing.",
     "wrongNetwork": "Your wallet is on {current}. Switch it to {required} to continue.",
-    "walletUnauthorized": "Your wallet blocked this request. Check that it's still connected to the shop and on the right network, then try again."
+    "walletUnauthorized": "Your wallet blocked this request. Check that it's still connected to the shop and on the right network, then try again.",
+    "purchasesPaused": "Purchases of this listing are on hold for now. The seller needs to list it again."
   },
   "nav": {
     "overview": "Overview",
@@ -204,20 +205,23 @@
     "allUnavailable": "None of these items are available anymore. Remove them to keep shopping.",
     "availability": {
       "soldOut": "Out of stock",
-      "unavailable": "No longer available"
+      "unavailable": "No longer available",
+      "paused": "On hold"
     },
     "youMightAlsoLike": "You might also like",
     "error": {
       "insufficient": "You don't have enough {currency} — get more first.",
       "noneAvailable": "None of these items are available to buy right now.",
       "listingChanged": "One or more items changed — please review your cart and try again.",
-      "partiallyBought": "Part of your purchase went through. Those items are in My Items — the rest are still in your cart, so you can try again without paying twice."
+      "partiallyBought": "Part of your purchase went through. Those items are in My Items — the rest are still in your cart, so you can try again without paying twice.",
+      "paused": "Some items are on hold right now, so they were left out. Please review your cart and try again."
     },
     "drop": {
       "unavailable": "{count} no longer available",
       "own": "{count} you can't buy (your own listing)",
       "and": "and",
-      "removed": "Removed {items} from your cart."
+      "removed": "Removed {items} from your cart.",
+      "paused": "{count, plural, one {# item on hold was} other {# items on hold were}} left out of this order."
     },
     "suggestedTitle": "Goes with your cart"
   },
@@ -313,7 +317,9 @@
     "soldOut": "Sold out",
     "notForSale": "Not for Sale",
     "view": "View",
-    "unitsLeftAtThisPrice": "Only {count} left at this price"
+    "unitsLeftAtThisPrice": "Only {count} left at this price",
+    "paused": "On hold",
+    "pausedHint": "Purchases of this listing are on hold for now."
   },
   "notifyMe": {
     "label": "Notify me when available",
@@ -498,7 +504,13 @@
     "cancelRelayReverted": "That didn't go through — your listing is still up. You can remove it now by paying the network fee yourself, or leave it and try again later.",
     "cancelRelayRetry": "We couldn't remove it just now. Please try again in a moment.",
     "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open.",
-    "becauseYouOwn": "Because of what you own"
+    "becauseYouOwn": "Because of what you own",
+    "paused": "On hold",
+    "pausedHint": "Purchases of this listing are on hold until it is listed again.",
+    "pausedResaleHint": "The creator's listing is on hold, so this offer is a resale from another owner.",
+    "resaleSeller": "Sold by {name}",
+    "pausedSellerHint": "Buyers can't purchase this listing right now. List it again to keep selling — you can still remove it.",
+    "manageRelist": "List again"
   },
   "transfer": {
     "title": "Transfer item",
@@ -1167,7 +1179,8 @@
     "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
     "listAll": "List {count, plural, one {# item} other {# items}} ({count})",
     "toastFailed": "We couldn't update your listings. Please try again.",
-    "toastPartial": "Some listings couldn't be updated."
+    "toastPartial": "Some listings couldn't be updated.",
+    "pausedHint": "Buyers can't purchase this listing right now. List it again to keep selling."
   },
   "faq": {
     "title": "Learn More About Credits",
