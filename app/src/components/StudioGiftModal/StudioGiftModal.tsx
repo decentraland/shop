@@ -491,12 +491,13 @@ export function StudioGiftModal({
                   ? t('studio.modal.waiting', { seconds: waitingSeconds })
                   : t('studio.modal.running')}
               </S.Note>
-            ) : stoppedBy ? (
+            ) : stoppedBy && stoppedBy !== 'interrupted' ? (
+              // A list stopped on purpose (Stop, or leaving) has nothing to fix: it reads as one with players left.
               <S.Note data-tone="warning" data-testid="studio-gift-stopped">
                 {t('studio.modal.stopped', { reason: t(`studio.modal.outcome.${stoppedBy}`) })}
               </S.Note>
             ) : leftToSend > 0 ? (
-              <S.Note data-tone="warning">
+              <S.Note data-tone="warning" data-testid="studio-gift-left">
                 {t('studio.modal.left', { count: leftToSend, date: formatDateTime(pending.createdAt) })}
               </S.Note>
             ) : (

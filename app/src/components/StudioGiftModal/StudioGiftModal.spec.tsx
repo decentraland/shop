@@ -243,10 +243,17 @@ describe('when Stop is pressed while gifts are being sent', () => {
     fireEvent.click(screen.getByTestId('studio-gift-stop'))
     release()
 
-    await waitFor(() => expect(screen.getByTestId('studio-gift-stopped')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('studio-gift-continue')).toBeInTheDocument())
     expect({
       statuses: screen.getAllByTestId('studio-gift-outcome').map(row => row.getAttribute('data-status')),
-      sent: giftFromStudioMock.mock.calls.length
-    }).toEqual({ statuses: ['gifted', 'notSent'], sent: 1 })
+      sent: giftFromStudioMock.mock.calls.length,
+      left: screen.getByTestId('studio-gift-left').textContent,
+      askedToFixSomething: screen.queryByTestId('studio-gift-stopped')
+    }).toEqual({
+      statuses: ['gifted', 'notSent'],
+      sent: 1,
+      left: expect.stringMatching(/^1 player is left/),
+      askedToFixSomething: null
+    })
   })
 })
