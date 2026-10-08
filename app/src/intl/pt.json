@@ -1636,6 +1636,8 @@
       "pasteHelp": "Um jogador por linha: conta, Credits e um motivo opcional. Colunas copiadas de uma planilha também funcionam.",
       "pasteAdd": "Adicionar estes jogadores",
       "pasteBadLines": "Algumas linhas precisam de uma conta e Credits: {lines}",
+      "pasteHeader": "A primeira linha foi lida como nomes de colunas e ignorada: {line}",
+      "pasteAmbiguous": "As linhas {lines} não foram adicionadas: um número como 1,000 não se distingue de duas colunas. Escreva sem separadores (1000) ou entre aspas (\"1,000\").",
       "summary": "{count, plural, one {# jogador} other {# jogadores}} · {credits} · restam {left} depois",
       "review": "Revisar",
       "cancel": "Cancelar",
@@ -1648,6 +1650,7 @@
       "confirmMismatch": "Não corresponde ao total ({total})",
       "giftTo": "Presentear {count, plural, one {# jogador} other {# jogadores}}",
       "running": "Presenteando… Se isto fechar, ao abrir de novo continua de onde parou.",
+      "waiting": "Enviando um pouco mais devagar, como o servidor pediu. Próximo presente em {seconds, plural, one {# segundo} other {# segundos}}…",
       "stopped": "Parou: {reason}. Resolva e toque em Continuar: quem já recebeu não receberá duas vezes.",
       "left": "{count, plural, one {Resta # jogador} other {Restam # jogadores}} de uma lista que você começou em {date}. Continue: quem já recebeu não receberá duas vezes.",
       "done": "Pronto.",
@@ -1667,7 +1670,7 @@
       "problem": {
         "account": "Não é uma conta válida",
         "duplicate": "Mesma conta da linha {row}: junte os dois valores em uma linha",
-        "credits": "Credits devem ser um número inteiro maior que zero",
+        "credits": "Credits devem ser um número inteiro maior que zero, sem separadores",
         "overMax": "No máximo {credits} por jogador",
         "reasonMissing": "Adicione um motivo aqui ou acima",
         "reasonTooLong": "O motivo pode ter até 80 caracteres",
@@ -1678,7 +1681,7 @@
       },
       "outcome": {
         "STUDIO_OPERATOR": "Esta conta pertence ao seu estúdio",
-        "FLAGGED_WALLET": "Esta conta não pode receber presentes",
+        "RECIPIENT_NOT_ELIGIBLE": "Esta conta não pode receber presentes",
         "GRANT_LIMIT_EXCEEDED": "Acima do máximo por jogador",
         "IDEMPOTENCY_KEY_REUSED": "Não foi possível presentear. Remova e adicione de novo",
         "INVALID_REQUEST": "Esta linha não é válida",
@@ -1688,7 +1691,8 @@
         "USD_CREDITS_DISABLED": "os presentes não estão disponíveis agora",
         "GRANTS_NOT_CONFIGURED": "os presentes não estão disponíveis agora",
         "unknown": "não recebemos confirmação",
-        "unrecognized": "algo deu errado"
+        "unrecognized": "algo deu errado",
+        "interrupted": "você saiu da página antes de terminar a lista"
       }
     }
   }

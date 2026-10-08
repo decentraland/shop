@@ -1636,6 +1636,8 @@
       "pasteHelp": "Ein Spieler pro Zeile: Konto, Credits und optional ein Grund. Aus einer Tabelle kopierte Spalten funktionieren auch.",
       "pasteAdd": "Diese Spieler hinzufügen",
       "pasteBadLines": "Einige Zeilen brauchen ein Konto und Credits: {lines}",
+      "pasteHeader": "Die erste Zeile wurde als Spaltennamen gelesen und übersprungen: {line}",
+      "pasteAmbiguous": "Zeilen {lines} nicht hinzugefügt: Eine Zahl wie 1,000 lässt sich nicht von zwei Spalten unterscheiden. Schreib sie ohne Trennzeichen (1000) oder in Anführungszeichen (\"1,000\").",
       "summary": "{count, plural, one {# Spieler} other {# Spieler}} · {credits} · danach noch {left}",
       "review": "Prüfen",
       "cancel": "Abbrechen",
@@ -1648,6 +1650,7 @@
       "confirmMismatch": "Das stimmt nicht mit der Summe überein ({total})",
       "giftTo": "{count, plural, one {# Spieler} other {# Spieler}} beschenken",
       "running": "Wird verschenkt… Wenn sich das schließt, geht es beim nächsten Öffnen dort weiter.",
+      "waiting": "Wird etwas langsamer gesendet, wie der Server es verlangt. Nächstes Geschenk in {seconds, plural, one {# Sekunde} other {# Sekunden}}…",
       "stopped": "Angehalten: {reason}. Behebe das und tippe auf Fortsetzen: Wer schon beschenkt wurde, bekommt es nicht zweimal.",
       "left": "Von einer Liste, die du am {date} begonnen hast, {count, plural, one {ist noch # Spieler} other {sind noch # Spieler}} übrig. Setze sie fort: Wer schon beschenkt wurde, bekommt es nicht zweimal.",
       "done": "Fertig.",
@@ -1667,7 +1670,7 @@
       "problem": {
         "account": "Kein gültiges Konto",
         "duplicate": "Gleiches Konto wie Zeile {row}: Fasse beide Beträge in einer Zeile zusammen",
-        "credits": "Credits müssen eine ganze Zahl größer als null sein",
+        "credits": "Credits müssen eine ganze Zahl größer als null sein, ohne Trennzeichen",
         "overMax": "Höchstens {credits} pro Spieler",
         "reasonMissing": "Gib hier oder oben einen Grund an",
         "reasonTooLong": "Der Grund darf höchstens 80 Zeichen haben",
@@ -1678,7 +1681,7 @@
       },
       "outcome": {
         "STUDIO_OPERATOR": "Dieses Konto gehört zu deinem Studio",
-        "FLAGGED_WALLET": "Dieses Konto kann keine Geschenke erhalten",
+        "RECIPIENT_NOT_ELIGIBLE": "Dieses Konto kann keine Geschenke erhalten",
         "GRANT_LIMIT_EXCEEDED": "Über dem Höchstwert pro Spieler",
         "IDEMPOTENCY_KEY_REUSED": "Konnte nicht verschenkt werden. Entferne es und füge es erneut hinzu",
         "INVALID_REQUEST": "Diese Zeile ist ungültig",
@@ -1688,7 +1691,8 @@
         "USD_CREDITS_DISABLED": "Geschenke sind gerade nicht verfügbar",
         "GRANTS_NOT_CONFIGURED": "Geschenke sind gerade nicht verfügbar",
         "unknown": "wir haben keine Bestätigung erhalten",
-        "unrecognized": "etwas ist schiefgelaufen"
+        "unrecognized": "etwas ist schiefgelaufen",
+        "interrupted": "die Seite wurde verlassen, bevor die Liste fertig war"
       }
     }
   }

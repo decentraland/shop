@@ -1636,6 +1636,8 @@
       "pasteHelp": "One player per line: account, Credits and an optional reason. Columns copied from a spreadsheet work too.",
       "pasteAdd": "Add these players",
       "pasteBadLines": "Some lines need an account and Credits: {lines}",
+      "pasteHeader": "The first line was read as column names and skipped: {line}",
+      "pasteAmbiguous": "Not added, lines {lines}: a number like 1,000 can't be told apart from two columns. Write it without separators (1000) or in quotes (\"1,000\").",
       "summary": "{count, plural, one {# player} other {# players}} · {credits} · {left} left after",
       "review": "Review",
       "cancel": "Cancel",
@@ -1648,6 +1650,7 @@
       "confirmMismatch": "That doesn't match the total ({total})",
       "giftTo": "Gift to {count, plural, one {# player} other {# players}}",
       "running": "Gifting… If this closes, opening it again picks up where it left off.",
+      "waiting": "Sending a bit slower, as the server asked. Next gift in {seconds, plural, one {# second} other {# seconds}}…",
       "stopped": "Stopped: {reason}. Fix it and press Continue: players already gifted won't get it twice.",
       "left": "{count, plural, one {# player is} other {# players are}} left from a list you started on {date}. Continue it: players already gifted won't get it twice.",
       "done": "Done.",
@@ -1667,7 +1670,7 @@
       "problem": {
         "account": "Not a valid account",
         "duplicate": "Same account as row {row}: put both amounts in one row",
-        "credits": "Credits must be a whole number above zero",
+        "credits": "Credits must be a whole number above zero, with no separators",
         "overMax": "At most {credits} per player",
         "reasonMissing": "Add a reason here or above",
         "reasonTooLong": "The reason must be 80 characters or fewer",
@@ -1678,7 +1681,7 @@
       },
       "outcome": {
         "STUDIO_OPERATOR": "This account belongs to your studio",
-        "FLAGGED_WALLET": "This account can't receive gifts",
+        "RECIPIENT_NOT_ELIGIBLE": "This account can't receive gifts",
         "GRANT_LIMIT_EXCEEDED": "Above the most per player",
         "IDEMPOTENCY_KEY_REUSED": "Couldn't gift this one. Remove it and add it again",
         "INVALID_REQUEST": "This row isn't valid",
@@ -1688,7 +1691,8 @@
         "USD_CREDITS_DISABLED": "gifts aren't available right now",
         "GRANTS_NOT_CONFIGURED": "gifts aren't available right now",
         "unknown": "we didn't get a confirmation",
-        "unrecognized": "something went wrong"
+        "unrecognized": "something went wrong",
+        "interrupted": "the page was left before the list was finished"
       }
     }
   }

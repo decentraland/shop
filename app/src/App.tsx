@@ -43,7 +43,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/success': 'success',
   '/authorizations': 'authorizations',
   '/outfits/manage': 'outfit_studio',
-  '/outfits/new': 'outfit_studio'
+  '/outfits/new': 'outfit_studio',
+  '/studio': 'studio'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it

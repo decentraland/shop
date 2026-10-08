@@ -5,9 +5,9 @@ import { useWallet } from '~/store/wallet'
 import { useSeo } from '~/hooks/useSeo'
 import { useMyStudio, useMyStudios } from '~/hooks/useStudios'
 import { t } from '~/intl/i18n'
-import { creditsUnit, formatCreditsFull } from '~/lib/currency'
+import { formatCreditsAmount as credits, usdCentsToCreditsFloor } from '~/lib/currency'
 import { shortAddress } from '~/lib/address'
-import { isRetryable, readPendingBatch, type PendingBatch } from '~/lib/studio'
+import { isRetryable, readUnfinishedBatch, type PendingBatch, type StudioGift } from '~/lib/studio'
 import { Button } from '~/components/Button'
 import { EmptyState, EmptyStateCentered } from '~/components/EmptyState'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -16,7 +16,20 @@ import signInIllustration from '~/assets/empty/signin-empty.svg'
 import emptyIllustration from '~/assets/empty/items-empty.svg'
 import * as S from './Studio.styles'
 
-const credits = (n: number) => `${formatCreditsFull(n)} ${creditsUnit(n)}`
+/**
+ * The gifts of every loaded page, each once. Pages are read by offset over a newest-first list, so a gift made
+ * between two pages pushes the last one of a page onto the next.
+ */
+function uniqueGifts(pages: Array<{ gifts: StudioGift[] }>): StudioGift[] {
+  const seen = new Set<string>()
+  return pages
+    .flatMap(page => page.gifts)
+    .filter(gift => {
+      if (seen.has(gift.creditId)) return false
+      seen.add(gift.creditId)
+      return true
+    })
+}
 
 /**
  * A studio's page (/studio): the budget Decentraland gave the studio, gifting Credits from it to players, and the
@@ -36,7 +49,7 @@ export function Studio() {
   const [gifting, setGifting] = useState(false)
 
   useEffect(() => {
-    setPending(session && studioId ? readPendingBatch(session.address, studioId) : null)
+    setPending(session && studioId ? readUnfinishedBatch(session.address, studioId) : null)
   }, [session, studioId])
 
   if (!session) {
@@ -87,7 +100,7 @@ export function Studio() {
   const firstPage = detail.data?.pages[0]
   const studio = firstPage?.studio ?? list.find(item => item.id === studioId)!
   const maxGrantCents = firstPage?.limits.maxGrantCents ?? studios.data!.limits.maxGrantCents
-  const gifts = detail.data?.pages.flatMap(page => page.gifts) ?? []
+  const gifts = uniqueGifts(detail.data?.pages ?? [])
   const leftRows = pending ? pending.rows.filter(isRetryable).length : 0
   const paused = studio.status === 'paused'
 
@@ -137,18 +150,18 @@ export function Studio() {
       <S.Figures>
         <div>
           <dt>{t('studio.budgetLeft')}</dt>
-          <dd data-testid="studio-balance">{credits(studio.balanceCents / 10)}</dd>
+          <dd data-testid="studio-balance">{credits(usdCentsToCreditsFloor(studio.balanceCents))}</dd>
         </div>
         <div>
           <dt>{t('studio.gifted')}</dt>
           <dd>
-            {credits(studio.grantedCents / 10)}
+            {credits(usdCentsToCreditsFloor(studio.grantedCents))}
             <small>{t('studio.giftCount', { count: studio.grantCount })}</small>
           </dd>
         </div>
         <div>
           <dt>{t('studio.maxPerGift')}</dt>
-          <dd>{maxGrantCents === null ? t('studio.notConfigured') : credits(maxGrantCents / 10)}</dd>
+          <dd>{maxGrantCents === null ? t('studio.notConfigured') : credits(usdCentsToCreditsFloor(maxGrantCents))}</dd>
         </div>
       </S.Figures>
 
@@ -164,7 +177,7 @@ export function Studio() {
                 <code title={gift.recipient} aria-label={t('studio.player')}>
                   {shortAddress(gift.recipient)}
                 </code>
-                <strong>{credits(gift.usdCents / 10)}</strong>
+                <strong>{credits(usdCentsToCreditsFloor(gift.usdCents))}</strong>
                 <span data-cell="reason">{gift.reason ?? '—'}</span>
                 <small data-cell="when">
                   {new Date(gift.createdAt).toLocaleString()} · {t('studio.by')} {shortAddress(gift.grantedBy)}

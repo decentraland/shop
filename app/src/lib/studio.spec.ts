@@ -7,11 +7,16 @@ import {
   findLikelyRepeats,
   getMyStudios,
   giftFromStudio,
+  isBatchRunning,
   parsePastedRows,
   readPendingBatch,
+  readUnfinishedBatch,
   ROW_REFUSAL_CODES,
   runGiftBatch,
+  startGiftBatch,
+  stopBatch,
   STUDIO_STOP_CODES,
+  StudioRateLimitedError,
   StudioRequestError,
   StudioUnknownResultError,
   validateRows,
@@ -81,6 +86,41 @@ describe('when the studio page talks to the credits server', () => {
     })
   })
 
+  it('should read a success that leaves out replayed as a new gift, not as one already made', async () => {
+    fetchMock.mockResolvedValueOnce(answer(200, { creditId: 'c-1' }))
+
+    await expect(
+      giftFromStudio(STUDIO, { account: ACCOUNT_A, credits: 10, reason: 'x', key: 'k' }, identity)
+    ).resolves.toEqual({ replayed: false })
+  })
+
+  it.each([
+    ['the INTERNAL_ERROR any failure is answered with, a lost commit included', 500, 'INTERNAL_ERROR'],
+    ['a 5xx with a code this page does not know', 503, 'SOMETHING_NEW'],
+    ['a refusal with a code this page does not know', 409, 'SOMETHING_NEW']
+  ])('should report %s as unknown, not as a refusal', async (_label, status, code) => {
+    fetchMock.mockResolvedValueOnce(answer(status, { error: 'x', code }))
+
+    await expect(
+      giftFromStudio(STUDIO, { account: ACCOUNT_A, credits: 10, reason: 'x', key: 'k' }, identity)
+    ).rejects.toBeInstanceOf(StudioUnknownResultError)
+  })
+
+  it('should report a request to slow down with how long to wait', async () => {
+    fetchMock.mockResolvedValueOnce(answer(429, { error: 'Too many requests', retryAfterSeconds: 7 }))
+
+    const error = await giftFromStudio(
+      STUDIO,
+      { account: ACCOUNT_A, credits: 10, reason: 'x', key: 'k' },
+      identity
+    ).catch(e => e)
+
+    expect({ slowDown: error instanceof StudioRateLimitedError, seconds: error.retryAfterSeconds }).toEqual({
+      slowDown: true,
+      seconds: 7
+    })
+  })
+
   it('should read an account with no studios as an empty list', async () => {
     fetchMock.mockResolvedValueOnce(answer(200, { studios: [], grantLimits: { maxGrantCents: 50000 } }))
 
@@ -89,22 +129,80 @@ describe('when the studio page talks to the credits server', () => {
 })
 
 describe('when players are pasted from a list', () => {
-  it('should read comma, tab and semicolon separated lines, with an optional reason', () => {
-    expect(parsePastedRows(`${ACCOUNT_A}, 100, Week 40\n${ACCOUNT_B}\t50\n${ACCOUNT_C};25;Bonus`)).toEqual({
+  const nothingElse = { badLines: [], ambiguousLines: [] }
+
+  it.each([
+    ['commas', ', '],
+    ['tabs', '\t'],
+    ['semicolons', ';']
+  ])('should read lines separated by %s, with an optional reason', (_label, separator) => {
+    const text = [`${ACCOUNT_A}${separator}100${separator}Week 40`, `${ACCOUNT_B}${separator}50`].join('\n')
+
+    expect(parsePastedRows(text)).toEqual({
       rows: [
         { account: ACCOUNT_A, credits: '100', reason: 'Week 40' },
-        { account: ACCOUNT_B, credits: '50', reason: '' },
-        { account: ACCOUNT_C, credits: '25', reason: 'Bonus' }
+        { account: ACCOUNT_B, credits: '50', reason: '' }
       ],
-      badLines: []
+      ...nothingElse
     })
   })
 
-  it('should skip a header line and blank lines, strip quotes and report lines without Credits', () => {
-    expect(parsePastedRows(`account,credits\n\n"${ACCOUNT_A}","100"\n${ACCOUNT_B}`)).toEqual({
-      rows: [{ account: ACCOUNT_A, credits: '100', reason: '' }],
-      badLines: [4]
+  it('should keep a grouped number copied from a spreadsheet in one cell, for the review to refuse', () => {
+    const parsed = parsePastedRows(`${ACCOUNT_A}\t1,000\tWelcome`)
+
+    expect({ parsed, problem: validateRows(parsed.rows, limits).rowProblems[0] }).toEqual({
+      parsed: { rows: [{ account: ACCOUNT_A, credits: '1,000', reason: 'Welcome' }], ...nothingElse },
+      problem: { code: 'credits' }
     })
+  })
+
+  it('should not add a comma-separated line whose Credits may be a number split at its thousands separator', () => {
+    expect(parsePastedRows(`${ACCOUNT_A}, 1,000, Welcome\n${ACCOUNT_C}, 50, Thanks`)).toEqual({
+      rows: [{ account: ACCOUNT_C, credits: '50', reason: 'Thanks' }],
+      badLines: [],
+      ambiguousLines: [1]
+    })
+  })
+
+  it('should read quoted cells whole, separators and doubled quotes included', () => {
+    expect(parsePastedRows(`"${ACCOUNT_A}","1,000","Thanks, ""team"""`)).toEqual({
+      rows: [{ account: ACCOUNT_A, credits: '1,000', reason: 'Thanks, "team"' }],
+      ...nothingElse
+    })
+  })
+
+  it('should take the separator that follows the first account, whatever the reasons hold', () => {
+    expect(parsePastedRows(`${ACCOUNT_A}, 100, Builders; week 40`).rows).toEqual([
+      { account: ACCOUNT_A, credits: '100', reason: 'Builders; week 40' }
+    ])
+  })
+
+  it('should skip a first line of column names and say so, and report lines without Credits', () => {
+    expect(parsePastedRows(`\naccount,credits\n\n"${ACCOUNT_A}","100"\n${ACCOUNT_B}`)).toEqual({
+      rows: [{ account: ACCOUNT_A, credits: '100', reason: '' }],
+      badLines: [5],
+      ambiguousLines: [],
+      header: 'account,credits'
+    })
+  })
+
+  it('should keep a first line with a mistyped account as a row, for the review to point at', () => {
+    const parsed = parsePastedRows(`0xabc, 100\n${ACCOUNT_B}, 50`)
+
+    expect({ parsed, problem: validateRows(parsed.rows, limits).rowProblems[0] }).toEqual({
+      parsed: {
+        rows: [
+          { account: '0xabc', credits: '100', reason: '' },
+          { account: ACCOUNT_B, credits: '50', reason: '' }
+        ],
+        ...nothingElse
+      },
+      problem: { code: 'account' }
+    })
+  })
+
+  it('should keep a first line with a name instead of an account as a row too', () => {
+    expect(parsePastedRows('Alice, 100').rows).toEqual([{ account: 'Alice', credits: '100', reason: '' }])
   })
 })
 
@@ -134,6 +232,20 @@ describe('when gift rows are validated', () => {
     ['an invisible character in the reason', row({ reason: 'Top​player' }), { code: 'reasonOneLine' }]
   ])('should refuse %s', (_label, bad, problem) => {
     expect(validateRows([bad], limits).rowProblems).toEqual([problem])
+  })
+
+  it('should ignore a row left blank, neither checking it nor counting it', () => {
+    const blank = { account: '', credits: '', reason: '' }
+
+    expect({
+      checked: validateRows([row(), blank], limits),
+      onlyBlank: validateRows([blank], limits).batchProblems,
+      created: createGiftRows([row(), blank], 'Top player', () => 'k').length
+    }).toEqual({
+      checked: { rowProblems: [null, null], batchProblems: [], totalCredits: 100 },
+      onlyBlank: [{ code: 'empty' }],
+      created: 1
+    })
   })
 
   it('should refuse a row with no reason when there is no shared one either', () => {
@@ -284,6 +396,42 @@ describe('when a gift batch runs', () => {
     })
   })
 
+  it('should stop before the next row when asked, leaving it and the rest not sent', async () => {
+    let stop = false
+    const gift = vi.fn(async (): Promise<GiftResult> => {
+      stop = true
+      return { replayed: false }
+    })
+
+    const result = await runGiftBatch(rowsFor(ACCOUNT_A, ACCOUNT_B, ACCOUNT_C), gift, () => undefined, {
+      shouldStop: () => stop
+    })
+
+    expect({
+      statuses: result.rows.map(row => row.status),
+      stoppedBy: result.stoppedBy,
+      sent: gift.mock.calls.length
+    }).toEqual({ statuses: ['gifted', 'notSent', 'notSent'], stoppedBy: 'interrupted', sent: 1 })
+  })
+
+  it('should wait as long as the server asks and send the same row again, with the same key', async () => {
+    const gift = vi
+      .fn<(row: GiftRow) => Promise<GiftResult>>()
+      .mockRejectedValueOnce(new StudioRateLimitedError(3))
+      .mockResolvedValue({ replayed: false })
+    const waits: number[] = []
+
+    const result = await runGiftBatch(rowsFor(ACCOUNT_A, ACCOUNT_B), gift, () => undefined, {
+      wait: async ms => void waits.push(ms)
+    })
+
+    expect({
+      statuses: result.rows.map(row => row.status),
+      keys: gift.mock.calls.map(([row]) => row.key),
+      waits
+    }).toEqual({ statuses: ['gifted', 'gifted'], keys: ['key-1', 'key-1', 'key-2'], waits: [3000] })
+  })
+
   it('should report every change, so the batch is saved before the next row is sent', async () => {
     const snapshots: string[][] = []
 
@@ -300,6 +448,48 @@ describe('when a gift batch runs', () => {
   })
 })
 
+describe('when a batch is started while another run of it is still going', () => {
+  it('should let the first run stop, then start from what it saved, never sending a row twice', async () => {
+    let next = 0
+    let saved: GiftRow[] = createGiftRows(
+      [ACCOUNT_B, ACCOUNT_C].map(account => ({ account, credits: '10', reason: 'x' })),
+      'x',
+      () => `key-${++next}`
+    )
+    let release: () => void = () => undefined
+    const sent: string[] = []
+    const gift = async (row: GiftRow): Promise<GiftResult> => {
+      sent.push(row.key)
+      if (sent.length === 1) await new Promise<void>(resolve => (release = resolve))
+      return { replayed: false }
+    }
+    const save = (rows: GiftRow[]) => void (saved = rows)
+
+    const first = startGiftBatch(ACCOUNT_A, STUDIO, () => saved, gift, save)
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    const runningWhileFirstWaits = isBatchRunning(ACCOUNT_A, STUDIO)
+    const stopped = stopBatch(ACCOUNT_A, STUDIO)
+    const second = startGiftBatch(ACCOUNT_A, STUDIO, () => saved, gift, save)
+    release()
+    await stopped
+    const [firstResult, secondResult] = await Promise.all([first, second])
+
+    expect({
+      runningWhileFirstWaits,
+      first: firstResult?.rows.map(row => row.status),
+      second: secondResult?.rows.map(row => row.status),
+      sent,
+      runningAfter: isBatchRunning(ACCOUNT_A, STUDIO)
+    }).toEqual({
+      runningWhileFirstWaits: true,
+      first: ['gifted', 'notSent'],
+      second: ['gifted', 'gifted'],
+      sent: ['key-1', 'key-2'],
+      runningAfter: false
+    })
+  })
+})
+
 describe('when an unfinished batch is kept in the browser', () => {
   const memory = () => {
     const entries = new Map<string, string>()
@@ -311,6 +501,34 @@ describe('when an unfinished batch is kept in the browser', () => {
     }
   }
   const batch = { studioId: STUDIO, rows: [], createdAt: 1 }
+
+  it('should forget a batch whose rows are all settled when it is read as unfinished', () => {
+    const store = memory()
+    const row = { key: 'k', account: ACCOUNT_B, credits: 10, reason: 'x' }
+    const settled = { ...batch, rows: [{ ...row, status: 'gifted' as const }] }
+    const unfinished = { ...batch, rows: [{ ...row, status: 'unknown' as const }] }
+
+    writePendingBatch(ACCOUNT_A, STUDIO, settled, store)
+    const settledRead = readUnfinishedBatch(ACCOUNT_A, STUDIO, store)
+    const left = store.entries.size
+    writePendingBatch(ACCOUNT_A, STUDIO, unfinished, store)
+
+    expect({ settledRead, left, unfinished: readUnfinishedBatch(ACCOUNT_A, STUDIO, store) }).toEqual({
+      settledRead: null,
+      left: 0,
+      unfinished
+    })
+  })
+
+  it('should read a saved batch of another shape as nothing pending', () => {
+    const store = memory()
+    store.setItem(
+      `shop.studio.pendingGifts.${ACCOUNT_A}.${STUDIO}`,
+      JSON.stringify({ studioId: STUDIO, createdAt: 1, rows: [{ account: ACCOUNT_B, credits: 10 }] })
+    )
+
+    expect(readPendingBatch(ACCOUNT_A, STUDIO, store)).toBeNull()
+  })
 
   it('should read it back per account and studio, and forget it on request', () => {
     const store = memory()

@@ -37,6 +37,10 @@ export const Note = styled.p`
   }
 `
 
+export const RepeatLine = styled.span`
+  display: block;
+`
+
 export const Label = styled.label`
   display: flex;
   flex-direction: column;

@@ -13,6 +13,16 @@ export function useMyStudios(session: Session | null) {
   })
 }
 
+/**
+ * Where the next page of gifts starts, or undefined when there is none. An empty page ends the list even if the
+ * total says more: asking again from the same offset would only get the same empty page.
+ */
+export function nextGiftsOffset(last: { gifts: unknown[]; total: number }, pages: Array<{ gifts: unknown[] }>) {
+  if (last.gifts.length === 0) return undefined
+  const loaded = pages.reduce((sum, page) => sum + page.gifts.length, 0)
+  return loaded < last.total ? loaded : undefined
+}
+
 /** One of the account's studios with its gifts, newest first, a page at a time. */
 export function useMyStudio(session: Session | null, studioId: string | undefined) {
   return useInfiniteQuery({
@@ -21,9 +31,6 @@ export function useMyStudio(session: Session | null, studioId: string | undefine
     initialPageParam: 0,
     queryFn: ({ pageParam }) =>
       getMyStudio(studioId!, session!.identity, { limit: GIFTS_PAGE_SIZE, offset: pageParam }),
-    getNextPageParam: (last, pages) => {
-      const loaded = pages.reduce((sum, page) => sum + page.gifts.length, 0)
-      return loaded < last.total ? loaded : undefined
-    }
+    getNextPageParam: nextGiftsOffset
   })
 }
