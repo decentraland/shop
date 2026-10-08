@@ -1588,5 +1588,30 @@
     "stepBack": "<b>Prices reset automatically:</b> When the sale ends, your items return to their original prices.",
     "later": "Maybe later",
     "create": "Create a discount"
+  },
+  "cancelledListings": {
+    "banner": {
+      "lead": {
+        "listings": "{count, plural, one {One of your listings was} other {# of your listings were}} taken down during a store upgrade.",
+        "offers": "{count, plural, one {One of your offers was} other {# of your offers were}} taken down during a store upgrade.",
+        "mixed": "Some of your listings and offers were taken down during a store upgrade."
+      },
+      "accent": "{count, plural, one {Put it back in a few clicks.} other {Put them back in a few clicks.}}",
+      "cta": "Review",
+      "dismiss": "Dismiss"
+    },
+    "learnMore": "Learn more",
+    "list": {
+      "title": "Taken down during our store upgrade",
+      "count": "{count, plural, one {# item} other {# items}}",
+      "lede": "Nothing was sold — these just need to be put back up. Choose a price and they go on sale again.",
+      "kindListing": "Listing",
+      "kindOffer": "Offer",
+      "price": "Was",
+      "relist": "Put on sale",
+      "reoffer": "Make offer again",
+      "itemFallback": "Untitled item",
+      "elsewhereAria": "{action}: {name} (opens the Decentraland Marketplace in a new tab)"
+    }
   }
 }

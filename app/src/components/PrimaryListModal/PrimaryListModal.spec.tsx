@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -56,8 +56,11 @@ const item = {
   minters: []
 } as never
 
-function renderModal(providerType = 'injected', edit?: ListingEdit) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderModal(
+  providerType = 'injected',
+  edit?: ListingEdit,
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
   const onClose = vi.fn()
   const onListed = vi.fn()
   render(
@@ -99,6 +102,22 @@ describe('PrimaryListModal', () => {
       expect(createPrimaryUsdPeggedListing).toHaveBeenCalledWith(expect.objectContaining({ usdPrice: 1 }))
       // Success screen shows the "View in Shop" action.
       await screen.findByRole('button', { name: /view in shop/i })
+    })
+  })
+
+  describe('when the listing goes live', () => {
+    let invalidate: MockInstance<QueryClient['invalidateQueries']>
+
+    beforeEach(async () => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      invalidate = vi.spyOn(client, 'invalidateQueries')
+      renderModal('injected', undefined, client)
+      await userEvent.click(await screen.findByRole('button', { name: /^put on sale$/i }))
+      await screen.findByRole('button', { name: /view in shop/i })
+    })
+
+    it('should refresh the listings taken down by the store upgrade', () => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['cancelled-trades'] })
     })
   })
 

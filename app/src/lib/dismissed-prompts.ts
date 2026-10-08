@@ -16,6 +16,9 @@ export const MANA_PRICING_PROMPT = 'mana-pricing'
 /** The one-time announcement that tells a creator they can put their collections on sale. */
 export const DISCOUNTS_ANNOUNCEMENT_PROMPT = 'discounts-announcement'
 
+/** The site-wide banner about listings taken down when the older marketplace versions were retired. */
+export const CANCELLED_LISTINGS_PROMPT = 'cancelled-listings'
+
 type Store = Record<string, string[]>
 
 function read(): Store {

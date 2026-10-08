@@ -1588,5 +1588,30 @@
     "stepBack": "<b>Preise setzen sich automatisch zurück:</b> Wenn der Sale endet, kehren deine Artikel zu ihren ursprünglichen Preisen zurück.",
     "later": "Später",
     "create": "Rabatt erstellen"
+  },
+  "cancelledListings": {
+    "banner": {
+      "lead": {
+        "listings": "{count, plural, one {Eines deiner Angebote wurde} other {# deiner Angebote wurden}} bei einem Shop-Update entfernt.",
+        "offers": "{count, plural, one {Eines deiner Gebote wurde} other {# deiner Gebote wurden}} bei einem Shop-Update entfernt.",
+        "mixed": "Einige deiner Angebote und Gebote wurden bei einem Shop-Update entfernt."
+      },
+      "accent": "{count, plural, one {Stell es mit wenigen Klicks wieder ein.} other {Stell sie mit wenigen Klicks wieder ein.}}",
+      "cta": "Ansehen",
+      "dismiss": "Schließen"
+    },
+    "learnMore": "Mehr erfahren",
+    "list": {
+      "title": "Beim Shop-Update entfernt",
+      "count": "{count, plural, one {# Artikel} other {# Artikel}}",
+      "lede": "Nichts wurde verkauft – sie müssen nur wieder eingestellt werden. Wähle einen Preis und sie sind wieder im Verkauf.",
+      "kindListing": "Angebot",
+      "kindOffer": "Gebot",
+      "price": "Vorher",
+      "relist": "Zum Verkauf stellen",
+      "reoffer": "Erneut bieten",
+      "itemFallback": "Unbenannter Artikel",
+      "elsewhereAria": "{action}: {name} (öffnet den Decentraland Marketplace in einem neuen Tab)"
+    }
   }
 }
