@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
+import { CancelledListingsNotice } from '~/components/CancelledListingsBanner'
 import { BatFlight } from '~/components/BatFlight'
 import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
@@ -230,6 +231,9 @@ export function App() {
         </Sentry.ErrorBoundary>
       ) : null}
       <NavBar />
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <CancelledListingsNotice />
+      </Sentry.ErrorBoundary>
       {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
           whose content is genuinely short (the credits packs) look better with the footer visible than
           with a screenful of empty space under a single card — see .page[data-route] in index.css. */}

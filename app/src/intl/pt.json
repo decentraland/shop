@@ -1701,5 +1701,30 @@
         "rateLimited": "o servidor pediu para ir mais devagar vezes demais seguidas"
       }
     }
+  },
+  "cancelledListings": {
+    "banner": {
+      "lead": {
+        "listings": "{count, plural, one {Um dos seus anúncios foi retirado} other {# dos seus anúncios foram retirados}} durante uma atualização da loja.",
+        "offers": "{count, plural, one {Uma das suas ofertas foi retirada} other {# das suas ofertas foram retiradas}} durante uma atualização da loja.",
+        "mixed": "Alguns dos seus anúncios e ofertas foram retirados durante uma atualização da loja."
+      },
+      "accent": "{count, plural, one {Coloque de volta em poucos cliques.} other {Coloque de volta em poucos cliques.}}",
+      "cta": "Revisar",
+      "dismiss": "Fechar"
+    },
+    "learnMore": "Saiba mais",
+    "list": {
+      "title": "Retirados durante a atualização da loja",
+      "count": "{count, plural, one {# item} other {# itens}}",
+      "lede": "Nada foi vendido — você só precisa colocá-los de volta. Escolha um preço e eles voltam à venda.",
+      "kindListing": "Anúncio",
+      "kindOffer": "Oferta",
+      "price": "Preço anterior",
+      "relist": "Colocar à venda",
+      "reoffer": "Ofertar de novo",
+      "itemFallback": "Item sem nome",
+      "elsewhereAria": "{action}: {name} (abre o Marketplace da Decentraland em uma nova aba)"
+    }
   }
 }
