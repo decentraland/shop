@@ -91,6 +91,38 @@ export type Fixtures = {
    * Undefined keeps the default "nothing on sale", which the publish spec relies on.
    */
   collectionSaleState?: unknown
+  /** The studios the test account acts for, served (and spent from) by the mock `/operator/studios`. */
+  studios?: StudioMock | null
+}
+
+/**
+ * A studio's budget and gifts as the mock credits-server keeps them. Gifts are made for real (the balance goes down,
+ * the gift is listed) and remembered by idempotency key, so a resumed list is answered "already gifted".
+ */
+export type StudioMock = {
+  studios: Array<{
+    id: string
+    name: string
+    status: 'active' | 'paused'
+    balanceCents: number
+    grantedCents: number
+    grantCount: number
+  }>
+  maxGrantCents: number | null
+  /** Accounts refused as one of the studio's own operators. */
+  operatorAccounts?: string[]
+  /** Accounts whose first gift is MADE but answered 502, the way a lost answer looks to the page. */
+  lostAnswerAccounts?: string[]
+  /** The studio is paused once this many gifts have been made, the way ops pausing it mid-list looks to the page. */
+  pauseAfterGifts?: number
+}
+
+/** Sets a mocked studio's status while a spec runs, the way ops pausing or resuming it from internal-tools would. */
+export function setMockStudioStatus(studioId: string, status: 'active' | 'paused'): void {
+  const studio = studioStore?.studios.find(item => item.id === studioId)
+  if (!studio) throw new Error(`No mocked studio ${studioId}`)
+  studio.status = status
+  if (studioStore) studioStore.pauseAfterGifts = undefined
 }
 
 function defaults(): Fixtures {
@@ -186,6 +218,68 @@ let mintedCents = 0
 // the my-favorites page can prove the heart actually persisted server-side. Newest first, like the
 // real service. Reset per run in launchApp.
 let favoritePicks: string[] = []
+
+// Stateful studios: the operator endpoints of the credits-server. Reset per run in launchApp.
+let studioStore: StudioMock | null = null
+let studioGifts: Record<string, Array<Record<string, unknown>>> = {}
+let studioKeys = new Set<string>()
+
+function studioRoute(req: HTTPRequest, path: string): Promise<void> | null {
+  if (path === '/operator/studios') {
+    return json(req, {
+      studios: studioStore?.studios ?? [],
+      grantLimits: { maxGrantCents: studioStore?.maxGrantCents ?? null }
+    })
+  }
+  const match = path.match(/^\/operator\/studios\/([^/]+)(\/grants)?$/)
+  if (!match) return null
+  const studio = studioStore?.studios.find(item => item.id === match[1])
+  if (!studioStore || !studio) return json(req, { error: 'Studio not found', code: 'STUDIO_NOT_FOUND' }, 404)
+  const gifts = (studioGifts[studio.id] ??= [])
+  if (!match[2]) {
+    return json(req, {
+      studio,
+      grants: gifts,
+      page: { limit: 25, offset: 0, total: gifts.length },
+      grantLimits: { maxGrantCents: studioStore.maxGrantCents }
+    })
+  }
+  const body = JSON.parse(req.postData() || '{}') as {
+    address: string
+    credits: number
+    reason: string
+    idempotencyKey: string
+  }
+  const account = body.address.toLowerCase()
+  if (studioKeys.has(body.idempotencyKey)) return json(req, { replayed: true, balanceCents: studio.balanceCents })
+  if (studioStore.operatorAccounts?.includes(account)) {
+    return json(req, { error: 'That account is an operator of this studio', code: 'STUDIO_OPERATOR' }, 403)
+  }
+  if (studio.status === 'paused') return json(req, { error: 'Paused', code: 'STUDIO_PAUSED' }, 409)
+  const cents = body.credits * 10
+  if (cents > studio.balanceCents) return json(req, { error: 'Not enough budget', code: 'STUDIO_BUDGET_EXCEEDED' }, 409)
+  studio.balanceCents -= cents
+  studio.grantedCents += cents
+  studio.grantCount += 1
+  studioKeys.add(body.idempotencyKey)
+  if (studioStore.pauseAfterGifts !== undefined && studio.grantCount >= studioStore.pauseAfterGifts) {
+    studio.status = 'paused'
+  }
+  gifts.unshift({
+    creditId: `studio-credit-${studio.grantCount}`,
+    recipient: account,
+    usdCents: cents,
+    reason: body.reason,
+    grantedBy: fx.TEST_ADDRESS,
+    createdAt: Date.now()
+  })
+  const lost = studioStore.lostAnswerAccounts ?? []
+  if (lost.includes(account)) {
+    studioStore.lostAnswerAccounts = lost.filter(item => item !== account)
+    return req.respond({ status: 502, headers: CORS, body: 'Bad gateway' })
+  }
+  return json(req, { replayed: false, balanceCents: studio.balanceCents }, 201)
+}
 
 // Saves by OTHER accounts, so a spec can tell the service's number apart from the viewer's own +1.
 const FAVORITE_BASE_COUNT = 2
@@ -598,6 +692,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         lines: items.map(item => ({ usdCents: Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10 }))
       })
     }
+    const studioAnswer = studioRoute(req, path)
+    if (studioAnswer) return studioAnswer
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
     // Fire-and-forget submission report. The buy flows post here right after broadcasting, so it needs a
     // response even though nothing asserts on it — an unmocked POST in the middle of a checkout is noise
@@ -1267,6 +1363,9 @@ export async function launchApp(
   namesFlag = opts.names ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
+  studioStore = F.studios ? structuredClone(F.studios) : null
+  studioGifts = {}
+  studioKeys = new Set()
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise

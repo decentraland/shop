@@ -44,7 +44,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/success': 'success',
   '/authorizations': 'authorizations',
   '/outfits/manage': 'outfit_studio',
-  '/outfits/new': 'outfit_studio'
+  '/outfits/new': 'outfit_studio',
+  '/studio': 'studio'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
@@ -55,6 +56,7 @@ const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ def
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
+const Studio = lazy(() => import('~/pages/Studio').then(m => ({ default: m.Studio })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyStore })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
@@ -265,6 +267,8 @@ export function App() {
               {/* Under /items so the Collectibles tab lights up on an outfit. */}
               <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
+              {/* Reached by its address only: the studios that gift Credits to their players are few, and invited. */}
+              <Route path="/studio" element={<Studio />} />
               <Route path="/my-items" element={<MyAssets />} />
               <Route path="/my-store" element={<MyStore />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
