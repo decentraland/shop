@@ -8,6 +8,10 @@ export type RunningCampaign = {
   label: string
   /** The collections it selected, lowercased. MAY BE EMPTY while nobody has tagged any yet. */
   contracts: string[]
+  /** Loose items it names one by one, as `<contract>-<itemId>`. Unioned with `contracts` server-side. */
+  items: string[]
+  /** The collection lookup is still in flight, so an empty `contracts` is not an answer yet. */
+  contractsPending: boolean
 }
 
 /**
@@ -30,10 +34,10 @@ export type RunningCampaign = {
 export function useRunningCampaign(): RunningCampaign | null {
   const locale = useLocale(s => s.locale)
   const { campaign } = useCampaign()
-  const { contracts } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
+  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
 
   if (!campaign?.mainTag) return null
 
   const label = localized(campaign.tabName, toContentfulLocale(locale))?.trim()
-  return label ? { label, contracts } : null
+  return label ? { label, contracts, items: campaign.items, contractsPending } : null
 }
