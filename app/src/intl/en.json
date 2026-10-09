@@ -41,6 +41,11 @@
     "empty": "You have no notifications yet.",
     "loading": "Loading notifications…"
   },
+  "itemDiscountedNotification": {
+    "title": "A favorite is on sale",
+    "description": "{name} is {pct}% off: {sale} {currency} instead of {list}.",
+    "itemFallback": "An item you saved"
+  },
   "search": {
     "suggestions": "Search suggestions",
     "recent": "Recent searches",

@@ -41,6 +41,11 @@
     "empty": "Você ainda não tem notificações.",
     "loading": "Carregando notificações…"
   },
+  "itemDiscountedNotification": {
+    "title": "Um favorito está em promoção",
+    "description": "{name} está com {pct}% de desconto: {sale} Créditos em vez de {list}.",
+    "itemFallback": "Um item que você salvou"
+  },
   "search": {
     "suggestions": "Sugestões de busca",
     "recent": "Buscas recentes",

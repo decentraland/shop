@@ -41,6 +41,11 @@
     "empty": "Du hast noch keine Benachrichtigungen.",
     "loading": "Benachrichtigungen werden geladen…"
   },
+  "itemDiscountedNotification": {
+    "title": "Ein Favorit ist im Angebot",
+    "description": "{name} ist {pct}% günstiger: {sale} {currency} statt {list}.",
+    "itemFallback": "Ein gespeicherter Artikel"
+  },
   "search": {
     "suggestions": "Suchvorschläge",
     "recent": "Letzte Suchen",
