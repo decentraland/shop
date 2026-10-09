@@ -374,8 +374,7 @@ export function Overview() {
       // hold the slot while the event flag is still answering, so an event rail takes their place in-step.
       campaignPending || trendingLoading || trendingItems.length > 0 ? (
         <Carousel
-          // Blank (but line-holding) while the event flag answers, so an event day does not flash "Trending" first.
-          title={campaignPending ? '\u00a0' : t('overview.trendingProducts')}
+          title={t('overview.trendingProducts')}
           items={trendingItems}
           loading={campaignPending || trendingLoading}
           source="trending"

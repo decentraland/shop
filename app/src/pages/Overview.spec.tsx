@@ -437,15 +437,6 @@ describe('when a seasonal event is running', () => {
 })
 
 describe('when no seasonal event is running', () => {
-  it('should leave the top rail untitled until the event flag has answered', () => {
-    useCampaign.mockReturnValue({ campaign: undefined, isPending: true, isError: false })
-
-    renderOverview()
-
-    expect(within(screen.getByTestId('trending-rail')).getAllByTestId('skeleton-card')).toHaveLength(PER_RAIL)
-    expect(screen.queryByText('Trending Products')).toBeNull()
-  })
-
   it('should put Trending back as the first rail, above Best Deals', async () => {
     fetchTrendingItems.mockResolvedValue([trendingItem()])
     feeds({ deals: [deal(0), deal(1), deal(2)] })
