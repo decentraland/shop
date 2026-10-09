@@ -76,6 +76,8 @@ export type Fixtures = {
   trade: unknown
   userStore: unknown
   purchases: unknown
+  /** credits-server `/users/:address/credit-orders`: credit-pack purchases, seller payouts and gifts. */
+  creditOrders: unknown
   sales: unknown
   /** Overrides on top of the summary derived from `sales`; omit to let the rows speak for themselves. */
   salesSummary: unknown
@@ -161,6 +163,12 @@ function defaults(): Fixtures {
     // sales on, and "empty ranking → no section" is the behaviour most specs run in.
     rankings: { data: [] },
     purchases: { purchases: [] },
+    creditOrders: {
+      total: 0,
+      orders: [],
+      earnings: { total: 0, availableCents: 0, items: [] },
+      gifts: { total: 0, items: [] }
+    },
     sales: { data: [], total: 0 },
     salesSummary: undefined,
     // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
@@ -668,6 +676,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
     if (/\/users\/.+\/purchases$/.test(path)) return json(req, F.purchases)
+    if (/\/users\/.+\/credit-orders$/.test(path)) return json(req, F.creditOrders)
     if (path === '/credits/authorize') {
       // The real handler ECHOES the requested price, rounded UP to a whole credit (10¢) — it never
       // prices the item itself. Mirroring that matters now that the checkouts refuse to spend a

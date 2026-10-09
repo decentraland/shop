@@ -66,4 +66,37 @@ describe('activity', () => {
       { timeout: 20000 }
     )
   })
+
+  it("lists Credits a studio gave and Decentraland's own grant under All, and nowhere else", async () => {
+    app = await launchApp({
+      path: '/activity',
+      fixtures: {
+        creditOrders: {
+          total: 0,
+          orders: [],
+          earnings: { total: 0, availableCents: 0, items: [] },
+          gifts: {
+            total: 2,
+            items: [
+              { id: 'gift-1', credits: 5, usdCents: 50, createdAt: Date.UTC(2026, 9, 9), studioName: 'QA Studio' },
+              { id: 'grant-1', credits: 125, usdCents: 1250, createdAt: Date.UTC(2026, 8, 1), studioName: null }
+            ]
+          }
+        }
+      }
+    })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="credit-gift"]', { timeout: 20000 })
+    const gifts = await page.$$eval('[data-testid="credit-gift"]', els => els.map(e => e.textContent || ''))
+    expect(gifts).toEqual([
+      expect.stringMatching(/Gift from QA Studio.*\+.*5/),
+      expect.stringMatching(/Gift from Decentraland.*\+.*125/)
+    ])
+
+    await page.click('[data-testid="activity-filter-purchases"]')
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="credit-gift"]').length === 0, {
+      timeout: 20000
+    })
+  })
 })

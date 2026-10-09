@@ -1,4 +1,4 @@
-import type { PurchaseRecord, CreditOrder } from '~/lib/credits'
+import type { PurchaseRecord, CreditOrder, CreditGift } from '~/lib/credits'
 import type { SaleRecord } from '~/lib/api'
 import { groupPurchases, type PurchaseOrder } from '~/lib/purchases'
 import { manaWeiToCredits, type ManaRate } from '~/lib/mana-rate'
@@ -29,6 +29,8 @@ export type ActivityEntry =
   | { kind: 'purchase'; id: string; createdAt: number; order: PurchaseOrder }
   | { kind: 'sale'; id: string; createdAt: number; sale: ActivitySale }
   | { kind: 'credit'; id: string; createdAt: number; order: CreditOrder }
+  /** Credits the wallet was given (a studio's gift, or a grant from Decentraland): neither a purchase nor a sale. */
+  | { kind: 'gift'; id: string; createdAt: number; gift: CreditGift }
   /**
    * An item bought by paying MANA directly. These do NOT exist in the credits-server purchase feed —
    * that feed is built from credit-spend intents, and a MANA purchase authorizes none — so without this
@@ -78,6 +80,7 @@ export function buildActivityFeed(input: {
   purchases: PurchaseRecord[]
   sales: SaleRecord[]
   creditOrders?: CreditOrder[]
+  creditGifts?: CreditGift[]
   /** Buyer-side settlements from the chain — the only trace a MANA-paid purchase leaves. */
   manaPurchases?: SaleRecord[]
   rate?: ManaRate
@@ -118,8 +121,14 @@ export function buildActivityFeed(input: {
   const manaEntries: ActivityEntry[] = (input.manaPurchases ?? [])
     .filter(s => !creditsTxs.has(s.txHash.toLowerCase()))
     .map(sale => ({ kind: 'mana-purchase', id: `mana-purchase:${sale.id}`, createdAt: sale.createdAt, sale }))
+  const giftEntries: ActivityEntry[] = (input.creditGifts ?? []).map(gift => ({
+    kind: 'gift',
+    id: `gift:${gift.id}`,
+    createdAt: gift.createdAt,
+    gift
+  }))
   // Stable tiebreak on id so entries sharing a timestamp keep a deterministic order across renders.
-  return [...purchaseEntries, ...saleEntries, ...creditEntries, ...manaEntries].sort(
+  return [...purchaseEntries, ...saleEntries, ...creditEntries, ...manaEntries, ...giftEntries].sort(
     (a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1)
   )
 }
@@ -127,7 +136,7 @@ export function buildActivityFeed(input: {
 export function filterActivity(entries: ActivityEntry[], filter: ActivityFilter): ActivityEntry[] {
   if (filter === 'all') return entries
   // "Sales" is the seller side; "Purchases" is everything the user bought — item orders AND credit-pack
-  // top-ups (a credit purchase is still a purchase).
+  // top-ups (a credit purchase is still a purchase). A gift is neither, so it only shows under "All".
   if (filter === 'sales') return entries.filter(e => e.kind === 'sale')
   return entries.filter(e => e.kind === 'purchase' || e.kind === 'credit' || e.kind === 'mana-purchase')
 }
