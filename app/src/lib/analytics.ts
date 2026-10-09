@@ -169,8 +169,12 @@ export function purchaseItemsProps(items: Array<CatalogItem & PurchaseProvenance
 
 // Coarse error bucket for purchase/listing failure events (never the raw message).
 export function errorCode(e: unknown): string {
-  const err = e as { code?: number | string; message?: string }
+  const err = e as { code?: number | string; message?: string; name?: string }
   if (err?.code === 4001) return 'user_rejected'
+  // Matched on the class name, not the wording: this bucket is the only signal that says whether the NAME
+  // rail's quote-expiry margin is set right, and a substring match would hand that instrument to whoever
+  // next rewrites the message. See lib/names' NameRouteExpiredError.
+  if (err?.name === 'NameRouteExpiredError') return 'route_expired'
   const msg = (err?.message ?? '').toLowerCase()
   if (msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) return 'user_rejected'
   if (msg.includes('insufficient')) return 'insufficient_credits'

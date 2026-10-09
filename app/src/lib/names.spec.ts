@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { AuthIdentity } from '@dcl/crypto'
 import type { ethers } from 'ethers'
 
@@ -100,6 +100,7 @@ import {
   NAME_MAX_LENGTH,
   NAME_PRICE_IN_WEI,
   NameRouteCostTooHighError,
+  NameRouteExpiredError,
   buildNameUseCreditsArgs,
   checkNameAvailability,
   fetchNameCreditRoute,
@@ -197,6 +198,39 @@ describe('fetchNameCreditRoute', () => {
     signedFetch.mockResolvedValueOnce(fail(500))
 
     await expect(fetchNameCreditRoute(IDENTITY, 'my-name')).rejects.toThrow('fetchNameCreditRoute 500')
+  })
+
+  /**
+   * The quote's life is only skew-proof when both ends come from the same clock, so the issuing time is
+   * lifted off the HTTP `Date` header.
+   *
+   * ⚠️ This passes here and does NOTHING in production: `Date` is not CORS-safelisted and the credits-server
+   * exposes no extra headers, so a browser reads null and the field stays undefined. The test pins the
+   * shape so the path is correct on the day that server change lands — see the field's doc on
+   * NameCreditRoute. It is deliberately not evidence that the skew hole is closed.
+   */
+  it('should lift the issuing time off the Date header when the browser can see it', async () => {
+    signedFetch.mockResolvedValueOnce({
+      ...ok(ROUTE),
+      headers: { get: (k: string) => (k === 'date' ? 'Wed, 16 Sep 2026 13:46:26 GMT' : null) }
+    })
+
+    const route = await fetchNameCreditRoute(IDENTITY, 'my-name')
+
+    expect(route.issuedAtServerSeconds).toBe(Math.floor(Date.parse('Wed, 16 Sep 2026 13:46:26 GMT') / 1000))
+  })
+
+  // The production shape today. Undefined rather than NaN matters: NaN would make every window NaN, and
+  // `NaN >= 20` is false, so the guard would silently disarm for everyone instead of falling back.
+  it('should leave the issuing time unset when the header is unreadable', async () => {
+    signedFetch.mockResolvedValueOnce({
+      ...ok(ROUTE),
+      headers: { get: () => null }
+    })
+
+    const route = await fetchNameCreditRoute(IDENTITY, 'my-name')
+
+    expect(route.issuedAtServerSeconds).toBeUndefined()
   })
 })
 
@@ -568,6 +602,172 @@ describe('registerNameWithUsdCredits', () => {
 
     expect(authorizeUsdCredit).not.toHaveBeenCalled()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The quote expiry guard.
+   *
+   * Across quotes live ~60 seconds and `externalCall.expiresAt` rides that window, so the deadline is real.
+   * What makes these tests worth reading is WHERE the check runs and WHOSE clock it trusts — a check placed
+   * before the wallet signature reads ~55 seconds left on every real purchase and would never fire, and a
+   * check against the buyer's own clock hands a fast browser a permanent veto over the sale.
+   */
+  describe('and the cross-chain quote is running out', () => {
+    // The three reads, in order: the capture taken as the route lands, the pre-flight before the signature,
+    // and the one inside onSigned. Restored per test by hand rather than through restoreAllMocks(), which
+    // would also strip the module mocks these rely on.
+    let perfSpy: ReturnType<typeof vi.spyOn> | undefined
+    const elapse = (...marks: number[]) => {
+      perfSpy = vi.spyOn(performance, 'now')
+      marks.forEach(m => perfSpy?.mockReturnValueOnce(m))
+    }
+    const routeExpiringIn = (seconds: number) => ({
+      ...ROUTE,
+      externalCall: { ...ROUTE.externalCall, expiresAt: Math.floor(Date.now() / 1000) + seconds }
+    })
+    // The signature is the slow part, so the mock has to reach onSigned the way the real rail does.
+    const signsThenReports = () =>
+      // AWAITED, like the real relay does — so a caller that ever makes this gate async is still honoured
+      // here instead of the rejection floating while the mock happily reports a broadcast.
+      sendUseCreditsGasless.mockImplementationOnce(async (opts: { onSigned?: () => void | Promise<void> }) => {
+        await opts.onSigned?.()
+        return '0xorigin'
+      })
+
+    afterEach(() => {
+      perfSpy?.mockRestore()
+      perfSpy = undefined
+    })
+
+    /**
+     * The incident this exists for: on 2026-09-09 the wallet took 90 seconds against a 60 second quote, and
+     * the relayer rejected the expired call with "Execution reverted for an unknown reason". The check has
+     * to run AFTER the signature or it measures nothing.
+     */
+    it('should refuse to submit once the wallet has eaten the quote window', async () => {
+      elapse(0, 10, 50_000) // 50s gone by the time the buyer finished signing, on a 60s window
+      readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+      signedFetch.mockResolvedValueOnce(ok(routeExpiringIn(60)))
+      authorizeUsdCredit.mockResolvedValueOnce(authorized())
+      signsThenReports()
+
+      await expect(
+        registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })
+      ).rejects.toBeInstanceOf(NameRouteExpiredError)
+
+      // The assertion that pins WHERE the check runs. If it ever slid back to before the signature, the
+      // gasless call would never have been reached and this test would still throw the same error for the
+      // wrong reason — green on a silent regression to the version that could not catch the incident.
+      expect(sendUseCreditsGasless).toHaveBeenCalledTimes(1)
+      // Thrown before the POST, so nothing is on its way anywhere and the dollars go back rather than
+      // sitting reserved until the intent times out.
+      expect(sendUseCredits).not.toHaveBeenCalled()
+      expect(cancelUsdIntents).toHaveBeenCalledTimes(1)
+      expect(cancelUsdIntents).toHaveBeenCalledWith(IDENTITY, [authorized().credit.id])
+    })
+
+    /**
+     * The guard improves an error message; it protects no funds, because the chain enforces the real
+     * deadline against `block.timestamp`. So a clock it cannot believe must switch it OFF, not switch the
+     * sale off: a browser running a minute fast reports a window of ~0 where ~60 is expected, and blocking
+     * on that would make NAMEs unbuyable for that person forever, retry included.
+     */
+    it('should disable itself rather than the purchase when the clock is implausible', async () => {
+      // No elapsed marks needed: an implausible window short-circuits before any clock is consulted, which
+      // is the point — the guard disarms on the WINDOW, without waiting to see how long anything took.
+      elapse(0)
+      readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+      signedFetch.mockResolvedValueOnce(ok(routeExpiringIn(2))) // a minute-fast clock reads ~0 left
+      authorizeUsdCredit.mockResolvedValueOnce(authorized())
+      signsThenReports()
+      waitForSettlement.mockResolvedValueOnce(undefined)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+      )
+
+      const result = await registerNameWithUsdCredits({
+        name: 'my-name',
+        identity: IDENTITY,
+        signer: SIGNER,
+        acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+      })
+
+      expect(result.status).toBe('registered')
+      expect(cancelUsdIntents).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The one line of the dormant server-clock path that has to be right on the day the credits-server ships
+     * `Access-Control-Expose-Headers: Date`, and the only part of it nothing else covers: the other two tests
+     * prove the field gets SET, not that the window is then computed from it.
+     *
+     * Discriminating by construction. The browser clock sees a plausible 60s window and would arm the guard,
+     * which the elapsed marks would then trip; the server says it issued the quote 58 of its own seconds ago,
+     * leaving 2, which is implausible and must disarm. The purchase can only complete if the server's figure
+     * is the one being read.
+     */
+    it('should measure the window with the server clock rather than the browser clock', async () => {
+      elapse(0, 10, 50_000)
+      const nowSec = Math.floor(Date.now() / 1000)
+      readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+      signedFetch.mockResolvedValueOnce({
+        ...ok(routeExpiringIn(60)),
+        headers: { get: (k: string) => (k === 'date' ? new Date((nowSec + 58) * 1000).toUTCString() : null) }
+      })
+      authorizeUsdCredit.mockResolvedValueOnce(authorized())
+      signsThenReports()
+      waitForSettlement.mockResolvedValueOnce(undefined)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+      )
+
+      await expect(
+        registerNameWithUsdCredits({
+          name: 'my-name',
+          identity: IDENTITY,
+          signer: SIGNER,
+          acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+        })
+      ).resolves.toMatchObject({ status: 'registered' })
+    })
+
+    // The pair below straddles the 15s margin. Without both, any threshold from 6 to 59 passes the suite
+    // and the one constant this change is about is unprotected.
+    it('should still submit with 16 seconds of quote left', async () => {
+      elapse(0, 10, 44_000) // 60 - 44 = 16 left
+      readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+      signedFetch.mockResolvedValueOnce(ok(routeExpiringIn(60)))
+      authorizeUsdCredit.mockResolvedValueOnce(authorized())
+      signsThenReports()
+      waitForSettlement.mockResolvedValueOnce(undefined)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+      )
+
+      await expect(
+        registerNameWithUsdCredits({
+          name: 'my-name',
+          identity: IDENTITY,
+          signer: SIGNER,
+          acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+        })
+      ).resolves.toMatchObject({ status: 'registered' })
+    })
+
+    it('should refuse with 14 seconds of quote left', async () => {
+      elapse(0, 10, 46_000) // 60 - 46 = 14 left
+      readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+      signedFetch.mockResolvedValueOnce(ok(routeExpiringIn(60)))
+      authorizeUsdCredit.mockResolvedValueOnce(authorized())
+      signsThenReports()
+
+      await expect(
+        registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })
+      ).rejects.toBeInstanceOf(NameRouteExpiredError)
+    })
   })
 })
 
