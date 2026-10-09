@@ -1,5 +1,6 @@
 import { t } from '~/intl/i18n'
-import { formatCount, formatCreditsFull } from '~/lib/currency'
+import { formatCreditsFull } from '~/lib/currency'
+import { formatCountCompact } from '~/lib/text'
 import * as S from './OfferStock.styles'
 
 /**
@@ -27,22 +28,23 @@ export function OfferStock({
 
   const taken = Math.min(total, Math.max(0, claimed))
   const pct = Math.round((taken / total) * 100)
+  const exact = { claimed: formatCreditsFull(taken), total: formatCreditsFull(total) }
+  const compact = { claimed: formatCountCompact(taken), total: formatCountCompact(total) }
+  // Two nearby large figures can compact to the same label; an open offer must not read as sold out.
+  const shown = compact.claimed === compact.total && taken < total ? exact : compact
 
   return (
     <S.Root className={className} data-testid={testId}>
       <S.Head>
         <S.Label>{t('offerStock.label')}</S.Label>
-        <S.Claimed>{t('offerStock.claimed', { claimed: formatCount(taken), total: formatCount(total) })}</S.Claimed>
+        <S.Claimed>{t('offerStock.claimed', shown)}</S.Claimed>
       </S.Head>
       <S.Track
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={taken}
-        aria-label={t('offerStock.claimed', {
-          claimed: formatCreditsFull(taken),
-          total: formatCreditsFull(total)
-        })}
+        aria-label={t('offerStock.claimed', exact)}
       >
         <S.Fill style={{ width: `${pct}%` }} />
       </S.Track>

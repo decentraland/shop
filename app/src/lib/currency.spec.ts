@@ -4,7 +4,6 @@ import {
   formatCredits,
   formatCreditsAmount,
   formatCreditsFull,
-  formatCount,
   CURRENCY,
   USD_CENTS_PER_CREDIT,
   creditsToUsd,
@@ -44,27 +43,6 @@ describe('formatCreditsFull', () => {
   it('groups with thousands separators', () => {
     expect(formatCreditsFull(500)).toBe('500')
     expect(formatCreditsFull(5_500_000)).toBe('5,500,000')
-  })
-})
-
-describe('formatCount', () => {
-  it('stays exact below ten thousand', () => {
-    expect(formatCount(0)).toBe('0')
-    expect(formatCount(9_999)).toBe('9,999')
-  })
-
-  it('goes compact from ten thousand up', () => {
-    expect(formatCount(10_000)).toBe('10K')
-    expect(formatCount(100_000)).toBe('100K')
-    expect(formatCount(1_000_000)).toBe('1M')
-  })
-
-  it('never rounds a count up to the next unit', () => {
-    expect(formatCount(999_999)).toBe('999.99K')
-  })
-
-  it('follows the locale', () => {
-    expect(formatCount(12_500, 'es')).toBe('12,5\u00a0mil')
   })
 })
 

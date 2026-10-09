@@ -105,13 +105,6 @@ export function formatCreditsFull(n: number, locale: string = activeLocale()): s
   return formatterFor(fullCache, locale, {}).format(n)
 }
 
-/** A count for a tight label: exact below 10,000, compact above (1_000_000 → "1M"), truncated so it never rounds up to a total. */
-export function formatCount(n: number, locale: string = activeLocale()): string {
-  if (n < 10_000) return formatCreditsFull(n, locale)
-  const unit = n >= 1e9 ? 1e9 : n >= 1e6 ? 1e6 : 1e3
-  return formatCredits((Math.floor((n / unit) * 100) / 100) * unit, locale)
-}
-
 /** The full number with its unit word: 1_250 → "1,250 Credits" (en), 1 → "1 Credit". */
 export function formatCreditsAmount(n: number, locale: string = activeLocale()): string {
   return `${formatCreditsFull(n, locale)} ${creditsUnit(n)}`

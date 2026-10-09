@@ -13,4 +13,9 @@ describe('OfferStock', () => {
     render(<OfferStock claimed={37} total={1_500} testId="stock" />)
     expect(screen.getByTestId('stock').textContent).toContain('37 of 1,500 claimed')
   })
+
+  it('falls back to exact figures when both sides would compact to the same label', () => {
+    render(<OfferStock claimed={1_000_500} total={1_005_000} testId="stock" />)
+    expect(screen.getByTestId('stock').textContent).toContain('1,000,500 of 1,005,000 claimed')
+  })
 })
