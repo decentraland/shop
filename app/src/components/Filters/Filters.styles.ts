@@ -4,7 +4,7 @@ import { noForward } from '~/styles/emotion'
 import { theme } from '~/styles/theme'
 
 // The unified catalog filter panel (Figma desktop 1256-293293 / mobile sheet 1304-307965). A stack of
-// collapsible sections — Category, Price, Rarity, Status — plus a Smart toggle row, separated by
+// collapsible sections — Category, Price, Rarity, Status, Filter by type — separated by
 // hairline dividers. Section headers show a gray-2 summary of the applied values while collapsed
 // (Figma in-sheet applied state 1304-309753).
 
@@ -426,106 +426,85 @@ export const StatusMark = styled.img`
   vertical-align: -0.12em;
 `
 
-// ---------------- Toggle rows (Deals, Smart) ----------------
-
-export const ToggleRow = styled.div`
+// Checkboxes rather than switches: a switch reads as "turn this feature on or off", so an unticked Smart
+// switch looked like smart wearables were hidden. A checkbox under "Filter by type" reads as narrowing.
+export const TypeRow = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
+  gap: 6px;
   height: 40px;
-  padding: 4px;
+  padding: 4px 4px 4px 24px;
 
-  /* On mobile a toggle row is a peer of the collapsible section headers (Figma 1304-307965): same 52px
-     row height so it doesn't read as a smaller afterthought. */
+  /* Same 52px row as the section headers on mobile, which also clears the ~44px touch target. */
   ${theme.media.maxWidth('lg')} {
     height: 52px;
   }
 `
 
-export const ToggleLeft = styled.div`
-  display: flex;
+export const TypeLabel = styled.label`
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  height: 100%;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover input[type='checkbox'] {
+      border-color: ${theme.colors.dclRed};
+    }
+  }
+`
+
+const CHECK_MARK = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6l4.5-5' fill='none' stroke='%23fcfcfc' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`
+
+export const TypeCheckbox = styled.input`
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid ${theme.colors.media};
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  &:checked {
+    border-color: ${theme.colors.dclRed};
+    background: ${theme.colors.dclRed} ${CHECK_MARK} center / 12px no-repeat;
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.dclRed};
+    outline-offset: 2px;
+  }
+`
+
+export const TypeName = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ${theme.font.sans};
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.43;
+  color: ${theme.colors.gray4};
+
+  /* SMART is the feature's own label, always set in capitals. */
+  &[data-kind='smart'] {
+    text-transform: uppercase;
+  }
 `
 
 export const SmartFlash = styled(Icon)`
   width: 14px;
   height: 14px;
   color: ${theme.colors.softWhite};
-
-  ${theme.media.maxWidth('lg')} {
-    width: 16px;
-    height: 16px;
-  }
-`
-
-export const ToggleTitle = styled.span`
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.43;
-  color: ${theme.colors.softWhite};
-  /* Figma labels SMART in uppercase (the flash-feature label), unlike the title-case section names. */
-  text-transform: uppercase;
-
-  /* Match the section-header title size on mobile so a toggle row has the same hierarchy as Price/Rarity. */
-  ${theme.media.maxWidth('lg')} {
-    font-size: 16px;
-  }
 `
 
 export const SmartInfo = styled(Icon)`
   width: 12px;
   height: 12px;
   color: ${theme.colors.muted2};
-`
-
-// Track + knob switch (Figma "Switch" 2094:409127). Off = translucent white track, knob left; on =
-// Brand/Ruby track, knob right. No border — the design's track is a plain filled pill.
-export const Toggle = styled('button', noForward('on'))<{ on?: boolean }>`
-  position: relative;
-  width: 24px;
-  height: 14px;
-  padding: 0;
-  border-radius: 100px;
-  border: 0;
-  background: ${({ on }) => (on ? theme.colors.dclRed : 'rgba(255, 255, 255, 0.1)')};
-  cursor: pointer;
-  flex: none;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-
-  /* Bigger, tappable switch on mobile (the 24×14 desktop pill reads as too small on a phone). */
-  ${theme.media.maxWidth('lg')} {
-    width: 40px;
-    height: 22px;
-  }
-`
-
-export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
-  position: absolute;
-  top: 50%;
-  left: ${({ on }) => (on ? 'calc(100% - 12px)' : '0px')};
-  transform: translateY(-50%);
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  /* White knob in both states (Figma switch knob is soft-white) — only its position animates. */
-  background: ${theme.colors.softWhite};
-  box-shadow: 0 1px 2px rgba(22, 21, 24, 0.3);
-  transition: left 0.15s ease;
-
-  ${theme.media.maxWidth('lg')} {
-    width: 18px;
-    height: 18px;
-    left: ${({ on }) => (on ? 'calc(100% - 18px)' : '2px')};
-  }
 `

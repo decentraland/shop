@@ -46,6 +46,16 @@ vi.mock('~/components/FollowedCreatorsRow', () => ({ FollowedCreatorsRow: () => 
 const { useCampaignHero } = vi.hoisted(() => ({ useCampaignHero: vi.fn(() => null) }))
 vi.mock('~/hooks/useCampaignHero', () => ({ useCampaignHero }))
 
+// The seasonal event, which takes the top rail over from Trending while it runs. How "running" is decided
+// is `useRunningCampaign`'s own spec; here it is just an answer.
+type Running = { label: string; contracts: string[]; items: string[]; contractsPending: boolean }
+const { useRunningCampaign, useCampaign } = vi.hoisted(() => ({
+  useRunningCampaign: vi.fn((): Running | null => null),
+  useCampaign: vi.fn(() => ({ campaign: undefined, isPending: false, isError: false }))
+}))
+vi.mock('~/hooks/useRunningCampaign', () => ({ useRunningCampaign }))
+vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
+
 // AssetCard stays REAL — the credit price it renders is one of the things under test, and a stub card would
 // make the placeholder-to-card counts meaningless too. These are the seams it reaches through that do not
 // resolve (or do not matter) here.
@@ -120,13 +130,24 @@ function deal(i: number, pct = 30 - i * 5): UnifiedListing {
  * The listings feed answers two rails from one fetcher: New Creations (newest primaries) and Best Deals
  * (`discounted: true`). Route each to its own rows so a spec can fill one rail without filling the other.
  */
-function feeds({ creations = [], deals = [] }: { creations?: UnifiedListing[]; deals?: UnifiedListing[] }) {
-  fetchShopItems.mockImplementation((filters: { discounted?: boolean } = {}) => {
-    // `!= null`, not truthiness: `discounted: false` is a real filter — "everything NOT on sale" — and
-    // reading it as absent would hand such a spec the creations feed and let it pass on the wrong rows.
-    const items = filters.discounted != null && filters.discounted ? deals : creations
-    return Promise.resolve({ items, total: items.length })
-  })
+function feeds({
+  creations = [],
+  deals = [],
+  event = []
+}: {
+  creations?: UnifiedListing[]
+  deals?: UnifiedListing[]
+  event?: UnifiedListing[]
+}) {
+  fetchShopItems.mockImplementation(
+    (filters: { discounted?: boolean; contractAddresses?: string[]; itemIds?: string[] } = {}) => {
+      if (filters.contractAddresses || filters.itemIds) return Promise.resolve({ items: event, total: event.length })
+      // `!= null`, not truthiness: `discounted: false` is a real filter — "everything NOT on sale" — and
+      // reading it as absent would hand such a spec the creations feed and let it pass on the wrong rows.
+      const items = filters.discounted != null && filters.discounted ? deals : creations
+      return Promise.resolve({ items, total: items.length })
+    }
+  )
 }
 
 /** A promise that never settles: the page stays in the state the loading specs are about. */
@@ -156,6 +177,8 @@ async function lastTrendingCall() {
 beforeEach(() => {
   vi.clearAllMocks()
   useCampaignHero.mockReturnValue(null)
+  useRunningCampaign.mockReturnValue(null)
+  useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
   useSecondarySales.mockReturnValue(false)
   useCreatorSalesEnabled.mockReturnValue(true)
   fetchTrendingItems.mockResolvedValue([])
@@ -329,6 +352,110 @@ describe('the overview once its feeds land', () => {
     expect(fetchShopItems).toHaveBeenCalledWith(
       expect.objectContaining({ first: 12, sortBy: 'newest', listingType: 'primary' })
     )
+  })
+})
+
+describe('when a seasonal event is running', () => {
+  const halloweeks: Running = {
+    label: 'Halloweeks',
+    contracts: ['0xspooky'],
+    items: ['0xloose-3'],
+    contractsPending: false
+  }
+
+  beforeEach(() => {
+    useRunningCampaign.mockReturnValue(halloweeks)
+  })
+
+  it('should lead with the event rail, follow with Best Deals, and drop Trending', async () => {
+    feeds({ event: [listing(0), listing(1)], deals: [deal(0), deal(1), deal(2)] })
+
+    renderOverview()
+
+    const eventRail = await screen.findByTestId('event-rail')
+    const dealsRail = await screen.findByTestId('best-deals-rail')
+    expect(within(eventRail).getByText('Halloweeks')).toBeTruthy()
+    expect(eventRail.compareDocumentPosition(dealsRail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTestId('trending-rail')).toBeNull()
+  })
+
+  it('should ask for the event selection, on sale, and send "View all" to the event tab', async () => {
+    feeds({ event: [listing(0)] })
+
+    renderOverview()
+
+    const rail = await screen.findByTestId('event-rail')
+    expect(fetchShopItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        first: 12,
+        sortBy: 'newest',
+        onSale: true,
+        contractAddresses: ['0xspooky'],
+        itemIds: ['0xloose-3']
+      })
+    )
+    expect(within(rail).getByRole('link', { name: /view all/i })).toHaveAttribute('href', '/event')
+  })
+
+  it('should never query while the selection resolves to nothing, which would read as the whole catalogue', async () => {
+    useRunningCampaign.mockReturnValue({ ...halloweeks, contracts: [], items: [] })
+
+    renderOverview()
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    expect(fetchShopItems).not.toHaveBeenCalledWith(expect.objectContaining({ onSale: true }))
+    expect(screen.queryByTestId('event-rail')).toBeNull()
+    await screen.findByTestId('trending-rail')
+  })
+
+  it('should fall back to Trending when the event has nothing on sale yet', async () => {
+    fetchTrendingItems.mockResolvedValue([trendingItem()])
+    feeds({ event: [] })
+
+    renderOverview()
+
+    await screen.findByTestId('trending-rail')
+    expect(screen.queryByTestId('event-rail')).toBeNull()
+  })
+
+  it('should not fetch Trending while the event rail has something to show', async () => {
+    feeds({ event: [listing(0)] })
+
+    renderOverview()
+
+    await screen.findByTestId('event-rail')
+    expect(fetchTrendingItems).not.toHaveBeenCalled()
+  })
+
+  it('should hold the slot with placeholders while the collections are still resolving', () => {
+    useRunningCampaign.mockReturnValue({ ...halloweeks, contracts: [], contractsPending: true })
+
+    renderOverview()
+
+    expect(within(screen.getByTestId('event-rail')).getAllByTestId('skeleton-card')).toHaveLength(PER_RAIL)
+  })
+})
+
+describe('when no seasonal event is running', () => {
+  it('should leave the top rail untitled until the event flag has answered', () => {
+    useCampaign.mockReturnValue({ campaign: undefined, isPending: true, isError: false })
+
+    renderOverview()
+
+    expect(within(screen.getByTestId('trending-rail')).getAllByTestId('skeleton-card')).toHaveLength(PER_RAIL)
+    expect(screen.queryByText('Trending Products')).toBeNull()
+  })
+
+  it('should put Trending back as the first rail, above Best Deals', async () => {
+    fetchTrendingItems.mockResolvedValue([trendingItem()])
+    feeds({ deals: [deal(0), deal(1), deal(2)] })
+
+    renderOverview()
+
+    const trending = await screen.findByTestId('trending-rail')
+    const dealsRail = await screen.findByTestId('best-deals-rail')
+    expect(trending.compareDocumentPosition(dealsRail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTestId('event-rail')).toBeNull()
   })
 })
 

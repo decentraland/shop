@@ -123,6 +123,7 @@ export function Filters({
   const [openPrice, setOpenPrice] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
   const [openStatus, setOpenStatus] = useState(true)
+  const [openType, setOpenType] = useState(true)
 
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
@@ -184,6 +185,9 @@ export function Filters({
     .join(', ')
   const statusSummary =
     status === 'on_sale' ? t('filter.onSale') : status === 'not_for_sale' ? t('filter.notForSale') : ''
+  const typeSummary = [onDeals && deals ? t('filter.deals') : '', smart ? t('filter.smart') : '']
+    .filter(Boolean)
+    .join(', ')
 
   return (
     <S.Root>
@@ -348,28 +352,34 @@ export function Filters({
 
       <S.Divider />
 
-      {onDeals ? (
-        <S.ToggleRow data-testid="deals-row">
-          <S.ToggleLeft>
-            <S.ToggleTitle>{t('filter.deals')}</S.ToggleTitle>
-          </S.ToggleLeft>
-          <S.Toggle
-            type="button"
-            role="switch"
-            on={!!deals}
-            aria-checked={!!deals}
-            aria-label={t('filter.deals')}
-            data-testid="deals-toggle"
-            onClick={() => onDeals(!deals)}
-          >
-            <S.ToggleKnob on={!!deals} />
-          </S.Toggle>
-        </S.ToggleRow>
-      ) : null}
-      <S.ToggleRow>
-        <S.ToggleLeft>
-          <S.SmartFlash name="smart" aria-hidden />
-          <S.ToggleTitle>{t('filter.smart')}</S.ToggleTitle>
+      <FilterSection
+        title={t('filter.byType')}
+        open={openType}
+        onToggle={() => setOpenType(o => !o)}
+        summary={typeSummary}
+      >
+        {onDeals ? (
+          <S.TypeRow data-testid="deals-row">
+            <S.TypeLabel>
+              <S.TypeCheckbox
+                type="checkbox"
+                checked={!!deals}
+                onChange={() => onDeals(!deals)}
+                data-testid="deals-toggle"
+              />
+              <S.TypeName>{t('filter.deals')}</S.TypeName>
+            </S.TypeLabel>
+          </S.TypeRow>
+        ) : null}
+        <S.TypeRow>
+          <S.TypeLabel>
+            <S.TypeCheckbox type="checkbox" checked={smart} onChange={() => onSmart(!smart)} />
+            <S.TypeName data-kind="smart">
+              <S.SmartFlash name="smart" aria-hidden />
+              {t('filter.smart')}
+            </S.TypeName>
+          </S.TypeLabel>
+          {/* Outside the label, or tapping the hint would tick the box as well. */}
           <Tooltip content={t('filter.smartHint')} placement="bottom">
             <S.SmartInfo
               name="info"
@@ -379,18 +389,8 @@ export function Filters({
               data-testid="smart-hint"
             />
           </Tooltip>
-        </S.ToggleLeft>
-        <S.Toggle
-          type="button"
-          role="switch"
-          on={smart}
-          aria-checked={smart}
-          aria-label={t('filter.smart')}
-          onClick={() => onSmart(!smart)}
-        >
-          <S.ToggleKnob on={smart} />
-        </S.Toggle>
-      </S.ToggleRow>
+        </S.TypeRow>
+      </FilterSection>
     </S.Root>
   )
 }
