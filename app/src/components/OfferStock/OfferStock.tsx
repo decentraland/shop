@@ -1,4 +1,5 @@
 import { t } from '~/intl/i18n'
+import { formatCount, formatCreditsFull } from '~/lib/currency'
 import * as S from './OfferStock.styles'
 
 /**
@@ -31,14 +32,17 @@ export function OfferStock({
     <S.Root className={className} data-testid={testId}>
       <S.Head>
         <S.Label>{t('offerStock.label')}</S.Label>
-        <S.Claimed>{t('offerStock.claimed', { claimed: taken, total })}</S.Claimed>
+        <S.Claimed>{t('offerStock.claimed', { claimed: formatCount(taken), total: formatCount(total) })}</S.Claimed>
       </S.Head>
       <S.Track
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={taken}
-        aria-label={t('offerStock.claimed', { claimed: taken, total })}
+        aria-label={t('offerStock.claimed', {
+          claimed: formatCreditsFull(taken),
+          total: formatCreditsFull(total)
+        })}
       >
         <S.Fill style={{ width: `${pct}%` }} />
       </S.Track>
