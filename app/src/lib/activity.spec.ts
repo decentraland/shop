@@ -203,6 +203,33 @@ describe('buildActivityFeed', () => {
   })
 })
 
+describe('when the wallet was given credits', () => {
+  const gift = { id: 'g1', credits: 5, createdAt: 4_000, studioName: 'QA Studio' }
+
+  it('should place the gift in the feed by date, as a gift', () => {
+    const feed = buildActivityFeed({
+      purchases: [purchase({ txHash: '0xp', createdAt: 1_000 })],
+      sales: [],
+      creditOrders: [creditOrder({ createdAt: 5_000 })],
+      creditGifts: [gift]
+    })
+    expect(feed.map(e => [e.kind, e.id])).toEqual([
+      ['credit', expect.any(String)],
+      ['gift', 'gift:g1'],
+      ['purchase', expect.any(String)]
+    ])
+  })
+
+  it('should show it only under "all", as it is neither a purchase nor a sale', () => {
+    const feed = buildActivityFeed({ purchases: [], sales: [], creditGifts: [gift] })
+    expect({
+      all: filterActivity(feed, 'all').length,
+      purchases: filterActivity(feed, 'purchases').length,
+      sales: filterActivity(feed, 'sales').length
+    }).toEqual({ all: 1, purchases: 0, sales: 0 })
+  })
+})
+
 describe('filterActivity', () => {
   const feed = buildActivityFeed({
     purchases: [purchase({ txHash: '0xp', createdAt: 1_000 })],

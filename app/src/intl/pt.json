@@ -888,6 +888,8 @@
     "quantity": "×{count}",
     "creditPurchaseLabel": "Compra de Créditos",
     "creditPaid": "Você pagou {usd}",
+    "giftFromStudio": "Presente de {studio}",
+    "giftFromDecentraland": "Presente da Decentraland",
     "boughtFrom": "Comprado de {account}",
     "paidWithMana": "Compra · paga com MANA",
     "payoutPending": "Pendente",

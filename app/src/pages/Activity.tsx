@@ -8,6 +8,7 @@ import {
   fetchUserCreditOrders,
   creditOrderPill,
   resumeCreditOrder,
+  type CreditGift,
   type CreditOrder
 } from '~/lib/credits'
 import {
@@ -481,6 +482,33 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   )
 }
 
+// Credits the player was given: by a studio out of its budget, or by Decentraland. Nothing was paid, so no
+// amount of money and no status pill: it landed in the balance the moment it was given.
+function GiftCard({ gift }: { gift: CreditGift }) {
+  return (
+    <S.Card data-testid="credit-gift">
+      <S.CardHead>
+        <S.CreditThumb>
+          <img src={creditsProduct} alt="" aria-hidden />
+        </S.CreditThumb>
+        <S.HeadLeft>
+          <S.DateText>{formatDate(gift.createdAt)}</S.DateText>
+          <S.SubCount>
+            {gift.studioName
+              ? t('activity.giftFromStudio', { studio: gift.studioName })
+              : t('activity.giftFromDecentraland')}
+          </S.SubCount>
+        </S.HeadLeft>
+        <S.HeadRight>
+          <S.Total data-kind="income">
+            +<CurrencyIcon className="ccy-mark" /> <Price credits={gift.credits} />
+          </S.Total>
+        </S.HeadRight>
+      </S.CardHead>
+    </S.Card>
+  )
+}
+
 function ActivityEmpty({ filter }: { filter: ActivityFilter }) {
   // All three tabs share the design's sale-tag panel; only the body line differs per tab.
   const body = {
@@ -581,6 +609,16 @@ export function Activity() {
     enabled: salesEnabled,
     staleTime: 60_000
   })
+  // Credits the player was given. They are neither purchases nor sales, so they show only under "All", and
+  // are read flat like the payouts: their list pages apart from the orders, so a gift does not depend on how
+  // far the orders have been scrolled. The newest 200 cover any player for a long time; paging is the follow-up.
+  const giftsEnabled = !!session && !migrating && filter === 'all'
+  const { data: gifts } = useQuery({
+    queryKey: ['credit-gifts', session?.address],
+    queryFn: () => fetchUserCreditOrders(session!.address, session!.identity, { first: 1 }).then(r => r.gifts),
+    enabled: giftsEnabled,
+    staleTime: 60_000
+  })
   const payoutIndex = useMemo(() => indexPayouts(payouts), [payouts])
 
   // The oracle read is only needed to price sales in credits — skip it entirely on the purchases-only
@@ -608,6 +646,7 @@ export function Activity() {
       purchases: purchasesEnabled ? purchases.items : [],
       sales: salesEnabled ? sales.items : [],
       creditOrders: purchasesEnabled ? creditOrders.items : [],
+      creditGifts: giftsEnabled ? (gifts ?? []) : [],
       manaPurchases: purchasesEnabled ? manaPurchases.items : [],
       rate
     }),
@@ -724,6 +763,8 @@ export function Activity() {
                 <OrderCard key={entry.id} order={entry.order} />
               ) : entry.kind === 'credit' ? (
                 <CreditPurchaseCard key={entry.id} order={entry.order} />
+              ) : entry.kind === 'gift' ? (
+                <GiftCard key={entry.id} gift={entry.gift} />
               ) : entry.kind === 'mana-purchase' ? (
                 <ManaPurchaseCard key={entry.id} sale={entry.sale} />
               ) : (
