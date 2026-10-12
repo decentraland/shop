@@ -772,6 +772,15 @@ export const SuccessDetail = styled.p`
   color: ${colors.gray4};
 `
 
+// The default pill is purple on a purple tint, made for light surfaces; on this dark card the value goes white.
+export const SuccessCountdown = styled(SaleCountdown)`
+  padding: 0;
+  background: none;
+  color: ${colors.white};
+  font-size: 15px;
+  font-weight: 700;
+`
+
 /** The review step: what the sale will do, item by item, before anything is signed. */
 export const ReviewSummary = styled.div`
   display: flex;
