@@ -27,7 +27,6 @@ import manaSymbol from '~/assets/mana-matic.svg'
 import { Tooltip } from '~/components/Tooltip'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { SaleCountdown } from '~/components/SaleCountdown'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { Chevron } from '~/components/Chevron'
 import { SaleTag } from '~/components/SaleTag'
@@ -417,7 +416,7 @@ export function CreatorSaleModal({
               ) : (
                 <>
                   {t('creatorSale.successEnds')}{' '}
-                  <SaleCountdown until={created.checks.expiration} testId="creator-sale-countdown" />
+                  <S.SuccessCountdown until={created.checks.expiration} testId="creator-sale-countdown" />
                 </>
               )}
             </S.SuccessDetail>
