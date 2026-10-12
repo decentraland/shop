@@ -38,6 +38,12 @@ vi.mock('decentraland-ui2/dist/components/Notifications/utils', () => {
   return { NotificationComponentByType: { item_sold: Row, royalties_earned: Row } }
 })
 
+vi.mock('~/components/ItemDiscountedNotification', () => ({
+  ItemDiscountedNotification: ({ notification }: { notification: ShopNotification }) => (
+    <div data-testid={`discount-row-${notification.id}`} />
+  )
+}))
+
 import { NotificationsBell } from './NotificationsBell'
 
 function notification(id: string, over: Partial<ShopNotification> = {}): ShopNotification {
@@ -104,6 +110,14 @@ describe('NotificationsBell', () => {
       expect(screen.queryByText(/newest/i)).toBeNull()
       expect(screen.queryByText(/^read$/i)).toBeNull()
       expect(screen.queryByText(/previous/i)).toBeNull()
+    })
+
+    it('renders favorite discount notifications with the shop row, which ui2 has no renderer for', async () => {
+      fetchNotifications.mockResolvedValue([notification('deal', { type: 'item_discounted' })])
+      renderBell()
+      await userEvent.click(await screen.findByTestId('notifications-bell'))
+
+      expect(await screen.findByTestId('discount-row-deal')).toBeTruthy()
     })
 
     it('marks unread rows and leaves read ones alone', async () => {

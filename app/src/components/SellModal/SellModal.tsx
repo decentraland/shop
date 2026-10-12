@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateCancelledTrades } from '~/hooks/useCancelledTrades'
 import { Network } from '@dcl/schemas'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -193,6 +194,7 @@ export function SellModal({
       })
       toast.success(t(edit ? 'listingEdit.toastUpdated' : 'sellModal.toastOnSale', { name: asset.name }))
       void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
+      invalidateCancelledTrades(queryClient)
       // Let the PDP show the new price at once and optimistically patch its own money/manage caches.
       onListed?.(priceValue, created.id)
     } catch (e) {

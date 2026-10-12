@@ -22,10 +22,10 @@ import { useWallet } from '~/store/wallet'
  * `count` stays `undefined` until the answer is known, matching useImportable: a caller has to be able to
  * tell "none" from "not yet", or the chip flashes.
  */
-export function useListingCount(): { count: number | undefined; isLoading: boolean } {
+export function useListingCount(): { count: number | undefined; isLoading: boolean; isError: boolean } {
   const address = useWallet(s => s.session?.address)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['listing-count', address],
     queryFn: () => fetchUnified({ creator: address as string, onSale: true, first: 1 }),
     enabled: !!address,
@@ -34,5 +34,5 @@ export function useListingCount(): { count: number | undefined; isLoading: boole
     staleTime: 5 * 60_000
   })
 
-  return { count: data?.total, isLoading }
+  return { count: data?.total, isLoading, isError }
 }

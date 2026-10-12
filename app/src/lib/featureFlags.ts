@@ -153,7 +153,14 @@ export enum FeatureFlag {
    * so the value is PERSISTED as each snapshot arrives and the boot decides with the persisted one. See
    * lib/analytics-proxy.
    */
-  SEGMENT_ALTERNATIVE = 'seg-alt'
+  SEGMENT_ALTERNATIVE = 'seg-alt',
+
+  /**
+   * Whether the Shop tells an account about the listings and offers taken down when the older marketplace
+   * versions were retired, and lists them so they can be put back up. Off hides the banner and the list.
+   * Shared with the marketplace and the Builder, so one switch turns the banner on everywhere.
+   */
+  CANCELLED_ORDERS_BANNER = 'cancelled-orders-banner'
 }
 
 /** The application whose flag file carries the flags above. */

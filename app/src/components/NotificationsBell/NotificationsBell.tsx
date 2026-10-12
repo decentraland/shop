@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FunctionCompone
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NotificationComponentByType } from 'decentraland-ui2/dist/components/Notifications/utils'
 import { Icon } from '~/components/Icon'
+import { ItemDiscountedNotification } from '~/components/ItemDiscountedNotification'
 import { useWallet } from '~/store/wallet'
 import { useLocale } from '~/store/locale'
 import { fetchNotifications, markNotificationsRead, type ShopNotification } from '~/lib/notifications'
@@ -24,7 +25,11 @@ type NotificationRow = FunctionComponent<{
 // build (the same typing hole lib/notifications documents), which un-types every consumer. Narrowed here
 // to the props actually passed, and keyed by plain string because the service can send a type we have no
 // renderer for.
-const ROWS = NotificationComponentByType as unknown as Record<string, NotificationRow | undefined>
+const ROWS: Record<string, NotificationRow | undefined> = {
+  ...(NotificationComponentByType as unknown as Record<string, NotificationRow | undefined>),
+  // Shop-only until ui2 ships a renderer for it.
+  item_discounted: ItemDiscountedNotification
+}
 
 // The DCL notifications bell for the global navbar (rendered into the ui2 Navbar's `notificationSlot`).
 // Address/identity-based: it reads the connected session's notifications from the push-notifications

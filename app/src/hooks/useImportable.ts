@@ -10,11 +10,16 @@ import { useSecondarySales } from '~/hooks/useSecondarySales'
  * `count` stays `undefined` until the answer is known, so a caller can tell "none" apart from "not yet"
  * — the migration chip has to render nothing at all in the second case, and a zero is not nothing.
  */
-export function useImportable(): { items: ImportItem[]; count: number | undefined; isLoading: boolean } {
+export function useImportable(): {
+  items: ImportItem[]
+  count: number | undefined
+  isLoading: boolean
+  isError: boolean
+} {
   const address = useWallet(s => s.session?.address)
   const secondarySales = useSecondarySales()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['importable', address],
     queryFn: () => fetchImportable(address as string),
     enabled: !!address,
@@ -32,5 +37,5 @@ export function useImportable(): { items: ImportItem[]; count: number | undefine
     [data, secondarySales]
   )
 
-  return { items, count: data ? items.length : undefined, isLoading }
+  return { items, count: data ? items.length : undefined, isLoading, isError }
 }

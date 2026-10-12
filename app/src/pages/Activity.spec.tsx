@@ -90,7 +90,19 @@ vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => true }))
 // The migration tool is lazy-loaded and covered by its own spec; this one is about the chip that
 // opens it and what replaces the feed when it does.
 vi.mock('~/components/ImportListings', () => ({
-  ImportListings: () => <div data-testid="import-panel" />
+  ImportListings: ({ hideWhenDone }: { hideWhenDone?: boolean }) => (
+    <div data-testid="import-panel" data-hide-when-done={String(!!hideWhenDone)} />
+  )
+}))
+
+const useCancelledTrades = vi.fn()
+vi.mock('~/hooks/useCancelledTrades', () => ({
+  useCancelledTrades: () => useCancelledTrades()
+}))
+vi.mock('~/components/CancelledListings', () => ({
+  CancelledListings: ({ trades, total, autoLoad }: { trades: unknown[]; total?: number; autoLoad?: boolean }) => (
+    <div data-testid="cancelled-panel" data-count={trades.length} data-total={total} data-auto={String(autoLoad)} />
+  )
 }))
 
 import { Activity } from '~/pages/Activity'
@@ -192,6 +204,7 @@ beforeEach(() => {
   fetchAssetDisplay.mockResolvedValue(null)
   fetchImportable.mockResolvedValue({ creations: [], owned: [] })
   useManaRate.mockReturnValue({ data: RATE })
+  useCancelledTrades.mockReturnValue({ trades: [], count: 0 })
 })
 
 describe('when the user is not signed in', () => {
@@ -754,5 +767,124 @@ describe('when a checkout was left unfinished', () => {
     window.dispatchEvent(new Event('pageshow'))
 
     await waitFor(() => expect(button).not.toBeDisabled())
+  })
+})
+
+describe('when the account has listings taken down by the store upgrade', () => {
+  beforeEach(() => {
+    fetchUnified.mockReset().mockResolvedValue({ items: [], total: 0 })
+    useCancelledTrades.mockReturnValue({ trades: [{ id: 'gone-1' }, { id: 'gone-2' }], count: 480 })
+  })
+
+  describe('and nothing is left on the classic pricing', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+      renderPage('/activity?section=listings')
+      await screen.findByTestId('cancelled-panel')
+      await waitFor(() => expect(fetchImportable).toHaveBeenCalled())
+    })
+
+    it('should list the loaded taken-down listings', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-count', '2')
+    })
+
+    it('should give the list the total across every page', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-total', '480')
+    })
+
+    it('should let the list load more as it scrolls', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-auto', 'true')
+    })
+
+    it('should keep the migration tool mounted, so a run’s re-check is not cut short', () => {
+      expect(screen.getByTestId('import-panel')).toBeInTheDocument()
+    })
+
+    it('should hide the migration tool’s all-set card', () => {
+      expect(screen.getByTestId('import-panel')).toHaveAttribute('data-hide-when-done', 'true')
+    })
+  })
+
+  describe('and classic listings are still left to move', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+      renderPage('/activity?section=listings')
+      // The badge lands with the classic count, which decides how the list loads.
+      await screen.findByTestId('activity-migrate-count')
+    })
+
+    it('should show the taken-down listings above the migration tool', () => {
+      expect(
+        screen.getByTestId('cancelled-panel').compareDocumentPosition(screen.getByTestId('import-panel')) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+
+    it('should load more of the list only on request, so the tool stays reachable', () => {
+      expect(screen.getByTestId('cancelled-panel')).toHaveAttribute('data-auto', 'false')
+    })
+  })
+
+  describe('and the feed is on screen', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should offer the listings chip', () => {
+      expect(screen.getByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
+  })
+
+  describe('and the listing counts are still in flight', () => {
+    beforeEach(async () => {
+      fetchImportable.mockReturnValue(new Promise(() => {}))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should not offer the listings chip yet', () => {
+      expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and the classic-listings count fails', () => {
+    beforeEach(async () => {
+      fetchImportable.mockRejectedValue(new Error('importable down'))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should still offer the listings chip', async () => {
+      expect(await screen.findByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
+  })
+
+  describe('and the listing count fails', () => {
+    beforeEach(async () => {
+      fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+      fetchUnified.mockRejectedValue(new Error('feed down'))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+    })
+
+    it('should still offer the listings chip', async () => {
+      expect(await screen.findByTestId('activity-filter-migrate')).toBeInTheDocument()
+    })
+  })
+
+  describe('and one count fails while the other is still in flight', () => {
+    beforeEach(async () => {
+      fetchImportable.mockReturnValue(new Promise(() => {}))
+      fetchUnified.mockRejectedValue(new Error('feed down'))
+      renderPage()
+      await screen.findByTestId('activity-empty-all')
+      await waitFor(() => expect(fetchUnified).toHaveBeenCalled())
+    })
+
+    it('should not offer the listings chip yet', () => {
+      expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
+    })
   })
 })

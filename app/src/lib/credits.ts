@@ -282,6 +282,17 @@ export type CreditOrder = {
 }
 
 /**
+ * Credits the wallet was given rather than bought: a studio's gift, or a grant from Decentraland. From
+ * credits-server's additive `gifts` block on `/credit-orders`; `studioName` is null for Decentraland's own.
+ */
+export type CreditGift = {
+  id: string
+  credits: number
+  createdAt: number
+  studioName: string | null
+}
+
+/**
  * A credit order's status as the Activity feed's pill vocabulary. Keeps the server's wording out of the
  * components, and gives the mapping one testable home instead of an equality check at each render site.
  */
@@ -312,7 +323,7 @@ export async function fetchUserCreditOrders(
   address: string,
   identity: AuthIdentity,
   opts?: { first?: number; skip?: number }
-): Promise<{ items: CreditOrder[]; total: number; payouts: Payout[] }> {
+): Promise<{ items: CreditOrder[]; total: number; payouts: Payout[]; gifts: CreditGift[] }> {
   const qs = new URLSearchParams()
   if (opts?.first != null) qs.set('limit', String(opts.first))
   if (opts?.skip != null) qs.set('offset', String(opts.skip))
@@ -322,7 +333,7 @@ export async function fetchUserCreditOrders(
     const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
     if (!res.ok) {
       void res.body?.cancel()
-      return { items: [], total: 0, payouts: [] }
+      return { items: [], total: 0, payouts: [], gifts: [] }
     }
     // `earnings` is credits-server's additive seller-payout block (see its get-user-credit-orders
     // handler). It is absent on an older deployment, which reads the same as "this seller has no
@@ -332,16 +343,19 @@ export async function fetchUserCreditOrders(
       orders?: CreditOrder[]
       total?: number
       earnings?: { items?: Payout[] }
+      gifts?: { items?: CreditGift[] }
     }
     const items = json.orders ?? []
     const payouts = json.earnings?.items ?? []
+    // Absent on a deployment older than the gifts block: no gifts to show, which is what it would have said.
+    const gifts = json.gifts?.items ?? []
     const skip = opts?.skip ?? 0
     const first = opts?.first ?? items.length
     const total =
       typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
-    return { items, total, payouts }
+    return { items, total, payouts, gifts }
   } catch {
-    return { items: [], total: 0, payouts: [] }
+    return { items: [], total: 0, payouts: [], gifts: [] }
   }
 }
 

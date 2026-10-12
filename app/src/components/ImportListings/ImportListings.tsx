@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { invalidateCancelledTrades } from '~/hooks/useCancelledTrades'
 import { useWallet } from '~/store/wallet'
 import { type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
@@ -55,7 +56,8 @@ function manaLabel(wei: string): string | null {
   }
 }
 
-export function ImportListings() {
+/** `hideWhenDone`: render nothing instead of the "all set" card (and while loading), staying mounted. */
+export function ImportListings({ hideWhenDone = false }: { hideWhenDone?: boolean } = {}) {
   const { session } = useWallet()
   const qc = useQueryClient()
 
@@ -200,6 +202,7 @@ export function ImportListings() {
     void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
     void qc.invalidateQueries({ queryKey: ['my-assets'] })
     void qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
+    invalidateCancelledTrades(qc)
 
     // Only a clean run is announced as one. A run with failures in it gets the error toast whether or
     // not some items made it, and a run the seller simply declined says nothing at all.
@@ -216,6 +219,7 @@ export function ImportListings() {
   // questions a creator with nothing left to migrate has just as much reason to ask, and this page is the
   // link we hand them to read the answers. The early return used to stop at the empty card, so reaching
   // "all set" silently took the explanation away at the exact moment it became shareable.
+  if (hideWhenDone && (isLoading || all.length === 0)) return null
   if (!isLoading && all.length === 0) {
     return (
       <S.Root>

@@ -104,3 +104,8 @@ export function formatCredits(n: number, locale: string = activeLocale()): strin
 export function formatCreditsFull(n: number, locale: string = activeLocale()): string {
   return formatterFor(fullCache, locale, {}).format(n)
 }
+
+/** The full number with its unit word: 1_250 → "1,250 Credits" (en), 1 → "1 Credit". */
+export function formatCreditsAmount(n: number, locale: string = activeLocale()): string {
+  return `${formatCreditsFull(n, locale)} ${creditsUnit(n)}`
+}

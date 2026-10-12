@@ -57,6 +57,23 @@ export function canManageToken(opts: { isTokenRoute: boolean; ownsThisToken: boo
 export const MY_CREATIONS = '/my-items?section=creations'
 
 /**
+ * The listings section of Activity (the migration tool). `?section=listings` is the spelling to hand out;
+ * `?view=migrate` was the original and is still read, so links already in circulation keep working.
+ */
+export const LISTINGS_SECTION_PARAM = 'section'
+export const LISTINGS_SECTION = 'listings'
+export const LEGACY_VIEW_PARAM = 'view'
+export const LEGACY_MIGRATE_VIEW = 'migrate'
+export const ACTIVITY_LISTINGS_ROUTE = `/activity?${LISTINGS_SECTION_PARAM}=${LISTINGS_SECTION}`
+
+/** Whether Activity's query string opens the listings section, under either spelling. */
+export function isListingsSection(params: URLSearchParams): boolean {
+  return (
+    params.get(LISTINGS_SECTION_PARAM) === LISTINGS_SECTION || params.get(LEGACY_VIEW_PARAM) === LEGACY_MIGRATE_VIEW
+  )
+}
+
+/**
  * The NAMEs purchase page. It is not a route of its own — it is the `names` category of the browse page,
  * which renders it full-width instead of a grid (see Assets.tsx).
  */

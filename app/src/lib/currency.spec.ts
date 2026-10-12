@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   formatAmount,
   formatCredits,
+  formatCreditsAmount,
   formatCreditsFull,
   CURRENCY,
   USD_CENTS_PER_CREDIT,
@@ -42,6 +43,16 @@ describe('formatCreditsFull', () => {
   it('groups with thousands separators', () => {
     expect(formatCreditsFull(500)).toBe('500')
     expect(formatCreditsFull(5_500_000)).toBe('5,500,000')
+  })
+})
+
+describe('formatCreditsAmount', () => {
+  it('gives the full number in the locale, with a unit word that agrees with it', () => {
+    expect([formatCreditsAmount(1), formatCreditsAmount(1_250), formatCreditsAmount(12_500, 'es')]).toEqual([
+      '1 Credit',
+      '1,250 Credits',
+      '12.500 Credits'
+    ])
   })
 })
 

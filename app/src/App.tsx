@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
+import { CancelledListingsNotice } from '~/components/CancelledListingsBanner'
 import { BatFlight } from '~/components/BatFlight'
 import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
@@ -36,6 +37,7 @@ const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ def
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
+const Studio = lazy(() => import('~/pages/Studio').then(m => ({ default: m.Studio })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyStore })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
@@ -185,6 +187,9 @@ export function App() {
         </Sentry.ErrorBoundary>
       ) : null}
       <NavBar />
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <CancelledListingsNotice />
+      </Sentry.ErrorBoundary>
       {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
           whose content is genuinely short (the credits packs) look better with the footer visible than
           with a screenful of empty space under a single card — see .page[data-route] in index.css. */}
@@ -218,6 +223,8 @@ export function App() {
               {/* Under /items so the Collectibles tab lights up on an outfit. */}
               <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
+              {/* Reached by its address only: the studios that gift Credits to their players are few, and invited. */}
+              <Route path="/studio" element={<Studio />} />
               <Route path="/my-items" element={<MyAssets />} />
               <Route path="/my-store" element={<MyStore />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
