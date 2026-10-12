@@ -255,6 +255,7 @@
     "errorGrant": "Deine {currency} konnten nicht gutgeschrieben werden – bitte versuch es noch mal."
   },
   "filter": {
+    "byType": "Nach Typ filtern",
     "salePrice": "Verkaufspreis",
     "priceAll": "Alle",
     "priceCredits": "Credits",

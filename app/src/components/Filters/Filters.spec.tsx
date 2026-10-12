@@ -37,14 +37,34 @@ describe('Filters', () => {
     })
   })
 
-  describe('when the Smart toggle is rendered', () => {
-    it('should reflect the smart prop via aria-checked and toggle it on click', () => {
+  describe('when the Filter by type section is rendered', () => {
+    it('should offer Smart as a checkbox under its own title, and tick it on click', () => {
       const onSmart = vi.fn()
       render(<Filters {...base} smart={false} onSmart={onSmart} />)
-      const toggle = screen.getByRole('switch', { name: /smart/i })
-      expect(toggle.getAttribute('aria-checked')).toBe('false')
-      fireEvent.click(toggle)
+      expect(screen.getByText('Filter by type')).toBeTruthy()
+      const box = screen.getByRole('checkbox', { name: /smart/i })
+      expect(box).not.toBeChecked()
+      fireEvent.click(box)
       expect(onSmart).toHaveBeenCalledWith(true)
+    })
+
+    it('should list Deals as a checkbox only where the surface offers it', () => {
+      const onDeals = vi.fn()
+      const { rerender } = render(<Filters {...base} />)
+      expect(screen.queryByRole('checkbox', { name: /deals/i })).toBeNull()
+
+      rerender(<Filters {...base} deals onDeals={onDeals} />)
+      const box = screen.getByRole('checkbox', { name: /deals/i })
+      expect(box).toBeChecked()
+      fireEvent.click(box)
+      expect(onDeals).toHaveBeenCalledWith(false)
+    })
+
+    it('should not tick Smart when the hint is tapped', () => {
+      const onSmart = vi.fn()
+      render(<Filters {...base} onSmart={onSmart} />)
+      fireEvent.click(screen.getByTestId('smart-hint'))
+      expect(onSmart).not.toHaveBeenCalled()
     })
   })
 

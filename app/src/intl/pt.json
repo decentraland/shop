@@ -255,6 +255,7 @@
     "errorGrant": "Não conseguimos adicionar seus Créditos. Tente de novo."
   },
   "filter": {
+    "byType": "Filtrar por tipo",
     "salePrice": "Preço de venda",
     "priceAll": "Todos",
     "priceCredits": "Créditos",

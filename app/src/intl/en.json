@@ -255,6 +255,7 @@
     "errorGrant": "Couldn’t add your {currency} — please try again."
   },
   "filter": {
+    "byType": "Filter by type",
     "salePrice": "Sale price",
     "priceAll": "All",
     "priceCredits": "Credits",
