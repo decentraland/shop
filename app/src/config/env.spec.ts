@@ -50,6 +50,13 @@ describe('per-env config JSONs', () => {
     expect(new URL(stg.RELAYER_URL).hostname).toContain('decentraland.org')
   })
 
+  it.each(ENVS)('$name sends collection management to the creators app on the Builder host', ({ json }) => {
+    // Both apps manage the creator's builder-server data, so they must sit on the same domain: stg stays on
+    // .org with the Builder, not on .today with the Marketplace.
+    expect(json.CREATORS_URL).toMatch(/^https:\/\/\S+\/create$/)
+    expect(new URL(json.CREATORS_URL).origin).toBe(new URL(json.BUILDER_URL).origin)
+  })
+
   /** The entry the Marketplace reads in prod and stg. Ours must not be this one; see the test below. */
   const MARKETPLACE_ADMIN_ENTITY_ID = '7JRrew0kMt5fkXu45Vbx7e'
 
