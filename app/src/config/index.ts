@@ -132,6 +132,8 @@ export const config = {
   // Builder WEB app base (already includes the `/builder` path segment, marketplace-style) — used to
   // deep-link an owned NAME to its Builder management page (`${builderUrl}/names/<name>`).
   builderUrl: env.VITE_BUILDER_URL ?? base.get('BUILDER_URL'),
+  // Creators web app base (`/create` path segment included), where creators manage their collections.
+  creatorsUrl: env.VITE_CREATORS_URL ?? base.get('CREATORS_URL'),
   /**
    * The legacy Marketplace WEB app, path segment included, same shape as `builderUrl`.
    *
