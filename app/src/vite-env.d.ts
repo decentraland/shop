@@ -14,6 +14,7 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_URL?: string
   readonly VITE_BUILDER_SERVER_URL?: string
   readonly VITE_BUILDER_URL?: string
+  readonly VITE_CREATORS_URL?: string
   readonly VITE_CHAIN_ID?: string
   readonly VITE_CREDITS_SERVER_URL?: string
   readonly VITE_DCL_DEFAULT_ENV?: string

@@ -49,6 +49,14 @@ describe('when a creator opens their store', () => {
     expect(await text(app, 'store-collection-name')).toBe('Galaxy Drip')
     expect(body).toContain('-30%')
 
+    // Managing a collection happens in the creators app, in its own tab, on that collection's page.
+    const manage = await page.$eval('[data-testid="store-manage"]', el => ({
+      href: el.getAttribute('href'),
+      target: el.getAttribute('target')
+    }))
+    expect(manage.href).toMatch(/^https:\/\/decentraland\.(org|zone|today)\/create\/collections\/col-1$/)
+    expect(manage.target).toBe('_blank')
+
     // The breakdown is closed until the chevron opens it.
     expect(await page.$('[data-testid="store-items"]')).toBeNull()
     await page.click('[data-testid="store-collection-toggle"]')

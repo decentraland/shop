@@ -14,6 +14,7 @@
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.zone",
   "MARKETPLACE_URL": "https://decentraland.zone/marketplace",
   "BUILDER_URL": "https://decentraland.zone/builder",
+  "CREATORS_URL": "https://decentraland.zone/create",
   "PEER_URL": "https://peer.decentraland.zone",
   "PROFILE_URL": "https://decentraland.zone/profile",
   "SHOP_SERVER_URL": "https://shop-api.decentraland.zone",
