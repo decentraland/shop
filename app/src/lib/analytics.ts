@@ -1,26 +1,22 @@
 // Segment analytics wrapper for the Shop's behavioral funnel (Plane B — see
 // design/SHOP_TRACKING_SPEC.md + METRICS_AND_KRS.md). This is the ONLY place the app talks to Segment:
-// components call `track`/`identify`/`trackPage`, never window.analytics directly.
+// components call `track`/`identify`/`trackPage`, never the Segment instance directly.
 //
-// - No-ops (logs to console in dev) when VITE_SEGMENT_WRITE_KEY is empty, so local/dev never sends.
+// - Loading is NOT this module's job: the AnalyticsProvider in main.tsx owns it, and this reads the
+//   instance back through @dcl/hooks so the zustand stores and the imperative flows can track too.
+// - No-ops (logs to console in dev) while no instance is registered: an env with an empty configured
+//   write key, a bot session, or a call made before the provider mounted. Vite's dev mode is NOT one of
+//   those cases: the dev config ships a real write key and does send.
 // - Injects the common context props on every event (address, is_signed_in, session_id, network, app_env).
 // - Event names/props are INTERNAL (precise); nothing here is user-facing, so no web2/web3 copy rules apply.
 // - Never emit PII, secrets, or .env values. Wallet addresses are pseudonymous public ids (allowed).
 import { ProviderType } from '@dcl/schemas'
+import { getAnalytics } from '@dcl/hooks'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import type { CatalogItem } from '~/lib/api'
 
 type Props = Record<string, unknown>
-
-type SegmentApi = {
-  track: (event: string, props?: Props) => void
-  identify: (id: string, traits?: Props) => void
-  page: (name?: string, props?: Props) => void
-  reset?: () => void
-  load?: (writeKey: string) => void
-  invoked?: boolean
-}
 
 // A per-page-load id so funnel steps from one visit stitch together (not a wallet/tx concept).
 const SESSION_ID =
@@ -28,10 +24,6 @@ const SESSION_ID =
 
 const NETWORK = config.chainId === 80002 ? 'amoy' : 'polygon'
 const APP_ENV = config.chainId === 80002 ? 'dev' : 'prod'
-
-function segment(): SegmentApi | undefined {
-  return (window as unknown as { analytics?: SegmentApi }).analytics
-}
 
 // Context props stamped on every event. Reads the wallet store imperatively so pre-/post-login events
 // share the same anonymousId and post-login events carry the address. Never let a store read (or a
@@ -54,22 +46,22 @@ function context(): Props {
 
 export function track(event: string, props: Props = {}): void {
   const payload = { ...context(), ...props }
-  const a = segment()
-  if (a) a.track(event, payload)
+  const a = getAnalytics()
+  if (a) void a.track(event, payload)
   else if (import.meta.env.DEV) console.debug('[analytics] track', event, payload)
 }
 
 export function identify(address: string, traits: Props = {}): void {
-  const a = segment()
-  if (a) a.identify(address.toLowerCase(), traits)
+  const a = getAnalytics()
+  if (a) void a.identify(address.toLowerCase(), traits)
   else if (import.meta.env.DEV) console.debug('[analytics] identify', address, traits)
 }
 
 // Drops the current identity + anonymousId association so events after sign-out (and the next
 // account's sign-in) aren't attributed to the previous account. Called on disconnect.
 export function reset(): void {
-  const a = segment()
-  if (a?.reset) a.reset()
+  const a = getAnalytics()
+  if (a) void a.reset()
   else if (import.meta.env.DEV) console.debug('[analytics] reset')
 }
 
@@ -180,56 +172,4 @@ export function errorCode(e: unknown): string {
 
 export function isUserRejection(e: unknown): boolean {
   return errorCode(e) === 'user_rejected'
-}
-
-// Standard Segment analytics.js loader (dependency-free). Only runs when a write key is configured.
-function loadSegment(writeKey: string): void {
-  const w = window as unknown as { analytics?: SegmentApi & Props }
-  if (w.analytics && (w.analytics as SegmentApi).invoked) return
-  const analytics: SegmentApi & { methods?: string[]; factory?: (m: string) => unknown; push?: unknown } & Props =
-    (w.analytics as never) || ([] as never)
-  analytics.invoked = true
-  analytics.methods = [
-    'track',
-    'identify',
-    'page',
-    'group',
-    'alias',
-    'ready',
-    'on',
-    'once',
-    'off',
-    'reset',
-    'setAnonymousId'
-  ]
-  analytics.factory =
-    (method: string) =>
-    (...args: unknown[]) => {
-      ;(analytics as unknown as { push: (a: unknown[]) => void }).push([method, ...args])
-      return analytics
-    }
-  for (const method of analytics.methods) {
-    ;(analytics as unknown as Props)[method] = analytics.factory(method)
-  }
-  analytics.load = (key: string) => {
-    const script = document.createElement('script')
-    script.async = true
-    script.src = `https://cdn.segment.com/analytics.js/v1/${encodeURIComponent(key)}/analytics.min.js`
-    document.head.appendChild(script)
-  }
-  w.analytics = analytics
-  analytics.load(writeKey)
-  ;(analytics as SegmentApi).page()
-}
-
-let initialized = false
-export function initAnalytics(): void {
-  if (initialized) return
-  initialized = true
-  const writeKey = config.segmentWriteKey
-  if (!writeKey) {
-    if (import.meta.env.DEV) console.debug('[analytics] no VITE_SEGMENT_WRITE_KEY → events log to console only')
-    return
-  }
-  loadSegment(writeKey)
 }
