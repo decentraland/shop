@@ -287,9 +287,9 @@ export function StudioGiftModal({
         data-testid="studio-gift-modal"
         data-step={step}
       >
-        <M.Head>
-          <M.Title>{t('studio.modal.title')}</M.Title>
-        </M.Head>
+        <S.Head>
+          <S.Title>{t('studio.modal.title')}</S.Title>
+        </S.Head>
 
         <S.Note>
           {t('studio.modal.budget', {
@@ -440,14 +440,19 @@ export function StudioGiftModal({
               </S.ErrorText>
             ))}
 
-            <M.Actions>
-              <Button variant="outline" onClick={close}>
+            <S.Actions>
+              <Button variant="white" onClick={close}>
                 {t('studio.modal.cancel')}
               </Button>
-              <Button onClick={() => void review()} disabled={!canReview} data-testid="studio-gift-review">
+              <Button
+                variant="purple"
+                onClick={() => void review()}
+                disabled={!canReview}
+                data-testid="studio-gift-review"
+              >
                 {t('studio.modal.review')}
               </Button>
-            </M.Actions>
+            </S.Actions>
           </>
         )}
 
@@ -494,18 +499,19 @@ export function StudioGiftModal({
             {notSaved ? (
               <S.ErrorText data-testid="studio-gift-not-saved">{t('studio.modal.notSaved')}</S.ErrorText>
             ) : null}
-            <M.Actions>
-              <Button variant="outline" onClick={() => setStep('edit')}>
+            <S.Actions>
+              <Button variant="white" onClick={() => setStep('edit')}>
                 {t('studio.modal.back')}
               </Button>
               <Button
+                variant="purple"
                 onClick={() => void gift()}
                 disabled={!totalConfirmed || repeats === null}
                 data-testid="studio-gift-send"
               >
                 {t('studio.modal.giftTo', { count: playerCount })}
               </Button>
-            </M.Actions>
+            </S.Actions>
           </>
         )}
 
@@ -516,11 +522,11 @@ export function StudioGiftModal({
         ) : null}
 
         {step === 'run' && !pending && (
-          <M.Actions>
-            <Button variant="outline" onClick={onClose} data-testid="studio-gift-close">
+          <S.Actions>
+            <Button variant="white" onClick={onClose} data-testid="studio-gift-close">
               {t('studio.modal.close')}
             </Button>
-          </M.Actions>
+          </S.Actions>
         )}
 
         {step === 'run' && pending && (
@@ -561,27 +567,27 @@ export function StudioGiftModal({
               ))}
             </S.Outcomes>
 
-            <M.Actions>
+            <S.Actions>
               {!running && leftToSend > 0 ? (
                 <Button variant="ghost" onClick={forget} data-testid="studio-gift-forget">
                   {t('studio.modal.forget')}
                 </Button>
               ) : null}
               {running ? (
-                <Button variant="outline" onClick={stop} disabled={stopping} data-testid="studio-gift-stop">
+                <Button variant="white" onClick={stop} disabled={stopping} data-testid="studio-gift-stop">
                   {stopping ? t('studio.modal.stopping') : t('studio.modal.stop')}
                 </Button>
               ) : (
-                <Button variant="outline" onClick={close} data-testid="studio-gift-close">
+                <Button variant="white" onClick={close} data-testid="studio-gift-close">
                   {t('studio.modal.close')}
                 </Button>
               )}
               {!running && leftToSend > 0 ? (
-                <Button onClick={() => void run(pending)} data-testid="studio-gift-continue">
+                <Button variant="purple" onClick={() => void run(pending)} data-testid="studio-gift-continue">
                   {t('studio.modal.continue', { count: leftToSend })}
                 </Button>
               ) : null}
-            </M.Actions>
+            </S.Actions>
           </>
         )}
       </S.Card>

@@ -52,9 +52,14 @@ export const Picker = styled.label`
   & select {
     min-height: 44px;
     border-radius: 8px;
-    border: 1px solid ${colors.lineStrong};
+    border: 1px solid rgba(255, 255, 255, 0.12);
     padding: 8px 12px;
     font: inherit;
+    color: ${colors.softWhite};
+    background: rgba(255, 255, 255, 0.06);
+  }
+  /* The open list is drawn by the OS: keep its options readable on a light menu. */
+  & option {
     color: ${colors.text};
     background: ${colors.white};
   }
