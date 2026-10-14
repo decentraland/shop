@@ -84,6 +84,7 @@ const cartValueUsd = (items: CartItem[]): number =>
 export type CartSurface = 'popover' | 'cart_page'
 
 // Only taps that moved the quantity, so a multi-copy checkout can be traced back to the taps that built it.
+// Repeated adds also raise a line's quantity, through add(), and are tracked as Shop Added To Cart.
 const trackQuantityChange = (
   before: CartItem | undefined,
   items: CartItem[],
@@ -96,6 +97,8 @@ const trackQuantityChange = (
     item_id: after.itemId ?? null,
     contract_address: after.contractAddress,
     price_credits: after.priceCredits,
+    price_usd: creditsToUsd(after.priceCredits),
+    category: after.category,
     direction,
     surface,
     quantity: after.quantity,

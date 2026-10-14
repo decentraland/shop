@@ -228,6 +228,8 @@ describe('when a stepper tap changes a line quantity', () => {
       item_id: '5',
       contract_address: '0xabc',
       price_credits: 20,
+      price_usd: 2,
+      category: 'wearable',
       direction: 'increase',
       surface: 'popover',
       quantity: 3,
