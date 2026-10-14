@@ -64,9 +64,9 @@ type CartState = {
   /** Set an exact quantity for a PRIMARY line (clamped to 1..stock). No-op for secondary lines. */
   setQuantity: (id: string, quantity: number) => void
   /** +1 unit on a PRIMARY line, capped at remaining stock. No-op for secondary lines / at the cap. */
-  increment: (id: string) => void
+  increment: (id: string, surface: CartSurface) => void
   /** -1 unit on a PRIMARY line, floored at 1 (removal is the trash button, not the stepper). */
-  decrement: (id: string) => void
+  decrement: (id: string, surface: CartSurface) => void
   clear: () => void
   /** Point the cart at a session (address, or null when signed out) — see the action for the policy. */
   reloadFor: (address: string | null) => void
@@ -79,6 +79,33 @@ type CartState = {
 // Total cart value in USD — sums each line's price × its quantity (1 credit = $0.10).
 const cartValueUsd = (items: CartItem[]): number =>
   creditsToUsd(items.reduce((n, i) => n + i.priceCredits * i.quantity, 0))
+
+/** Where a quantity stepper lives: the cart drawer or the full cart page. */
+export type CartSurface = 'popover' | 'cart_page'
+
+// Only taps that moved the quantity, so a multi-copy checkout can be traced back to the taps that built it.
+// Repeated adds also raise a line's quantity, through add(), and are tracked as Shop Added To Cart.
+const trackQuantityChange = (
+  before: CartItem | undefined,
+  items: CartItem[],
+  direction: 'increase' | 'decrease',
+  surface: CartSurface
+) => {
+  const after = before && items.find(i => i.id === before.id)
+  if (!before || !after || after.quantity === before.quantity) return
+  track('Shop Changed Cart Quantity', {
+    item_id: after.itemId ?? null,
+    contract_address: after.contractAddress,
+    price_credits: after.priceCredits,
+    price_usd: creditsToUsd(after.priceCredits),
+    category: after.category,
+    direction,
+    surface,
+    quantity: after.quantity,
+    cart_size: items.length,
+    cart_value_usd: cartValueUsd(items)
+  })
+}
 
 // Coerce a persisted/restored line to a valid CartItem: default a missing/invalid quantity to 1
 // (backward-compat with carts saved before quantity existed), and never let a secondary line exceed 1.
@@ -176,18 +203,24 @@ export const useCart = create<CartState>()(
             return { ...i, quantity: Number.isFinite(n) ? n : 1 }
           })
         })),
-      increment: id =>
+      increment: (id, surface) => {
+        const before = get().items.find(i => i.id === id)
         set(s => ({
           items: s.items.map(i =>
             i.id === id && isPrimaryLine(i) && i.quantity < stockCap(i) ? { ...i, quantity: i.quantity + 1 } : i
           )
-        })),
-      decrement: id =>
+        }))
+        trackQuantityChange(before, get().items, 'increase', surface)
+      },
+      decrement: (id, surface) => {
+        const before = get().items.find(i => i.id === id)
         set(s => ({
           items: s.items.map(i =>
             i.id === id && isPrimaryLine(i) && i.quantity > 1 ? { ...i, quantity: i.quantity - 1 } : i
           )
-        })),
+        }))
+        trackQuantityChange(before, get().items, 'decrease', surface)
+      },
       clear: () => set({ items: [], justAddedCount: 0, fittingOpen: false }),
       // The cart is persisted under one global key, so without this a second account on the same device
       // rehydrates the first one's cart (the account-switch handler reloads the page rather than purging

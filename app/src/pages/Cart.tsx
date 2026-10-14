@@ -1454,7 +1454,7 @@ export function Cart() {
                               {isPrimary ? (
                                 <S.Stepper>
                                   <S.Step
-                                    onClick={() => editCart(() => decrement(item.id))}
+                                    onClick={() => editCart(() => decrement(item.id, 'cart_page'))}
                                     disabled={working || qty <= 1}
                                     aria-label={t('cart.decreaseQuantity', { name: item.name })}
                                   >
@@ -1469,7 +1469,7 @@ export function Cart() {
                                   </S.Step>
                                   <S.Qty>{qty}</S.Qty>
                                   <S.Step
-                                    onClick={() => editCart(() => increment(item.id))}
+                                    onClick={() => editCart(() => increment(item.id, 'cart_page'))}
                                     disabled={working || atStockCap}
                                     aria-label={t('cart.increaseQuantity')}
                                   >

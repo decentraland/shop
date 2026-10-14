@@ -179,8 +179,8 @@ export function CartPopover() {
                 item={i}
                 status={availability[i.id]}
                 onRemove={remove}
-                onIncrement={increment}
-                onDecrement={decrement}
+                onIncrement={id => increment(id, 'popover')}
+                onDecrement={id => decrement(id, 'popover')}
               />
             ))}
           </S.List>
