@@ -118,7 +118,12 @@ export function Studio() {
             </select>
           </S.Picker>
         ) : null}
-        <Button onClick={() => setGifting(true)} disabled={paused && leftRows === 0} data-testid="studio-gift">
+        <Button
+          variant="purple"
+          onClick={() => setGifting(true)}
+          disabled={paused && leftRows === 0}
+          data-testid="studio-gift"
+        >
           {leftRows > 0 ? t('studio.continueGifts', { count: leftRows }) : t('studio.giftCredits')}
         </Button>
       </S.Head>
