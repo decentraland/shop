@@ -8,6 +8,9 @@ const { colors, radius, font, media } = theme
 const raised = 'rgba(255, 255, 255, 0.06)'
 const hairline = 'rgba(255, 255, 255, 0.12)'
 const focusEdge = 'rgba(255, 255, 255, 0.4)'
+// dclRed reads at 4:1 on this card and lower on its panels; text needs 4.5:1, so error words use this lighter red
+// (6.8:1 on the card, 4.9:1 on a panel). dclRed stays for borders.
+const errorText = '#ff8fa3'
 
 // The card's own padding, which the pinned actions bleed back out over to reach its edges.
 const CARD_PAD = 24
@@ -92,10 +95,15 @@ export const Actions = styled.div`
   background: ${colors.fieldBottomWashed};
   box-shadow: 0 -12px 24px -12px rgba(0, 0, 0, 0.45);
 
+  /* Tighter than Button's own padding, like the discounts modal's actions, so three buttons fit a phone's foot
+     and a long label wraps inside its button. */
   & > button {
     flex: 0 1 242px;
     min-height: 46px;
+    padding: 6px 12px;
     border-radius: 12px;
+    line-height: 1.3;
+    text-align: center;
   }
 
   /* The secondary action is an outline on this card, not a white slab. */
@@ -177,6 +185,9 @@ const field = `
   &:focus {
     border-color: ${focusEdge};
   }
+  &:focus-visible {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+  }
   &[aria-invalid='true'] {
     border-color: ${colors.dclRed};
   }
@@ -231,7 +242,7 @@ export const Cell = styled.div`
 `
 
 export const Problem = styled.span`
-  color: ${colors.dclRed};
+  color: ${errorText};
   font-size: 12px;
 `
 
@@ -267,7 +278,7 @@ export const Summary = styled.p`
 
 export const ErrorText = styled.p`
   margin: 0;
-  color: ${colors.dclRed};
+  color: ${errorText};
   font-size: 14px;
 `
 
@@ -314,7 +325,7 @@ export const Status = styled.span`
     color: ${colors.successBorder};
   }
   &[data-status='refused'] {
-    color: ${colors.dclRed};
+    color: ${errorText};
   }
   &[data-status='blocked'],
   &[data-status='unknown'] {

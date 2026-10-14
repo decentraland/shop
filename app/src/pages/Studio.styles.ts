@@ -61,6 +61,7 @@ export const Picker = styled.label`
   /* The open list is drawn by the OS: keep its options readable on a light menu. */
   & option {
     color: ${colors.text};
+    background: ${colors.white};
   }
 `
 
