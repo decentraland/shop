@@ -138,7 +138,16 @@ async function get(filters: SalesFilters): Promise<{ data: SaleRow[]; total: num
     throw new Error(`fetchSales ${res.status}`)
   }
   const json = (await res.json()) as { data?: SaleRow[]; total?: number }
-  return { data: json.data ?? [], total: json.total ?? 0 }
+  const data = json.data ?? []
+  if (filters.creator) {
+    const creator = filters.creator.toLowerCase()
+    // A creator's resales are always their own, so one by anybody else means a server that predates the
+    // filter dropped it and answered with every sale on the platform.
+    if (data.some(row => row.type !== 'mint' && row.seller.toLowerCase() !== creator)) {
+      throw new Error('fetchSales: the server ignored the creator filter')
+    }
+  }
+  return { data, total: json.total ?? 0 }
 }
 
 /** How many sales match, without fetching one. `first=1` because only `total` is read. */
