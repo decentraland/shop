@@ -56,6 +56,17 @@ describe('when counting a seller"s sales', () => {
     expect(url.searchParams.get('seller')).toBe(SELLER)
   })
 
+  it('should send a creator as its own filter, not as the seller', async () => {
+    const fetchMock = mockFeed(1)
+
+    await countSales({ creator: SELLER, type: 'mint' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('creator')).toBe(SELLER)
+    expect(url.searchParams.has('seller')).toBe(false)
+    expect(url.searchParams.get('type')).toBe('mint')
+  })
+
   it('should forward the window and the item it is asked about', async () => {
     const fetchMock = mockFeed(1)
 
