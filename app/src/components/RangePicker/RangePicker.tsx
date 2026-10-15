@@ -47,6 +47,7 @@ export function RangePicker({
   presets,
   handle,
   stretch = false,
+  monthYearSelects = false,
   label = t('myStore.period'),
   triggerSelector = '[data-range-trigger]',
   testId = 'store-range',
@@ -61,6 +62,11 @@ export function RangePicker({
   max?: number
   /** Spans its anchor's width with a single month, for a trigger too narrow for two months beside the presets. */
   stretch?: boolean
+  /**
+   * Month and year selects in the calendar's header, for a range that can start years back: stepping a month
+   * at a time to 2022 took over a hundred clicks. Needs `max`, or the year list runs to 2100.
+   */
+  monthYearSelects?: boolean
   label?: string
   /** The one element that opens this picker, which it grows out of and hands focus back to. */
   triggerSelector?: string
@@ -93,7 +99,9 @@ export function RangePicker({
       if (event.key === 'Escape') close()
       if (event.key !== 'Tab' || !ref.current) return
       // Keeps Tab inside the dialog while it is open, wrapping at either end.
-      const focusable = [...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"]')]
+      const focusable = [
+        ...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), select:not([disabled]), [tabindex="0"]')
+      ]
       if (focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
@@ -146,6 +154,7 @@ export function RangePicker({
       aria-label={label}
       tabIndex={-1}
       data-stretch={stretch ? '' : undefined}
+      data-selects={monthYearSelects ? '' : undefined}
       data-testid={`${testId}-picker`}
     >
       <S.Body>
@@ -179,6 +188,9 @@ export function RangePicker({
           monthsShown={twoMonths ? 2 : 1}
           openToDate={openOn(end ?? start ?? new Date(max ?? Date.now()), twoMonths)}
           calendarStartDay={1}
+          showMonthDropdown={monthYearSelects}
+          showYearDropdown={monthYearSelects}
+          dropdownMode="select"
         />
       </S.Body>
       <S.Foot>

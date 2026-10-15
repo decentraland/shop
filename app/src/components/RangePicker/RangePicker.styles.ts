@@ -71,6 +71,45 @@ export const Root = styled.div`
   .react-datepicker__day--outside-month {
     visibility: hidden;
   }
+
+  /*
+   * The selects replace the first month's title, and every header row keeps the title's height, so the
+   * day grids of the two months stay level.
+   */
+  &[data-selects] {
+    .react-datepicker__current-month,
+    .react-datepicker__header__dropdown {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 28px;
+    }
+    .react-datepicker__header:has(select) .react-datepicker__current-month,
+    .react-datepicker__header__dropdown:empty {
+      display: none;
+    }
+    .react-datepicker__month-dropdown-container,
+    .react-datepicker__year-dropdown-container {
+      margin: 0;
+    }
+    select {
+      height: 28px;
+      padding: 0 6px;
+      border: 1px solid rgba(22, 21, 24, 0.16);
+      border-radius: 8px;
+      background: ${theme.colors.white};
+      color: ${theme.colors.text};
+      font-family: ${theme.font.sans};
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    select:focus-visible {
+      outline: 2px solid ${theme.colors.accent};
+      outline-offset: 1px;
+    }
+  }
 `
 
 export const Body = styled.div`

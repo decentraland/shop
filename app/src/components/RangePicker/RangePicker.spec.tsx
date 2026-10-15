@@ -10,10 +10,12 @@ const TO = new Date(2026, 8, 30).getTime()
 /** The page's wiring: the trigger opens the picker, and closes it through the picker's own handle. */
 function Harness({
   onPick = () => {},
-  onApply = () => {}
+  onApply = () => {},
+  monthYearSelects = false
 }: {
   onPick?: (key: string) => void
   onApply?: (from: number, to: number) => void
+  monthYearSelects?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const picker = useRef<RangePickerHandle>(null)
@@ -33,6 +35,7 @@ function Harness({
           from={TO - 29 * DAY}
           to={TO}
           max={TO}
+          monthYearSelects={monthYearSelects}
           presets={['7d', '30d'].map(key => ({
             key,
             label: key,
@@ -230,6 +233,49 @@ describe('when a custom range is picked', () => {
     expect(new Date(from).getDate()).toBe(10)
     expect(new Date(to).getDate()).toBe(14)
     expect(picker()).toBeNull()
+  })
+})
+
+describe('when the month and year can be picked from selects', () => {
+  it('should jump straight to a month years back and apply a range there', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    render(<Harness onApply={onApply} monthYearSelects />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    const [month, year] = picker()!.querySelectorAll('select')
+    await user.selectOptions(year, '2022')
+    await user.selectOptions(month, '0')
+    const january = (n: number) => screen.getByRole('option', { name: new RegExp(`January ${n}(st|nd|rd|th), 2022`) })
+    await user.click(january(3))
+    await user.click(january(20))
+    await user.click(screen.getByTestId('store-range-apply'))
+
+    const [from, to] = onApply.mock.calls[0]
+    expect([new Date(from).getFullYear(), new Date(from).getMonth(), new Date(from).getDate()]).toEqual([2022, 0, 3])
+    expect([new Date(to).getFullYear(), new Date(to).getMonth(), new Date(to).getDate()]).toEqual([2022, 0, 20])
+  })
+
+  it('should offer only the years between the first day and the last', async () => {
+    const user = userEvent.setup()
+    render(<Harness monthYearSelects />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    const year = picker()!.querySelectorAll('select')[1]
+    expect([...year.options].map(option => option.value)).toEqual([
+      '2020',
+      '2021',
+      '2022',
+      '2023',
+      '2024',
+      '2025',
+      '2026'
+    ])
+  })
+
+  it('should not show the selects unless asked to', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Period' }))
+    expect(picker()!.querySelectorAll('select')).toHaveLength(0)
   })
 })
 
