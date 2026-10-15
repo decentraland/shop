@@ -98,6 +98,12 @@ export async function fetchSalesSummary(filters: {
 export type SalesFilters = {
   /** Omitted when the question is about an item rather than about one account's sales. */
   seller?: string
+  /**
+   * A creator's own sales: first sales of the items they created, whoever they paid out to, and the resales
+   * they made. Use this rather than `seller` for a store: a first sale's `seller` is the wallet it paid out
+   * to, so a creator who routed proceeds elsewhere would lose those sales.
+   */
+  creator?: string
   contractAddress?: string
   itemId?: string
   /** The feed filters by kind server-side, so a count per kind is one request and never an approximation. */
@@ -112,6 +118,7 @@ export type SalesFilters = {
 function toQuery(filters: SalesFilters): URLSearchParams {
   const qs = new URLSearchParams()
   if (filters.seller) qs.set('seller', filters.seller)
+  if (filters.creator) qs.set('creator', filters.creator)
   if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
   if (filters.type) qs.set('type', filters.type)
@@ -131,7 +138,16 @@ async function get(filters: SalesFilters): Promise<{ data: SaleRow[]; total: num
     throw new Error(`fetchSales ${res.status}`)
   }
   const json = (await res.json()) as { data?: SaleRow[]; total?: number }
-  return { data: json.data ?? [], total: json.total ?? 0 }
+  const data = json.data ?? []
+  if (filters.creator) {
+    const creator = filters.creator.toLowerCase()
+    // A creator's resales are always their own, so one by anybody else means a server that predates the
+    // filter dropped it and answered with every sale on the platform.
+    if (data.some(row => row.type !== 'mint' && row.seller.toLowerCase() !== creator)) {
+      throw new Error('fetchSales: the server ignored the creator filter')
+    }
+  }
+  return { data, total: json.total ?? 0 }
 }
 
 /** How many sales match, without fetching one. `first=1` because only `total` is read. */

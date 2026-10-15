@@ -56,6 +56,51 @@ describe('when counting a seller"s sales', () => {
     expect(url.searchParams.get('seller')).toBe(SELLER)
   })
 
+  it('should send a creator as its own filter, not as the seller', async () => {
+    const fetchMock = mockFeed(1)
+
+    await countSales({ creator: SELLER, type: 'mint' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('creator')).toBe(SELLER)
+    expect(url.searchParams.has('seller')).toBe(false)
+    expect(url.searchParams.get('type')).toBe('mint')
+  })
+
+  it('should fail rather than show the platform when the server ignores the creator filter', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [row(1), { ...row(2), type: 'order', seller: '0xsomeoneelse' }], total: 2 })
+      })
+    )
+
+    await expect(fetchSalesPage({ creator: SELLER }, { first: 10, skip: 0 })).rejects.toThrow(
+      'ignored the creator filter'
+    )
+  })
+
+  it("should accept the first sales of a creator's items that another wallet recorded", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { ...row(1), seller: '0xpreviouswallet' },
+            { ...row(2), type: 'order' }
+          ],
+          total: 2
+        })
+      })
+    )
+
+    await expect(fetchSalesPage({ creator: SELLER }, { first: 10, skip: 0 })).resolves.toMatchObject({ total: 2 })
+  })
+
   it('should forward the window and the item it is asked about', async () => {
     const fetchMock = mockFeed(1)
 

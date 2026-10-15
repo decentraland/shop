@@ -295,7 +295,8 @@ function useSalesPage(address: string | undefined, range: ResolvedRange, page: n
     enabled: !!address,
     // Keeps the previous page on screen while the next one loads, so the table does not blink empty.
     placeholderData: previous => previous,
-    queryFn: () => fetchSalesPage({ seller: address, from, to }, { first: SALES_PER_PAGE, skip: page * SALES_PER_PAGE })
+    queryFn: () =>
+      fetchSalesPage({ creator: address, from, to }, { first: SALES_PER_PAGE, skip: page * SALES_PER_PAGE })
   })
   const total = query.data?.total ?? 0
   return { rows: query.data?.rows ?? [], total, pages: Math.ceil(total / SALES_PER_PAGE) }

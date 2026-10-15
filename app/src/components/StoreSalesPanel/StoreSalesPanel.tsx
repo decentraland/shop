@@ -124,7 +124,7 @@ export function StoreSalesPanel({
     queryKey: ['store-sales-compare', address, against?.from ?? null, against?.to ?? null],
     enabled: !!address && !!against && !comparisonRows,
     placeholderData: previous => previous,
-    queryFn: () => fetchSellerSales({ seller: address, from: against!.from, to: against!.to })
+    queryFn: () => fetchSellerSales({ creator: address, from: against!.from, to: against!.to })
   })
   const mockComparison = useMemo(
     () => (comparisonRows ? { data: { rows: comparisonRows, truncated: false }, isFetching: false } : null),

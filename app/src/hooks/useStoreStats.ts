@@ -40,7 +40,7 @@ export function useStoreStats(session: Session | null, range: ResolvedRange) {
   const sales = useQuery({
     queryKey: ['store-sales', address, ...period],
     enabled: !!address,
-    queryFn: () => fetchSellerSales({ seller: address, from, to: now })
+    queryFn: () => fetchSellerSales({ creator: address, from, to: now })
   })
 
   /**
@@ -75,7 +75,7 @@ export function useStoreStats(session: Session | null, range: ResolvedRange) {
   const mints = useQuery({
     queryKey: ['store-mints', address, ...period],
     enabled: !!address,
-    queryFn: () => countSales({ seller: address, from, to: now, type: 'mint' })
+    queryFn: () => countSales({ creator: address, from, to: now, type: 'mint' })
   })
 
   const builderCatalogue = useQuery({
