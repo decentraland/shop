@@ -72,27 +72,7 @@ export const Root = styled.div`
     visibility: hidden;
   }
 
-  /*
-   * The selects replace the first month's title, and every header row keeps the title's height, so the
-   * day grids of the two months stay level.
-   */
   &[data-selects] {
-    .react-datepicker__current-month,
-    .react-datepicker__header__dropdown {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      height: 28px;
-    }
-    .react-datepicker__header:has(select) .react-datepicker__current-month,
-    .react-datepicker__header__dropdown:empty {
-      display: none;
-    }
-    .react-datepicker__month-dropdown-container,
-    .react-datepicker__year-dropdown-container {
-      margin: 0;
-    }
     select {
       height: 28px;
       padding: 0 6px;
@@ -109,14 +89,31 @@ export const Root = styled.div`
       outline: 2px solid ${theme.colors.accent};
       outline-offset: 1px;
     }
+    .react-datepicker__navigation:focus-visible {
+      outline: 2px solid ${theme.colors.accent};
+      outline-offset: -2px;
+    }
 
     /* One month on a phone, so nothing to keep level with, and a finger needs the taller target. */
     ${theme.media.maxWidth('sm')} {
-      .react-datepicker__header__dropdown,
       select {
         height: 40px;
       }
     }
+  }
+`
+
+/** Holds the first month's selects, or a later month's title, at one height so the day grids stay level. */
+export const HeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0;
+
+  ${theme.media.maxWidth('sm')} {
+    height: 40px;
   }
 `
 

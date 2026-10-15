@@ -271,6 +271,48 @@ describe('when the month and year can be picked from selects', () => {
     ])
   })
 
+  describe('and two months are shown', () => {
+    beforeEach(() => {
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {}
+      }))
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('should name the left month after a day in the right one is picked, and move from there', async () => {
+      const user = userEvent.setup()
+      render(<Harness monthYearSelects />)
+      await user.click(screen.getByRole('button', { name: 'Period' }))
+      const month = () => screen.getByTestId('range-month') as HTMLSelectElement
+      const year = () => screen.getByTestId('range-year') as HTMLSelectElement
+      expect([month().value, year().value]).toEqual(['7', '2026'])
+
+      const septemberDays = screen.getAllByRole('option', { name: /September 3(st|nd|rd|th), 2026/ })
+      await user.click(septemberDays[septemberDays.length - 1])
+      expect([month().value, year().value]).toEqual(['7', '2026'])
+
+      await user.selectOptions(year(), '2022')
+      await user.selectOptions(month(), '0')
+      expect([month().value, year().value]).toEqual(['0', '2022'])
+      expect(screen.getAllByRole('option', { name: /January 10(st|nd|rd|th), 2022/ }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole('option', { name: /February 10(st|nd|rd|th), 2022/ }).length).toBeGreaterThan(0)
+    })
+
+    it('should not offer a month that lies wholly past the last day', async () => {
+      const user = userEvent.setup()
+      render(<Harness monthYearSelects />)
+      await user.click(screen.getByRole('button', { name: 'Period' }))
+      const months = [...(screen.getByTestId('range-month') as HTMLSelectElement).options]
+      expect(months.filter(option => option.disabled).map(option => option.value)).toEqual(['9', '10', '11'])
+    })
+  })
+
   it('should not show the selects unless asked to', async () => {
     const user = userEvent.setup()
     render(<Harness />)
