@@ -109,6 +109,14 @@ export const Root = styled.div`
       outline: 2px solid ${theme.colors.accent};
       outline-offset: 1px;
     }
+
+    /* One month on a phone, so nothing to keep level with, and a finger needs the taller target. */
+    ${theme.media.maxWidth('sm')} {
+      .react-datepicker__header__dropdown,
+      select {
+        height: 40px;
+      }
+    }
   }
 `
 
