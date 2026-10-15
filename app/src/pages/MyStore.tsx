@@ -1577,6 +1577,7 @@ export function MyStore() {
                       from={resolved.from ?? resolved.to - 29 * 86_400_000}
                       to={resolved.to}
                       max={Date.now()}
+                      monthYearSelects
                       presets={RANGE_KEYS.filter(key => key !== 'custom').map(key => ({
                         key,
                         label: t(`myStore.period${key}`),

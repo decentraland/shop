@@ -71,6 +71,50 @@ export const Root = styled.div`
   .react-datepicker__day--outside-month {
     visibility: hidden;
   }
+
+  &[data-selects] {
+    select {
+      height: 28px;
+      padding: 0 6px;
+      border: 1px solid rgba(22, 21, 24, 0.16);
+      border-radius: 8px;
+      background: ${theme.colors.white};
+      color: ${theme.colors.text};
+      font-family: ${theme.font.sans};
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    select:focus-visible {
+      outline: 2px solid ${theme.colors.accent};
+      outline-offset: 1px;
+    }
+    .react-datepicker__navigation:focus-visible {
+      outline: 2px solid ${theme.colors.accent};
+      outline-offset: -2px;
+    }
+
+    /* One month on a phone, so nothing to keep level with, and a finger needs the taller target. */
+    ${theme.media.maxWidth('sm')} {
+      select {
+        height: 40px;
+      }
+    }
+  }
+`
+
+/** Holds the first month's selects, or a later month's title, at one height so the day grids stay level. */
+export const HeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0;
+
+  ${theme.media.maxWidth('sm')} {
+    height: 40px;
+  }
 `
 
 export const Body = styled.div`

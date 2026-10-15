@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import DatePicker from 'react-datepicker'
+import DatePicker, { type ReactDatePickerCustomHeaderProps } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { useMorphFrom } from '~/hooks/useMorphFrom'
 import { activeLocale, t } from '~/intl/i18n'
@@ -30,6 +30,106 @@ function openOn(date: Date, twoMonths: boolean): Date {
   return new Date(date.getFullYear(), date.getMonth() - 1, 1)
 }
 
+const monthIndex = (date: Date) => date.getFullYear() * 12 + date.getMonth()
+
+/**
+ * A month's header with month and year selects on the first column, and arrows on the outer ones.
+ *
+ * The library's own selects read its internal date, which is the RIGHT column after a day there is clicked,
+ * so they named the wrong month. These read the column's `monthDate`, and a pick moves the calendar by the
+ * difference instead of setting the month outright, which keeps whichever column the library anchors on.
+ */
+function MonthYearHeader({
+  monthDate,
+  date,
+  customHeaderCount,
+  monthsShown,
+  min,
+  max,
+  changeMonth,
+  changeYear,
+  decreaseMonth,
+  increaseMonth,
+  prevMonthButtonDisabled,
+  nextMonthButtonDisabled
+}: ReactDatePickerCustomHeaderProps & { monthsShown: number; min: Date; max: Date }) {
+  const first = customHeaderCount === 0
+  const last = customHeaderCount === monthsShown - 1
+  const go = (year: number, month: number) => {
+    const target = monthIndex(date) + (year * 12 + month - monthIndex(monthDate))
+    changeYear(Math.floor(target / 12))
+    changeMonth(target % 12)
+  }
+  const monthName = new Intl.DateTimeFormat(activeLocale(), { month: 'long' })
+  const title = new Intl.DateTimeFormat(activeLocale(), { month: 'long', year: 'numeric' })
+  const year = monthDate.getFullYear()
+  const years = Array.from({ length: max.getFullYear() - min.getFullYear() + 1 }, (_, i) => min.getFullYear() + i)
+  // A month counts when any of its days can be picked, so the first and last months of the range stay on offer.
+  const outOfRange = (y: number, m: number) => y * 12 + m < monthIndex(min) || y * 12 + m > monthIndex(max)
+  return (
+    <>
+      {first && !prevMonthButtonDisabled ? (
+        <button
+          type="button"
+          className="react-datepicker__navigation react-datepicker__navigation--previous"
+          aria-label={t('myStore.rangePrevMonth')}
+          onClick={decreaseMonth}
+        >
+          <span className="react-datepicker__navigation-icon react-datepicker__navigation-icon--previous" />
+        </button>
+      ) : null}
+      {first ? (
+        <S.HeaderRow>
+          <select
+            aria-label={t('myStore.rangeMonth')}
+            value={monthDate.getMonth()}
+            onChange={event => go(year, Number(event.target.value))}
+            data-testid="range-month"
+          >
+            {Array.from({ length: 12 }, (_, m) => (
+              <option key={m} value={m} disabled={outOfRange(year, m)}>
+                {monthName.format(new Date(2000, m, 1))}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={t('myStore.rangeYear')}
+            value={year}
+            onChange={event => {
+              const next = Number(event.target.value)
+              // Keeps the month, unless that month of the new year is out of range: then the nearest one in it.
+              const month = Math.min(
+                Math.max(monthDate.getMonth(), next === min.getFullYear() ? min.getMonth() : 0),
+                next === max.getFullYear() ? max.getMonth() : 11
+              )
+              go(next, month)
+            }}
+            data-testid="range-year"
+          >
+            {years.map(y => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </S.HeaderRow>
+      ) : (
+        <S.HeaderRow className="react-datepicker__current-month">{title.format(monthDate)}</S.HeaderRow>
+      )}
+      {last && !nextMonthButtonDisabled ? (
+        <button
+          type="button"
+          className="react-datepicker__navigation react-datepicker__navigation--next"
+          aria-label={t('myStore.rangeNextMonth')}
+          onClick={increaseMonth}
+        >
+          <span className="react-datepicker__navigation-icon react-datepicker__navigation-icon--next" />
+        </button>
+      ) : null}
+    </>
+  )
+}
+
 /** Lets the trigger fold the picker away through the same animation as every other way out. */
 export type RangePickerHandle = { close: () => void }
 
@@ -47,6 +147,7 @@ export function RangePicker({
   presets,
   handle,
   stretch = false,
+  monthYearSelects = false,
   label = t('myStore.period'),
   triggerSelector = '[data-range-trigger]',
   testId = 'store-range',
@@ -58,7 +159,6 @@ export function RangePicker({
   to: number | undefined
   /** The first and last days that can be picked; with no `max` the calendar runs into the future. */
   min?: number
-  max?: number
   /** Spans its anchor's width with a single month, for a trigger too narrow for two months beside the presets. */
   stretch?: boolean
   label?: string
@@ -71,7 +171,17 @@ export function RangePicker({
   handle?: Ref<RangePickerHandle>
   onApply: (from: number, to: number) => void
   onClose: () => void
-}) {
+} & (
+  | {
+      /**
+       * Month and year selects in the calendar's header, for a range that can start years back: stepping a
+       * month at a time to 2022 took over a hundred clicks. The year list ends at `max`, so it is required.
+       */
+      monthYearSelects: true
+      max: number
+    }
+  | { monthYearSelects?: false; max?: number }
+)) {
   const [start, setStart] = useState<Date | null>(from != null ? new Date(from) : null)
   const [end, setEnd] = useState<Date | null>(to != null ? new Date(to) : null)
   const ref = useRef<HTMLDivElement>(null)
@@ -93,7 +203,9 @@ export function RangePicker({
       if (event.key === 'Escape') close()
       if (event.key !== 'Tab' || !ref.current) return
       // Keeps Tab inside the dialog while it is open, wrapping at either end.
-      const focusable = [...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"]')]
+      const focusable = [
+        ...ref.current.querySelectorAll<HTMLElement>('button:not([disabled]), select:not([disabled]), [tabindex="0"]')
+      ]
       if (focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
@@ -146,6 +258,7 @@ export function RangePicker({
       aria-label={label}
       tabIndex={-1}
       data-stretch={stretch ? '' : undefined}
+      data-selects={monthYearSelects ? '' : undefined}
       data-testid={`${testId}-picker`}
     >
       <S.Body>
@@ -179,6 +292,18 @@ export function RangePicker({
           monthsShown={twoMonths ? 2 : 1}
           openToDate={openOn(end ?? start ?? new Date(max ?? Date.now()), twoMonths)}
           calendarStartDay={1}
+          renderCustomHeader={
+            monthYearSelects && max != null
+              ? header => (
+                  <MonthYearHeader
+                    {...header}
+                    monthsShown={twoMonths ? 2 : 1}
+                    min={new Date(min)}
+                    max={new Date(max)}
+                  />
+                )
+              : undefined
+          }
         />
       </S.Body>
       <S.Foot>
