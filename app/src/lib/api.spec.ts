@@ -2035,6 +2035,53 @@ describe('when the catalogue is asked to discount MANA listings', () => {
 
     expect(items[0].priceCredits).toBe(9)
     expect(items[0].coupon).toBeUndefined()
+    // No compare-at, so the server sent the list amount: it stays as it is.
+    expect(items[0].manaWei).toBe('100000000000000000000')
+  })
+
+  it('should put the MANA amount back to list when a compare-at does not beat the price', async () => {
+    flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 9,
+            compareAtCredits: 9,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 50_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '95000000000000000000',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0].coupon).toBeUndefined()
+    // The smallest list amount the contract sells for 95 MANA at 5% off: a wei under 100.
+    expect(items[0].manaWei).toBe('99999999999999999999')
   })
 
   // Defensive: should a discounted MANA row ever arrive with the kill switch off, the whole sale goes, MANA

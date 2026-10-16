@@ -516,8 +516,9 @@ async function primeCreatorSales(): Promise<void> {
   legacyCouponsLive = creatorSalesLive && (await getIsFeatureEnabled(FeatureFlag.SHOP_LEGACY_COUPONS))
 }
 
-// The opt-in that lets the catalogue attach creator coupons to MANA listings. Sent only by feeds whose rows go
-// through the coupon-aware checkout (`resolveLine` → `acceptWithCoupon`).
+// The opt-in that lets the catalogue attach creator coupons to MANA listings. Their rows are bought through
+// the coupon-aware checkout (`resolveLine` → `acceptWithCoupon`). Store mints read through the same query are
+// unaffected: the server never attaches a coupon to them, since `CollectionStore.buy` takes none.
 function withLegacyCoupons(qs: URLSearchParams): URLSearchParams {
   if (legacyCouponsLive) qs.set('includeLegacyCoupons', 'true')
   return qs
@@ -896,7 +897,12 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
 // so its MANA amount has to go back to the list price with it, or the live-rate price would still be the sale.
 function manaWeiOf(l: UnifiedListingRaw): string | null {
   if (!l.manaWei) return null
-  if (creatorSalesLive || !l.coupon || l.compareAtCredits == null || l.coupon.discountType !== 1) return l.manaWei
+  // The server only sends a sale amount next to a compare-at. Kept while the sale is shown; whenever the
+  // mapping drops the sale (kill switch, or no compare-at above the price) the amount goes back to list too.
+  const shown = l.compareAtCredits != null && l.compareAtCredits > l.priceCredits
+  if ((creatorSalesLive && shown) || !l.coupon || l.compareAtCredits == null || l.coupon.discountType !== 1) {
+    return l.manaWei
+  }
   return listManaWeiFromSale(l.manaWei, l.coupon.discount) ?? l.manaWei
 }
 

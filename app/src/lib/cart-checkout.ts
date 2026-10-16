@@ -336,13 +336,14 @@ export function saleUsdCents(trade: Trade, rate: ManaRate | undefined, coupon?: 
   if (!coupon || priceAsset?.assetType !== Number(TradeAssetType.ERC20)) {
     return discountedUsdCents(lineUsdCents(trade, rate), coupon)
   }
-  if (!rate || !priceAsset.amount) return 0
+  if (!rate || !priceAsset.amount || !Number.isInteger(coupon.discount)) return 0
   let list: bigint
   try {
     list = BigInt(priceAsset.amount)
   } catch {
     return 0
   }
+  // The contract's formula, as in `discountedManaWei` (lib/mana), kept here so this module needs no RPC client.
   const sale = list - (list * BigInt(coupon.discount)) / BigInt(PPM)
   return manaWeiToUsdCents(sale.toString(), rate)
 }

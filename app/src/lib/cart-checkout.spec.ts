@@ -1203,6 +1203,10 @@ describe('when pricing a MANA line under a creator coupon', () => {
     expect(centsToCredits(saleUsdCents(manaTrade(list), RATE, coupon(ppm)))).toBe(card.priceCredits)
   })
 
+  it('should refuse a coupon whose discount is not a whole number rather than throw', () => {
+    expect(saleUsdCents(manaTrade(3n * MANA), RATE, coupon(250_000.5))).toBe(0)
+  })
+
   it('should not price a MANA line without a rate', () => {
     expect(saleUsdCents(manaTrade(3n * MANA), undefined, coupon(300_000))).toBe(0)
   })
