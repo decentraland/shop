@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { TradeAssetType, type Trade } from '@dcl/schemas'
+import { centsToCredits, lineUsdCents } from '~/lib/cart-checkout'
 import { listManaWeiFromSale, livePrices, type ManaRate } from '~/lib/mana-convert'
 
 // $0.09 per MANA at 8 decimals.
@@ -94,5 +96,33 @@ describe('when pricing a row at the live rate', () => {
         RATE
       )
     ).toEqual({ priceCredits: 63, compareAtCredits: 2 })
+  })
+})
+
+// A sale amount comes from more than one list amount, and the smallest can price a whole credit under the signed
+// list. With the exact list amount the catalogue sends, the strike is what a list-price checkout charges.
+describe('when a discounted MANA row carries its exact list amount', () => {
+  const rate: ManaRate = { rate: 9_370_000n, decimals: 8 }
+  const list = 1_067_235_859_124_866_607n
+  const sale = contractSale(list, 300_000)
+  const trade = { received: [{ assetType: TradeAssetType.ERC20, amount: list.toString() }] } as unknown as Trade
+
+  it('should price the strike at what the signed list price charges', () => {
+    const { compareAtCredits } = livePrices(
+      {
+        manaWei: sale.toString(),
+        listManaWei: list.toString(),
+        priceCredits: 1,
+        compareAtCredits: 2,
+        coupon: { discountType: 1, discount: 300_000 }
+      },
+      rate
+    )
+
+    expect(compareAtCredits).toBe(centsToCredits(lineUsdCents(trade, rate)))
+  })
+
+  it('should be the case the smallest inverse gets wrong', () => {
+    expect(BigInt(listManaWeiFromSale(sale.toString(), 300_000)!)).toBe(list - 1n)
   })
 })

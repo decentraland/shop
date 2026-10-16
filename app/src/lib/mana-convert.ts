@@ -99,15 +99,16 @@ export function discountedManaWei(listWei: bigint, coupon?: { discount: number }
 
 export type LivePriced = {
   manaWei?: string | null
+  listManaWei?: string
   priceCredits: number
   compareAtCredits?: number | null
   coupon?: { discountType: number; discount: number } | null
 }
 
 /**
- * A row's credit price and struck-through list price, both at the live rate. USD-quoted rows pass through;
- * a MANA row under a rate coupon re-prices its compare-at from the recovered list amount, so the pair moves
- * together and the strike cannot fall below the sale.
+ * A row's credit price and struck-through list price, both at the live rate. USD-quoted rows pass through; a
+ * MANA row under a rate coupon re-prices its compare-at from the exact list amount the catalogue sends (or,
+ * without one, the smallest the sale could come from), so the pair moves together.
  */
 export function livePrices(
   row: LivePriced,
@@ -116,10 +117,10 @@ export function livePrices(
   const listed = row.compareAtCredits ?? undefined
   if (!row.manaWei) return { priceCredits: row.priceCredits, compareAtCredits: listed }
   const priceCredits = displayCredits(row, rate)
-  if (!rate || listed == null || !row.coupon || row.coupon.discountType !== 1) {
-    return { priceCredits, compareAtCredits: listed }
-  }
-  const listWei = listManaWeiFromSale(row.manaWei, row.coupon.discount)
+  // A coupon only rides a shown sale, so it, not a compare-at read back from an earlier re-price, says there is
+  // a strike to price.
+  if (!rate || !row.coupon || row.coupon.discountType !== 1) return { priceCredits, compareAtCredits: listed }
+  const listWei = row.listManaWei ?? listManaWeiFromSale(row.manaWei, row.coupon.discount)
   const compareAt = listWei ? manaWeiToCredits(listWei, rate) : null
   return { priceCredits, compareAtCredits: compareAt != null && compareAt > priceCredits ? compareAt : undefined }
 }

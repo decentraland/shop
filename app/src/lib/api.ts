@@ -44,8 +44,12 @@ export type CatalogItem = {
   // carry `manaWei` and are priced for display at the live rate — see `displayCredits`.
   priceCredits: number
   // Raw MANA price (wei) when this row is MANA-priced (legacy listings, and every row the /v2 catalog
-  // serves). Null/absent on USD-pegged rows, which price in credits directly.
+  // serves). Null/absent on USD-pegged rows, which price in credits directly. The SALE amount while a
+  // creator coupon discounts a MANA listing.
   manaWei?: string | null
+  // The exact MANA list price beside a sale `manaWei`, from the catalogue, so the struck-through price can
+  // be re-priced at the live rate. Absent unless the row is a MANA listing on a shown sale.
+  listManaWei?: string
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
   isSmart: boolean
@@ -880,6 +884,7 @@ type UnifiedListingRaw = ShopListingRaw & {
   source: ListingSource
   acquisition?: ListingAcquisition
   manaWei?: string | null
+  listManaWei?: string
 }
 
 function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
@@ -889,8 +894,14 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
     // Fall back to 'trade': every row was a trade before the store branch existed, so an older server that
     // omits the field describes trades. Defaulting the other way would route real trades down the mint path.
     acquisition: l.acquisition ?? 'trade',
-    manaWei: manaWeiOf(l)
+    manaWei: manaWeiOf(l),
+    ...(saleKept(l) && l.listManaWei ? { listManaWei: l.listManaWei } : {})
   }
+}
+
+// Whether the mapping keeps the row's sale: creator sales on, and a compare-at above the price.
+function saleKept(l: UnifiedListingRaw): boolean {
+  return creatorSalesLive && l.compareAtCredits != null && l.compareAtCredits > l.priceCredits
 }
 
 // A discounted MANA row carries the SALE amount. With the kill switch off the sale is stripped from the row,
@@ -898,11 +909,11 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
 function manaWeiOf(l: UnifiedListingRaw): string | null {
   if (!l.manaWei) return null
   // The server only sends a sale amount next to a compare-at. Kept while the sale is shown; whenever the
-  // mapping drops the sale (kill switch, or no compare-at above the price) the amount goes back to list too.
-  const shown = l.compareAtCredits != null && l.compareAtCredits > l.priceCredits
-  if ((creatorSalesLive && shown) || !l.coupon || l.compareAtCredits == null || l.coupon.discountType !== 1) {
-    return l.manaWei
-  }
+  // mapping drops the sale (kill switch, or no compare-at above the price) the amount goes back to list too:
+  // the exact list amount the server sends, else the smallest one the sale could have come from.
+  if (saleKept(l) || !l.coupon || l.compareAtCredits == null) return l.manaWei
+  if (l.listManaWei) return l.listManaWei
+  if (l.coupon.discountType !== 1) return l.manaWei
   return listManaWeiFromSale(l.manaWei, l.coupon.discount) ?? l.manaWei
 }
 
@@ -1130,6 +1141,8 @@ export async function fetchSuggestedItems({
   if (equipped?.length) qs.set('equipped', compactEquipped(equipped).join(','))
   if (exclude?.length) qs.set('exclude', exclude.join(','))
   if (category) qs.set('category', category)
+  // No `includeLegacyCoupons`: the suggestions endpoint does not take it, so a MANA row here stays at list
+  // price, which is also what checkout charges for a line added from it without a coupon.
 
   // Signed when we can, plain when we cannot: the signature unlocks favourites and nothing else, so a
   // signed-out visitor still gets a rail from their seeds.

@@ -2086,6 +2086,99 @@ describe('when the catalogue is asked to discount MANA listings', () => {
     expect(items[0].manaWei).toBe('99999999999999999999')
   })
 
+  // A list-price checkout charges the signed list amount; the inverse of the sale can sit a wei under it and a
+  // credit lower at the live rate, so the exact amount the catalogue sends is what the row falls back to.
+  it('should fall back to the exact list amount the catalogue sends when the kill switch is off', async () => {
+    flags({ 'shop-creator-sales': false })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 1,
+            compareAtCredits: 2,
+            saleEndsAt: 1_800_000_000,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 300_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '747065101387406625',
+            listManaWei: '1067235859124866607',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0]).toMatchObject({ priceCredits: 2, manaWei: '1067235859124866607' })
+    expect(items[0].listManaWei).toBeUndefined()
+  })
+
+  it('should carry the exact list amount beside a shown sale', async () => {
+    flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 1,
+            compareAtCredits: 2,
+            saleEndsAt: 1_800_000_000,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 300_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '747065101387406625',
+            listManaWei: '1067235859124866607',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0]).toMatchObject({ manaWei: '747065101387406625', listManaWei: '1067235859124866607' })
+  })
+
   // Defensive: should a discounted MANA row ever arrive with the kill switch off, the whole sale goes, MANA
   // amount included, or the live-rate price would still be the sale.
   it('should put a discounted MANA row back to its list amount when the kill switch is off', async () => {

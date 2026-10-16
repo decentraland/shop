@@ -635,17 +635,7 @@ export function ItemDetail() {
   const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
   // A discounted MANA listing re-prices its struck-through price at the same rate, or the strike would drift
   // off the sale (and vanish once the rates diverge by more than the discount).
-  // A coupon only rides a shown sale, so it alone says there is a strike to price. Reading the compare-at back
-  // from `current` instead would lose the strike for good the first time it rounded away.
-  const liveCompareAt =
-    listedManaWei && manaRate
-      ? livePrices(
-          current.coupon
-            ? { ...current, compareAtCredits: current.compareAtCredits ?? Number.MAX_SAFE_INTEGER }
-            : current,
-          manaRate
-        ).compareAtCredits
-      : undefined
+  const liveCompareAt = listedManaWei && manaRate ? livePrices(current, manaRate).compareAtCredits : undefined
   // Also re-asserted when the price itself moves, not only when the rate does: hydration lands AFTER this
   // effect has already agreed with the seeded card, and it brings the server's snapshot back with it. The
   // setter is a no-op once they match, so re-running cannot loop.
