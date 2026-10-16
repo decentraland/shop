@@ -81,6 +81,22 @@ export function listManaWeiFromSale(saleWei: string, discountPpm: number): strin
   return (((sale - 1n) * 1_000_000n) / BigInt(1_000_000 - discountPpm) + 1n).toString()
 }
 
+/**
+ * A listing's MANA price with the creator's discount applied — what the marketplace will really pull.
+ *
+ * A trade is signed at the LIST price and the coupon lowers it at settlement, so every consumer of the raw
+ * figure is wrong for an item on sale: the button quotes more MANA than the buyer pays, the rail is hidden
+ * from someone whose balance covers the real price, and the mixed rail's MANA leg is scaled up by the same
+ * factor. They all read this instead so there is one number.
+ *
+ * Rounded UP, because the figure also sizes the allowance, and an allowance a wei short of what `accept`
+ * pulls reverts the purchase.
+ */
+export function discountedManaWei(listWei: bigint, coupon?: { discount: number }): bigint {
+  if (!coupon) return listWei
+  return listWei - (listWei * BigInt(coupon.discount)) / 1_000_000n
+}
+
 export type LivePriced = {
   manaWei?: string | null
   priceCredits: number

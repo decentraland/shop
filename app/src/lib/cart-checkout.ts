@@ -1,7 +1,7 @@
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
-import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
+import { discountedManaWei, manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
 import { getCouponManagerForTrade, getMarketplaceForTrade } from '~/lib/marketplace'
 import { isOwnTrade } from '~/lib/ownership'
 // Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
@@ -343,9 +343,7 @@ export function saleUsdCents(trade: Trade, rate: ManaRate | undefined, coupon?: 
   } catch {
     return 0
   }
-  // The contract's formula, as in `discountedManaWei` (lib/mana), kept here so this module needs no RPC client.
-  const sale = list - (list * BigInt(coupon.discount)) / BigInt(PPM)
-  return manaWeiToUsdCents(sale.toString(), rate)
+  return manaWeiToUsdCents(discountedManaWei(list, coupon).toString(), rate)
 }
 
 /**

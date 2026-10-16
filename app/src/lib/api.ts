@@ -554,7 +554,7 @@ function withoutSale(l: ShopListingRaw): ShopListingRaw {
 // be applied at checkout under a list-price label, so it is dropped and the row stays at list end to end.
 function withShownSaleOnly(l: ShopListingRaw): ShopListingRaw {
   if (!l.coupon || (l.compareAtCredits != null && l.compareAtCredits > l.priceCredits)) return l
-  return { ...l, coupon: null }
+  return { ...l, coupon: null, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }
 }
 
 function shopListingToItem(raw: ShopListingRaw): CatalogItem {

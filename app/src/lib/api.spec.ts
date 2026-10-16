@@ -2080,6 +2080,8 @@ describe('when the catalogue is asked to discount MANA listings', () => {
     const { items } = await fetchShopItems({ first: 1 })
 
     expect(items[0].coupon).toBeUndefined()
+    // The rest of the sale goes with it, or a live re-price could pair the stale compare-at with a lower price.
+    expect(items[0].compareAtCredits).toBeUndefined()
     // The smallest list amount the contract sells for 95 MANA at 5% off: a wei under 100.
     expect(items[0].manaWei).toBe('99999999999999999999')
   })
