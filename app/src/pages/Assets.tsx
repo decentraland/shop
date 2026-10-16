@@ -6,6 +6,7 @@ import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
+import { livePrices } from '~/lib/mana-convert'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
@@ -482,7 +483,7 @@ export function Assets({ contracts, itemIds, hideNames = false, seo, lockStatus 
                         return livePrice == null ? (
                           <AssetCard key={listingKey(item)} item={item} mode="view" />
                         ) : (
-                          <AssetCard key={listingKey(item)} item={{ ...unified, priceCredits: livePrice }} />
+                          <AssetCard key={listingKey(item)} item={{ ...unified, ...livePrices(unified, rate) }} />
                         )
                       })}
                       {isFetchingNextPage ? <SkeletonCards count={6} /> : null}

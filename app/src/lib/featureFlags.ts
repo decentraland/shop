@@ -53,6 +53,12 @@ export enum FeatureFlag {
    */
   SHOP_CREATOR_SALES = 'shop-creator-sales',
   /**
+   * Whether the catalogue is asked to discount classic MANA-priced listings too, not only Credits ones. Read
+   * only while SHOP_CREATOR_SALES is on, which stays the one switch that takes every discount away, including
+   * from cart lines already holding a coupon. A catalogue server without the opt-in ignores it.
+   */
+  SHOP_LEGACY_COUPONS = 'shop-legacy-coupons',
+  /**
    * Whether the home page shows the personalised "Suggested for you" rail.
    *
    * OFF by default. The rail is judged against Trending on click-through, so it ships dark and is

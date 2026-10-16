@@ -13,10 +13,10 @@ const captureErrorMock = vi.fn()
 vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
 // The catalogue primes the creator-sales flag before mapping a row. Stubbed so these specs exercise the
 // MAPPING rather than the flag service — and so the flag's fetch does not consume a queued response.
-const { getIsFeatureEnabled } = vi.hoisted(() => ({ getIsFeatureEnabled: vi.fn(async () => true) }))
+const { getIsFeatureEnabled } = vi.hoisted(() => ({ getIsFeatureEnabled: vi.fn(async (_flag?: string) => true) }))
 vi.mock('~/lib/featureFlags', () => ({
   getIsFeatureEnabled,
-  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales' }
+  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales', SHOP_LEGACY_COUPONS: 'shop-legacy-coupons' }
 }))
 
 // postTrade dynamically imports TradeService only when creating a listing. Stub it so importing the
@@ -44,6 +44,7 @@ import {
   fetchUnified,
   fetchShopItems,
   fetchTrendingItems,
+  fetchRelatedItems,
   fetchMyAssets,
   fetchOwnedToken,
   fetchResaleTokenInfo,
@@ -1950,5 +1951,138 @@ describe('when reading the remaining supply off an item row', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))
 
     expect((await fetchItemMeta('0xabc', '1'))?.available).toBeNull()
+  })
+})
+
+// Coupons on MANA listings change what the buyer is charged (the row's manaWei becomes the sale amount), so the
+// catalogue is only asked for them while the creator-sales kill switch AND the legacy-coupons flag are both on.
+describe('when the catalogue is asked to discount MANA listings', () => {
+  const flags = (on: Record<string, boolean>) =>
+    getIsFeatureEnabled.mockImplementation(async (flag?: string) => (flag ? on[flag] : undefined) ?? false)
+
+  afterEach(() => getIsFeatureEnabled.mockImplementation(async () => true))
+
+  describe('and both flags are on', () => {
+    beforeEach(() => flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true }))
+
+    it.each([
+      ['the browse grid', () => fetchShopItems({ first: 1 })],
+      ['the per-listing feed', () => fetchUnified({ first: 1 })],
+      ['the related rail', () => fetchRelatedItems('0x1', '0')],
+      ['the trending rail', () => fetchTrendingItems()]
+    ])('should opt in on %s', async (_, call) => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+      await call()
+
+      expect(lastUrl()).toContain('includeLegacyCoupons=true')
+    })
+  })
+
+  it.each([
+    ['the legacy-coupons flag is off', { 'shop-creator-sales': true, 'shop-legacy-coupons': false }],
+    ['the creator-sales kill switch is off', { 'shop-creator-sales': false, 'shop-legacy-coupons': true }]
+  ])('should not opt in when %s', async (_, on) => {
+    flags(on)
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ first: 1 })
+
+    expect(lastUrl()).not.toContain('includeLegacyCoupons')
+  })
+
+  // A coupon is only kept with a sale the row shows; one riding a list-price row would be applied at checkout
+  // under a list-price label (and revert, if the server dropped it for a failed proof).
+  it('should drop a coupon that comes without a visible sale', async () => {
+    flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 9,
+            compareAtCredits: null,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 50_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '100000000000000000000',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0].priceCredits).toBe(9)
+    expect(items[0].coupon).toBeUndefined()
+  })
+
+  // Defensive: should a discounted MANA row ever arrive with the kill switch off, the whole sale goes, MANA
+  // amount included, or the live-rate price would still be the sale.
+  it('should put a discounted MANA row back to its list amount when the kill switch is off', async () => {
+    flags({ 'shop-creator-sales': false })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 63,
+            compareAtCredits: 90,
+            saleEndsAt: 1_800_000_000,
+            saleUnitsLeft: 5,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 300_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '70000000000000000000',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    // The smallest list amount the contract would sell for 70 MANA at 30% off: display only, a wei under 100.
+    expect(items[0]).toMatchObject({ priceCredits: 90, manaWei: '99999999999999999999' })
+    expect(items[0].coupon).toBeUndefined()
   })
 })

@@ -308,7 +308,7 @@ export async function resolveLine(
   // the trade alone, as it always did. A sale that started after the item was added is therefore a missed
   // discount rather than a wrong charge — the price shown is the price taken.
   const liveCoupon = item.coupon ? couponForTrade(await resolveCoupon?.(item), trade) : undefined
-  const usdCents = discountedUsdCents(lineUsdCents(trade, rate), liveCoupon)
+  const usdCents = saleUsdCents(trade, rate, liveCoupon)
   // A zero/NaN price (empty received, missing/bad amount) is not a real live listing — never let it
   // be charged at 0, which would authorize a $0 credit and revert on-chain.
   if (!Number.isFinite(usdCents) || usdCents <= 0) return { status: 'no-price' }
@@ -324,6 +324,27 @@ export async function resolveLine(
       quantity
     }
   }
+}
+
+/**
+ * A line's price under its coupon. A MANA trade is discounted in MANA first, exactly as `acceptWithCoupon`
+ * does, then converted: discounting the converted cents rounds twice and can land a credit above the card,
+ * which prices the same sale amount. A USD-pegged trade discounts its cents, as before.
+ */
+export function saleUsdCents(trade: Trade, rate: ManaRate | undefined, coupon?: ListingCoupon): number {
+  const priceAsset = trade.received[0] as { assetType?: number; amount?: string } | undefined
+  if (!coupon || priceAsset?.assetType !== Number(TradeAssetType.ERC20)) {
+    return discountedUsdCents(lineUsdCents(trade, rate), coupon)
+  }
+  if (!rate || !priceAsset.amount) return 0
+  let list: bigint
+  try {
+    list = BigInt(priceAsset.amount)
+  } catch {
+    return 0
+  }
+  const sale = list - (list * BigInt(coupon.discount)) / BigInt(PPM)
+  return manaWeiToUsdCents(sale.toString(), rate)
 }
 
 /**

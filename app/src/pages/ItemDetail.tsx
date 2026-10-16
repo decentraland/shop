@@ -28,7 +28,7 @@ import { itemIdFromTokenId } from '~/lib/token-id'
 import { routeSegment } from '~/lib/routes'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
-import { manaWeiToCredits } from '~/lib/mana-convert'
+import { livePrices, manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing, GaslessCancelFailedError } from '~/lib/buy'
 import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
@@ -633,13 +633,20 @@ export function ItemDetail() {
   const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
   const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
   const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  // A discounted MANA listing re-prices its struck-through price at the same rate, or the strike would drift
+  // off the sale (and vanish once the rates diverge by more than the discount).
+  const liveCompareAt = listedManaWei && manaRate ? livePrices(current, manaRate).compareAtCredits : undefined
   // Also re-asserted when the price itself moves, not only when the rate does: hydration lands AFTER this
   // effect has already agreed with the seeded card, and it brings the server's snapshot back with it. The
   // setter is a no-op once they match, so re-running cannot loop.
   useEffect(() => {
     if (liveLegacyCredits == null) return
-    setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
-  }, [liveLegacyCredits, current.priceCredits])
+    setCurrent(prev =>
+      prev.priceCredits === liveLegacyCredits && prev.compareAtCredits === liveCompareAt
+        ? prev
+        : { ...prev, priceCredits: liveLegacyCredits, compareAtCredits: liveCompareAt }
+    )
+  }, [liveLegacyCredits, liveCompareAt, current.priceCredits, current.compareAtCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing

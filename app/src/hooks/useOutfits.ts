@@ -5,7 +5,7 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { track } from '~/lib/analytics'
 import { fetchCatalogByIds, type CatalogItem } from '~/lib/api'
 import { FeatureFlag, getAddressListVariant, getIsFeatureEnabled } from '~/lib/featureFlags'
-import { displayCredits } from '~/lib/mana-convert'
+import { livePrices } from '~/lib/mana-convert'
 import { captureError } from '~/lib/monitoring'
 import {
   fetchOutfits,
@@ -80,7 +80,7 @@ export function useOutfitItems(outfits: OutfitLike[] | OutfitLike | undefined): 
     const needsRate = !!data?.some(item => item.manaWei)
     const priced = (data ?? [])
       .filter(item => rate || !item.manaWei)
-      .map(item => ({ ...item, priceCredits: displayCredits(item, rate) }))
+      .map(item => ({ ...item, ...livePrices(item, rate) }))
     const byKey = new Map(priced.map(item => [item.id, item]))
     const returned = new Set((data ?? []).map(item => item.id))
     const missing = new Set(data ? keys.filter(key => !returned.has(key)) : [])

@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
 import type { ListingCoupon } from '~/lib/trade-encoding'
+import { livePrices, type ManaRate } from '~/lib/mana-convert'
 import {
   reviewCart,
   resolveLine,
@@ -12,6 +13,7 @@ import {
   checkoutLineFor,
   groupUnitsForAuthorization,
   discountedUsdCents,
+  saleUsdCents,
   couponForTrade,
   type LineOutcome,
   type StoreResolver,
@@ -1161,5 +1163,55 @@ describe('when reviewing a line whose trade names a marketplace not deployed on 
     it('should keep the rest of the basket buyable', () => {
       expect(buyableIds).toEqual(['y'])
     })
+  })
+})
+
+// A discounted MANA row is shown at its sale amount converted at the live rate (livePrices on the card), and
+// acceptWithCoupon pulls list - floor(list * ppm / 1e6). The charge has to be that same figure, not the list
+// price converted and then discounted, which rounds twice and can land a credit above the card.
+describe('when pricing a MANA line under a creator coupon', () => {
+  const RATE: ManaRate = { rate: 9_370_000n, decimals: 8 } // $0.0937
+  const MANA = 10n ** 18n
+  const manaTrade = (amount: bigint) =>
+    ({ received: [{ assetType: TradeAssetType.ERC20, amount: amount.toString() }] }) as unknown as Trade
+
+  it('should charge what the card shows for a case the double rounding got wrong', () => {
+    // 3 MANA at 30% off: the card shows 2 credits; converting first and then discounting charged 3.
+    const sale = 3n * MANA - (3n * MANA * 300_000n) / 1_000_000n
+    const card = livePrices(
+      { manaWei: sale.toString(), priceCredits: 0, compareAtCredits: 3, coupon: coupon(300_000) },
+      RATE
+    )
+
+    expect(centsToCredits(saleUsdCents(manaTrade(3n * MANA), RATE, coupon(300_000)))).toBe(card.priceCredits)
+    expect(card.priceCredits).toBe(2)
+  })
+
+  it.each([
+    [1n * MANA, 100_000],
+    [3n * MANA, 300_000],
+    [25n * MANA + 7n, 450_000],
+    [123n * MANA, 700_000],
+    [999n * MANA + 999n, 50_000]
+  ])('should match the card for %s wei at %s ppm', (list, ppm) => {
+    const sale = list - (list * BigInt(ppm)) / 1_000_000n
+    const card = livePrices(
+      { manaWei: sale.toString(), priceCredits: 0, compareAtCredits: 1, coupon: coupon(ppm) },
+      RATE
+    )
+
+    expect(centsToCredits(saleUsdCents(manaTrade(list), RATE, coupon(ppm)))).toBe(card.priceCredits)
+  })
+
+  it('should not price a MANA line without a rate', () => {
+    expect(saleUsdCents(manaTrade(3n * MANA), undefined, coupon(300_000))).toBe(0)
+  })
+
+  it('should keep discounting a USD-pegged line in cents', () => {
+    const pegged = {
+      received: [{ assetType: TradeAssetType.USD_PEGGED_MANA, amount: (10n * 10n ** 18n).toString() }]
+    } as unknown as Trade
+
+    expect(saleUsdCents(pegged, RATE, coupon(300_000))).toBe(700)
   })
 })

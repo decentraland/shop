@@ -63,6 +63,51 @@ export function displayCredits(
   return manaWeiToCredits(row.manaWei, rate) ?? 0
 }
 
+/**
+ * The smallest MANA list amount a rate coupon sells for `saleWei`, so a discounted MANA row's struck-through
+ * price can be re-priced at the same live rate as its sale. Display only.
+ */
+export function listManaWeiFromSale(saleWei: string, discountPpm: number): string | null {
+  if (!Number.isInteger(discountPpm) || discountPpm <= 0 || discountPpm >= 1_000_000) return null
+  let sale: bigint
+  try {
+    sale = BigInt(saleWei)
+  } catch {
+    return null
+  }
+  if (sale <= 0n) return sale === 0n ? '0' : null
+  // The contract charges list - floor(list * ppm / 1e6), so the amounts charging `sale` are
+  // ((sale - 1) / (1 - p), sale / (1 - p)]: the smallest is one past the floor of the open end.
+  return (((sale - 1n) * 1_000_000n) / BigInt(1_000_000 - discountPpm) + 1n).toString()
+}
+
+export type LivePriced = {
+  manaWei?: string | null
+  priceCredits: number
+  compareAtCredits?: number | null
+  coupon?: { discountType: number; discount: number } | null
+}
+
+/**
+ * A row's credit price and struck-through list price, both at the live rate. USD-quoted rows pass through;
+ * a MANA row under a rate coupon re-prices its compare-at from the recovered list amount, so the pair moves
+ * together and the strike cannot fall below the sale.
+ */
+export function livePrices(
+  row: LivePriced,
+  rate: ManaRate | undefined
+): { priceCredits: number; compareAtCredits?: number } {
+  const listed = row.compareAtCredits ?? undefined
+  if (!row.manaWei) return { priceCredits: row.priceCredits, compareAtCredits: listed }
+  const priceCredits = displayCredits(row, rate)
+  if (!rate || listed == null || !row.coupon || row.coupon.discountType !== 1) {
+    return { priceCredits, compareAtCredits: listed }
+  }
+  const listWei = listManaWeiFromSale(row.manaWei, row.coupon.discount)
+  const compareAt = listWei ? manaWeiToCredits(listWei, rate) : null
+  return { priceCredits, compareAtCredits: compareAt != null && compareAt > priceCredits ? compareAt : undefined }
+}
+
 // MANA wei → USD cents, rounded UP. Used to size the credits-server authorize amount for a legacy
 // purchase (the server then locks MANA at its own oracle read + signs the fixed maxCreditedValue).
 export function manaWeiToUsdCents(manaWei: string, rate: ManaRate): number {
