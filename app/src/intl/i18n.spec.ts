@@ -118,21 +118,12 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * FIVE deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
+   * THREE deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
    * surfaces:
    *
    * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
    * already names to the same person — a creator who is paid in MANA and has to find the listings still
    * priced in it — and "Classic pricing" alone made them guess which of the two labels meant the same thing.
-   *
-   * `creatorSale.reviewClassicWhy`, the tooltip on a discount review row the discount cannot reach. It has to
-   * answer "why is this one excluded", and the answer IS the pricing rail: the item is quoted in MANA, so
-   * there is no fixed credit price for a percentage to come off. Saying it any other way would leave the
-   * creator without the one fact that explains the exclusion.
-   *
-   * `creatorSale.blockedBody`, shown when a collection's listings are ALL priced in MANA and a discount
-   * therefore has nothing to re-price. The whole message exists to name that currency: the creator opened
-   * this to run a discount and the answer is which rail their listings are on.
    *
    * `myStore.manaUnit`, in the creator's store dashboard. It labels the earnings figure, and creators ARE
    * paid in MANA — calling that total anything else would misreport what they were paid.
@@ -159,8 +150,6 @@ describe('web2-first copy rule', () => {
     'buyModal.methodCombined',
     'buyModal.methodMana',
     'buyModal.notEnoughMana',
-    'creatorSale.blockedBody',
-    'creatorSale.reviewClassicWhy',
     'errors.walletUnauthorized',
     'errors.wrongNetwork',
     'faq.sellers.mustSwitchA',

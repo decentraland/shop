@@ -27,6 +27,12 @@ export type CollectionSaleState = {
   /** Absent for a collection-store mint, which is on sale with no trade behind it. */
   tradeId?: string
   /**
+   * The marketplace a MANA-denominated TRADE was signed for. Absent for a collection-store mint, whose price
+   * lives on the collection and can never take a coupon; present, it is what says whether a creator's coupon
+   * can discount the listing (see saleableCollections).
+   */
+  manaTradeContract?: string
+  /**
    * The sale a creator's coupon is running on this listing, when there is one: the price before the cut and
    * when it ends. Carried so the creator's OWN grids can draw the same strike-through and tag a buyer sees
    * — without them the price simply drops and nothing says why.
@@ -91,7 +97,14 @@ function toSaleState(
         ...(peg.compareAtCredits != null ? { compareAtCredits: peg.compareAtCredits } : {}),
         ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {})
       }
-    : { isOnSale: true, priceCredits: row.priceCredits ?? 0, ...(row.price ? { manaWei: row.price } : {}) }
+    : {
+        isOnSale: true,
+        priceCredits: row.priceCredits ?? 0,
+        ...(row.price ? { manaWei: row.price } : {}),
+        ...(row.tradeId && row.tradeContractAddress
+          ? { manaTradeContract: row.tradeContractAddress.toLowerCase() }
+          : {})
+      }
 }
 
 /**

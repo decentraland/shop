@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
-import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
+import { useCreatorSalesEnabled, useLegacyCouponsEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useIsCreator } from '~/hooks/useIsCreator'
 import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
 import { fetchPublishableItems } from '~/lib/builder'
@@ -60,6 +60,8 @@ export function useDiscountsAnnouncement(pathname: string): {
   const session = useWallet(s => s.session)
   const address = session?.address
   const enabled = useCreatorSalesEnabled()
+  const manaFlag = useLegacyCouponsEnabled()
+  const manaListings = manaFlag === true
   // The call to action lands on the store: without access to it, the announcement would promise a page
   // that bounces the creator home.
   const storeOpen = useMyStoreEnabled()
@@ -117,9 +119,15 @@ export function useDiscountsAnnouncement(pathname: string): {
   })
 
   const collection = useMemo(() => {
-    if (!eligible || hidden || otherDialogOpen || !saleState.data || !recentSales.data) return null
-    return pickAnnouncementCollection(toSaleableCollections(catalogue.data ?? [], saleState.data), recentSales.data)
-  }, [eligible, hidden, otherDialogOpen, catalogue.data, saleState.data, recentSales.data])
+    // Waits for the MANA-listings flag too: picked without it, a MANA collection would be passed over and the
+    // pick would change under the creator once the flag landed.
+    if (!eligible || hidden || otherDialogOpen || !saleState.data || !recentSales.data || manaFlag === undefined)
+      return null
+    return pickAnnouncementCollection(
+      toSaleableCollections(catalogue.data ?? [], saleState.data, { manaListings }),
+      recentSales.data
+    )
+  }, [eligible, hidden, otherDialogOpen, catalogue.data, saleState.data, recentSales.data, manaFlag, manaListings])
 
   const dismiss = useCallback(() => {
     dismissPrompt(DISCOUNTS_ANNOUNCEMENT_PROMPT, address)

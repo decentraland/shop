@@ -1,11 +1,25 @@
+import { config } from '~/config'
 import type { PublishableItem } from '~/lib/builder'
 import type { CollectionSaleState } from '~/lib/collections'
+import { getCouponContracts } from '~/lib/coupons'
+import { getCouponManagerForTrade } from '~/lib/marketplace'
+
+/**
+ * Whether a creator's new coupon can discount this MANA listing: a trade (a collection-store price never can)
+ * whose marketplace redeems coupons through the manager a new sale is signed against.
+ */
+export function isDiscountableManaListing(sale: CollectionSaleState, chainId: number = config.chainId): boolean {
+  if (!sale.manaWei || !sale.manaTradeContract) return false
+  const manager = getCouponManagerForTrade({ contract: sale.manaTradeContract, chainId })
+  const signing = getCouponContracts(chainId)?.couponManager.address.toLowerCase()
+  return manager != null && manager === signing
+}
 
 /**
  * One of the collection's creations, as the review step needs it.
  *
- * Three states, not two. A discount re-prices the Shop's own credit listings, so an item still quoted in
- * MANA is left out — but it is NOT unlisted, and telling a creator it is "not for sale" when they can see
+ * Three states, not two. A discount re-prices the listings a coupon can reach, so an item at a price it
+ * cannot change is left out — but it is NOT unlisted, and telling a creator it is "not for sale" when they can see
  * it on sale a click away is worse than saying nothing. It has its own state so the review can name the
  * one thing that would bring it in: updating its price.
  */
@@ -15,8 +29,10 @@ export type SaleItem = {
   thumbnail: string
   /** Its Shop price in credits. Null unless `state` is 'discounted'. */
   priceCredits: number | null
-  /** 'discounted' takes the sale, 'classic' is listed but quoted in MANA, 'unlisted' is not for sale. */
+  /** 'discounted' takes the sale, 'classic' is listed at a price it cannot change, 'unlisted' is not for sale. */
   state: 'discounted' | 'classic' | 'unlisted'
+  /** A MANA listing the sale discounts. Its `priceCredits` is the catalogue's conversion, not the live rate. */
+  mana?: boolean
   remainingSupply: number
 }
 
@@ -48,7 +64,10 @@ export type SaleableCollection = {
  */
 export function toSaleableCollections(
   items: PublishableItem[],
-  saleState: Record<string, CollectionSaleState> | undefined
+  saleState: Record<string, CollectionSaleState> | undefined,
+  // Whether the catalogue discounts MANA listings for buyers (the shop-legacy-coupons flag): only then does a
+  // coupon on one reach the price a buyer sees, so only then is it offered to the creator as discountable.
+  { manaListings = false, chainId = config.chainId }: { manaListings?: boolean; chainId?: number } = {}
 ): SaleableCollection[] {
   const byAddress = new Map<string, SaleableCollection>()
 
@@ -58,7 +77,9 @@ export function toSaleableCollections(
     // Three states, because "on sale" is not one thing here: a discount re-prices the Shop's own credit
     // listings, so an item still quoted in MANA cannot take one — but it IS listed, and the review has to
     // say that rather than call it not for sale.
-    const state = !sale?.isOnSale ? 'unlisted' : sale.manaWei ? 'classic' : 'discounted'
+    const manaDiscounted =
+      !!sale?.isOnSale && !!sale.manaWei && manaListings && isDiscountableManaListing(sale, chainId)
+    const state = !sale?.isOnSale ? 'unlisted' : sale.manaWei && !manaDiscounted ? 'classic' : 'discounted'
     const listedInCredits = state === 'discounted'
     const key = item.contractAddress.toLowerCase()
     const entry = byAddress.get(key) ?? {
@@ -74,6 +95,7 @@ export function toSaleableCollections(
       thumbnail: item.thumbnail,
       priceCredits: listedInCredits && sale ? sale.priceCredits : null,
       state,
+      ...(manaDiscounted ? { mana: true } : {}),
       remainingSupply: item.remainingSupply
     })
     if (listedInCredits && sale) {

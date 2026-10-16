@@ -19,3 +19,22 @@ export function useCreatorSalesEnabled(): boolean {
 
   return data === true
 }
+
+/**
+ * Whether creator coupons also discount MANA listings for buyers. Both flags, like the catalogue request: a
+ * creator is only offered a discount on a MANA listing when a buyer would actually see it.
+ */
+export function useLegacyCouponsEnabled(): boolean | undefined {
+  const creatorSales = useCreatorSalesEnabled()
+  const { data, isPending } = useQuery({
+    queryKey: ['feature-flag', FeatureFlag.SHOP_LEGACY_COUPONS],
+    queryFn: () => getIsFeatureEnabled(FeatureFlag.SHOP_LEGACY_COUPONS),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    retry: 1
+  })
+
+  // Undefined while it loads, so a surface that would flip MANA listings from blocked to discountable can wait.
+  if (!creatorSales) return false
+  return isPending ? undefined : data === true
+}

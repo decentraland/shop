@@ -23,7 +23,6 @@ import { toast } from '~/store/toast'
 import { activeLocale, t, tNode } from '~/intl/i18n'
 import { formatCredits } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import manaSymbol from '~/assets/mana-matic.svg'
 import { Tooltip } from '~/components/Tooltip'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -275,7 +274,7 @@ export function CreatorSaleModal({
    */
   function leave(reason: 'closed' | 'update_prices') {
     if (!created) {
-      // A collection priced entirely in MANA never shows the form at all, so "form" would be a step the
+      // A collection with nothing a discount can reach never shows the form at all, so "form" would be a step the
       // creator did not see. And following the button there is the path we recommend, not a drop-off, which
       // is what `reason` is for: one closing event per opening, with how it closed.
       const blocked = review.listed.length === 0 && review.classic.length > 0
@@ -353,7 +352,8 @@ export function CreatorSaleModal({
         discount_pct: terms.discountPct,
         duration_h: Math.round((signedWindow.endsAtMs - (signedWindow.startsAtMs ?? signedAt)) / HOUR_MS),
         scheduled,
-        capped: terms.uses !== undefined
+        capped: terms.uses !== undefined,
+        mana_items: review.listed.filter(i => i.mana).length
       })
       toast.success(scheduled ? t('creatorSale.toastScheduled') : t('creatorSale.toastLive'))
       onCreated?.(sale)
@@ -445,14 +445,6 @@ export function CreatorSaleModal({
   const marked = (chunks: React.ReactNode[]) => (
     <S.Marked>
       <CurrencyIcon className="ccy-mark" />
-      {chunks}
-    </S.Marked>
-  )
-
-  /** The same treatment for the other currency: both are the platform's, so both wear their mark. */
-  const manaMarked = (chunks: React.ReactNode[]) => (
-    <S.Marked>
-      <S.ManaMark src={manaSymbol} alt="" aria-hidden />
       {chunks}
     </S.Marked>
   )
@@ -713,7 +705,7 @@ export function CreatorSaleModal({
   }
 
   /**
-   * Nothing here a discount can reach: every listing in this collection is priced in MANA.
+   * Nothing here a discount can reach: every listing in this collection is at a price it cannot change.
    *
    * Offered anyway, and answered here. The button used to be absent for these collections, which told the
    * creator nothing — least of all that the fix is one page away.
@@ -734,9 +726,7 @@ export function CreatorSaleModal({
               <Icon name="close" className="ico" />
             </S.Close>
           </S.Head>
-          <S.Subtitle>
-            {tNode('creatorSale.blockedBody', { c: marked, m: manaMarked, count: review.classic.length })}
-          </S.Subtitle>
+          <S.Subtitle>{tNode('creatorSale.blockedBody', { c: marked, count: review.classic.length })}</S.Subtitle>
           <S.Actions>
             <S.ActionBtn variant="white" onClick={onClose}>
               {t('creatorSale.cancel')}
@@ -1030,7 +1020,8 @@ export function CreatorSaleModal({
                   discount_pct: terms.discountPct,
                   duration_h: Math.round((terms.endsAtMs - (terms.startsAtMs ?? Date.now())) / HOUR_MS),
                   scheduled: terms.startsAtMs !== undefined,
-                  capped: terms.uses !== undefined
+                  capped: terms.uses !== undefined,
+                  mana_items: review.listed.filter(i => i.mana).length
                 })
               }
             }}

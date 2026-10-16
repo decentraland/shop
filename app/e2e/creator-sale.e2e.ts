@@ -470,7 +470,7 @@ describe('creator sales', () => {
     await page.mouse.move(anchor.x, anchor.y)
     await page.waitForSelector('[role="tooltip"][data-open]')
     const why = await page.$eval('[role="tooltip"][data-open]', el => el.textContent ?? '')
-    expect(why).toMatch(/MANA/)
+    expect(why).toMatch(/can't take a discount/)
     expect(why).toMatch(/Activity . Listings/)
   })
 

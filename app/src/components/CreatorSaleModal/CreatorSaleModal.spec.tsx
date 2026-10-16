@@ -107,7 +107,8 @@ describe('when a creator opens the discount flow', () => {
       discount_pct: 20,
       duration_h: 72,
       scheduled: false,
-      capped: false
+      capped: false,
+      mana_items: 0
     })
   })
 
@@ -150,7 +151,7 @@ describe('when a creator opens the discount flow', () => {
   })
 
   /**
-   * Everything listed is priced in MANA, so the flow stops before its form. Leaving from there names the
+   * Nothing listed can take the discount, so the flow stops before its form. Leaving from there names the
    * step it actually stopped on, and following its button is told apart from walking away.
    */
   it('should record the blocked exit as blocked, and say whether it went to update prices', () => {
