@@ -7,7 +7,7 @@ export const ANNOUNCEMENT_PCT = 30
 /** How far back the announcement looks for the collection that is selling. */
 export const ANNOUNCEMENT_SALES_DAYS = 30
 
-/** How many of a collection's items are priced in Credits at a price the discount visibly lowers. */
+/** How many of a collection's items take the discount at a price it visibly lowers. */
 function discountableCount(collection: SaleableCollection, pct: number): number {
   return collection.items.filter(
     item =>
@@ -20,7 +20,7 @@ function discountableCount(collection: SaleableCollection, pct: number): number 
 /**
  * The collection the discounts announcement uses as its example, or null when the creator has none to show.
  *
- * Only collections with an item priced in Credits whose price the example discount visibly lowers qualify:
+ * Only collections with an item the discount takes, at a price the example discount visibly lowers, qualify:
  * a discount applies to Credits listings only, and a 1-credit item rounds any cut back to its own price.
  * Of those, the one that sold the most in the recent window, and then the one with the most such items.
  *

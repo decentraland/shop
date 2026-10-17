@@ -8,6 +8,7 @@ import { fetchPublicCatalogue, withMissingCollections } from '~/lib/storeCatalog
 import { captureError } from '~/lib/monitoring'
 import { fetchCollectionSaleState, type CollectionSaleState } from '~/lib/collections'
 import { buildStoreStats, type StoreStats } from '~/lib/storeStats'
+import { useLegacyCouponsEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { toSaleableCollections } from '~/lib/saleableCollections'
 import type { Session } from '~/lib/auth'
 import { comparisonRange, type ResolvedRange } from '~/lib/storeRange'
@@ -184,9 +185,10 @@ export function useStoreStats(session: Session | null, range: ResolvedRange) {
    * a creator may discount is one rule, and two copies of it would drift. Only the builder's collections:
    * one it did not return has none of the builder state a discount needs.
    */
+  const manaListings = useLegacyCouponsEnabled() === true
   const saleable = useMemo(
-    () => toSaleableCollections(builderCatalogue.data ?? [], saleState.data?.states),
-    [builderCatalogue.data, saleState.data]
+    () => toSaleableCollections(builderCatalogue.data ?? [], saleState.data?.states, { manaListings }),
+    [builderCatalogue.data, saleState.data, manaListings]
   )
 
   /**

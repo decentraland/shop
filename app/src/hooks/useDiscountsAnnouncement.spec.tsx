@@ -15,7 +15,10 @@ const fetchPublishableItems = vi.fn()
 const fetchCollectionSaleState = vi.fn()
 const fetchSalesSummary = vi.fn()
 
-vi.mock('~/hooks/useCreatorSalesEnabled', () => ({ useCreatorSalesEnabled: () => flagOn() }))
+vi.mock('~/hooks/useCreatorSalesEnabled', () => ({
+  useCreatorSalesEnabled: () => flagOn(),
+  useLegacyCouponsEnabled: () => false
+}))
 vi.mock('~/hooks/useIsCreator', () => ({ useIsCreator: (address?: string) => !!address && creator() }))
 vi.mock('~/hooks/useMyStoreEnabled', () => ({ useMyStoreEnabled: () => storeOpen() }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: (...args: unknown[]) => fetchPublishableItems(...args) }))
@@ -64,7 +67,7 @@ afterEach(() => {
   useWallet.setState({ session: null })
 })
 
-describe('when a creator with collections in Credits has not seen the announcement', () => {
+describe('when a creator with discountable collections has not seen the announcement', () => {
   it('should announce with the collection that sold the most recently', async () => {
     const { result } = renderHook(() => useDiscountsAnnouncement('/overview'), { wrapper })
     await waitFor(() => expect(result.current.collection?.contractAddress).toBe('0xbb'))
@@ -148,7 +151,7 @@ describe('when the account could not be shown the announcement', () => {
     expect(fetchPublishableItems).not.toHaveBeenCalled()
   })
 
-  it('should announce nothing when no collection is priced in Credits', async () => {
+  it('should announce nothing when no collection can take a discount', async () => {
     fetchCollectionSaleState.mockResolvedValue({ '0': { isOnSale: true, priceCredits: 20, manaWei: '1' } })
     const { result } = renderHook(() => useDiscountsAnnouncement('/overview'), { wrapper })
     await waitFor(() => expect(fetchSalesSummary).toHaveBeenCalled())

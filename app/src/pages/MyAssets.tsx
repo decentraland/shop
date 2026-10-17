@@ -15,7 +15,7 @@ import { CollectionThumb } from '~/components/CollectionThumb'
 import { CreatorSales } from '~/components/CreatorSales'
 import { useCreatorSales } from '~/hooks/useCreatorSales'
 import type { CreatorSaleStatus } from '~/lib/coupons'
-import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
+import { useCreatorSalesEnabled, useLegacyCouponsEnabled } from '~/hooks/useCreatorSalesEnabled'
 import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
@@ -406,9 +406,10 @@ export function MyAssets() {
   const { data: creatorSales } = useCreatorSales(address, creatorSalesEnabled && section === 'creations')
   const [saleModalOpen, setSaleModalOpen] = useState(false)
   const [saleModalFor, setSaleModalFor] = useState<string | undefined>(undefined)
+  const manaListings = useLegacyCouponsEnabled() === true
   const saleableCollections = useMemo(
-    () => toSaleableCollections(publishable ?? [], saleState),
-    [publishable, saleState]
+    () => toSaleableCollections(publishable ?? [], saleState, { manaListings }),
+    [publishable, saleState, manaListings]
   )
 
   // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared

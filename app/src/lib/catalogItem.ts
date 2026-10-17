@@ -24,6 +24,8 @@ export type RawCollectionItem = {
   // with a price is unambiguous — a collection-store mint or a classic order, i.e. MANA.
   price?: string | null
   tradeId?: string | null
+  // The marketplace the row's trade was signed for. Says which coupon manager a MANA trade redeems through.
+  tradeContractAddress?: string | null
   available?: string | number | null
   isOnSale?: boolean
   data?: {
