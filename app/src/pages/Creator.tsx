@@ -21,7 +21,7 @@ import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { rarityLabel } from '~/lib/rarity'
 import { shortAddress } from '~/lib/address'
-import { displayCredits } from '~/lib/mana-convert'
+import { livePrices } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -275,10 +275,7 @@ export function Creator() {
    * server number here is what made this page disagree with both.
    */
   const { data: manaRate } = useManaRate()
-  const priced = useMemo(
-    () => items.map(item => ({ ...item, priceCredits: displayCredits(item, manaRate) })),
-    [items, manaRate]
-  )
+  const priced = useMemo(() => items.map(item => ({ ...item, ...livePrices(item, manaRate) })), [items, manaRate])
   // "For sale" stays exactly what it was for this feed — a price the server reports — with one addition: a
   // MANA row whose live rate has not resolved yet is still for sale, it just has no number to show. Without
   // that, every store-mint card would flash as NOT FOR SALE for the first frames.

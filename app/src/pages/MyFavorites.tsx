@@ -5,7 +5,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { useManaRate } from '~/hooks/useManaRate'
-import { displayCredits } from '~/lib/mana-convert'
+import { livePrices } from '~/lib/mana-convert'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { Grid } from '~/styles/grid.styles'
@@ -35,10 +35,7 @@ export function MyFavorites() {
   // at the live rate — the same rule the browse grid applies to any MANA-priced card.
   const { data: rate, isPending: ratePending, isError: rateError } = useManaRate()
   const hasManaItems = stored.some(item => !!item.manaWei)
-  const items = useMemo(
-    () => stored.map(item => ({ ...item, priceCredits: displayCredits(item, rate) })),
-    [stored, rate]
-  )
+  const items = useMemo(() => stored.map(item => ({ ...item, ...livePrices(item, rate) })), [stored, rate])
 
   const exclude = useMemo(
     () =>

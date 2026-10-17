@@ -313,18 +313,11 @@ export function Overview() {
     enabled: creatorSalesEnabled
   })
   /**
-   * NOT through `useLivePricedItems`, unlike the rails above, and deliberately.
-   *
-   * A discounted row's `priceCredits` and `compareAtCredits` are one pair, both computed by the server from
-   * the same USD figure. Re-converting only the first at the live MANA rate leaves the second as it was, and
-   * a sale price that no longer undercuts its own compare-at stops reading as a sale at all — the card drops
-   * its badge, its strike-through and its countdown, and simply shows a price.
-   *
-   * There is also nothing to convert: the catalogue joins coupons on the NATIVE branch only (legacy and
-   * CollectionStore rows are built with `withCoupons: false`), so a row that carries a discount is
-   * USD-pegged by construction and has no `manaWei` to re-price.
+   * Through `useLivePricedItems` like the rails above. A discounted MANA row carries its SALE amount, and the
+   * hook re-prices it and its struck-through price at the same live rate, so the pair stays a sale; a
+   * USD-pegged row has no `manaWei` and passes through untouched.
    */
-  const dealItems = deals?.items ?? []
+  const dealItems = useLivePricedItems(deals?.items ?? [])
 
   return (
     <S.Overview className="overview">

@@ -258,7 +258,8 @@ async function withRunningSales(
       { compareAtCredits: number; saleEndsAt?: number; priceCredits: number; coupon?: CatalogItem['coupon'] }
     >()
     for (const l of listings) {
-      if (l.itemId == null || l.compareAtCredits == null) continue
+      // Same rule as the mapper: a compare-at that does not beat the price is no sale, and its coupon stays out.
+      if (l.itemId == null || l.compareAtCredits == null || l.compareAtCredits <= l.priceCredits) continue
       sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
         compareAtCredits: l.compareAtCredits,
         priceCredits: l.priceCredits,

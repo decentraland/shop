@@ -5,6 +5,7 @@ import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
 import { ZERO_ADDRESS } from '~/lib/address'
 import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
+import { listManaWeiFromSale } from '~/lib/mana-convert'
 import { captureError } from '~/lib/monitoring'
 import type { ListingCoupon } from '~/lib/trade-encoding'
 
@@ -43,8 +44,12 @@ export type CatalogItem = {
   // carry `manaWei` and are priced for display at the live rate — see `displayCredits`.
   priceCredits: number
   // Raw MANA price (wei) when this row is MANA-priced (legacy listings, and every row the /v2 catalog
-  // serves). Null/absent on USD-pegged rows, which price in credits directly.
+  // serves). Null/absent on USD-pegged rows, which price in credits directly. The SALE amount while a
+  // creator coupon discounts a MANA listing.
   manaWei?: string | null
+  // The exact MANA list price beside a sale `manaWei`, from the catalogue, so the struck-through price can
+  // be re-priced at the live rate. Absent unless the row is a MANA listing on a shown sale.
+  listManaWei?: string
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
   isSmart: boolean
@@ -506,9 +511,21 @@ function listingRowId(l: ShopListingRaw): string {
  * rendered at a discount the flag has not allowed — and never flickers from list price to sale price either.
  */
 let creatorSalesLive = false
+// Whether the catalogue is asked to discount MANA listings too. Never on while the kill switch is off, so a
+// MANA row only ever arrives at a sale amount the Shop is also prepared to show and charge.
+let legacyCouponsLive = false
 
 async function primeCreatorSales(): Promise<void> {
   creatorSalesLive = await getIsFeatureEnabled(FeatureFlag.SHOP_CREATOR_SALES)
+  legacyCouponsLive = creatorSalesLive && (await getIsFeatureEnabled(FeatureFlag.SHOP_LEGACY_COUPONS))
+}
+
+// The opt-in that lets the catalogue attach creator coupons to MANA listings. Their rows are bought through
+// the coupon-aware checkout (`resolveLine` → `acceptWithCoupon`). Store mints read through the same query are
+// unaffected: the server never attaches a coupon to them, since `CollectionStore.buy` takes none.
+function withLegacyCoupons(qs: URLSearchParams): URLSearchParams {
+  if (legacyCouponsLive) qs.set('includeLegacyCoupons', 'true')
+  return qs
 }
 
 /**
@@ -537,8 +554,15 @@ function withoutSale(l: ShopListingRaw): ShopListingRaw {
   }
 }
 
+// A coupon only travels with a sale the row actually shows. One without a compare-at that beats the price would
+// be applied at checkout under a list-price label, so it is dropped and the row stays at list end to end.
+function withShownSaleOnly(l: ShopListingRaw): ShopListingRaw {
+  if (!l.coupon || (l.compareAtCredits != null && l.compareAtCredits > l.priceCredits)) return l
+  return { ...l, coupon: null, compareAtCredits: null, saleEndsAt: null, saleUnitsLeft: null }
+}
+
 function shopListingToItem(raw: ShopListingRaw): CatalogItem {
-  const l = creatorSalesLive ? raw : withoutSale(raw)
+  const l = creatorSalesLive ? withShownSaleOnly(raw) : withoutSale(raw)
   return {
     id: listingRowId(l),
     tradeId: l.tradeId ?? undefined,
@@ -827,7 +851,8 @@ export async function fetchClassicItemOrders(contractAddress: string, itemId: st
 // cart) and LEGACY (classic MANA-priced) liquidity in one grid. Same query params as /v3/catalog/shop.
 // Each row carries the existing ShopListing fields PLUS:
 //   - source: 'native' | 'legacy'
-//   - manaWei: raw MANA price, present ONLY for legacy rows (null for native)
+//   - manaWei: MANA price, present ONLY for legacy rows (null for native); the SALE amount while a creator
+//     coupon applies (requested with includeLegacyCoupons, see withLegacyCoupons)
 //   - priceCredits: server-computed (native = fixed price; legacy = a snapshot — but the UI DISPLAYS
 //     legacy with the LIVE rate, not this snapshot; see pages/Assets + lib/mana-rate).
 // This is the ONE place the /v3/catalog/unified URL lives.
@@ -859,6 +884,7 @@ type UnifiedListingRaw = ShopListingRaw & {
   source: ListingSource
   acquisition?: ListingAcquisition
   manaWei?: string | null
+  listManaWei?: string
 }
 
 function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
@@ -868,8 +894,27 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
     // Fall back to 'trade': every row was a trade before the store branch existed, so an older server that
     // omits the field describes trades. Defaulting the other way would route real trades down the mint path.
     acquisition: l.acquisition ?? 'trade',
-    manaWei: l.manaWei ?? null
+    manaWei: manaWeiOf(l),
+    ...(saleKept(l) && l.listManaWei ? { listManaWei: l.listManaWei } : {})
   }
+}
+
+// Whether the mapping keeps the row's sale: creator sales on, and a compare-at above the price.
+function saleKept(l: UnifiedListingRaw): boolean {
+  return creatorSalesLive && l.compareAtCredits != null && l.compareAtCredits > l.priceCredits
+}
+
+// A discounted MANA row carries the SALE amount. With the kill switch off the sale is stripped from the row,
+// so its MANA amount has to go back to the list price with it, or the live-rate price would still be the sale.
+function manaWeiOf(l: UnifiedListingRaw): string | null {
+  if (!l.manaWei) return null
+  // The server only sends a sale amount next to a compare-at. Kept while the sale is shown; whenever the
+  // mapping drops the sale (kill switch, or no compare-at above the price) the amount goes back to list too:
+  // the exact list amount the server sends, else the smallest one the sale could have come from.
+  if (saleKept(l) || !l.coupon || l.compareAtCredits == null) return l.manaWei
+  if (l.listManaWei) return l.listManaWei
+  if (l.coupon.discountType !== 1) return l.manaWei
+  return listManaWeiFromSale(l.manaWei, l.coupon.discount) ?? l.manaWei
 }
 
 // Shared query string for the /v3/catalog/unified feed (same params as fetchListings). `groupBy='item'`
@@ -911,7 +956,7 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.discounted != null) qs.set('discounted', String(filters.discounted))
   if (filters.listingType) qs.set('listingType', filters.listingType)
   if (groupBy) qs.set('groupBy', groupBy)
-  return qs
+  return withLegacyCoupons(qs)
 }
 
 // The per-LISTING unified feed: native + legacy listings, one row per open trade. All filtering/sort/
@@ -966,7 +1011,8 @@ export async function fetchRelatedItems(
   itemId: string,
   { first = 10 }: { first?: number } = {}
 ): Promise<UnifiedListing[]> {
-  const qs = new URLSearchParams({ contractAddress, itemId, first: String(first) })
+  await primeCreatorSales()
+  const qs = withLegacyCoupons(new URLSearchParams({ contractAddress, itemId, first: String(first) }))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/related?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchRelatedItems ${res.status}`)
   const json = (await res.json()) as { data?: ShopItemRaw[] }
@@ -992,7 +1038,8 @@ export async function fetchTrendingItems({
   first = 12,
   listingType
 }: { first?: number; listingType?: 'primary' | 'secondary' } = {}): Promise<UnifiedListing[]> {
-  const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
+  await primeCreatorSales()
+  const qs = withLegacyCoupons(new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' }))
   if (listingType) qs.set('listingType', listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/trending?${qs.toString()}`)
   if (!res.ok) {
@@ -1094,6 +1141,8 @@ export async function fetchSuggestedItems({
   if (equipped?.length) qs.set('equipped', compactEquipped(equipped).join(','))
   if (exclude?.length) qs.set('exclude', exclude.join(','))
   if (category) qs.set('category', category)
+  // No `includeLegacyCoupons`: the suggestions endpoint does not take it, so a MANA row here stays at list
+  // price, which is also what checkout charges for a line added from it without a coupon.
 
   // Signed when we can, plain when we cannot: the signature unlocks favourites and nothing else, so a
   // signed-out visitor still gets a rail from their seeds.
