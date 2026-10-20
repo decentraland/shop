@@ -72,8 +72,14 @@ export const NavbarViolet = styled.div`
     color: ${theme.colors.softWhite};
   }
   /* Only paths that are FILLED shapes. The credits mark draws its octagon as a stroke over
-     fill="none", so filling every path turned the ring into a solid blob and swallowed the C. */
-  & nav > div:last-of-type svg path:not([stroke]) {
+     fill="none", so filling every path turned the ring into a solid blob and swallowed the C. The
+     profile panel (the avatar button's sibling card on desktop, ui2's data-mobile-user-card on mobile)
+     is left alone: its chain logos are multi-colour brand marks that must keep their own fills. */
+  &
+    nav
+    > div:last-of-type
+    svg:not(button[aria-label='User menu'] ~ div svg, [data-mobile-user-card] svg)
+    path:not([stroke]) {
     fill: currentColor;
   }
 
