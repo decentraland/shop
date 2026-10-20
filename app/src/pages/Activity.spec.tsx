@@ -67,7 +67,9 @@ const fetchTradeDisplay = vi.fn()
 const fetchAssetDisplay = vi.fn()
 const fetchUserSales = vi.fn()
 const fetchUnified = vi.fn()
+const fetchUserTransfers = vi.fn()
 vi.mock('~/lib/api', () => ({
+  fetchUserTransfers: (...args: unknown[]) => fetchUserTransfers(...args),
   fetchTradeDisplay: (...args: unknown[]) => fetchTradeDisplay(...args),
   fetchAssetDisplay: (...args: unknown[]) => fetchAssetDisplay(...args),
   fetchUserSales: (...args: unknown[]) => fetchUserSales(...args),
@@ -202,6 +204,7 @@ beforeEach(() => {
   fetchUserSales.mockImplementation(() => Promise.resolve({ items: [], total: 0 }))
   fetchTradeDisplay.mockResolvedValue(null)
   fetchAssetDisplay.mockResolvedValue(null)
+  fetchUserTransfers.mockResolvedValue([])
   fetchImportable.mockResolvedValue({ creations: [], owned: [] })
   useManaRate.mockReturnValue({ data: RATE })
   useCancelledTrades.mockReturnValue({ trades: [], count: 0 })
@@ -489,6 +492,63 @@ describe('when purchases and a sale are interleaved', () => {
     fireEvent.click(screen.getByTestId('activity-filter-sales'))
     await waitFor(() => expect(screen.queryByTestId('purchase-order')).not.toBeInTheDocument())
     expect(screen.getByTestId('activity-sale')).toBeInTheDocument()
+  })
+})
+
+describe('when the user sent an item and received another', () => {
+  beforeEach(() => {
+    fetchUserTransfers.mockResolvedValue([
+      {
+        id: 'transfer_sent:t1',
+        direction: 'sent',
+        counterparty: '0xdfb37fd867caaa33b94c37a00794e8c0d3f12911',
+        contractAddress: '0xc',
+        tokenId: '762',
+        itemId: '0',
+        createdAt: 1_700_000_500_000,
+        txHash: '0xout'
+      },
+      {
+        id: 'transfer_received:t2',
+        direction: 'received',
+        counterparty: '0xf5950c26fb352c58adb9fc30825b012ac5b3d441',
+        contractAddress: '0xc',
+        tokenId: '762',
+        itemId: '0',
+        createdAt: 1_700_000_000_000,
+        txHash: '0xin'
+      }
+    ])
+    fetchAssetDisplay.mockResolvedValue(display({ name: 'EXO-tic Jacket', tokenId: '762', itemId: '0' }))
+  })
+
+  it('should show one card per transfer, saying who it went to or came from', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getAllByTestId('activity-transfer')).toHaveLength(2))
+    const [sent, received] = screen.getAllByTestId('activity-transfer')
+    expect(sent).toHaveAttribute('data-direction', 'sent')
+    expect(sent.textContent).toMatch(/Sent to 0xdfb3/)
+    expect(received).toHaveAttribute('data-direction', 'received')
+    expect(received.textContent).toMatch(/Received from 0xf595/)
+  })
+
+  it('should still show the rest of the feed when they cannot be read', async () => {
+    fetchUserTransfers.mockRejectedValue(new Error('fetchUserTransfers 500'))
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'a', tradeId: 't1', txHash: '0xcart1', credits: 12, createdAt: 1_700_000_000_000 })],
+      total: 1
+    })
+    fetchTradeDisplay.mockResolvedValue(display({ name: 'Purchased Thing' }))
+    renderPage()
+    await screen.findByText('Purchased Thing')
+    expect(screen.queryByTestId('activity-transfer')).not.toBeInTheDocument()
+  })
+
+  it('should not read them under the Purchases filter', async () => {
+    renderPage()
+    await screen.findAllByTestId('activity-transfer')
+    fireEvent.click(screen.getByTestId('activity-filter-purchases'))
+    await waitFor(() => expect(screen.queryByTestId('activity-transfer')).not.toBeInTheDocument())
   })
 })
 

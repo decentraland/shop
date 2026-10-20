@@ -18,7 +18,14 @@ import {
   LISTINGS_SECTION,
   LISTINGS_SECTION_PARAM
 } from '~/lib/routes'
-import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
+import {
+  fetchTradeDisplay,
+  fetchAssetDisplay,
+  fetchUserSales,
+  fetchUserTransfers,
+  type SaleRecord,
+  type TransferRecord
+} from '~/lib/api'
 import { foldOrderLines, purchaseOrderPill, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
@@ -41,6 +48,7 @@ import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { captureError } from '~/lib/monitoring'
 import { toast } from '~/store/toast'
 import * as S from './Activity.styles'
 
@@ -275,6 +283,59 @@ function ManaPurchaseCard({ sale }: { sale: SaleRecord }) {
             </ManaTooltip>
           </S.Total>
         </S.HeadRight>
+      </S.CardHead>
+      <S.Lines>
+        {to ? (
+          <LineLink to={to} data-link="true">
+            {body}
+          </LineLink>
+        ) : (
+          <S.Line>{body}</S.Line>
+        )}
+      </S.Lines>
+    </S.Card>
+  )
+}
+
+// One item the user sent to another account or received from one, outside a purchase.
+function TransferCard({ transfer }: { transfer: TransferRecord }) {
+  const { data: display, isLoading } = useQuery({
+    queryKey: ['asset-display', transfer.contractAddress, transfer.tokenId, transfer.itemId],
+    queryFn: () => fetchAssetDisplay(transfer.contractAddress, { tokenId: transfer.tokenId, itemId: transfer.itemId }),
+    enabled: !!transfer.contractAddress,
+    staleTime: 5 * 60_000
+  })
+
+  const sent = transfer.direction === 'sent'
+  const name = display?.name ?? t('activity.itemFallback')
+  const thumbnail = display?.thumbnail ?? ''
+  const to =
+    detailRouteFor({ contractAddress: transfer.contractAddress, tokenId: transfer.tokenId, itemId: transfer.itemId }) ??
+    undefined
+
+  const body = (
+    <>
+      {isLoading ? (
+        <S.ThumbSkeleton />
+      ) : (
+        <S.Thumb>{thumbnail ? <img src={thumbnail} alt={name} /> : <Icon name="offer" size={20} />}</S.Thumb>
+      )}
+      <S.LineInfo>
+        {isLoading ? <S.LineNamePlaceholder /> : <S.LineName title={name}>{name}</S.LineName>}
+        <S.LineMeta>
+          {t(sent ? 'activity.sentTo' : 'activity.receivedFrom', { account: shortAccount(transfer.counterparty) })}
+        </S.LineMeta>
+      </S.LineInfo>
+    </>
+  )
+
+  return (
+    <S.Card data-testid="activity-transfer" data-direction={transfer.direction}>
+      <S.CardHead>
+        <S.HeadLeft>
+          <S.DateText>{formatDate(transfer.createdAt)}</S.DateText>
+          <S.SubCount>{t(sent ? 'activity.transferSent' : 'activity.transferReceived')}</S.SubCount>
+        </S.HeadLeft>
       </S.CardHead>
       <S.Lines>
         {to ? (
@@ -619,6 +680,18 @@ export function Activity() {
     enabled: giftsEnabled,
     staleTime: 60_000
   })
+  // Items sent to or received from other accounts. Neither purchases nor sales, so "All" only, read flat like
+  // the gifts. A failed read is reported and leaves them out: the rest of the feed does not depend on it.
+  const { data: transfers } = useQuery({
+    queryKey: ['transfers', session?.address],
+    queryFn: () =>
+      fetchUserTransfers(session!.identity).catch(error => {
+        captureError(error, { flow: 'activity_transfers' })
+        return []
+      }),
+    enabled: giftsEnabled,
+    staleTime: 60_000
+  })
   const payoutIndex = useMemo(() => indexPayouts(payouts), [payouts])
 
   // The oracle read is only needed to price sales in credits — skip it entirely on the purchases-only
@@ -647,6 +720,7 @@ export function Activity() {
       sales: salesEnabled ? sales.items : [],
       creditOrders: purchasesEnabled ? creditOrders.items : [],
       creditGifts: giftsEnabled ? (gifts ?? []) : [],
+      transfers: giftsEnabled ? (transfers ?? []) : [],
       manaPurchases: purchasesEnabled ? manaPurchases.items : [],
       rate
     }),
@@ -767,6 +841,8 @@ export function Activity() {
                 <GiftCard key={entry.id} gift={entry.gift} />
               ) : entry.kind === 'mana-purchase' ? (
                 <ManaPurchaseCard key={entry.id} sale={entry.sale} />
+              ) : entry.kind === 'transfer' ? (
+                <TransferCard key={entry.id} transfer={entry.transfer} />
               ) : (
                 <SaleCard key={entry.id} sale={entry.sale} payout={payoutForSale(payoutIndex, entry.sale)} />
               )

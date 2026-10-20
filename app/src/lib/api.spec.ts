@@ -9,6 +9,12 @@ vi.mock('~/config', () => ({
   }
 }))
 
+// Signed reads go through the same fetch mock, so a spec asserts on the request without a real identity.
+const signedFetchMock = vi.hoisted(() => vi.fn())
+vi.mock('decentraland-crypto-fetch', () => ({
+  default: (url: string, init: unknown) => signedFetchMock(url, init)
+}))
+
 const captureErrorMock = vi.fn()
 vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
 // The catalogue primes the creator-sales flag before mapping a row. Stubbed so these specs exercise the
@@ -59,6 +65,7 @@ import {
   resolveLiveTrade,
   fetchAssetDisplay,
   fetchUserSales,
+  fetchUserTransfers,
   TradeNotFoundError,
   postTrade,
   fetchItemMeta
@@ -1838,6 +1845,101 @@ describe('when fetching the user secondary sales', () => {
   it('should throw on a non-OK response', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
     await expect(fetchUserSales('0xABC')).rejects.toThrow('fetchUserSales 500')
+  })
+})
+
+describe('fetchUserTransfers', () => {
+  const identity = { authChain: [] } as never
+
+  beforeEach(() => {
+    signedFetchMock.mockReset()
+  })
+
+  describe('and the activity feed has transfers among other events', () => {
+    beforeEach(() => {
+      signedFetchMock.mockResolvedValueOnce(
+        jsonOk({
+          data: [
+            {
+              id: 'transfer_received:t1',
+              type: 'transfer_received',
+              timestamp: 1_700_000_000_000,
+              txHash: '0xin',
+              contractAddress: '0xc',
+              tokenId: '762',
+              itemId: '0',
+              counterparty: '0xflora',
+              details: { transfer: { category: 'wearable' } }
+            },
+            { id: 'sale_buyer:s1', type: 'sale_buyer', timestamp: 1_699_000_000_000, counterparty: '0xseller' },
+            {
+              id: 'transfer_sent:t2',
+              type: 'transfer_sent',
+              timestamp: 1_698_000_000_000,
+              txHash: '0xout',
+              contractAddress: '0xemotes',
+              tokenId: '5',
+              counterparty: '0xfriend',
+              details: { transfer: { category: 'emote' } }
+            },
+            {
+              id: 'transfer_sent:t3',
+              type: 'transfer_sent',
+              timestamp: 1_697_000_000_000,
+              txHash: '0xland',
+              contractAddress: '0xparcels',
+              tokenId: '7',
+              counterparty: '0xfriend',
+              details: { transfer: { category: 'parcel' } }
+            }
+          ],
+          total: 4
+        })
+      )
+    })
+
+    it('should keep only the wearable and emote transfers, each with its direction and the other account', async () => {
+      expect(await fetchUserTransfers(identity)).toEqual([
+        {
+          id: 'transfer_received:t1',
+          direction: 'received',
+          counterparty: '0xflora',
+          contractAddress: '0xc',
+          tokenId: '762',
+          itemId: '0',
+          createdAt: 1_700_000_000_000,
+          txHash: '0xin'
+        },
+        {
+          id: 'transfer_sent:t2',
+          direction: 'sent',
+          counterparty: '0xfriend',
+          contractAddress: '0xemotes',
+          tokenId: '5',
+          itemId: null,
+          createdAt: 1_698_000_000_000,
+          txHash: '0xout'
+        }
+      ])
+    })
+
+    it('should sign a read of the activity feed', async () => {
+      await fetchUserTransfers(identity)
+      expect(signedFetchMock).toHaveBeenCalledWith(
+        'https://market.test/v1/activity?limit=500',
+        expect.objectContaining({ method: 'GET', identity, metadata: { signer: 'dcl:marketplace' } })
+      )
+    })
+  })
+
+  describe('and the server answers with an error', () => {
+    beforeEach(() => {
+      signedFetchMock.mockResolvedValueOnce(httpError(500))
+    })
+
+    it('should throw', async () => {
+      await expect(fetchUserTransfers(identity)).rejects.toThrow('fetchUserTransfers 500')
+    })
   })
 })
 
