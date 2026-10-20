@@ -1788,6 +1788,69 @@ function toSaleRecord(s: RawSale): SaleRecord {
   }
 }
 
+// An item the account sent to someone or received from someone, outside a purchase. Mints and the moves
+// that settled a sale or a trade are already left out by the server, so these never double a purchase row.
+export type TransferRecord = {
+  id: string
+  direction: 'sent' | 'received'
+  counterparty: string
+  contractAddress: string
+  tokenId: string
+  itemId: string | null
+  createdAt: number
+  txHash: string
+}
+
+type RawActivityEvent = {
+  id: string
+  type: string
+  timestamp: number
+  txHash?: string
+  contractAddress?: string
+  tokenId?: string
+  itemId?: string
+  counterparty?: string
+  details?: { transfer?: { category?: string } }
+}
+
+// The feed also carries LAND, estates and NAMEs, which this Shop does not sell or show.
+const TRANSFER_CATEGORIES = new Set(['wearable', 'emote'])
+
+const TRANSFER_DIRECTIONS: Record<string, TransferRecord['direction']> = {
+  transfer_sent: 'sent',
+  transfer_received: 'received'
+}
+
+// The account's wearable and emote transfers, newest first, from marketplace-server's signed activity feed. One
+// flat read: the feed returns at most 500 recent events across every kind, and only the transfers are kept.
+export async function fetchUserTransfers(identity: AuthIdentity): Promise<TransferRecord[]> {
+  const url = `${config.marketplaceServerUrl}/v1/activity?limit=500`
+  // The endpoint refuses a signature without a signer.
+  const res = await signedFetch(url, { method: 'GET', identity, metadata: { signer: API_SIGNER } })
+  if (!res.ok) {
+    void res.body?.cancel()
+    throw new Error(`fetchUserTransfers ${res.status}`)
+  }
+  const json = (await res.json()) as { data?: RawActivityEvent[] }
+  return (json.data ?? []).flatMap(event => {
+    const direction = TRANSFER_DIRECTIONS[event.type]
+    if (!direction || !event.contractAddress || !event.tokenId || !event.counterparty) return []
+    if (!TRANSFER_CATEGORIES.has(event.details?.transfer?.category ?? '')) return []
+    return [
+      {
+        id: event.id,
+        direction,
+        counterparty: event.counterparty,
+        contractAddress: event.contractAddress,
+        tokenId: event.tokenId,
+        itemId: event.itemId ?? null,
+        createdAt: event.timestamp,
+        txHash: event.txHash ?? ''
+      }
+    ]
+  })
+}
+
 // The connected account's completed secondary sales, newest first. `role` picks the side: 'seller' =
 // items the user sold, 'buyer' = items the user bought on the secondary market. Public GET (no auth);
 // paginated by cumulative offset (see useInfiniteGrid). Prices are MANA wei.

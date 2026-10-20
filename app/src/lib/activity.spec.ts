@@ -10,7 +10,7 @@ vi.mock('decentraland-transactions', () => ({
 
 import { buildActivityFeed, filterActivity, toActivitySale } from '~/lib/activity'
 import type { PurchaseRecord, CreditOrder } from '~/lib/credits'
-import type { SaleRecord } from '~/lib/api'
+import type { SaleRecord, TransferRecord } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
 
 // 1 MANA = $0.50 (8-decimal aggregator) → 10 MANA = $5 = 50 credits.
@@ -334,5 +334,41 @@ describe('MANA-paid purchases', () => {
     const feed = buildActivityFeed({ purchases: [], sales: [], manaPurchases: [buyerSale()] })
     expect(filterActivity(feed, 'purchases').length).toBe(1)
     expect(filterActivity(feed, 'sales')).toEqual([])
+  })
+})
+
+describe('when the account sent or received items', () => {
+  const transfer = (overrides: Partial<TransferRecord> = {}): TransferRecord => ({
+    id: 'transfer_sent:t1',
+    direction: 'sent',
+    counterparty: '0xfriend',
+    contractAddress: '0xc',
+    tokenId: '762',
+    itemId: '0',
+    createdAt: 3_000,
+    txHash: '0xt',
+    ...overrides
+  })
+
+  it('should place each transfer in the feed by date, as a transfer', () => {
+    const feed = buildActivityFeed({
+      purchases: [purchase({ txHash: '0xp', createdAt: 1_000 })],
+      sales: [],
+      transfers: [transfer(), transfer({ id: 'transfer_received:t2', direction: 'received', createdAt: 5_000 })]
+    })
+    expect(feed.map(e => [e.kind, e.id])).toEqual([
+      ['transfer', 'transfer:transfer_received:t2'],
+      ['transfer', 'transfer:transfer_sent:t1'],
+      ['purchase', expect.any(String)]
+    ])
+  })
+
+  it('should show it only under "all", as it is neither a purchase nor a sale', () => {
+    const feed = buildActivityFeed({ purchases: [], sales: [], transfers: [transfer()] })
+    expect({
+      all: filterActivity(feed, 'all').length,
+      purchases: filterActivity(feed, 'purchases').length,
+      sales: filterActivity(feed, 'sales').length
+    }).toEqual({ all: 1, purchases: 0, sales: 0 })
   })
 })
