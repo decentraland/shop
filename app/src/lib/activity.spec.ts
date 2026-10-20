@@ -10,8 +10,7 @@ vi.mock('decentraland-transactions', () => ({
 
 import { buildActivityFeed, filterActivity, toActivitySale } from '~/lib/activity'
 import type { PurchaseRecord, CreditOrder } from '~/lib/credits'
-import type { TransferRecord } from '~/lib/api'
-import type { SaleRecord } from '~/lib/api'
+import type { SaleRecord, TransferRecord } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
 
 // 1 MANA = $0.50 (8-decimal aggregator) → 10 MANA = $5 = 50 credits.

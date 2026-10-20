@@ -682,7 +682,7 @@ export function Activity() {
   })
   // Items sent to or received from other accounts. Neither purchases nor sales, so "All" only, read flat like
   // the gifts. A failed read is reported and leaves them out: the rest of the feed does not depend on it.
-  const { data: transfers } = useQuery({
+  const { data: transfers, isLoading: transfersLoading } = useQuery({
     queryKey: ['transfers', session?.address],
     queryFn: () =>
       fetchUserTransfers(session!.identity).catch(error => {
@@ -729,7 +729,8 @@ export function Activity() {
 
   const isLoading =
     (purchasesEnabled && (purchases.isLoading || creditOrders.isLoading || manaPurchases.isLoading)) ||
-    (salesEnabled && sales.isLoading)
+    (salesEnabled && sales.isLoading) ||
+    (giftsEnabled && transfersLoading)
   const isFetchingNextPage =
     (purchasesEnabled &&
       (purchases.isFetchingNextPage || creditOrders.isFetchingNextPage || manaPurchases.isFetchingNextPage)) ||

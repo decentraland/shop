@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import userEvent from '@testing-library/user-event'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { PurchaseRecord } from '~/lib/credits'
@@ -544,11 +544,24 @@ describe('when the user sent an item and received another', () => {
     expect(screen.queryByTestId('activity-transfer')).not.toBeInTheDocument()
   })
 
-  it('should not read them under the Purchases filter', async () => {
+  it('should not show or read them under the Purchases filter', async () => {
     renderPage()
     await screen.findAllByTestId('activity-transfer')
     fireEvent.click(screen.getByTestId('activity-filter-purchases'))
     await waitFor(() => expect(screen.queryByTestId('activity-transfer')).not.toBeInTheDocument())
+    expect(fetchUserTransfers).toHaveBeenCalledTimes(1)
+  })
+
+  it('should keep the loading state until they arrive, rather than flash the empty state', async () => {
+    let resolve: (value: unknown[]) => void = () => undefined
+    fetchUserTransfers.mockReturnValue(new Promise(r => (resolve = r)))
+    renderPage()
+    await waitFor(() => expect(fetchUserTransfers).toHaveBeenCalled())
+    // Every other read resolves at once, so after a few ticks only the transfers are still pending.
+    await act(() => new Promise(r => setTimeout(r, 50)))
+    expect(screen.queryByTestId('activity-empty-all')).not.toBeInTheDocument()
+    resolve([])
+    await screen.findByTestId('activity-empty-all')
   })
 })
 

@@ -1827,7 +1827,10 @@ export async function fetchUserTransfers(identity: AuthIdentity): Promise<Transf
   const url = `${config.marketplaceServerUrl}/v1/activity?limit=500`
   // The endpoint refuses a signature without a signer.
   const res = await signedFetch(url, { method: 'GET', identity, metadata: { signer: API_SIGNER } })
-  if (!res.ok) throw new Error(`fetchUserTransfers ${res.status}`)
+  if (!res.ok) {
+    void res.body?.cancel()
+    throw new Error(`fetchUserTransfers ${res.status}`)
+  }
   const json = (await res.json()) as { data?: RawActivityEvent[] }
   return (json.data ?? []).flatMap(event => {
     const direction = TRANSFER_DIRECTIONS[event.type]
