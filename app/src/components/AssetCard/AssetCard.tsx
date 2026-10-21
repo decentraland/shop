@@ -9,9 +9,10 @@ import { useWallet } from '~/store/wallet'
 import { canHover } from '~/lib/hover'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
-import { rarityColor, rarityDescription, rarityLabel, rarityMedia } from '~/lib/rarity'
+import { rarityCardPalette, rarityDescription, rarityLabel } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
+import creditsCoin from '~/assets/credits/credits-coin.svg'
+import { CreatorBadge } from '~/components/CreatorBadge'
 import { Icon } from '~/components/Icon'
 import { saleBadgePct } from '~/lib/sale'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
@@ -19,7 +20,9 @@ import { t } from '~/intl/i18n'
 import { track } from '~/lib/analytics'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
+import { useProfile } from '~/hooks/useProfile'
 import type { CatalogItem } from '~/lib/api'
+import { theme } from '~/styles/theme'
 import * as S from './AssetCard.styles'
 
 /** One burst per card per this long, so sweeping the pointer over a grid is not a swarm. */
@@ -49,6 +52,16 @@ const HOVER_DELAY_MS = 120
 //   reveal). For a wearable/emote it navigates to the item detail page (where List / Update price /
 //   Remove live, per token); for a NAME it's an external link to the Builder's name management page
 //   (`manageHref`). No inline listing happens from the My Assets card anymore.
+/**
+ * The creator's avatar and name, held blank while the profile loads. Without the hold a fresh grid showed a
+ * raw `0x…` on every card and then swapped each one for the name as the Catalyst replied.
+ */
+function CardCreator({ address }: { address: string }) {
+  const { isLoading } = useProfile(address)
+  if (isLoading) return <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
+  return <CreatorBadge address={address} hidePrefix />
+}
+
 // Where this card is rendered, and where in its row. Both flow into the click and add-to-cart events so a
 // rail's contribution is attributable — without them every card reported itself as the browse grid, which
 // is why Trending's CTR was unmeasurable. `position` is 0-based and only meaningful inside an ordered row.
@@ -177,6 +190,7 @@ export function AssetCard(props: AssetCardProps) {
 
   const catIco = categoryIcon(item)
   const genderIco = genderIcon(item.gender)
+  const palette = rarityCardPalette(item.rarity)
 
   // Flash sale only applies to native (fixed-price) listings — a market card's credit price
   // fluctuates, so a strike-through compare-at would be meaningless there.
@@ -261,7 +275,7 @@ export function AssetCard(props: AssetCardProps) {
     ) : listed && item.priceCredits > 0 ? (
       <S.Price data-variant={onSale ? 'sale' : undefined} data-testid="card-price">
         <S.PriceNow title={formatCreditsFull(item.priceCredits)}>
-          <CurrencyIcon size={15} />
+          <S.Coin src={creditsCoin} alt="" aria-hidden />
           {formatCredits(item.priceCredits)}
         </S.PriceNow>
         {/* The owner's own grid gets the same before-and-after a buyer sees. Without it the creator's price
@@ -294,20 +308,20 @@ export function AssetCard(props: AssetCardProps) {
       </S.CardChip>
     )
 
+  const rarityChip = (
+    <S.CardChip
+      data-variant="rarity"
+      data-testid="chip-rarity"
+      style={{ background: palette.labelBg, color: palette.label }}
+      title={rarityDescription(item.rarity)}
+    >
+      {rarityLabel(item.rarity)}
+    </S.CardChip>
+  )
+
   const chips = (
     <S.Chips data-chips>
-      <S.CardChip
-        data-variant="rarity"
-        style={{ background: rarityColor(item.rarity) }}
-        title={rarityDescription(item.rarity)}
-      >
-        {rarityLabel(item.rarity)}
-      </S.CardChip>
-      {catIco ? (
-        <S.CardChip data-variant="icon">
-          <Icon name={catIco} />
-        </S.CardChip>
-      ) : null}
+      {rarityChip}
       {playModeChip}
     </S.Chips>
   )
@@ -317,7 +331,7 @@ export function AssetCard(props: AssetCardProps) {
   const browsePrice = onSale ? (
     <S.Price data-variant="sale">
       <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
-        <CurrencyIcon size={15} />
+        <S.Coin src={creditsCoin} alt="" aria-hidden />
         {formatCredits(item.priceCredits)}
       </S.PriceNow>
       {/* No mark of its own: the currency is said once, by the price being charged. Two marks in a row read
@@ -328,30 +342,19 @@ export function AssetCard(props: AssetCardProps) {
     </S.Price>
   ) : (
     <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
-      <CurrencyIcon size={15} />
+      <S.Coin src={creditsCoin} alt="" aria-hidden />
       {formatCredits(item.priceCredits)}
     </S.Price>
   )
 
-  // Chips at rest on the browse card; the action button swaps in for them on hover/focus.
+  // The tags on the browse card's bottom row. The category is not among them: it is on the artwork's flap.
   const browseChips = (
-    <S.Chips data-chips>
-      <S.CardChip
-        data-variant="rarity"
-        style={{ background: rarityColor(item.rarity) }}
-        title={rarityDescription(item.rarity)}
-      >
-        {rarityLabel(item.rarity)}
-      </S.CardChip>
+    <S.Chips>
+      {rarityChip}
       {item.isSmart ? (
         <S.CardChip data-variant="smart" data-testid="chip-smart">
           <Icon name="smart" size={13} />
           {t('assetCard.smart')}
-        </S.CardChip>
-      ) : null}
-      {catIco ? (
-        <S.CardChip data-variant="icon">
-          <Icon name={catIco} />
         </S.CardChip>
       ) : null}
       {genderIco ? (
@@ -361,6 +364,15 @@ export function AssetCard(props: AssetCardProps) {
       ) : null}
       {playModeChip}
     </S.Chips>
+  )
+
+  // Avatar and name, with no "By". An item with no creator keeps the row's height.
+  const creatorRow = item.creator ? (
+    <S.CreatorRow data-testid="card-author">
+      <CardCreator address={item.creator} />
+    </S.CreatorRow>
+  ) : (
+    <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
   )
 
   return (
@@ -458,8 +470,28 @@ export function AssetCard(props: AssetCardProps) {
         data-testid="card-media"
         /* A NAME has no rarity, so it keeps the neutral fill under its violet "@name" tile —
            without this it falls back to common's colour and reads as a rarity it doesn't have. */
-        style={isNameItem ? undefined : { backgroundImage: rarityMedia(item.rarity) }}
+        style={
+          isNameItem
+            ? undefined
+            : ({ background: palette.background, '--tile-stroke': palette.stroke } as React.CSSProperties)
+        }
       >
+        {!isNameItem ? (
+          <S.Flap data-testid="card-flap" style={{ color: palette.flap }} aria-hidden>
+            <S.FlapShape viewBox="0 0 74.3396 76.3292" fill="none">
+              <path
+                d="M74.3396 0C69.5001 0 64.8597 1.97443 61.4442 5.48691L5.30672 63.1687C1.90819 66.6637 0 71.396 0 76.3292V16C0 7.16344 7.15288 0 15.9894 0C34.3475 0 63.3425 0 74.3396 0Z"
+                fill="currentColor"
+              />
+              <path
+                d="M0.000174325 61.9577V75.6466C0.0323562 70.7588 1.93729 66.0768 5.30689 62.6115L48.9105 17.7703C48.9697 17.7093 49.0294 17.6488 49.0894 17.5888L0.000174325 61.9577Z"
+                fill={theme.colors.text}
+                opacity="0.2"
+              />
+            </S.FlapShape>
+            {catIco ? <S.FlapIcon name={catIco} data-testid="card-flap-icon" /> : null}
+          </S.Flap>
+        ) : null}
         {onSale ? <S.SaleBadge pct={discountPct} testId="card-sale-badge" /> : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
@@ -635,7 +667,7 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : isView ? (
-        <S.Body>
+        <S.Body data-row>
           {/* View-only footer: name on the left; on the right the credit price when the item is for sale,
               or a small "NOT FOR SALE" tag when it isn't. */}
           <S.Top>
@@ -643,16 +675,8 @@ export function AssetCard(props: AssetCardProps) {
               <S.Name data-testid="card-name" title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
-              {/* The author line the for-sale card has always shown. Leaving it out of THIS branch is why a
-                  creator page mixed cards with and without "by {creator}": the not-for-sale ones simply had
-                  no line, so the grid looked like the data was missing for some items. */}
-              {item.creator ? (
-                <S.Author address={item.creator} data-testid="card-author" />
-              ) : (
-                <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
-              )}
+              {creatorRow}
             </S.Desc>
-            {priceOrNfs(true)}
           </S.Top>
           {/* Chips at rest, the dark VIEW affordance revealed on hover / keyboard focus — the SAME swap
               every other card makes in this slot (browse Add-to-cart, My Items MANAGE), via `data-reveal`.
@@ -662,13 +686,16 @@ export function AssetCard(props: AssetCardProps) {
               (aria-hidden) either way: the whole-card overlay link above is the accessible,
               keyboard-reachable navigation. */}
           <S.Action>
-            {chips}
+            <S.Rest data-chips>
+              {browseChips}
+              {priceOrNfs(true)}
+            </S.Rest>
             {viewRound}
             {viewCta}
           </S.Action>
         </S.Body>
       ) : (
-        <S.Body data-sale={onSale || undefined} data-note={showsNote || undefined}>
+        <S.Body data-row data-sale={onSale || undefined} data-note={showsNote || undefined}>
           {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
               (min-width:0 so a long name ellipses instead of shoving the price out); the price never
               shrinks. */}
@@ -677,16 +704,8 @@ export function AssetCard(props: AssetCardProps) {
               <S.Name data-testid="card-name" title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
-              {/* "by {creator}" line under the title: resolves the creator address to a DCL profile name
-                  (short-address fallback while loading / when unnamed) via the shared useProfile query, so
-                  many cards with the same creator dedupe to one fetch. */}
-              {item.creator ? (
-                <S.Author address={item.creator} data-testid="card-author" />
-              ) : (
-                <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
-              )}
+              {creatorRow}
             </S.Desc>
-            {notForSale ? nfs : browsePrice}
           </S.Top>
 
           {showsNote ? (
@@ -701,7 +720,10 @@ export function AssetCard(props: AssetCardProps) {
               always shown where hover isn't available (touch). Both stay in the DOM so the action is
               keyboard-reachable and touch-tappable. */}
           <S.Action>
-            {browseChips}
+            <S.Rest data-chips>
+              {browseChips}
+              {notForSale ? nfs : browsePrice}
+            </S.Rest>
 
             {/* Round add button — the compact card's primary action (Figma). Same behavior as the
                 full-width Cart below; only one is visible per breakpoint / layout. Nothing to buy → the

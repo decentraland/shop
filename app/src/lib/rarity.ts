@@ -1,7 +1,7 @@
 import { t } from '~/intl/i18n'
 import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
-import { rarities } from '~/styles/theme'
+import { rarities, rarityCard, rarityCardNone } from '~/styles/theme'
 
 // The rarity keys a filter may carry, in the order the filter bar lists them.
 export const RARITIES = ['common', 'uncommon', 'epic', 'rare', 'legendary', 'exotic', 'mythic', 'unique']
@@ -155,4 +155,29 @@ export function rarityMedia(rarity?: string | null): string {
   if (!rgb) return 'none'
   const [r, g, b] = rgb
   return `radial-gradient(circle at 50% 38%, rgba(${r}, ${g}, ${b}, 0.04) 0%, rgba(${r}, ${g}, ${b}, 0.3) 50%, rgba(${r}, ${g}, ${b}, 0.62) 100%)`
+}
+
+export type RarityCardPalette = {
+  flap: string
+  stroke: string
+  label: string
+  labelBg: string
+  /** The artwork tile's fill: the rarity's radial glow, or the flat pale fill when there is no rarity. */
+  background: string
+}
+
+/** The product card's colours for a rarity, or the no-rarity tile for anything else. */
+export function rarityCardPalette(rarity?: string | null): RarityCardPalette {
+  const entry = rarityCard[(rarity ?? '').toLowerCase() as keyof typeof rarityCard]
+  if (!entry) {
+    const { flap, stroke, label, labelBg, fill } = rarityCardNone
+    return { flap, stroke, label, labelBg, background: fill }
+  }
+  return {
+    flap: entry.flap,
+    stroke: entry.stroke,
+    label: entry.label,
+    labelBg: entry.labelBg,
+    background: `radial-gradient(ellipse ${entry.size} ${entry.size} at 50% 50%, ${entry.glow})`
+  }
 }

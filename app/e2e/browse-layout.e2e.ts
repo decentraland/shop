@@ -50,8 +50,8 @@ describe('collectibles browse layout', () => {
     expect(cardOverflow).toBe(false)
   })
 
-  // One layout per breakpoint: the per-card measurement is gone, so however long the name, a desktop
-  // card keeps the ordinary footer — ellipsised name with the price beside it, chips, and the
+  // One layout per breakpoint: however long the name, a desktop card keeps the ordinary footer — an
+  // ellipsised name, the creator under it, then the tags with the price on their right, and the
   // full-width Add to cart (the round action belongs to the mobile layout).
   it('keeps a long-named card on the ordinary desktop layout (no per-card stacking)', async () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
@@ -75,8 +75,8 @@ describe('collectibles browse layout', () => {
           name,
           cart: !!el.querySelector('[data-testid="card-cart"]'),
           roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
-          chips: !!el.querySelector('[data-chips]')?.childElementCount,
-          // The stacked layout's tell was the price dropping under the name/author column.
+          chips: !!el.querySelector('[data-testid="chip-rarity"]'),
+          // The price sits on the tags row under the creator, never beside the name.
           priceBelow: price.top >= author.bottom
         }
       })
@@ -84,20 +84,20 @@ describe('collectibles browse layout', () => {
 
     expect(cards.length).toBe(2)
     for (const card of cards) {
-      expect(card.priceBelow, card.name).toBe(false)
+      expect(card.priceBelow, card.name).toBe(true)
       expect(card.cart, card.name).toBe(true)
       expect(card.roundShown, card.name).toBe(false)
       expect(card.chips, card.name).toBe(true)
     }
   })
 
-  // ...but a name that only just misses the row must NOT restructure the card. This is the regression:
-  // "Midnight Black Tuxedo Trousers" is a real catalogue name that wanted 11px more than its row had, and
-  // that was enough to move its price, reshape its action and drop its rarity/category chips — one odd
-  // card in a grid of 48. The name box ellipsises, so a few pixels must cost a few pixels.
-  it('keeps a name that only slightly exceeds its row inline, chips and all', async () => {
+  // ...and a name that overflows its row must NOT restructure the card. The regression was a real catalogue
+  // name that wanted a few pixels more than its row had, and that was enough to move its price, reshape its
+  // action and drop its tags — one odd card in a grid of 48. The name box ellipsises, so overflowing it must
+  // cost nothing but the ellipsis. The name now has the row to itself, so it takes a longer one to overflow.
+  it('keeps a name that overflows its row inline, tags and all', async () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
-    const snug = 'Midnight Black Tuxedo Trousers'
+    const snug = 'Midnight Black Tuxedo Trousers With Satin Side Stripe'
     app = await launchApp({
       path: '/items',
       fixtures: { unifiedListings: { data: [rows[1], { ...rows[0], name: snug }] } }
@@ -120,7 +120,7 @@ describe('collectibles browse layout', () => {
         // what matters is that this card does not SHOW it.
         roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
         cart: !!el.querySelector('[data-testid="card-cart"]'),
-        chips: !!el.querySelector('[data-chips]')?.childElementCount,
+        chips: !!el.querySelector('[data-testid="chip-rarity"]'),
         // Proof the name really does overflow its box, so this test cannot pass for the wrong reason by
         // asserting nothing about the tolerance because there was nothing to tolerate. Only meaningful in
         // the inline layout — stacked, the name owns the full row and would not overflow — so it is
@@ -129,7 +129,7 @@ describe('collectibles browse layout', () => {
       }
     }, snug)
 
-    // The card keeps the ordinary layout: price beside the name, full-width Add to cart, chips intact.
+    // The card keeps the ordinary layout: full-width Add to cart, tags intact.
     expect(card.stacked).toBe(false)
     expect(card.roundShown).toBe(false)
     expect(card.cart).toBe(true)

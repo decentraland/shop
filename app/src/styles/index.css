@@ -47,6 +47,7 @@
   --radius-btn: 8px;
   --radius-pill: 50px;
   --radius-banner: 24px;
+  --radius-tile: 16px;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
      scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */

@@ -13,10 +13,12 @@ import { avatarShape, isCompatible } from '~/lib/bodyShape'
 import { RING_INSET } from '~/styles/card.styles'
 import { theme } from '~/styles/theme'
 
-// The corner left once the hover stroke has taken its bite out of the card's own radius.
-const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_INSET
+// The artwork tile's radius, and the top corner left once the hover stroke has taken its bite out of it. The
+// tile's bottom edge sits inside the card, clear of the stroke, so its bottom corners keep the full radius.
+const TILE_RADIUS = Number.parseFloat(theme.radius.tile)
+const INNER_RADIUS = TILE_RADIUS - RING_INSET
 if (process.env.NODE_ENV !== 'production' && Number.isNaN(INNER_RADIUS)) {
-  throw new Error(`INNER_RADIUS is NaN — theme.radius.card ("${theme.radius.card}") is not a numeric string`)
+  throw new Error(`INNER_RADIUS is NaN — theme.radius.tile ("${theme.radius.tile}") is not a numeric string`)
 }
 
 const Wrap = styled.div`
@@ -308,7 +310,7 @@ export function HoverPreviewLayer() {
         top: Math.round(rect.top) + RING_INSET,
         width: Math.round(rect.width) - RING_INSET * 2,
         height: Math.round(rect.height) - RING_INSET,
-        borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
+        borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px ${TILE_RADIUS}px ${TILE_RADIUS}px`,
         overflow: 'hidden',
         zIndex: 5,
         clipPath: notch

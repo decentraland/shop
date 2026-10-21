@@ -34,7 +34,7 @@ export const ringLit = css`
 
 // The stroke straddles the card's edge rather than sitting wholly inside it.
 const RING_WIDTH = 3
-const RING_OUTSET = 2
+export const RING_OUTSET = 2
 
 /**
  * How far the hover stroke reaches INSIDE the card's box. Exported because anything drawn OVER a hovered

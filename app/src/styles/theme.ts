@@ -95,6 +95,10 @@ const colors = {
   // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).
   glass: 'rgba(255, 255, 255, 0.2)',
   glassFaint: 'rgba(255, 255, 255, 0.1)',
+  glassText: 'rgba(255, 255, 255, 0.7)', // DCL/White70% — quiet labels on dark surfaces
+  glassRing: 'rgba(255, 255, 255, 0.5)', // hairline ring around avatars on dark surfaces
+  loadingWash: 'rgba(143, 66, 219, 0.8)', // the loading card's violet, solid end
+  loadingWashFaint: 'rgba(143, 66, 219, 0.3)', // the loading card's violet, faded end
   /**
    * A panel that LIFTS the purple field instead of darkening it — the store editor's card.
    *
@@ -117,6 +121,89 @@ export const rarities = {
   exotic: '#9cd71e',
   mythic: '#ff4bed',
   unique: '#fea217'
+} as const
+
+/**
+ * The product card's per-rarity artwork.
+ *
+ * `glow` is the thumbnail's radial gradient: the ellipse is `size` of the tile on both axes, so it keeps
+ * the drawn proportion at any card width. `flap` fills the category corner, `stroke` is the 1.5px border,
+ * and `label`/`labelBg` are the rarity tag's text and its 20% fill.
+ */
+export const rarityCard = {
+  common: {
+    flap: '#73d3d3',
+    stroke: '#a0f4ff',
+    label: '#73d3d3',
+    labelBg: 'rgba(115, 211, 211, 0.2)',
+    size: '74.3%',
+    glow: 'rgb(223 244 245) 36.5%, rgb(169 228 228) 68.3%, rgb(115 211 211) 100%'
+  },
+  uncommon: {
+    flap: '#ff8362',
+    stroke: '#ffb4aa',
+    label: '#ff8362',
+    labelBg: 'rgba(255, 131, 98, 0.2)',
+    size: '65.9%',
+    glow: 'rgb(255 202 187) 45.7%, rgb(255 167 143) 72.8%, rgb(255 131 98) 100%'
+  },
+  rare: {
+    flap: '#34ce76',
+    stroke: '#6fefaa',
+    label: '#34ce76',
+    labelBg: 'rgba(52, 206, 118, 0.2)',
+    size: '66.4%',
+    glow: 'rgb(193 238 207) 60.6%, rgb(158 230 185) 70.4%, rgb(123 222 163) 80.3%, rgb(87 214 140) 90.1%, rgb(52 206 118) 100%'
+  },
+  epic: {
+    flap: '#289cff',
+    stroke: '#5dcfff',
+    label: '#438fff',
+    labelBg: 'rgba(67, 143, 255, 0.2)',
+    size: '135.5%',
+    glow: 'rgb(187 222 251) 2.9%, rgb(150 206 252) 26.9%, rgb(114 189 253) 51%, rgb(77 173 254) 75%, rgb(40 156 255) 99%'
+  },
+  legendary: {
+    flap: '#a24bf3',
+    stroke: '#dba0ff',
+    label: '#b05dff',
+    labelBg: 'rgba(161, 75, 243, 0.2)',
+    size: '65.4%',
+    glow: 'rgb(223 197 250) 37.5%, rgb(193 136 247) 68.8%, rgb(177 106 245) 84.4%, rgb(162 75 243) 100%'
+  },
+  exotic: {
+    flap: '#a2de23',
+    stroke: '#caffa0',
+    label: '#caff73',
+    labelBg: 'rgba(202, 255, 115, 0.2)',
+    size: '76.2%',
+    glow: 'rgb(232 255 197) 32.2%, rgb(211 254 138) 66.1%, rgb(200 254 108) 83.1%, rgb(189 253 78) 100%'
+  },
+  mythic: {
+    flap: '#ff4bed',
+    stroke: '#ff95e8',
+    label: '#ff4bed',
+    labelBg: 'rgba(255, 75, 237, 0.2)',
+    size: '67.9%',
+    glow: 'rgb(255 188 246) 30.8%, rgb(255 132 242) 65.4%, rgb(255 103 239) 82.7%, rgb(255 75 237) 100%'
+  },
+  unique: {
+    flap: '#fea217',
+    stroke: '#fdffa0',
+    label: '#fea217',
+    labelBg: 'rgba(254, 162, 23, 0.2)',
+    size: '70.3%',
+    glow: 'rgb(255 236 181) 40.9%, rgb(255 218 142) 55.6%, rgb(255 199 102) 70.4%, rgb(254 181 63) 85.2%, rgb(254 171 43) 92.6%, rgb(254 162 23) 100%'
+  }
+} as const
+
+// The same card without a rarity: a flat pale tile with a grey hairline.
+export const rarityCardNone = {
+  flap: '#a09ba8',
+  stroke: '#a09ba8',
+  label: '#cfcdd4',
+  labelBg: 'rgba(236, 235, 237, 0.2)',
+  fill: '#ecebed'
 } as const
 
 /**
@@ -168,7 +255,8 @@ const radius = {
   btn: '8px',
   pill: '50px',
   banner: '24px',
-  modal: '16px' // modal shell + the callout blocks stacked inside it
+  modal: '16px', // modal shell + the callout blocks stacked inside it
+  tile: '16px' // the product card and its artwork tile
 } as const
 
 const font = {
@@ -215,6 +303,6 @@ const media = {
   minWidth: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
-export const theme = { colors, rarities, saleHeat, gradients, radius, font, media, z }
+export const theme = { colors, rarities, rarityCard, rarityCardNone, saleHeat, gradients, radius, font, media, z }
 
 export type AppTheme = typeof theme
