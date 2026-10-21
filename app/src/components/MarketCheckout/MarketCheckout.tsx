@@ -538,7 +538,7 @@ export function MarketCheckout({
               explained dead end rather than a silent one — and the button stops promising a way out it
               cannot deliver. */}
           <S.ActionBtn
-            variant="purple"
+            variant="primary"
             onClick={() => void confirm()}
             disabled={busy || !quote || (needsMoreCredits && isIapMode())}
           >

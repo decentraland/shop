@@ -323,44 +323,6 @@ export const Media = styled.div`
   }
 `
 
-/** The category corner: the rarity's colour behind a white category glyph. */
-export const Flap = styled.span`
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 2;
-  width: 74.34px;
-  height: 76.33px;
-  pointer-events: none;
-
-  ${media.maxWidth('sm')} {
-    width: 56.49px;
-    height: 58px;
-  }
-`
-
-export const FlapShape = styled.svg`
-  display: block;
-  width: 100%;
-  height: 100%;
-`
-
-export const FlapIcon = styled(Icon)`
-  position: absolute;
-  top: 10.5px;
-  left: 11px;
-  width: 21px;
-  height: 21px;
-  color: ${colors.softWhite};
-
-  ${media.maxWidth('sm')} {
-    top: 8px;
-    left: 8.4px;
-    width: 16px;
-    height: 16px;
-  }
-`
-
 /** The shared discount tag, anchored to the artwork's bottom-left: the category flap owns the top-left and
  *  the favourite the top-right. */
 export const SaleBadge = styled(SaleTag)`

@@ -42,9 +42,11 @@
   --amethyst: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
   --cerise: linear-gradient(135deg, #ff2d55 0%, #c640cd 100%); /* DCL/Gradients/Cerise — card hover border */
   --buy-btn: linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%); /* Figma "BUY Button" */
+  --progress: linear-gradient(90deg, #ff2d55 0%, #ffbc5b 100%);
   --radius-card: 12px;
   --radius-chip: 4px;
   --radius-btn: 8px;
+  --radius-cta: 12px;
   --radius-pill: 50px;
   --radius-banner: 24px;
   --radius-tile: 16px;

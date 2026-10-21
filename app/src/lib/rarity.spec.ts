@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityCardPalette, rarityColor, rarityGlowCoreRgb, rarityGlowRgb, rarityInk, rarityTint } from '~/lib/rarity'
+import {
+  rarityCardPalette,
+  rarityTileStyle,
+  rarityColor,
+  rarityGlowCoreRgb,
+  rarityGlowRgb,
+  rarityInk,
+  rarityTint
+} from '~/lib/rarity'
 import { rarities } from '~/styles/theme'
 
 // Neutral fallback color rarity.ts returns for a missing/unknown rarity.
@@ -219,5 +227,12 @@ describe('when resolving the product card palette for a rarity', () => {
         background: '#ecebed'
       })
     }
+  })
+})
+
+describe('rarityTileStyle', () => {
+  it('pairs the rarity wash with its stroke', () => {
+    const p = rarityCardPalette('epic')
+    expect(rarityTileStyle('epic')).toEqual({ background: p.background, borderColor: p.stroke })
   })
 })

@@ -3,7 +3,7 @@ import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import { Icon } from '~/components/Icon'
 
-const { colors, font } = theme
+const { colors, font, radius } = theme
 
 // data-flat drops the gray container; selected/hover read as a light-gray pill on the page bg.
 export const Root = styled.div`
@@ -63,7 +63,7 @@ const rowCss = css`
   height: 40px;
   padding: 4px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: ${radius.chip};
   background: none;
   width: 100%;
   text-align: left;
@@ -79,7 +79,7 @@ export const Cat = styled.button`
 
   /* Selected only: being open is signalled by the rotated chevron, not by tinting the row. */
   &[data-selected] {
-    background: rgba(255, 255, 255, 0.14);
+    background: ${colors.glassStrong};
   }
 `
 

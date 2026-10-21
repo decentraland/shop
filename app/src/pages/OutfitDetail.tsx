@@ -81,7 +81,7 @@ export function OutfitDetail() {
         <S.EmptyIco name="cart" size={44} />
         <S.EmptyTitle>{t('outfits.detail.notFoundTitle')}</S.EmptyTitle>
         <S.EmptyBody>{t('outfits.detail.notFoundBody')}</S.EmptyBody>
-        <Button as={Link} to="/items" variant="purple">
+        <Button as={Link} to="/items" variant="primary">
           {t('notFound.cta')}
         </Button>
       </S.Empty>
@@ -92,7 +92,7 @@ export function OutfitDetail() {
     return (
       <S.Empty data-testid="outfit-detail-error">
         <ErrorNotice message={t('outfits.errors.generic')} />
-        <Button variant="purple" onClick={() => void refetch()}>
+        <Button variant="primary" onClick={() => void refetch()}>
           {t('outfits.detail.retry')}
         </Button>
       </S.Empty>
@@ -358,7 +358,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                   <span className="skeleton" style={{ width: '100%', height: 52, borderRadius: 26 }} aria-hidden />
                 ) : (
                   <S.Cta
-                    variant="purple"
+                    variant="primary"
                     data-testid="outfit-detail-cta"
                     onClick={addOutfit}
                     disabled={isAdding || purchasable === 0}

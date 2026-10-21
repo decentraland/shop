@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { onDark } from '~/styles/surface'
 
 // "Choose your payment method" step of the Buy Now flow (Figma node 1654-371913). Renders inside the
 // shared .buy-modal__card, so this is the card's whole content: header, asset summary, one selectable
@@ -15,6 +16,11 @@ export const Root = styled.div`
   padding: 12px 16px 16px;
   min-height: 0;
   overflow-y: auto;
+
+  /* The MANA mark is drawn dark; on the dark modal it is knocked out to white so it stays legible. */
+  ${onDark} img[data-mana] {
+    filter: brightness(0) invert(1);
+  }
 `
 
 export const Head = styled.div`
@@ -24,6 +30,10 @@ export const Head = styled.div`
   gap: 8px;
   padding-bottom: 16px;
   border-bottom: 1px solid ${theme.colors.gray4};
+
+  ${onDark} {
+    border-bottom: 2px solid ${theme.colors.glass};
+  }
 `
 
 export const Title = styled.h2`
@@ -33,6 +43,10 @@ export const Title = styled.h2`
   font-size: 20px;
   line-height: 1.6;
   color: ${theme.colors.text};
+
+  ${onDark} {
+    color: ${theme.colors.softWhite};
+  }
 `
 
 export const Close = styled.button`
@@ -45,6 +59,13 @@ export const Close = styled.button`
   background: none;
   cursor: pointer;
   color: ${theme.colors.text};
+
+  ${onDark} {
+    color: ${theme.colors.white};
+  }
+  ${onDark} path {
+    stroke: ${theme.colors.white};
+  }
 
   &:disabled {
     opacity: 0.4;
@@ -61,6 +82,13 @@ export const AssetCard = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+
+  ${onDark} {
+    align-items: stretch;
+    background: ${theme.colors.overlay};
+    border-radius: ${theme.radius.tile};
+    overflow: hidden;
+  }
 `
 
 export const Thumb = styled.div`
@@ -85,6 +113,12 @@ export const Thumb = styled.div`
     width: 120px;
     height: 120px;
   }
+
+  ${onDark} {
+    position: relative;
+    border: 1.5px solid transparent;
+    border-radius: ${theme.radius.tile};
+  }
 `
 
 export const AssetInfo = styled.div`
@@ -105,6 +139,10 @@ export const AssetName = styled.p`
   color: ${theme.colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
+
+  ${onDark} {
+    color: ${theme.colors.softWhite};
+  }
 `
 
 // Wraps CreatorName (which renders its own <div>) so the "By {creator}" line picks up the caption style.
@@ -114,6 +152,10 @@ export const AssetBy = styled.div`
     font-size: 10px;
     line-height: 1.43;
     color: ${theme.colors.muted};
+  }
+  ${onDark} > div {
+    font-size: 14px;
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -137,6 +179,12 @@ export const AssetPrice = styled.div`
     font-weight: 600;
     font-size: 24px;
     color: ${theme.colors.text2};
+  }
+  ${onDark} .ico {
+    background: ${theme.colors.softWhite};
+  }
+  ${onDark} span {
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -184,6 +232,15 @@ export const OptionRow = styled.button`
 
   &[data-selected='true'] {
     background: ${theme.colors.media};
+  }
+  ${onDark} {
+    background: ${theme.colors.overlay};
+  }
+  ${onDark}::after {
+    border-color: transparent;
+  }
+  ${onDark}[data-selected='true'] {
+    background: ${theme.colors.glass};
   }
   /* The gradient is masked to the border band alone, so the ring paints over nothing: a padding-box fill
      here would sit on top of the row's content, since this layer is above it. */
@@ -235,6 +292,18 @@ export const CheckBox = styled.span`
     height: 14px;
     background: ${theme.colors.white};
   }
+
+  ${onDark} {
+    border-color: ${theme.colors.softWhite};
+    background: transparent;
+  }
+  ${onDark}[data-checked='true'] {
+    border-color: ${theme.colors.softWhite};
+    background: ${theme.colors.softWhite};
+  }
+  ${onDark} .ico {
+    background: ${theme.colors.accent};
+  }
 `
 
 export const Content = styled.div`
@@ -282,6 +351,10 @@ export const Label = styled.span`
   line-height: 26px;
   letter-spacing: -0.2px;
   color: ${theme.colors.text2};
+
+  ${onDark} {
+    color: ${theme.colors.softWhite};
+  }
 `
 
 export const BalanceRow = styled.span`
@@ -303,11 +376,22 @@ export const BalanceRow = styled.span`
     -webkit-mask-position: left center;
     mask-position: left center;
   }
+
+  ${onDark} {
+    color: ${theme.colors.gray4};
+  }
+  ${onDark} .ico {
+    background: ${theme.colors.gray4};
+  }
 `
 
 export const BalanceValue = styled.span`
   font-size: 10.4px;
   color: ${theme.colors.text};
+
+  ${onDark} {
+    color: ${theme.colors.gray4};
+  }
 `
 
 // The "Not enough MANA" hint that replaces the balance value when the row is disabled.
@@ -338,6 +422,12 @@ export const Price = styled.div`
     font-weight: 600;
     font-size: 20px;
     color: ${theme.colors.text2};
+  }
+  ${onDark} .ico {
+    background: ${theme.colors.softWhite};
+  }
+  ${onDark} span {
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -376,6 +466,14 @@ export const BuyBtn = styled.button`
     opacity: 0.6;
     cursor: default;
   }
+
+  ${onDark} {
+    background: ${theme.gradients.buyBtn};
+  }
+  ${onDark}:hover:not(:disabled) {
+    filter: none;
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+  }
 `
 
 // ---- MANA marks -------------------------------------------------------------------------------
@@ -408,6 +506,9 @@ export const DualLogo = styled.span`
     height: 15px;
     background: ${theme.colors.text2};
   }
+  ${onDark} .ico {
+    background: ${theme.colors.softWhite};
+  }
   img {
     width: 15px;
     height: 15px;
@@ -438,6 +539,12 @@ export const SplitPrice = styled.div`
     font-size: 17px;
     color: ${theme.colors.text2};
   }
+  ${onDark} .ico {
+    background: ${theme.colors.softWhite};
+  }
+  ${onDark} span {
+    color: ${theme.colors.softWhite};
+  }
 `
 
 // The "+" between the two legs of a combined payment.
@@ -446,6 +553,10 @@ export const Plus = styled.span`
   font-weight: 600;
   font-size: 15px;
   color: ${theme.colors.muted};
+
+  ${onDark} {
+    color: ${theme.colors.gray4};
+  }
 `
 
 // Per-row clarification line: what each leg of the payment actually covers (mixed payments especially).
@@ -454,6 +565,10 @@ export const Detail = styled.span`
   font-size: 11px;
   line-height: 1.35;
   color: ${theme.colors.muted};
+
+  ${onDark} {
+    color: ${theme.colors.gray4};
+  }
 `
 
 // Something the buyer has to read before confirming (currently: the reserved price differs from the one
@@ -470,4 +585,8 @@ export const Notice = styled.p`
   font-size: 14px;
   line-height: 1.334;
   color: ${theme.colors.text2};
+
+  ${onDark} {
+    color: ${theme.colors.softWhite};
+  }
 `

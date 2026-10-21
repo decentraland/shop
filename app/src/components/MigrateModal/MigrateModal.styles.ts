@@ -25,7 +25,7 @@ export const Progress = styled.div`
 export const Bar = styled.div`
   height: 100%;
   width: 0;
-  background: ${gradients.amethyst};
+  background: ${gradients.progress};
   border-radius: 999px;
   transition: width 0.45s ease;
 `

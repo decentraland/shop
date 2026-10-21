@@ -1,9 +1,8 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-// Purchase CTAs for the payment rails (Figma 1558-320257 "CTAs" → 1558-320267 "Button", plus the
-// exchange-rate caption 1653-368866). The MANA/mixed buttons are the design's soft-black-2 (#242129)
-// 56px pill with a 12px radius; the credits button keeps the shop's amethyst primary so the default
+// Purchase CTAs for the payment rails, plus the exchange-rate caption. The MANA/mixed buttons are a
+// soft-black-2 56px pill with a 12px radius; the credits button carries the buy gradient so the default
 // rail stays visually primary.
 
 export const Root = styled.div`

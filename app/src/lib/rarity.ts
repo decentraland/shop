@@ -181,3 +181,9 @@ export function rarityCardPalette(rarity?: string | null): RarityCardPalette {
     background: `radial-gradient(ellipse ${entry.size} ${entry.size} at 50% 50%, ${entry.glow})`
   }
 }
+
+/** Inline style for a bordered artwork tile (cart thumbnails): the rarity wash and its stroke colour. */
+export function rarityTileStyle(rarity: string | null | undefined): { background: string; borderColor: string } {
+  const p = rarityCardPalette(rarity)
+  return { background: p.background, borderColor: p.stroke }
+}

@@ -445,7 +445,7 @@ export function StudioGiftModal({
                 {t('studio.modal.cancel')}
               </Button>
               <Button
-                variant="purple"
+                variant="primary"
                 onClick={() => void review()}
                 disabled={!canReview}
                 data-testid="studio-gift-review"
@@ -504,7 +504,7 @@ export function StudioGiftModal({
                 {t('studio.modal.back')}
               </Button>
               <Button
-                variant="purple"
+                variant="primary"
                 onClick={() => void gift()}
                 disabled={!totalConfirmed || repeats === null}
                 data-testid="studio-gift-send"
@@ -583,7 +583,7 @@ export function StudioGiftModal({
                 </Button>
               )}
               {!running && leftToSend > 0 ? (
-                <Button variant="purple" onClick={() => void run(pending)} data-testid="studio-gift-continue">
+                <Button variant="primary" onClick={() => void run(pending)} data-testid="studio-gift-continue">
                   {t('studio.modal.continue', { count: leftToSend })}
                 </Button>
               ) : null}

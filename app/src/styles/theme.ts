@@ -45,6 +45,10 @@ const colors = {
   // mirrored in styles/index.css beside the gradient, so it moves with the field rather than drifting.
   fieldBottomWashed: '#3c1556',
   modalViolet: '#4c147c', // the builder's dark modal surface (Create Collection, Item Details)
+  // A tile on the dark modal: black 40% composited over the accent, opaque so a gradient ring can sit
+  // behind it (the pack picker's selected border).
+  modalTile: '#3f1365',
+  drawerFoot: 'rgba(84, 25, 135, 0.8)', // the cart drawer's frosted footer over its accent panel
   accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)
@@ -78,6 +82,7 @@ const colors = {
   errStrong: '#d64545',
   successBg: '#dcf3e4', // success-banner light-green fill
   successBorder: '#34ce77', // success-banner border
+  successWash: 'rgba(74, 255, 129, 0.2)', // success banner on the dark field
   orange: '#ff7439', // the warm stop of `gradients.buyBtn` — input borders, accent details
   white: '#ffffff',
   // Hairline on a translucent field over the purple — the search box and the notify-me email input.
@@ -95,6 +100,7 @@ const colors = {
   // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).
   glass: 'rgba(255, 255, 255, 0.2)',
   glassFaint: 'rgba(255, 255, 255, 0.1)',
+  glassStrong: 'rgba(255, 255, 255, 0.3)', // the selected category row, a hovered dropdown
   glassText: 'rgba(255, 255, 255, 0.7)', // DCL/White70% — quiet labels on dark surfaces
   glassRing: 'rgba(255, 255, 255, 0.5)', // hairline ring around avatars on dark surfaces
   loadingWash: 'rgba(143, 66, 219, 0.8)', // the loading card's violet, solid end
@@ -246,13 +252,16 @@ const gradients = {
   ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)',
   // Figma style "BUY Button" (738:53266) — the near-vertical orange→red on GET CREDITS and the promo
   // CTAs. One token because those two must stay identical; they drifted apart once already.
-  buyBtn: 'linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%)'
+  buyBtn: 'linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%)',
+  // The fill of every progress bar: ruby on the left warming to amber as it advances.
+  progress: 'linear-gradient(90deg, #ff2d55 0%, #ffbc5b 100%)'
 } as const
 
 const radius = {
   card: '12px',
   chip: '4px',
-  btn: '8px',
+  btn: '8px', // controls: dropdowns, inputs, icon hit areas
+  cta: '12px', // buttons (the Button primitive and the buy-credits CTAs)
   pill: '50px',
   banner: '24px',
   modal: '16px', // modal shell + the callout blocks stacked inside it

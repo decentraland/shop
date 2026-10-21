@@ -1,7 +1,9 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { isIapMode } from '~/lib/iap'
+import { CategoryFlap } from '~/components/CategoryFlap'
 import { CreditPackPicker } from '~/components/CreditPackPicker'
+import { rarityTileStyle } from '~/lib/rarity'
 import { CURRENCY, formatCredits } from '~/lib/currency'
 import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
@@ -97,7 +99,7 @@ export function CartCheckoutModal(props: Props) {
   return (
     <M.Modal role="dialog" aria-modal="true" aria-label={t('cartCheckout.dialogAria')}>
       <M.Scrim onClick={busy ? undefined : onClose} aria-hidden />
-      <M.Card data-tall={tall || undefined}>
+      <M.Card data-surface="dark" data-tall={tall || undefined}>
         <M.Head>
           <M.HeadRow>
             <M.Title>{title}</M.Title>
@@ -188,7 +190,7 @@ export function CartCheckoutModal(props: Props) {
                 back once the balance is whole, so offering it here would only fail again. Mirrors BuyModal. */}
             {props.heldCredits ? (
               <M.Ctas>
-                <M.Btn data-variant="purple" data-full onClick={onClose}>
+                <M.Btn data-variant="ruby" data-full onClick={onClose}>
                   {t('cartCheckout.gotIt')}
                 </M.Btn>
               </M.Ctas>
@@ -197,7 +199,7 @@ export function CartCheckoutModal(props: Props) {
                 <M.Btn data-variant="outline" onClick={onClose}>
                   {t('buyModal.cancel')}
                 </M.Btn>
-                <M.Btn data-variant="purple" onClick={props.onRetry ?? onClose}>
+                <M.Btn data-variant="ruby" onClick={props.onRetry ?? onClose}>
                   {t('cartCheckout.tryAgain')}
                 </M.Btn>
               </M.Ctas>
@@ -323,7 +325,10 @@ function NoFunds({
           const qty = l.quantity ?? 1
           return (
             <M.Asset key={l.item.id}>
-              <M.AssetThumb>{l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}</M.AssetThumb>
+              <M.AssetThumb style={rarityTileStyle(l.item.rarity)}>
+                <CategoryFlap item={l.item} size="sm" testId="cart-checkout-flap" />
+                {l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}
+              </M.AssetThumb>
               <M.AssetInfo>
                 <div>
                   <M.AssetName title={l.item.name}>

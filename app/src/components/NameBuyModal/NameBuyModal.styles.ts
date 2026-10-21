@@ -411,7 +411,7 @@ export const Progress = styled.div`
     height: 100%;
     width: 33%;
     border-radius: 100px;
-    background: ${theme.gradients.buyBtn};
+    background: ${theme.gradients.progress};
     animation: nameProgress 1.1s ease-in-out infinite;
   }
 

@@ -35,7 +35,7 @@ export function CampaignBanner({ slot }: { slot: string }) {
           <S.Cta
             as="a"
             href={banner.cta.href}
-            variant="purple"
+            variant="primary"
             data-testid="campaign-banner-cta"
             onClick={() =>
               track('Shop Clicked Banner', { slot, banner_id: banner.bannerId, campaign: banner.campaignName })

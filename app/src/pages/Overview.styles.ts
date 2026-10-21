@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { creditsCtaCss } from '~/styles/cta.styles'
 import { railGutter } from '~/styles/card.styles'
 import { Button } from '~/components/Button'
 
@@ -31,11 +32,10 @@ export const EmptyCta = styled(Button)`
   margin-top: 10px;
 `
 
-// Figma 1997:318583 "Default": a fixed 246×52 amethyst button, 8px radius, credit mark + label.
-// The `purple` variant already carries the amethyst gradient, the uppercase and the soft-white label, so
-// only the box and the type metrics are restated — the design's 15px/0.46px differ from the variant's
-// 13px/0.046em, and 0.046em would be 0.69px at this size.
+// The home hero's buy-credits CTA: a fixed 246×52 box with the credit mark and label, on the shared
+// credits treatment so it matches the nav's GET CREDITS.
 export const HeroCta = styled(Button)`
+  ${creditsCtaCss};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -43,51 +43,10 @@ export const HeroCta = styled(Button)`
   width: 246px;
   height: 52px;
   padding: 0 16px;
-  border-radius: ${theme.radius.btn};
+  border-radius: ${theme.radius.cta};
 
-  /* Both entry points into buying credits look and behave alike, so this carries the nav's GET CREDITS
-     treatment: the orange BUY Button gradient, and a hover that keeps the gradient and adds the ring
-     rather than filling flat (the design system's Credits type). Doubled ampersands because the purple
-     variant's own rules are an attribute selector and outweigh this class on their own. */
   && {
-    background: ${theme.gradients.buyBtn};
     font-size: 15px;
-    letter-spacing: 0.46px;
-    transition: filter 0.15s ease;
-  }
-  /* The variant fades a solid accent overlay in on hover; the credits button has no flat state. */
-  &&::before {
-    content: none;
-  }
-  /* Hover ring: a gradient stroke OUTSIDE the button with a gap the page shows through — masked, since
-     a plain outline can't take a gradient. */
-  &&::after {
-    content: '';
-    position: absolute;
-    inset: -6px;
-    border-radius: calc(${theme.radius.btn} + 6px);
-    padding: 2px;
-    background: ${theme.gradients.buyBtn};
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    pointer-events: none;
-  }
-  &&:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-  &&:hover:not(:disabled)::after {
-    opacity: 1;
-  }
-  &&:active:not(:disabled) {
-    filter: brightness(0.95);
   }
 `
 

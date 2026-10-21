@@ -1735,7 +1735,7 @@ export function ItemDetail() {
                     {isMarket ? (
                       // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                       // (MarketCheckout) — never Add to cart / BuyModal.
-                      <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
+                      <S.DetailCta variant="primary" onClick={handleBuyNow} disabled={!canBuyMarket}>
                         <span>{t('assetCard.buyNow')}</span>
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
@@ -1815,7 +1815,7 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                        <S.DetailCta variant="primary" onClick={handleBuyNow} disabled={resolvingTrade}>
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
@@ -1835,7 +1835,7 @@ export function ItemDetail() {
                       // Sold-out primary with resellers (Figma 1524-298906): buy the cheapest resale.
                       <>
                         <S.DetailCta
-                          variant="purple"
+                          variant="primary"
                           onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
                         >
                           <span>{t('assetCard.buyNow')}</span>

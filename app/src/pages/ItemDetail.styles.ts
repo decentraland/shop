@@ -12,7 +12,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
-const { colors, radius, media, font, gradients } = theme
+const { colors, radius, media, font } = theme
 
 export const Detail = styled.div`
   max-width: 1721px;
@@ -669,13 +669,12 @@ export const StockValue = styled.div`
   }
 `
 
-// PRICE / STOCK captions: Gray 3, not Gray 4 (Figma 867:61020 / 867:61044).
 export const PriceLabel = styled.div`
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: ${colors.muted2};
+  color: ${colors.glassText};
 `
 
 // Base price row. `data-variant`: none (unavailable) / sale (flash sale) — market carries the "≈" approx.
@@ -836,8 +835,6 @@ export const Ctas = styled.div`
   }
 `
 
-// PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win over
-// the purple variant's data-variant rules. In the mobile dual bar it flexes beside the cart square.
 // Shared PDP CTA box — full-width, 48px tall, 16px radius, Inter 600 15/24 with 0.46px tracking,
 // uppercase, 8px icon gap. `&&` so these win over the Button base + any data-variant rules.
 const ctaBox = css`
@@ -858,22 +855,10 @@ const ctaBox = css`
   }
 `
 
-// Buy-now CTA: the Amethyst gradient. In the mobile sticky bar it sits beside the cart square (the
-// data-dual parent), where it flexes to share the row.
+// Buy-now CTA. In the mobile sticky bar it sits beside the cart square (the data-dual parent), where it
+// flexes to share the row.
 export const DetailCta = styled(Button)`
   ${ctaBox};
-  /* The design system's primary fill (Figma 867:61063 carries the "BUY Button" gradient), same as the
-     cart's CHECKOUT and the credits CTA. This read as a flat #fb5c19 for a while — that colour was
-     sampled off the flattened render rather than the node's fill. */
-  && {
-    background: ${gradients.buyBtn};
-  }
-  &&::before {
-    content: none;
-  }
-  &&:hover:not(:disabled) {
-    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
-  }
 
   ${media.maxWidth('lg')} {
     [data-dual] && {

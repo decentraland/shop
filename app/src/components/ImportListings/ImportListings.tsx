@@ -233,7 +233,7 @@ export function ImportListings({ hideWhenDone = false }: { hideWhenDone?: boolea
               <S.EmptyBody>{t('importListings.emptyBody')}</S.EmptyBody>
             </S.EmptyText>
             <S.EmptyActions>
-              <S.EmptyCta as={Link} to={MY_CREATIONS} variant="purple">
+              <S.EmptyCta as={Link} to={MY_CREATIONS} variant="primary">
                 {t('importListings.goToMyAssets')}
               </S.EmptyCta>
             </S.EmptyActions>

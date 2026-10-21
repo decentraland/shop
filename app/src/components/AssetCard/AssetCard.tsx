@@ -10,8 +10,9 @@ import { canHover } from '~/lib/hover'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
 import { rarityCardPalette, rarityDescription, rarityLabel } from '~/lib/rarity'
-import { categoryIcon, genderIcon } from '~/lib/itemIcons'
+import { genderIcon } from '~/lib/itemIcons'
 import creditsCoin from '~/assets/credits/credits-coin.svg'
+import { CategoryFlap } from '~/components/CategoryFlap'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Icon } from '~/components/Icon'
 import { saleBadgePct } from '~/lib/sale'
@@ -22,7 +23,6 @@ import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { useProfile } from '~/hooks/useProfile'
 import type { CatalogItem } from '~/lib/api'
-import { theme } from '~/styles/theme'
 import * as S from './AssetCard.styles'
 
 /** One burst per card per this long, so sweeping the pointer over a grid is not a swarm. */
@@ -188,7 +188,6 @@ export function AssetCard(props: AssetCardProps) {
     }
   }, [item.id, hidePreview])
 
-  const catIco = categoryIcon(item)
   const genderIco = genderIcon(item.gender)
   const palette = rarityCardPalette(item.rarity)
 
@@ -476,22 +475,7 @@ export function AssetCard(props: AssetCardProps) {
             : ({ background: palette.background, '--tile-stroke': palette.stroke } as React.CSSProperties)
         }
       >
-        {!isNameItem ? (
-          <S.Flap data-testid="card-flap" style={{ color: palette.flap }} aria-hidden>
-            <S.FlapShape viewBox="0 0 74.3396 76.3292" fill="none">
-              <path
-                d="M74.3396 0C69.5001 0 64.8597 1.97443 61.4442 5.48691L5.30672 63.1687C1.90819 66.6637 0 71.396 0 76.3292V16C0 7.16344 7.15288 0 15.9894 0C34.3475 0 63.3425 0 74.3396 0Z"
-                fill="currentColor"
-              />
-              <path
-                d="M0.000174325 61.9577V75.6466C0.0323562 70.7588 1.93729 66.0768 5.30689 62.6115L48.9105 17.7703C48.9697 17.7093 49.0294 17.6488 49.0894 17.5888L0.000174325 61.9577Z"
-                fill={theme.colors.text}
-                opacity="0.2"
-              />
-            </S.FlapShape>
-            {catIco ? <S.FlapIcon name={catIco} data-testid="card-flap-icon" /> : null}
-          </S.Flap>
-        ) : null}
+        {!isNameItem ? <CategoryFlap item={item} testId="card-flap" /> : null}
         {onSale ? <S.SaleBadge pct={discountPct} testId="card-sale-badge" /> : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
