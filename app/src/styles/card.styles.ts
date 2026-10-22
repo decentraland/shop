@@ -67,20 +67,25 @@ export const ringHover = css`
   mask-composite: exclude;
 `
 
-// A card's lit state paints outside its box — 2px of ring plus ~10px of glow, times the 1.025 zoom, so
-// just over 16px around a 300px card. An overflow-x rail clips the y axis too, so the room has to be
+// A card's lit state paints outside its box — 2px of ring plus ~10px of glow, and the 1.025 zoom adds
+// ~4px more each side of a 300px card, so about 16px in all. An overflow-x rail clips the y axis too, so the room has to be
 // PADDING (a negative margin would only move the clip); the negative margin-left then re-aligns the first
 // card with the section title, letting the glow spill into the page gutter.
 const RAIL_GUTTER = 18
 
-// The gutter is wider than the rails' 16px gap, so the card just past either end of the view showed its
-// first 2px as a thin line in it. A clip, not a mask: a masked edge still takes the pointer, so hovering it
-// lit the hidden card and its glow spilled back into view.
-const RAIL_EDGE_CLIP = RAIL_GUTTER - 16 + 1
+/** The space between cards in every rail that uses {@link railGutter}; the edge clip below is derived from it. */
+export const RAIL_GAP = 16
+
+// The gutter is wider than the gap, so the card just past either end of the view showed its first 2px as a
+// thin line in it. Clipping one pixel more than that leaves room for sub-pixel column widths, and costs the
+// outermost card's glow only its faintest pixel. A clip, not a mask: a masked edge still takes the pointer,
+// so hovering it lit the hidden card and its glow spilled back into view.
+const RAIL_EDGE_CLIP = Math.max(0, RAIL_GUTTER - RAIL_GAP + 1)
 
 export const railGutter = css`
   padding: ${RAIL_GUTTER}px;
   margin-left: -${RAIL_GUTTER}px;
   scroll-padding-inline: ${RAIL_GUTTER}px;
+  // A rail that drops this padding must drop the clip too, or it cuts into its own cards.
   clip-path: inset(0 ${RAIL_EDGE_CLIP}px);
 `
