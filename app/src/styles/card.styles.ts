@@ -73,8 +73,14 @@ export const ringHover = css`
 // card with the section title, letting the glow spill into the page gutter.
 const RAIL_GUTTER = 18
 
+// The gutter is wider than the rails' 16px gap, so the card just past either end of the view showed its
+// first 2px as a thin line in it. A clip, not a mask: a masked edge still takes the pointer, so hovering it
+// lit the hidden card and its glow spilled back into view.
+const RAIL_EDGE_CLIP = RAIL_GUTTER - 16 + 1
+
 export const railGutter = css`
   padding: ${RAIL_GUTTER}px;
   margin-left: -${RAIL_GUTTER}px;
   scroll-padding-inline: ${RAIL_GUTTER}px;
+  clip-path: inset(0 ${RAIL_EDGE_CLIP}px);
 `
