@@ -1,6 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
-import { railGutter } from '~/styles/card.styles'
+import { RAIL_GAP, railGutter } from '~/styles/card.styles'
 
 const { media } = theme
 
@@ -70,7 +70,7 @@ export const Track = styled.div`
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: calc((100% - 64px) / 5);
-  gap: 16px;
+  gap: ${RAIL_GAP}px;
   overflow-x: auto;
   overflow-y: hidden;
   // The arrows above are sized/positioned to keep an equal gap despite railGutter's negative margin.

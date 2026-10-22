@@ -33,5 +33,6 @@ export const Track = styled(Row.CarouselTrack)`
     padding: 12px 0;
     margin-left: 0;
     scroll-padding-inline: 0;
+    clip-path: none;
   }
 `
