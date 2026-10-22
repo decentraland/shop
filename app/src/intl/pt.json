@@ -71,7 +71,8 @@
     "copied": "Copiado",
     "sortColumn": "Ordenar por {column}",
     "sortedAsc": "{column}, em ordem crescente. Clique para ordenar em ordem decrescente",
-    "sortedDesc": "{column}, em ordem decrescente. Clique para ordenar em ordem crescente"
+    "sortedDesc": "{column}, em ordem decrescente. Clique para ordenar em ordem crescente",
+    "noMatches": "Nenhum resultado"
   },
   "collection": {
     "breadcrumb": "Colecionáveis",
@@ -777,6 +778,10 @@
       "compareNone": "Sem comparação",
       "collection": "Coleção",
       "allCollections": "Todas as coleções",
+      "searchCollections": "Buscar coleções",
+      "searchItems": "Buscar itens",
+      "itemCount": "{count, plural, one {# item} other {# itens}}",
+      "collectionCount": "{count, plural, one {# coleção} other {# coleções}}",
       "thisPeriod": "Este período",
       "previousPeriod": "Período anterior",
       "lastYear": "Ano passado",
