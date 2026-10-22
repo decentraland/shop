@@ -73,7 +73,7 @@ export const Search = styled.label`
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: ${radius.btn};
-  background: #f5f4f7;
+  background: ${colors.surfaceHover};
   cursor: text;
 
   &:focus-within {
@@ -89,6 +89,10 @@ export const Search = styled.label`
     font-size: 14px;
     color: ${colors.gray0};
 
+    /* iOS zooms into a field under 16px when it takes focus, and this one does on every opening. */
+    @media (pointer: coarse) {
+      font-size: 16px;
+    }
     &::placeholder {
       color: ${colors.muted};
     }
@@ -108,8 +112,17 @@ export const List = styled.ul`
   padding: 0;
 
   [data-searchable] > & {
-    border-top: 1px solid rgba(22, 21, 24, 0.08);
+    border-top: 1px solid ${colors.line};
   }
+`
+
+export const Status = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 `
 
 export const Empty = styled.li`
@@ -139,9 +152,10 @@ export const Option = styled.button`
     height: 52px;
     padding: 8px 12px 8px 8px;
   }
-  &:hover,
-  &[data-highlight] {
-    background: #f5f4f7;
+  /* A searchable menu moves its highlight with the mouse, so hover there would draw a second one. */
+  &[data-highlight],
+  div:not([data-searchable]) > ul > li > &:hover {
+    background: ${colors.surfaceHover};
   }
   &[data-active] {
     background: ${colors.media};

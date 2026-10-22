@@ -2,22 +2,20 @@ import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef,
 import { Chevron } from '~/components/Chevron'
 import { Icon } from '~/components/Icon'
 import { t } from '~/intl/i18n'
+import { nextActiveIndex } from '~/lib/suggestionNavigation'
 import { theme } from '~/styles/theme'
 import * as S from './Dropdown.styles'
 
 export type DropdownOption = {
   value: string
   label: ReactNode
-  /** What the search matches against, for a label that is not plain text. */
-  searchText?: string
   /** A picture beside the label in the menu, never in the trigger. */
   media?: ReactNode
   /** A quieter second line under the label in the menu. */
   hint?: ReactNode
 }
 
-const textOf = (option: DropdownOption) =>
-  option.searchText ?? (typeof option.label === 'string' ? option.label : String(option.value))
+const textOf = (option: DropdownOption) => (typeof option.label === 'string' ? option.label : option.value)
 
 // Reusable select-style dropdown: a bordered trigger + a menu of single-select options. Styled as the
 // design's white rounded pill (gray border → purple on keyboard focus → light-gray gradient when open).
@@ -72,6 +70,7 @@ export function Dropdown({
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const listId = useId()
+  const optionId = (optionValue: string) => `${listId}-${encodeURIComponent(optionValue)}`
   const listRef = useRef<HTMLUListElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -81,16 +80,21 @@ export function Dropdown({
   // A menu wider than its trigger slides along it just far enough to stay on screen, keeping its edge on
   // the trigger's when it can.
   useLayoutEffect(() => {
-    if (!open || !menuRef.current || !triggerRef.current) return setShift(0)
-    const trigger = triggerRef.current.getBoundingClientRect()
-    const width = menuRef.current.offsetWidth
-    const gutter = 16
-    const left = align === 'left' ? trigger.left : trigger.right - width
-    const fitted = Math.min(Math.max(left, gutter), window.innerWidth - gutter - width)
-    setShift(fitted - left)
+    if (!open) return setShift(0)
+    const place = () => {
+      if (!menuRef.current || !triggerRef.current) return
+      const trigger = triggerRef.current.getBoundingClientRect()
+      const width = menuRef.current.offsetWidth
+      const gutter = 16
+      const left = align === 'left' ? trigger.left : trigger.right - width
+      setShift(Math.min(Math.max(left, gutter), window.innerWidth - gutter - width) - left)
+    }
+    place()
     // Focused here rather than by autoFocus, which ran before the shift and scrolled the page sideways to
     // reach the menu's overhang.
     searchRef.current?.focus({ preventScroll: true })
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
   }, [open, align])
 
   const needle = query.trim().toLocaleLowerCase()
@@ -177,16 +181,17 @@ export function Dropdown({
                 aria-expanded
                 aria-controls={listId}
                 aria-autocomplete="list"
-                aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
+                aria-activedescendant={active >= 0 ? optionId(shown[active].value) : undefined}
                 onChange={event => {
                   setQuery(event.target.value)
                   setHighlight(0)
                 }}
                 onKeyDown={event => {
+                  // Keys inside an IME composition belong to the text being typed.
+                  if (event.nativeEvent.isComposing || event.key === 'Process') return
                   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                     event.preventDefault()
-                    const step = event.key === 'ArrowDown' ? 1 : -1
-                    setHighlight(Math.max(0, Math.min(active + step, shown.length - 1)))
+                    setHighlight(nextActiveIndex(active, shown.length, event.key) ?? active)
                   } else if (event.key === 'Enter' && active >= 0) {
                     event.preventDefault()
                     choose(shown[active].value)
@@ -206,7 +211,7 @@ export function Dropdown({
                 <S.Option
                   type="button"
                   role="option"
-                  id={`${listId}-${index}`}
+                  id={optionId(o.value)}
                   data-index={index}
                   aria-selected={o.value === value}
                   data-active={o.value === value || undefined}
@@ -225,13 +230,13 @@ export function Dropdown({
               </li>
             ))}
             {shown.length === 0 ? (
-              <S.Empty role="none">
-                <span role="status" data-testid="dropdown-empty">
-                  {t('common.noMatches')}
-                </span>
+              <S.Empty role="none" aria-hidden data-testid="dropdown-empty">
+                {t('common.noMatches')}
               </S.Empty>
             ) : null}
           </S.List>
+          {/* Always rendered, so a screen reader hears the text change rather than a region appearing. */}
+          {searchable ? <S.Status role="status">{shown.length === 0 ? t('common.noMatches') : ''}</S.Status> : null}
         </S.Menu>
       ) : null}
     </S.Root>

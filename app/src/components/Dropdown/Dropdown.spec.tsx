@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Dropdown, type DropdownOption } from '~/components/Dropdown'
 
@@ -54,6 +54,17 @@ describe('when the dropdown has a search field', () => {
     expect(screen.getByRole('button', { name: 'Collection' })).toHaveFocus()
   })
 
+  it('should leave Enter to the text while an IME composition is open', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<Harness onChange={onChange} />)
+    await open(user)
+    fireEvent.keyDown(screen.getByTestId('dropdown-search'), { key: 'Enter', isComposing: true })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
   it('should say so when nothing matches', async () => {
     const user = userEvent.setup()
     render(<Harness />)
@@ -62,6 +73,7 @@ describe('when the dropdown has a search field', () => {
 
     expect(screen.queryAllByRole('option')).toHaveLength(0)
     expect(screen.getByTestId('dropdown-empty')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('No matches')
   })
 
   it('should start from the full list each time it opens', async () => {

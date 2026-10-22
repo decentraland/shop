@@ -30,6 +30,7 @@ const colors = {
   gray5: '#ecebed',
   textSecondary: 'rgba(22, 21, 24, 0.6)', // Figma "text/secondary" — unchecked checkbox outline
   line: '#e6e4ea', // subtle card border
+  surfaceHover: '#f5f4f7', // a row or field one step off white — menu hover, search field fill
   lineStrong: '#a09ba8', // search field / defined borders
   // The card outline. Figma draws it as a 0.25px Gray 3 stroke; translucency is what makes that work,
   // because the line has to sit over both the white footer and the grey media and stay equally faint
