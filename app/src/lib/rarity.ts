@@ -173,11 +173,12 @@ export function rarityCardPalette(rarity?: string | null): RarityCardPalette {
     const { flap, stroke, label, labelBg, fill } = rarityCardNone
     return { flap, stroke, label, labelBg, background: fill }
   }
+  const label = parseHex(entry.label)
   return {
-    flap: entry.flap,
+    flap: rarityColor(rarity),
     stroke: entry.stroke,
     label: entry.label,
-    labelBg: entry.labelBg,
+    labelBg: label ? `rgba(${label[0]}, ${label[1]}, ${label[2]}, 0.2)` : rarityCardNone.labelBg,
     background: `radial-gradient(ellipse ${entry.size} ${entry.size} at 50% 50%, ${entry.glow})`
   }
 }

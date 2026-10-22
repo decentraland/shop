@@ -152,7 +152,6 @@ export function CartPopover() {
           {isEmpty ? (
             <S.Empty>
               <EmptyState
-                variant="light"
                 testId="cart-drawer-empty"
                 icon={cartEmptyIllustration}
                 title={t('cart.empty.title')}

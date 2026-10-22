@@ -53,7 +53,7 @@ const loadingWash = `linear-gradient(to left, ${colors.loadingWashFaint}, ${colo
 export const SkeletonThumb = styled.div`
   flex: 1;
   min-height: 0;
-  border-radius: ${radius.card};
+  border-radius: ${radius.tile};
   background: ${loadingWash};
 `
 

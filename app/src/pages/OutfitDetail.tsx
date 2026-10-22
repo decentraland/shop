@@ -271,7 +271,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
           {resolution.isError ? (
             <S.ResolveError>
               <ErrorNotice message={t('outfits.detail.resolveError')} testId="outfit-detail-resolve-error" />
-              <Button variant="outline" data-testid="outfit-detail-retry" onClick={resolution.retry}>
+              <Button variant="glass" data-testid="outfit-detail-retry" onClick={resolution.retry}>
                 {t('outfits.detail.retry')}
               </Button>
             </S.ResolveError>

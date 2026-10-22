@@ -13,12 +13,25 @@ import { avatarShape, isCompatible } from '~/lib/bodyShape'
 import { RING_INSET } from '~/styles/card.styles'
 import { theme } from '~/styles/theme'
 
-// The artwork tile's radius, and the top corner left once the hover stroke has taken its bite out of it. The
-// tile's bottom edge sits inside the card, clear of the stroke, so its bottom corners keep the full radius.
+// How far the preview stays inside the artwork tile: clear of both the card's hover stroke and the tile's
+// own 1.5px rarity border, which runs round all four sides. Whole pixels, see `wrapStyle`.
+const EDGE_INSET = Math.max(RING_INSET, 2)
 const TILE_RADIUS = Number.parseFloat(theme.radius.tile)
-const INNER_RADIUS = TILE_RADIUS - RING_INSET
+const INNER_RADIUS = TILE_RADIUS - EDGE_INSET
 if (process.env.NODE_ENV !== 'production' && Number.isNaN(INNER_RADIUS)) {
   throw new Error(`INNER_RADIUS is NaN — theme.radius.tile ("${theme.radius.tile}") is not a numeric string`)
+}
+
+/** The preview's clip: the whole tile minus the heart's corner (a step) and the flap's corner (a diagonal). */
+export function previewClip(
+  notch: { left: number; bottom: number } | null,
+  flap: { width: number; height: number } | null
+): string | undefined {
+  if (!notch && !flap) return undefined
+  const topLeft = flap ? `${flap.width}px 0` : '0 0'
+  const topRight = notch ? `${notch.left}px 0, ${notch.left}px ${notch.bottom}px, 100% ${notch.bottom}px` : '100% 0'
+  const left = flap ? `, 0 ${flap.height}px` : ''
+  return `polygon(${topLeft}, ${topRight}, 100% 100%, 0 100%${left})`
 }
 
 const Wrap = styled.div`
@@ -102,6 +115,8 @@ export function HoverPreviewLayer() {
   // draws can come out above it: without the cut the preview covers the heart exactly while the shopper
   // is hovering to reach it.
   const [notch, setNotch] = useState<{ left: number; bottom: number } | null>(null)
+  // The category flap's box in the same frame: the corner it covers is cut away too, along its diagonal.
+  const [flap, setFlap] = useState<{ width: number; height: number } | null>(null)
   // The pose is drawn ONCE per hover and held for it: the UPDATE effect re-runs on boot/avatar changes
   // too, and re-rolling there would snap the avatar into a different animation mid-hover. Keyed on the
   // store's hover token, which bumps on show() and ignores re-entering the same card.
@@ -176,12 +191,14 @@ export function HoverPreviewLayer() {
     if (!anchor) {
       setRect(null)
       setNotch(null)
+      setFlap(null)
       return
     }
     let raf = 0
     // Measured rather than derived: the button's width follows its save count and the hovered card is
     // scaled, so the box it actually occupies is the only reliable one.
     const favEl = anchor.parentElement?.querySelector('[data-testid="card-fav"]') ?? null
+    const flapEl = anchor.querySelector('[data-testid="card-flap"]')
     const update = () => {
       const anchorRect = anchor.getBoundingClientRect()
       setRect(anchorRect)
@@ -189,8 +206,17 @@ export function HoverPreviewLayer() {
       setNotch(
         fav
           ? {
-              left: fav.left - (Math.round(anchorRect.left) + RING_INSET) - NOTCH_PAD,
-              bottom: fav.bottom - (Math.round(anchorRect.top) + RING_INSET) + NOTCH_PAD
+              left: fav.left - (Math.round(anchorRect.left) + EDGE_INSET) - NOTCH_PAD,
+              bottom: fav.bottom - (Math.round(anchorRect.top) + EDGE_INSET) + NOTCH_PAD
+            }
+          : null
+      )
+      const flapRect = flapEl?.getBoundingClientRect()
+      setFlap(
+        flapRect
+          ? {
+              width: flapRect.right - (Math.round(anchorRect.left) + EDGE_INSET) + NOTCH_PAD,
+              height: flapRect.bottom - (Math.round(anchorRect.top) + EDGE_INSET) + NOTCH_PAD
             }
           : null
       )
@@ -299,23 +325,21 @@ export function HoverPreviewLayer() {
          *
          * Rounding it to the card's radius was not enough: that arc is concentric with the stroke's OUTER
          * edge, so around the corner the layer still crossed the band. It has to stop at the stroke's inner
-         * edge — inset by the stroke's width on the three sides the stroke covers (the bottom meets the
-         * footer), with the matching inner radius.
+         * edge, and now also inside the artwork tile's own rarity border, which runs round all four sides —
+         * so it is inset on every side (EDGE_INSET), with the matching inner radius.
          *
          * The offsets are whole pixels because `getBoundingClientRect` reports fractions (the grid divides
          * the row by three), and a fixed box holding an iframe at a fractional offset gets its own
          * composited layer whose edges Chrome antialiases — the same bright half-pixel, by another route.
          */
-        left: Math.round(rect.left) + RING_INSET,
-        top: Math.round(rect.top) + RING_INSET,
-        width: Math.round(rect.width) - RING_INSET * 2,
-        height: Math.round(rect.height) - RING_INSET,
-        borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px ${TILE_RADIUS}px ${TILE_RADIUS}px`,
+        left: Math.round(rect.left) + EDGE_INSET,
+        top: Math.round(rect.top) + EDGE_INSET,
+        width: Math.round(rect.width) - EDGE_INSET * 2,
+        height: Math.round(rect.height) - EDGE_INSET * 2,
+        borderRadius: INNER_RADIUS,
         overflow: 'hidden',
         zIndex: 5,
-        clipPath: notch
-          ? `polygon(0 0, ${notch.left}px 0, ${notch.left}px ${notch.bottom}px, 100% ${notch.bottom}px, 100% 100%, 0 100%)`
-          : undefined,
+        clipPath: previewClip(notch, flap),
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,
         transition: 'opacity .25s ease'

@@ -82,7 +82,7 @@ describe('AssetCard artwork tile', () => {
     const { container } = renderCard(makeItem({ rarity: 'legendary' }))
     const tag = container.querySelector('[data-testid="chip-rarity"]') as HTMLElement
     expect(tag.style.color).toBe('rgb(176, 93, 255)')
-    expect(tag.style.background).toBe('rgba(161, 75, 243, 0.2)')
+    expect(tag.style.background).toBe('rgba(176, 93, 255, 0.2)')
   })
 
   it('should put the price on the tags row, which the hover swaps for the action', () => {

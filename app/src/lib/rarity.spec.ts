@@ -211,10 +211,14 @@ describe('when resolving the product card palette for a rarity', () => {
       flap: '#a24bf3',
       stroke: '#dba0ff',
       label: '#b05dff',
-      labelBg: 'rgba(161, 75, 243, 0.2)'
+      labelBg: 'rgba(176, 93, 255, 0.2)'
     })
     expect(p.background).toMatch(/^radial-gradient\(ellipse 65\.4% 65\.4% at 50% 50%, rgb\(223 197 250\) 37\.5%/)
     expect(p.background).toMatch(/rgb\(162 75 243\) 100%\)$/)
+  })
+
+  it('should take the flap from the rarity token, so the card matches the filter swatch', () => {
+    expect(rarityCardPalette('exotic').flap).toBe(rarities.exotic)
   })
 
   it('should return the flat no-rarity tile for a missing or unknown rarity', () => {

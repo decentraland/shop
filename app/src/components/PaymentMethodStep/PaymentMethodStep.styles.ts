@@ -75,6 +75,9 @@ export const Close = styled.button`
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
   }
+  ${onDark}:focus-visible {
+    outline-color: ${theme.colors.white};
+  }
 `
 
 // Asset summary: 180px thumbnail beside the name / creator / price (Figma "Marketplace Cards").
@@ -260,6 +263,9 @@ export const OptionRow = styled.button`
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
+  }
+  ${onDark}:focus-visible {
+    outline-color: ${theme.colors.white};
   }
 `
 
@@ -461,6 +467,9 @@ export const BuyBtn = styled.button`
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
+  }
+  ${onDark}:focus-visible {
+    outline-color: ${theme.colors.white};
   }
   &:disabled {
     opacity: 0.6;

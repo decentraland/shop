@@ -139,7 +139,7 @@ export function CreatorSales({
                 </S.Confirm>
               ) : (
                 <Button
-                  variant="outline"
+                  variant={tone === 'dark' ? 'glass' : 'outline'}
                   size="sm"
                   data-part="action"
                   onClick={() => setConfirming(sale.id)}

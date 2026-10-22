@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { onDark } from '~/styles/surface'
 
 // Purchase CTAs for the payment rails, plus the exchange-rate caption. The MANA/mixed buttons are a
 // soft-black-2 56px pill with a 12px radius; the credits button carries the buy gradient so the default
@@ -137,4 +138,8 @@ export const ShortfallNote = styled.p`
   line-height: 1.4;
   color: ${theme.colors.muted};
   text-align: center;
+
+  ${onDark} {
+    color: ${theme.colors.glassText};
+  }
 `

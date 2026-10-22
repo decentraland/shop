@@ -185,7 +185,7 @@ export const ItemCard = styled.li`
     position: absolute;
     z-index: 5;
     pointer-events: none;
-    ${ringHover};
+    ${ringHover()};
     opacity: 0;
     transition: opacity 0.3s ease;
   }

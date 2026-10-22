@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
-import { ringHairline, ringLit, ringHover, RING_OUTSET } from '~/styles/card.styles'
+import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
 import { SaleTag } from '~/components/SaleTag'
 import { Chip } from '~/styles/chip.styles'
 import { Icon } from '~/components/Icon'
@@ -43,7 +43,7 @@ export const Card = styled.article`
   /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
      250px tall over 300, split 136 media / 114 info. A card on sale carries one more line of price
      information than the 114px info block was drawn for, so it is allowed to grow rather than push the
-     countdown out through its own bottom edge; the grid stretches the row, so neighbours stay level. */
+     struck price out through its own bottom edge; the grid stretches the row, so neighbours stay level. */
   ${media.maxWidth('sm')} {
     height: 250px;
 
@@ -103,12 +103,10 @@ export const Card = styled.article`
       ${cardLit};
     }
     &:hover::after {
-      ${ringHover};
-      border-radius: calc(${radius.tile} + ${RING_OUTSET}px);
+      ${ringHover(radius.tile)};
     }
     &:has(:focus-visible)::after {
-      ${ringHover};
-      border-radius: calc(${radius.tile} + ${RING_OUTSET}px);
+      ${ringHover(radius.tile)};
     }
   }
 
@@ -444,6 +442,15 @@ export const Body = styled.div`
     height: 137px;
     padding-bottom: 12px;
   }
+
+  /* Touch tablets stack the always-visible action under the tags row (see Action), so the body takes the
+     height it needs and the artwork above gives it up. */
+  @media (hover: none) and (min-width: 721px) {
+    &[data-row] {
+      flex: 0 0 auto;
+      height: auto;
+    }
+  }
   @media (hover: hover) and (min-width: 721px) {
     &[data-note] {
       flex-basis: 112px;
@@ -481,8 +488,8 @@ export const Body = styled.div`
     row-gap: 6px;
     padding: 16px;
 
-    /* The sale card's price block is three lines — price, struck price, countdown — and 114px was drawn
-       for two. Growing with its content is what keeps the pill inside the card; the root grows with it. */
+    /* The sale card's price block can wrap to a second line (price, then struck price), and 114px was
+       drawn for less. Growing with its content keeps it inside the card; the root grows with it. */
     &[data-sale] {
       flex: 0 0 auto;
       height: auto;
@@ -632,8 +639,8 @@ export const CreatorRow = styled.div`
   }
 `
 
-// Price never shrinks or wraps — the name yields space to it. The sale variant wraps (was-price +
-// countdown), and market drops the gap for the leading "≈".
+// Price never shrinks or wraps — the tags yield space to it. The sale variant may wrap (now + was price),
+// and market drops the gap for the leading "≈".
 export const Price = styled.div`
   flex-shrink: 0;
   display: flex;
@@ -661,10 +668,7 @@ export const Price = styled.div`
     justify-self: start;
     gap: 2px;
 
-    /* The 58% cap keeps room for the NAME on the wide card, where the two share one flex row. Here the
-       price has a grid cell of its own, so the cap only squeezed the sale block below the width of the
-       countdown pill inside it: the pill spilled past the card's left edge, and the extra wrapped line
-       pushed the block out through the bottom of the fixed-height body. */
+    /* On the compact card the sale block may shrink rather than push the round action out of the row. */
     &[data-variant='sale'] {
       max-width: none;
       flex-shrink: 1;
@@ -739,6 +743,15 @@ export const Action = styled.div`
     /* On the browse and view cards the row also carries the price, so it spans the card. */
     [data-row] > & {
       justify-self: stretch;
+    }
+  }
+
+  /* Touch tablets show the action button permanently, so it cannot share the row with the price: the
+     tags and price keep their line and the button takes its own below. */
+  @media (hover: none) and (min-width: 721px) {
+    [data-row] > & {
+      flex-direction: column;
+      align-items: stretch;
     }
   }
 `

@@ -52,16 +52,6 @@ const HOVER_DELAY_MS = 120
 //   reveal). For a wearable/emote it navigates to the item detail page (where List / Update price /
 //   Remove live, per token); for a NAME it's an external link to the Builder's name management page
 //   (`manageHref`). No inline listing happens from the My Assets card anymore.
-/**
- * The creator's avatar and name, held blank while the profile loads. Without the hold a fresh grid showed a
- * raw `0x…` on every card and then swapped each one for the name as the Catalyst replied.
- */
-function CardCreator({ address }: { address: string }) {
-  const { isLoading } = useProfile(address)
-  if (isLoading) return <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
-  return <CreatorBadge address={address} hidePrefix />
-}
-
 // Where this card is rendered, and where in its row. Both flow into the click and add-to-cart events so a
 // rail's contribution is attributable — without them every card reported itself as the browse grid, which
 // is why Trending's CTR was unmeasurable. `position` is 0-based and only meaningful inside an ordered row.
@@ -86,6 +76,16 @@ type AssetCardProps = AssetCardProvenance &
       }
     | { item: CatalogItem; mode: 'manage-link'; manageHref?: string }
   )
+
+/**
+ * The creator's avatar and name, held blank while the profile loads. Without the hold a fresh grid showed a
+ * raw `0x…` on every card and then swapped each one for the name as the Catalyst replied.
+ */
+function CardCreator({ address }: { address: string }) {
+  const { isLoading } = useProfile(address)
+  if (isLoading) return <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
+  return <CreatorBadge address={address} hidePrefix />
+}
 
 export function AssetCard(props: AssetCardProps) {
   const { item, source = 'grid', position } = props
@@ -325,8 +325,8 @@ export function AssetCard(props: AssetCardProps) {
     </S.Chips>
   )
 
-  // The browse card's price: the sale pair + countdown, or the plain fixed price. It sits beside the
-  // name, or below it in the action row when the name fills the row.
+  // The browse card's price: the sale pair, or the plain fixed price. It sits on the tags row, under the
+  // creator.
   const browsePrice = onSale ? (
     <S.Price data-variant="sale">
       <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
@@ -680,9 +680,7 @@ export function AssetCard(props: AssetCardProps) {
         </S.Body>
       ) : (
         <S.Body data-row data-sale={onSale || undefined} data-note={showsNote || undefined}>
-          {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
-              (min-width:0 so a long name ellipses instead of shoving the price out); the price never
-              shrinks. */}
+          {/* Name and creator; min-width:0 on Desc so a long name ellipses instead of widening the card. */}
           <S.Top>
             <S.Desc>
               <S.Name data-testid="card-name" title={item.name}>
