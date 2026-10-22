@@ -74,6 +74,37 @@ describe('when the dropdown has a search field', () => {
     expect(screen.getByTestId('dropdown-search')).toHaveValue('')
     expect(shownOptions()).toHaveLength(OPTIONS.length)
   })
+
+  it('should give focus back to the trigger when Escape closes it', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await open(user)
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Collection' })).toHaveFocus()
+  })
+
+  it('should close when Tab leaves the search field', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await open(user)
+    await user.tab()
+
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('should keep a row highlighted after a query with no matches is widened again', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<Harness onChange={onChange} />)
+    await open(user)
+    await user.keyboard('zebra{ArrowDown}{ArrowUp}')
+    await user.clear(screen.getByTestId('dropdown-search'))
+    await user.keyboard('wings{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('wings')
+  })
 })
 
 describe('when the dropdown has no search field', () => {

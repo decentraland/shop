@@ -95,6 +95,8 @@ export function Dropdown({
 
   const needle = query.trim().toLocaleLowerCase()
   const shown = needle ? options.filter(o => textOf(o).toLocaleLowerCase().includes(needle)) : options
+  // Clamped on read, so a list that shrinks while open (a refetch, a narrower query) never strands it.
+  const active = Math.min(highlight, shown.length - 1)
 
   useEffect(() => {
     if (!open) {
@@ -109,8 +111,8 @@ export function Dropdown({
 
   useEffect(() => {
     if (!searchable) return
-    listRef.current?.querySelector<HTMLElement>(`[data-index="${highlight}"]`)?.scrollIntoView?.({ block: 'nearest' })
-  }, [highlight, open, searchable])
+    listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [active, open, searchable])
 
   const choose = (next: string) => {
     onChange(next)
@@ -126,7 +128,10 @@ export function Dropdown({
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key !== 'Escape') return
+      // The search field that held focus unmounts with the menu; without this, focus falls to the page.
+      if (ref.current?.contains(document.activeElement)) triggerRef.current?.focus()
+      setOpen(false)
     }
     document.addEventListener('pointerdown', onPointer)
     document.addEventListener('keydown', onKey)
@@ -171,7 +176,8 @@ export function Dropdown({
                 role="combobox"
                 aria-expanded
                 aria-controls={listId}
-                aria-activedescendant={shown[highlight] ? `${listId}-${highlight}` : undefined}
+                aria-autocomplete="list"
+                aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
                 onChange={event => {
                   setQuery(event.target.value)
                   setHighlight(0)
@@ -180,11 +186,14 @@ export function Dropdown({
                   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                     event.preventDefault()
                     const step = event.key === 'ArrowDown' ? 1 : -1
-                    setHighlight(current => Math.min(Math.max(current + step, 0), shown.length - 1))
-                  } else if (event.key === 'Enter' && shown[highlight]) {
+                    setHighlight(Math.max(0, Math.min(active + step, shown.length - 1)))
+                  } else if (event.key === 'Enter' && active >= 0) {
                     event.preventDefault()
-                    choose(shown[highlight].value)
+                    choose(shown[active].value)
                     triggerRef.current?.focus()
+                  } else if (event.key === 'Tab') {
+                    // The options take no tab stop, so Tab leaves the dropdown: the menu goes with it.
+                    setOpen(false)
                   }
                 }}
                 data-testid="dropdown-search"
@@ -201,7 +210,7 @@ export function Dropdown({
                   data-index={index}
                   aria-selected={o.value === value}
                   data-active={o.value === value || undefined}
-                  data-highlight={(searchable && index === highlight) || undefined}
+                  data-highlight={(searchable && index === active) || undefined}
                   tabIndex={searchable ? -1 : undefined}
                   onMouseMove={searchable ? () => setHighlight(index) : undefined}
                   data-rich={o.media || o.hint ? '' : undefined}
@@ -216,8 +225,10 @@ export function Dropdown({
               </li>
             ))}
             {shown.length === 0 ? (
-              <S.Empty role="none" data-testid="dropdown-empty">
-                {t('common.noMatches')}
+              <S.Empty role="none">
+                <span role="status" data-testid="dropdown-empty">
+                  {t('common.noMatches')}
+                </span>
               </S.Empty>
             ) : null}
           </S.List>
