@@ -42,7 +42,8 @@ export function PaymentMethodStep({
   onBuy,
   onClose,
   busy = false,
-  notice
+  notice,
+  altRail
 }: {
   /**
    * What is being bought, as much as this step needs to name it. Not a `CatalogItem`: a NAME is not one,
@@ -61,11 +62,26 @@ export function PaymentMethodStep({
   /** The buyer's MANA balance in wei, for the row's "MANA Balance:" line. */
   manaBalanceWei: bigint
   /** Buy with the rail the buyer confirmed. */
-  onBuy: (method: PaymentMethod) => void
+  onBuy: (method: PaymentMethod | 'alt') => void
   onClose: () => void
   busy?: boolean
   /** Something the buyer must read before confirming — rendered above the confirm button. */
   notice?: string | null
+  /**
+   * A third rail that settles ON ITS OWN, outside the credits/MANA split.
+   *
+   * It is a row like the others but EXCLUSIVE: ticking it clears them, and ticking either of them clears
+   * it. The checkbox shape is what says "these add up", so a rail that cannot add up to anything has to
+   * visibly take the selection over rather than read as a third ingredient.
+   */
+  altRail?: {
+    label: string
+    icon: string
+    balanceLabel: ReactNode
+    priceLabel: ReactNode
+    /** False when the balance cannot pay — the row still renders, disabled, rather than disappearing. */
+    usable: boolean
+  }
 }) {
   const credits = options.find(o => o.method === 'credits') ?? null
   const mana = options.find(o => o.method === 'mana') ?? null
@@ -73,7 +89,7 @@ export function PaymentMethodStep({
 
   // Which rails the buyer has ticked. Seeded from what is payable, preferring credits — the mixed rail is
   // only the preselection when neither single rail covers the price on its own.
-  type Ticked = 'credits' | 'mana'
+  type Ticked = 'credits' | 'mana' | 'alt'
   const [picked, setPicked] = useState<Set<Ticked>>(() => {
     if (credits) return new Set<Ticked>(['credits'])
     if (combined) return new Set<Ticked>(['credits', 'mana'])
@@ -98,6 +114,7 @@ export function PaymentMethodStep({
       const next = new Set(prev)
       if (next.has('credits') && !creditsUsable) next.delete('credits')
       if (next.has('mana') && !manaUsable) next.delete('mana')
+      if (next.has('alt') && !altRail?.usable) next.delete('alt')
       if (next.size === 0) {
         if (credits) next.add('credits')
         else if (combined) {
@@ -111,13 +128,15 @@ export function PaymentMethodStep({
       const same = next.size === prev.size && [...next].every(r => prev.has(r))
       return same ? prev : next
     })
-  }, [creditsUsable, manaUsable, credits, combined, mana])
+  }, [creditsUsable, manaUsable, credits, combined, mana, altRail?.usable])
 
   /** The rail a ticked set settles as, or null when the combination isn't payable. */
   const hasC = picked.has('credits')
   const hasM = picked.has('mana')
-  const method: PaymentMethod | null =
-    hasC && hasM
+  const hasAlt = picked.has('alt')
+  const method: PaymentMethod | 'alt' | null = hasAlt
+    ? 'alt'
+    : hasC && hasM
       ? combined
         ? 'combined'
         : null
@@ -139,10 +158,16 @@ export function PaymentMethodStep({
     method === 'combined' && combined ? combined.credits : (credits?.credits ?? usdCentsToCredits(priceCents))
   const manaLeg = method === 'combined' && combined ? combined.manaWei : (mana?.manaWei ?? priceManaWei)
 
+  /**
+   * Credits and MANA add up, so they toggle. The alt rail settles on its own, so ticking it takes the
+   * selection over — and ticking either of the others gives it back.
+   */
   function toggle(rail: Ticked) {
     setPicked(prev => {
+      if (rail === 'alt') return prev.has('alt') ? new Set<Ticked>() : new Set<Ticked>(['alt'])
       const next = new Set(prev)
-      if (next.has(rail)) next.delete(rail)
+      next.delete('alt')
+      if (prev.has(rail)) next.delete(rail)
       else next.add(rail)
       return next
     })
@@ -229,7 +254,9 @@ export function PaymentMethodStep({
                 <S.RailArt src={manaCoin} w={35.328} h={35.328} alt="" aria-hidden />
               </S.Logo>
               <S.TextBlock>
-                <S.Label>{t('buyModal.methodMana')}</S.Label>
+                <S.Label>
+                  {t('buyModal.chainPolygon')} {t('buyModal.methodMana')}
+                </S.Label>
                 <S.BalanceRow>
                   {t('buyModal.manaBalanceLabel')}
                   <S.ManaMini src={manaCoin} alt="" aria-hidden />
@@ -254,6 +281,38 @@ export function PaymentMethodStep({
             </S.PriceCol>
           </S.Content>
         </S.OptionRow>
+
+        {altRail ? (
+          <S.OptionRow
+            type="button"
+            data-testid="pay-with-alt"
+            data-selected={hasAlt}
+            data-disabled={!altRail.usable}
+            disabled={busy || !altRail.usable}
+            aria-pressed={hasAlt}
+            onClick={() => toggle('alt')}
+          >
+            <S.LeftSlot>
+              <S.CheckBox data-checked={hasAlt}>
+                <Icon name="check" className="ico" />
+              </S.CheckBox>
+            </S.LeftSlot>
+            <S.Content>
+              <S.InfoGroup>
+                <S.Logo>
+                  <S.RailArt src={altRail.icon} w={35.328} h={35.328} alt="" aria-hidden />
+                </S.Logo>
+                <S.TextBlock>
+                  <S.Label>{altRail.label}</S.Label>
+                  <S.BalanceRow>{altRail.balanceLabel}</S.BalanceRow>
+                </S.TextBlock>
+              </S.InfoGroup>
+              <S.PriceCol>
+                <S.Price>{altRail.priceLabel}</S.Price>
+              </S.PriceCol>
+            </S.Content>
+          </S.OptionRow>
+        ) : null}
       </S.Options>
 
       {notice ? (

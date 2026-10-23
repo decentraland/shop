@@ -46,15 +46,28 @@ import { idToSalt } from '~/lib/trade-encoding'
 import { readManaUsdRate, manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { friendlyError } from '~/lib/errors'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
-import { AuthorizationKind, ensureAuthorization } from '~/lib/authorizations'
-import { requireChain } from '~/lib/network'
+import { requireChain, isWrongNetworkError } from '~/lib/network'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import type { ProviderType } from '@dcl/schemas'
+import { AuthorizationKind, ensureAuthorization } from '~/lib/authorizations'
 import { ContractName, getContract } from 'decentraland-transactions'
 
 // 100 MANA — the fixed DCLControllerV2.register cost and the useCredits maxCreditedValue. Matches the
 // credits-server's NAME_PRICE_IN_WEI and the marketplace webapp's PRICE_IN_WEI.
 export const NAME_PRICE_IN_WEI = '100000000000000000000'
+
+/**
+ * The wallet cannot pay for its own transaction, so the Ethereum rail is not a route it has.
+ *
+ * Typed rather than a bare Error so the modal maps it to translated copy: the raw message would reach the
+ * buyer in English, naming things the shop never says (CONVENTIONS.md), and there is nothing to retry.
+ */
+export class NameGasNotPayableError extends Error {
+  constructor() {
+    super('ETHEREUM_RAIL_NEEDS_SELF_CUSTODY')
+    this.name = 'NameGasNotPayableError'
+  }
+}
 
 // ---------------------------------------------------------------------------
 // NAME string validation + availability (advisory search-time check)
@@ -597,23 +610,25 @@ export async function registerNameWithUsdCredits(opts: {
 /**
  * Register a NAME by paying with the buyer's own MANA on ETHEREUM — no credits, no bridge.
  *
- * The buyer approves MANA to DCLControllerV2 and calls `register` on L1, which is the same thing the
- * classic marketplace does for a crypto-paid claim. Nothing crosses a chain, so there is no route to sign,
- * no executor to front the bridge and no reconciler to settle: the NAME is minted in that one transaction.
+ * The buyer approves MANA to DCLControllerV2 and calls `register` on L1, which is what the classic
+ * marketplace does for a crypto-paid claim. Nothing crosses a chain, so there is no route to sign, no
+ * executor to front the bridge and no reconciler to settle: the NAME is minted in that one transaction.
+ * It is also the only rail that serves a buyer holding no credits at all — the Polygon one always spends
+ * at least one, because `useCredits` reverts on an empty credits array.
  *
- * SELF-CUSTODY ONLY, and the reason is gas rather than taste. Every step here runs on Ethereum, where the
- * shop has no relayer — the wallet pays. A managed (social) wallet holds no ETH, so it would prompt for a
- * confirmation its owner cannot satisfy and revert with INSUFFICIENT_FUNDS. Callers gate on
- * `canPayGasItself(providerType)`; this throws if that gate was missed, rather than trusting it.
+ * SELF-CUSTODY ONLY, and the reason is gas rather than taste. Every step runs on Ethereum, where the shop
+ * has no relayer, so the wallet pays. A managed wallet holds no ETH and would be prompted for a
+ * confirmation its owner cannot satisfy. Callers gate on `canPayGasItself`; this re-checks rather than
+ * trusting it, because being wrong here costs the buyer a failed on-chain attempt.
  *
- * The buyer's wallet must also BE on Ethereum. Unlike the Polygon rails, reads here cannot stand in for the
- * write: switching is the caller's job (`switchChain`) so the modal can explain it before the wallet asks.
+ * The wallet must already BE on Ethereum. Switching is the caller's job so the modal can explain it first
+ * and retry from the buyer's own click — a switch fired from anywhere else comes back `-32006`.
  */
 export async function registerNameWithEthereumMana(opts: {
   name: string
   signer: ethers.providers.JsonRpcSigner
   web3Provider: ethers.providers.Web3Provider
-  providerType?: string | null
+  providerType?: ProviderType | null
   /** The NAME beneficiary. Defaults to the signer's address. */
   beneficiary?: string
   onProgress?: (stage: NameRegistrationStage) => void
@@ -629,19 +644,17 @@ export async function registerNameWithEthereumMana(opts: {
   const chainId = config.ethereumChainId
   const buyer = (opts.beneficiary ?? (await signer.getAddress())).toLowerCase()
 
-  if (!canPayGasItself(opts.providerType as ProviderType | null | undefined)) {
-    throw new Error('This wallet cannot pay its own gas on Ethereum')
-  }
+  if (!canPayGasItself(opts.providerType)) throw new NameGasNotPayableError()
 
   console.info('[names] ethereum register start', { name, buyer, chainId })
   progress('preparing')
   try {
-    // The wallet has to be ON Ethereum: this is a real L1 write, so a Polygon-pointed wallet would sign
-    // against the wrong chain. Verified rather than switched — the caller switches, having said why.
+    // A real L1 write, so a Polygon-pointed wallet would sign against the wrong chain. Verified rather
+    // than switched — the caller switches, having said why.
     await requireChain(web3Provider, chainId)
 
-    // 100 MANA to the controller. `ensureAuthorization` skips a sufficient existing allowance, so a repeat
-    // buyer approves once.
+    // 100 MANA to the controller. A sufficient existing allowance is skipped, so a repeat buyer approves
+    // once. There is no relayed rail on L1, so this is a transaction the wallet pays for.
     progress('awaiting-confirmation')
     await ensureAuthorization({
       auth: {
@@ -661,8 +674,8 @@ export async function registerNameWithEthereumMana(opts: {
     const tx = await contract.register(name, buyer)
     console.info('[names] ethereum register submitted', { txHash: tx.hash })
 
-    // Mined on Ethereum IS the registration — there is no bridge to wait on afterwards, which is why this
-    // rail never reports 'pending'.
+    // Mined on Ethereum IS the registration — no bridge to wait on afterwards, which is why this rail
+    // never reports 'pending'.
     progress('confirming')
     const receipt = await tx.wait()
     if (receipt.status === 0) throw new Error('The registration was not completed')
@@ -670,6 +683,14 @@ export async function registerNameWithEthereumMana(opts: {
     return { status: 'registered', originTxHash: tx.hash }
   } catch (e) {
     console.error('[names] ethereum register failed — raw error:', e, { name, buyer })
+    if (e instanceof NameGasNotPayableError) throw e
+    /**
+     * A wallet on the wrong chain is not a failed purchase — nothing was signed and nothing was spent — and
+     * the modal answers it with a screen that offers the switch. Wrapping it here hides it: the wrapper is a
+     * plain `Error`, so the caller's `isWrongNetworkError` sees nothing and the buyer gets the generic
+     * failure panel instead of the one control that fixes their situation.
+     */
+    if (isWrongNetworkError(e)) throw e
     const failure: Error & { cause?: unknown } = new Error(
       friendlyError(e, "Couldn't register the name. Please try again.", { sale: true })
     )
