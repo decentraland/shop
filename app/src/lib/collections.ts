@@ -1,11 +1,6 @@
 import { config } from '~/config'
 import { ZERO_ADDRESS } from '~/lib/address'
-import {
-  fetchCreatorPeggedPrimaryPrices,
-  fetchPeggedPrimaryPrices,
-  fetchShopListingsRaw,
-  type CatalogItem
-} from '~/lib/api'
+import { fetchCreatorPeggedPrimaryPrices, fetchPeggedPrimaryPrices, fetchUnified, type CatalogItem } from '~/lib/api'
 import { toCatalogItem, type RawCollectionItem } from '~/lib/catalogItem'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
@@ -245,12 +240,21 @@ export type CatalogItemsFilters = {
   maxPriceCredits?: number
 }
 
+type RunningSale = Pick<
+  CatalogItem,
+  'priceCredits' | 'compareAtCredits' | 'coupon' | 'saleEndsAt' | 'manaWei' | 'listManaWei'
+>
+
 /**
  * Lay the running sales over rows this feed cannot carry them on.
  *
- * `/v3/catalog/items` has no coupon join — only `/v3/catalog/shop` does — so a creator's storefront and a
- * collection page showed the discounted PRICE with nothing marking it as a discount: no strike-through, no
- * tag, no end. The shop feed is asked for the same scope and its sale fields are copied across by item.
+ * `/v3/catalog/items` has no coupon join, so a creator's storefront and a collection page showed every item at
+ * its list price with nothing marking a discount. The unified feed is asked for the same scope's discounted
+ * mints and its sale fields are copied across by item. Unified rather than the shop feed: that one carries
+ * USD-pegged listings only, so a creator's discounted MANA listing never reached these pages.
+ *
+ * A MANA row also brings its sale amount and list amount, which the page re-prices at the live rate; the
+ * mapping has already dropped the sale when creator sales are off.
  *
  * Silent on failure and skipped when the scope is the whole catalogue: an overlay that cannot resolve must
  * leave the page exactly as it was, never take it down with it.
@@ -262,26 +266,25 @@ async function withRunningSales(
   if (!scope.creator && !scope.contractAddress) return items
   if (!items.some(i => i.itemId != null)) return items
   try {
-    const { listings, creatorSalesLive } = await fetchShopListingsRaw({ ...scope, first: 200, listingType: 'primary' })
-    // The kill switch lives in the mapping this overlay skips, so it has to be honoured here or a flag
-    // turned off would leave the discount standing on exactly these two pages.
-    if (!creatorSalesLive) return items
-    const sales = new Map<
-      string,
-      { compareAtCredits: number; saleEndsAt?: number; priceCredits: number; coupon?: CatalogItem['coupon'] }
-    >()
+    const { items: listings } = await fetchUnified({ ...scope, first: 1000, listingType: 'primary', discounted: true })
+    const sales = new Map<string, RunningSale>()
     for (const l of listings) {
-      // Same rule as the mapper: a compare-at that does not beat the price is no sale, and its coupon stays out.
-      if (l.itemId == null || l.compareAtCredits == null || l.compareAtCredits <= l.priceCredits) continue
-      sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
-        compareAtCredits: l.compareAtCredits,
+      if (l.itemId == null || l.compareAtCredits == null) continue
+      const key = `${l.contractAddress.toLowerCase()}-${l.itemId}`
+      // An item can be listed more than once (a USD-pegged trade and a MANA one); the card shows its cheapest sale.
+      const held = sales.get(key)
+      if (held && held.priceCredits <= l.priceCredits) continue
+      sales.set(key, {
         priceCredits: l.priceCredits,
+        compareAtCredits: l.compareAtCredits,
         // Carried for two readers: the badge takes the creator's own % off it, and the cart settles a line
         // added from these pages through it, so the sale price shown is the one charged.
-        ...(l.coupon ? { coupon: l.coupon } : {}),
-        // SECONDS on the wire, milliseconds everywhere a CatalogItem is read. The mapping this overlay
-        // bypasses is where that conversion normally happens.
-        ...(l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+        coupon: l.coupon,
+        saleEndsAt: l.saleEndsAt,
+        // Always written, even when absent: the catalogue row may carry a MANA store price, and a USD-pegged
+        // sale laid over it must not be re-priced from that amount.
+        manaWei: l.manaWei ?? undefined,
+        listManaWei: l.listManaWei
       })
     }
     if (sales.size === 0) return items

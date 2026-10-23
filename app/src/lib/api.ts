@@ -652,12 +652,10 @@ export type ShopListingFilters = {
 }
 
 /**
- * The shop feed's rows as the server sends them, kill switch applied.
- *
- * Exported so `lib/collections` can lay a running sale over the catalogue feed, which has no coupon join of
- * its own — see withRunningSales there. Callers outside this module get the raw rows, not CatalogItems.
+ * The shop feed's rows as the server sends them, with whether creator sales are live so a caller that maps
+ * them itself knows whether the discount may be shown.
  */
-export async function fetchShopListingsRaw(
+async function fetchShopListingsRaw(
   params: ShopListingFilters
 ): Promise<{ listings: ShopListingRaw[]; total: number; creatorSalesLive: boolean }> {
   const qs = new URLSearchParams()
