@@ -10,7 +10,7 @@ vi.mock('~/lib/api', async importOriginal => ({
   fetchUnified: (...args: unknown[]) => fetchUnified(...args)
 }))
 
-import { fetchCreatorItems } from '~/lib/collections'
+import { fetchCatalogItems, fetchCreatorItems } from '~/lib/collections'
 
 const catalogRow = (over: Record<string, unknown> = {}) => ({
   id: 'hat',
@@ -50,15 +50,31 @@ describe('when a creator page lists an item a creator discount covers', () => {
     expect(items[0]).toMatchObject({ priceCredits: 3, compareAtCredits: 5, coupon })
   })
 
-  it("should ask the unified feed for the scope's discounted mints, the one that carries MANA listings", async () => {
+  it('should ask the unified feed for every mint listing in scope, the one that carries MANA listings', async () => {
     stubCatalog([catalogRow()])
     fetchUnified.mockResolvedValue({ total: 0, items: [] })
 
     await fetchCreatorItems('0xartist')
 
-    expect(fetchUnified).toHaveBeenCalledWith(
-      expect.objectContaining({ creator: '0xartist', listingType: 'primary', discounted: true })
-    )
+    const [params] = fetchUnified.mock.calls[0] as [Record<string, unknown>]
+    expect(params).toMatchObject({ creator: '0xartist', listingType: 'primary' })
+    // Undiscounted listings too: the one the item page would pick may be the undiscounted one.
+    expect(params.discounted).toBeUndefined()
+  })
+
+  it('should overlay a collection page by its contract the same way', async () => {
+    stubCatalog([catalogRow()])
+    fetchUnified.mockResolvedValue({
+      total: 1,
+      items: [
+        listing({ priceCredits: 3, compareAtCredits: 5, coupon: coupon as UnifiedListing['coupon'], manaWei: null })
+      ]
+    })
+
+    const { items } = await fetchCatalogItems({ contractAddress: '0xcollection' })
+
+    expect(fetchUnified).toHaveBeenCalledWith(expect.objectContaining({ contractAddress: '0xcollection' }))
+    expect(items[0]).toMatchObject({ priceCredits: 3, compareAtCredits: 5 })
   })
 
   it("should bring a MANA listing's sale and list amounts, so the page re-prices the sale at the live rate", async () => {
@@ -89,11 +105,18 @@ describe('when a creator page lists an item a creator discount covers', () => {
   })
 
   it('should not re-price a USD-pegged sale from the MANA store price the catalogue row carries', async () => {
-    stubCatalog([catalogRow({ priceCredits: 27, price: '10000000000000000000' })])
+    // isOnSale + price with no trade: the catalogue reads this row as a MANA store mint and gives it a manaWei.
+    stubCatalog([catalogRow({ priceCredits: 27, price: '10000000000000000000', isOnSale: true })])
     fetchUnified.mockResolvedValue({
       total: 1,
       items: [
-        listing({ priceCredits: 20, compareAtCredits: 25, coupon: coupon as UnifiedListing['coupon'], manaWei: null })
+        listing({
+          source: 'native',
+          priceCredits: 20,
+          compareAtCredits: 25,
+          coupon: coupon as UnifiedListing['coupon'],
+          manaWei: null
+        })
       ]
     })
 
@@ -103,20 +126,35 @@ describe('when a creator page lists an item a creator discount covers', () => {
     expect(items[0].manaWei).toBeUndefined()
   })
 
-  it('should show the cheapest sale when the item is discounted on more than one listing', async () => {
-    stubCatalog([catalogRow()])
+  it('should not advertise a MANA sale when the item page would sell its undiscounted USD-pegged listing', async () => {
+    stubCatalog([catalogRow({ priceCredits: 25 })])
     fetchUnified.mockResolvedValue({
       total: 2,
       items: [
-        listing({ priceCredits: 19, compareAtCredits: 27, manaWei: '7000000000000000000' }),
-        listing({ priceCredits: 15, compareAtCredits: 20, manaWei: null }),
-        listing({ priceCredits: 18, compareAtCredits: 22, manaWei: null })
+        listing({ source: 'legacy', priceCredits: 15, compareAtCredits: 27, manaWei: '7000000000000000000' }),
+        listing({ source: 'native', priceCredits: 25, manaWei: null })
       ]
     })
 
     const { items } = await fetchCreatorItems('0xartist')
 
-    expect(items[0]).toMatchObject({ priceCredits: 15, compareAtCredits: 20 })
+    expect(items[0].priceCredits).toBe(25)
+    expect(items[0].compareAtCredits).toBeUndefined()
+  })
+
+  it('should take the sale of the listing the item page would sell, not the cheapest one', async () => {
+    stubCatalog([catalogRow()])
+    fetchUnified.mockResolvedValue({
+      total: 2,
+      items: [
+        listing({ source: 'legacy', priceCredits: 15, compareAtCredits: 27, manaWei: '7000000000000000000' }),
+        listing({ source: 'native', priceCredits: 18, compareAtCredits: 22, manaWei: null })
+      ]
+    })
+
+    const { items } = await fetchCreatorItems('0xartist')
+
+    expect(items[0]).toMatchObject({ priceCredits: 18, compareAtCredits: 22 })
   })
 
   it('should leave the page as it was when the overlay cannot resolve', async () => {

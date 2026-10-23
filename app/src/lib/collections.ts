@@ -1,6 +1,13 @@
 import { config } from '~/config'
 import { ZERO_ADDRESS } from '~/lib/address'
-import { fetchCreatorPeggedPrimaryPrices, fetchPeggedPrimaryPrices, fetchUnified, type CatalogItem } from '~/lib/api'
+import {
+  fetchCreatorPeggedPrimaryPrices,
+  fetchPeggedPrimaryPrices,
+  fetchUnified,
+  pickItemListing,
+  type CatalogItem,
+  type UnifiedListing
+} from '~/lib/api'
 import { toCatalogItem, type RawCollectionItem } from '~/lib/catalogItem'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
@@ -249,15 +256,18 @@ type RunningSale = Pick<
  * Lay the running sales over rows this feed cannot carry them on.
  *
  * `/v3/catalog/items` has no coupon join, so a creator's storefront and a collection page showed every item at
- * its list price with nothing marking a discount. The unified feed is asked for the same scope's discounted
- * mints and its sale fields are copied across by item. Unified rather than the shop feed: that one carries
- * USD-pegged listings only, so a creator's discounted MANA listing never reached these pages.
+ * its list price with nothing marking a discount. The unified feed is asked for the same scope's mint listings
+ * and, per item, the listing the item page and checkout would use (`pickItemListing`) lends its sale to the row.
+ * Unified rather than the shop feed: that one carries USD-pegged listings only, so a creator's discounted MANA
+ * listing never reached these pages. Picking with the same rule matters when an item has both kinds: a card
+ * must not advertise a sale on a listing the item page and checkout would not use.
  *
- * A MANA row also brings its sale amount and list amount, which the page re-prices at the live rate; the
- * mapping has already dropped the sale when creator sales are off.
+ * A MANA sale also brings its sale and list amounts, which the page re-prices at the live rate; the mapping has
+ * already dropped the sale when creator sales are off.
  *
  * Silent on failure and skipped when the scope is the whole catalogue: an overlay that cannot resolve must
- * leave the page exactly as it was, never take it down with it.
+ * leave the page exactly as it was, never take it down with it. One page of up to 1000 listings (the server's
+ * cap): items past it keep their list price.
  */
 async function withRunningSales(
   items: CatalogItem[],
@@ -266,14 +276,17 @@ async function withRunningSales(
   if (!scope.creator && !scope.contractAddress) return items
   if (!items.some(i => i.itemId != null)) return items
   try {
-    const { items: listings } = await fetchUnified({ ...scope, first: 1000, listingType: 'primary', discounted: true })
-    const sales = new Map<string, RunningSale>()
+    const { items: listings } = await fetchUnified({ ...scope, first: 1000, listingType: 'primary' })
+    const byItem = new Map<string, UnifiedListing[]>()
     for (const l of listings) {
-      if (l.itemId == null || l.compareAtCredits == null) continue
+      if (l.itemId == null) continue
       const key = `${l.contractAddress.toLowerCase()}-${l.itemId}`
-      // An item can be listed more than once (a USD-pegged trade and a MANA one); the card shows its cheapest sale.
-      const held = sales.get(key)
-      if (held && held.priceCredits <= l.priceCredits) continue
+      byItem.set(key, [...(byItem.get(key) ?? []), l])
+    }
+    const sales = new Map<string, RunningSale>()
+    for (const [key, group] of byItem) {
+      const l = pickItemListing(group)
+      if (!l || l.compareAtCredits == null) continue
       sales.set(key, {
         priceCredits: l.priceCredits,
         compareAtCredits: l.compareAtCredits,
