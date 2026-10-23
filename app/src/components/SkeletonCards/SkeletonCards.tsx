@@ -12,7 +12,13 @@ export function SkeletonCards({ count = 12, settling }: { count?: number; settli
   return (
     <>
       {Array.from({ length: count }).map((_, i) => (
-        <S.SkeletonCard key={i} aria-hidden data-testid={settling ? 'skeleton-card-settling' : 'skeleton-card'} />
+        <S.SkeletonCard key={i} aria-hidden data-testid={settling ? 'skeleton-card-settling' : 'skeleton-card'}>
+          <S.SkeletonThumb />
+          <S.SkeletonInfo>
+            <S.SkeletonBar />
+            <S.SkeletonBar data-short />
+          </S.SkeletonInfo>
+        </S.SkeletonCard>
       ))}
     </>
   )

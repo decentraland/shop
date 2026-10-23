@@ -709,7 +709,7 @@ export const ProgressFill = styled.span`
   width: 40%;
   height: 100%;
   border-radius: ${theme.radius.pill};
-  background: ${theme.gradients.amethyst};
+  background: ${theme.gradients.progress};
   animation: ${indeterminate} 1.4s ease-in-out infinite;
 
   @media (prefers-reduced-motion: reduce) {

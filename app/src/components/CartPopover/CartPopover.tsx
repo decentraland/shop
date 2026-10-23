@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { CategoryFlap } from '~/components/CategoryFlap'
 import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
 import { EmptyState } from '~/components/EmptyState'
@@ -7,6 +8,7 @@ import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { useCart, type CartItem } from '~/store/cart'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
+import { rarityTileStyle } from '~/lib/rarity'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
 import * as S from './CartPopover.styles'
@@ -36,8 +38,9 @@ function CartRow({
   const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
   return (
     <S.Card data-unavailable={unavailable || undefined}>
-      <S.Thumb data-thumb>
+      <S.Thumb data-thumb style={rarityTileStyle(item.rarity)}>
         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+        <CategoryFlap item={item} size="sm" testId="cart-flap" />
         <S.ThumbCheck data-check>
           <CheckCircleIcon />
         </S.ThumbCheck>
@@ -45,7 +48,7 @@ function CartRow({
       <S.Info>
         <div data-desc>
           <S.Name title={item.name}>{item.name}</S.Name>
-          {item.creator ? <S.By address={item.creator} /> : null}
+          {item.creator ? <S.By address={item.creator} hidePrefix /> : null}
         </div>
         <S.RowBottom>
           {unavailable ? (
@@ -94,9 +97,8 @@ function CartRow({
   )
 }
 
-// The cart drawer (Figma "Add to cart drawer", node 1182-199895). A right-side slide-in panel that
-// opens (a) when an item is added to the cart — with a success banner — and (b) when the cart icon in
-// the nav is clicked (no banner). Its primary CTA goes to /cart (the checkout page).
+// The cart drawer: a right-side slide-in panel that opens (a) when an item is added to the cart, with a
+// success banner, and (b) when the cart icon in the nav is clicked (no banner). Its primary CTA goes to /cart.
 export function CartPopover() {
   const items = useCart(s => s.items)
   const open = useCart(s => s.open)
@@ -150,7 +152,6 @@ export function CartPopover() {
           {isEmpty ? (
             <S.Empty>
               <EmptyState
-                variant="light"
                 testId="cart-drawer-empty"
                 icon={cartEmptyIllustration}
                 title={t('cart.empty.title')}
@@ -206,7 +207,7 @@ export function CartPopover() {
               The spec beside this file pins it now, so the next sweep cannot delete it in silence.
             */}
             <S.Ctas>
-              <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
+              <S.CtaButton data-variant="glass" type="button" onClick={() => setOpen(false)}>
                 {t('cartPopover.continueShopping')}
               </S.CtaButton>
               <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>

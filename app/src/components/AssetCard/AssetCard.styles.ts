@@ -5,8 +5,6 @@ import { theme } from '~/styles/theme'
 import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
 import { SaleTag } from '~/components/SaleTag'
 import { Chip } from '~/styles/chip.styles'
-import { CreatorBadge } from '~/components/CreatorBadge'
-import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
 
 const { colors, radius, media } = theme
@@ -38,14 +36,14 @@ const cardLit = css`
 
 export const Card = styled.article`
   height: 300px;
-  /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
-     translucent black, so what shows through the footer is the page field, not a solid shell. */
-  background: transparent;
+  /* The translucent black runs under the whole card: the artwork is a rounded tile laid
+     on it, so the shell shows at the tile's bottom corners as well as behind the footer. */
+  background: ${colors.overlay};
 
   /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
      250px tall over 300, split 136 media / 114 info. A card on sale carries one more line of price
      information than the 114px info block was drawn for, so it is allowed to grow rather than push the
-     countdown out through its own bottom edge; the grid stretches the row, so neighbours stay level. */
+     struck price out through its own bottom edge; the grid stretches the row, so neighbours stay level. */
   ${media.maxWidth('sm')} {
     height: 250px;
 
@@ -78,7 +76,7 @@ export const Card = styled.article`
       height: 325px;
     }
   }
-  border-radius: ${radius.card};
+  border-radius: ${radius.tile};
   position: relative;
   isolation: isolate;
   display: flex;
@@ -105,10 +103,10 @@ export const Card = styled.article`
       ${cardLit};
     }
     &:hover::after {
-      ${ringHover};
+      ${ringHover(radius.tile)};
     }
     &:has(:focus-visible)::after {
-      ${ringHover};
+      ${ringHover(radius.tile)};
     }
   }
 
@@ -301,20 +299,33 @@ export const Media = styled.div`
   }
   background: ${colors.media};
   overflow: hidden;
-  /* Its own top corners — the card doesn't clip. */
-  border-radius: ${radius.card} ${radius.card} 0 0;
+  /* A tile rounded on all four corners, not the top of the card. */
+  border-radius: ${radius.tile};
   /* Centres the artwork, which no longer fills this box — see Img. The row is pinned to the band's own
      height: left to size itself it grows to the image's natural size, and Img's percentage height then
      resolves against THAT rather than against the band. */
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   place-items: center;
+
+  /* The 1.5px rarity stroke, drawn as a layer rather than a border so the category flap can sit over its
+     corner the way the design shows; a real border would be outside the clipped box. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border: 1.5px solid var(--tile-stroke, transparent);
+    border-radius: inherit;
+    pointer-events: none;
+  }
 `
 
-/** The shared discount tag, anchored to the artwork's top-left — the favourite owns the top-right. */
+/** The shared discount tag, anchored to the artwork's bottom-left: the category flap owns the top-left and
+ *  the favourite the top-right. */
 export const SaleBadge = styled(SaleTag)`
   position: absolute;
-  top: 10px;
+  bottom: 10px;
   left: 10px;
   z-index: 4;
 `
@@ -382,19 +393,12 @@ export const NameValue = styled.span`
 
 // The flat thumbnail crossfades out once the shared 3D preview (HoverPreviewLayer) has this item ready.
 /**
- * The artwork fills 85% of the media band's height. Stated as a share of the HEIGHT because that is what
- * the design holds constant — the card is a grid cell, so its width varies (276px here, 306 in the
- * frame) while the band stays 188.
- *
- * This DEVIATES from Figma 1480:256689, which specifies 136.3px in a 188px band (72.5%). That number was
- * tuned against a flat grey field, where the margin around the artwork was invisible; over the rarity
- * background it is two thirds of the band in colour and the artwork reads stranded in it. 85% was picked
- * over the alternatives after review. Note the earlier finding still holds at the extreme: filling the
- * band outright drew wearables about a third larger than the design and made the 24px favourite badge
- * read undersized, so this is a middle ground, not a removal of the constraint.
+ * The artwork fills 72.5% of the tile's height, the design's 136px in a 188px band. Stated as a share of the
+ * HEIGHT because that is what the design holds constant: the card is a grid cell, so its width varies while
+ * the band stays 188.
  */
 export const Img = styled.img`
-  height: 85%;
+  height: 72.5%;
   aspect-ratio: 1;
   width: auto;
   max-width: 100%;
@@ -418,11 +422,8 @@ export const Body = styled.div`
   flex-direction: column;
   justify-content: space-between;
   gap: 4px;
-  /* The footer's own fill (Figma 619:5703), not the card's — the translucent black is what the
-     secondary controls on it are drawn to sit against. */
-  background: ${colors.overlay};
-  /* Its own bottom corners — the card doesn't clip. */
-  border-radius: 0 0 ${radius.card} ${radius.card};
+  /* The card's shell paints the translucent black behind it (see Card). */
+  background: transparent;
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
   // Keyed on :has(:focus-visible) for the same reason the card's ring is (see cardLit).
@@ -440,6 +441,15 @@ export const Body = styled.div`
     flex: 0 0 137px;
     height: 137px;
     padding-bottom: 12px;
+  }
+
+  /* Touch tablets stack the always-visible action under the tags row (see Action), so the body takes the
+     height it needs and the artwork above gives it up. */
+  @media (hover: none) and (min-width: 721px) {
+    &[data-row] {
+      flex: 0 0 auto;
+      height: auto;
+    }
   }
   @media (hover: hover) and (min-width: 721px) {
     &[data-note] {
@@ -478,8 +488,8 @@ export const Body = styled.div`
     row-gap: 6px;
     padding: 16px;
 
-    /* The sale card's price block is three lines — price, struck price, countdown — and 114px was drawn
-       for two. Growing with its content is what keeps the pill inside the card; the root grows with it. */
+    /* The sale card's price block can wrap to a second line (price, then struck price), and 114px was
+       drawn for less. Growing with its content keeps it inside the card; the root grows with it. */
     &[data-sale] {
       flex: 0 0 auto;
       height: auto;
@@ -492,6 +502,16 @@ export const Body = styled.div`
       min-height: 114px;
       padding-bottom: 16px;
       grid-template-areas: 'desc desc' 'note note' 'price add';
+    }
+
+    /* The browse and view cards keep their price on the action row (see Rest), so the compact card is
+       one column: name and creator, the note, then the price with the round action at its end. */
+    &[data-row] {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: 'desc' 'add';
+    }
+    &[data-row][data-note] {
+      grid-template-areas: 'desc' 'note' 'add';
     }
 
     // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
@@ -563,7 +583,7 @@ export const Desc = styled.div`
 export const Name = styled.div`
   font-weight: 600;
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.2;
   color: ${colors.softWhite};
   white-space: nowrap;
   overflow: hidden;
@@ -585,23 +605,6 @@ export const Verified = styled.svg`
   flex: none;
 `
 
-// On the card we show just "By AuthorName" — the badge's avatar is hidden (it renders elsewhere).
-export const Creator = styled(CreatorBadge)`
-  position: relative;
-  z-index: 4;
-  color: ${colors.muted2};
-  font-size: 10px;
-  margin-bottom: 2px;
-
-  & [data-avatar] {
-    display: none;
-  }
-
-  ${media.maxWidth('sm')} {
-    line-height: 1.43;
-  }
-`
-
 // Reserves the creator line's height when an item has no creator. data-issued styles it as the owned
 // copy's mint index (e.g. "#5013") — tabular figures so digits align across otherwise-identical copies.
 export const CreatorEmpty = styled.div`
@@ -615,26 +618,36 @@ export const CreatorEmpty = styled.div`
   }
 `
 
-// "by {creator}" subtitle under the title on the browse card (Figma 2090:401815 — Gray 3 at 12px, quieter
-// than the name above it). Single line, ellipsised so a long name never pushes the body out of shape.
-export const Author = styled(CreatorName)`
-  color: ${colors.muted2};
-  font-size: 12px;
-  line-height: 1.43;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+// The creator under the name: a 20px avatar in a faint ring, then the name in soft white.
+export const CreatorRow = styled.div`
+  display: flex;
+  min-width: 0;
+  height: 20px;
+  align-items: center;
+
+  [data-testid='creator'] {
+    gap: 6px;
+    color: ${colors.softWhite};
+    font-size: 12px;
+    line-height: 1;
+  }
+  [data-avatar] {
+    width: 20px;
+    height: 20px;
+    border: 1.43px solid ${colors.glassRing};
+    background-color: ${colors.glassFaint};
+  }
 `
 
-// Price never shrinks or wraps — the name yields space to it. The sale variant wraps (was-price +
-// countdown), and market drops the gap for the leading "≈".
+// Price never shrinks or wraps — the tags yield space to it. The sale variant may wrap (now + was price),
+// and market drops the gap for the leading "≈".
 export const Price = styled.div`
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 16px;
   color: ${colors.softWhite};
   white-space: nowrap;
 
@@ -655,26 +668,32 @@ export const Price = styled.div`
     justify-self: start;
     gap: 2px;
 
-    /* The 58% cap keeps room for the NAME on the wide card, where the two share one flex row. Here the
-       price has a grid cell of its own, so the cap only squeezed the sale block below the width of the
-       countdown pill inside it: the pill spilled past the card's left edge, and the extra wrapped line
-       pushed the block out through the bottom of the fixed-height body. */
+    /* On the compact card the sale block may shrink rather than push the round action out of the row. */
     &[data-variant='sale'] {
       max-width: none;
+      flex-shrink: 1;
+      min-width: 0;
       justify-content: flex-start;
       row-gap: 2px;
     }
   }
 `
 
-// "NOT FOR SALE" tag — sits where the price would be on the title row. Never shrinks/wraps, like the
-// price it replaces.
+// The credits coin before a card price.
+export const Coin = styled.img`
+  display: block;
+  flex: none;
+  width: 14.3px;
+  height: 15.1px;
+`
+
+// "NOT FOR SALE" tag — sits where the price would be. Never shrinks/wraps, like the price it replaces.
 export const Nfs = styled.span`
   flex-shrink: 0;
   font-weight: 600;
   font-size: 8px;
   line-height: 20px;
-  color: ${colors.gray4};
+  color: ${colors.glassText};
   text-transform: uppercase;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -688,7 +707,7 @@ export const Nfs = styled.span`
 export const PriceNow = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   color: ${colors.softWhite};
   font-weight: 700;
 `
@@ -699,7 +718,7 @@ export const PriceWas = styled.span`
   color: ${colors.muted2};
   text-decoration: line-through;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
 `
 
 export const Approx = styled.span`
@@ -713,24 +732,50 @@ export const Action = styled.div`
   min-height: 40px;
   display: flex;
   align-items: center;
+  gap: 8px;
 
   ${media.maxWidth('sm')} {
     grid-area: add;
     align-self: center;
     justify-self: end;
     min-height: 0;
+
+    /* On the browse and view cards the row also carries the price, so it spans the card. */
+    [data-row] > & {
+      justify-self: stretch;
+    }
+  }
+
+  /* Touch tablets show the action button permanently, so it cannot share the row with the price: the
+     tags and price keep their line and the button takes its own below. */
+  @media (hover: none) and (min-width: 721px) {
+    [data-row] > & {
+      flex-direction: column;
+      align-items: stretch;
+    }
   }
 `
 
-// Marketplace-style chips. All share one fixed height so they line up. Hidden on mobile (round add is used).
+/**
+ * The resting bottom row: the tags on the left, the price or NOT FOR SALE on the right. The whole row is what
+ * the hover swaps for the action button, so the price goes with it, as drawn.
+ */
+export const Rest = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`
+
+// The tags. One line that gives way to the price; hidden on the compact card, which has no room for them.
 export const Chips = styled.div`
   display: flex;
   align-items: center;
-  gap: 3px;
-  flex-wrap: wrap;
-  // Sit on the footer's bottom edge instead of centring in the 40px action slot (which the button that
-  // replaces them on hover fills).
-  align-self: flex-end;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
 
   ${media.maxWidth('sm')} {
     display: none;
@@ -739,18 +784,31 @@ export const Chips = styled.div`
 
 // The card's compact chip: smaller and denser than the shared base, with the smart/market variants.
 export const CardChip = styled(Chip)`
-  height: 18px;
+  flex: none;
+  height: 20px;
   font-size: 10px;
   line-height: 1;
   font-weight: 600;
-  padding: 0 6.5px;
+  padding: 0 6px;
   letter-spacing: 0.01em;
-  border-radius: 6px;
+  border-radius: ${radius.chip};
 
-  /* Dark-theme test: icon chips are translucent panels with white glyphs on the dark card shell. */
+  /* The rarity tag: the rarity's own colour on a 20% tint of it, set inline. */
+  &[data-variant='rarity'] {
+    height: 21px;
+    padding: 3px 6px;
+    font-size: 12px;
+    line-height: normal;
+    text-transform: uppercase;
+    border-radius: 6px;
+  }
+
+  /* Icon chips are 20px translucent squares with white glyphs on the dark card shell. */
   &[data-variant='icon'] {
-    padding: 0 5px;
-    background: rgba(255, 255, 255, 0.14);
+    width: 20px;
+    padding: 0;
+    justify-content: center;
+    background: ${colors.glassFaint};
     color: ${colors.softWhite};
   }
   &[data-variant='icon'] .ico {
@@ -762,7 +820,7 @@ export const CardChip = styled(Chip)`
   &[data-variant='smart'] {
     gap: 2px;
     padding: 4px 4px 4px 2px;
-    background: rgba(255, 255, 255, 0.14);
+    background: ${colors.glassFaint};
     color: ${colors.softWhite};
     text-transform: uppercase;
     letter-spacing: 0.02em;
@@ -777,6 +835,7 @@ export const CardChip = styled(Chip)`
 
 // The compact card's round action: 32px circle, no label.
 const roundCss = css`
+  flex: none;
   align-self: center;
   justify-self: end;
   z-index: 4;

@@ -1,16 +1,14 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-const { radius, media } = theme
+const { colors, radius, media } = theme
 
 // How long a skeleton takes to dissolve into the content that replaced it. Exported because the
 // component unmounts the fading layer on the same timing (see SkeletonCards.tsx).
 export const SETTLE_MS = 250
 
-// The placeholder fill, shared by every skeleton shape here so a rail of cards and a rail of outfits
-// shimmer as one surface — and, through the two custom properties, as ONE surface with every `.skeleton`
-// elsewhere in the app too (styles/index.css). The values used to be written out here and again there,
-// with different colours, so a loading item page and its loading card rail did not match.
+// The outfit placeholder's fill, the same surface as every `.skeleton` elsewhere in the app through the two
+// custom properties (styles/index.css). The item card has its own drawn loading state (SkeletonCard).
 const shimmerFill = `
   background: linear-gradient(
     100deg,
@@ -22,22 +20,66 @@ const shimmerFill = `
   animation: shimmer 1.4s infinite linear;
 `
 
-// A card-shaped shimmer placeholder, sized to the real AssetCard so a loading grid/rail holds its
-// eventual height. Both numbers are AssetCard's own fixed heights (AssetCard.styles Card) — 300px, and
-// 250px for the compact card below sm. They have to be restated rather than imported because a card
-// height is that component's geometry, not a token; keep them in step by measuring the real card.
+// A card-shaped placeholder, the design's loading card, sized to the real AssetCard so a loading
+// grid/rail holds its eventual height: 300px, or 250px for the compact card below sm. Both are AssetCard's
+// own fixed heights, restated rather than imported because a card height is that component's geometry,
+// not a token; keep them in step by measuring the real card.
 export const SkeletonCard = styled.div`
   min-height: 300px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: ${radius.card};
-  ${shimmerFill};
+  display: flex;
+  flex-direction: column;
+  border-radius: ${radius.tile};
+  background: ${colors.overlay};
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
 
   ${media.maxWidth('sm')} {
     min-height: 250px;
   }
 
+  @keyframes skeleton-pulse {
+    50% {
+      opacity: 0.6;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     animation: none;
+  }
+`
+
+// The violet wash the loading tile and its bars share, fading toward the right.
+const loadingWash = `linear-gradient(to left, ${colors.loadingWashFaint}, ${colors.loadingWash})`
+
+export const SkeletonThumb = styled.div`
+  flex: 1;
+  min-height: 0;
+  border-radius: ${radius.tile};
+  background: ${loadingWash};
+`
+
+export const SkeletonInfo = styled.div`
+  flex: 0 0 112px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+
+  ${media.maxWidth('sm')} {
+    flex-basis: 114px;
+  }
+`
+
+export const SkeletonBar = styled.div`
+  width: 100%;
+  height: 20px;
+  border-radius: ${radius.pill};
+  background: ${loadingWash};
+
+  &[data-short] {
+    width: 140px;
+    max-width: 75%;
+    height: 14px;
   }
 `
 

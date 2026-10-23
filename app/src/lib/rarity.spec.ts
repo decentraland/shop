@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, rarityGlowCoreRgb, rarityGlowRgb, rarityInk, rarityTint } from '~/lib/rarity'
+import {
+  rarityCardPalette,
+  rarityTileStyle,
+  rarityColor,
+  rarityGlowCoreRgb,
+  rarityGlowRgb,
+  rarityInk,
+  rarityTint
+} from '~/lib/rarity'
 import { rarities } from '~/styles/theme'
 
 // Neutral fallback color rarity.ts returns for a missing/unknown rarity.
@@ -193,5 +201,42 @@ describe('when picking legible chip ink (rarityInk)', () => {
     expect(ink).toMatch(/^#[0-9a-f]{6}$/)
     expect(ink).not.toBe('#a09ba8')
     expect(parseInt(ink.slice(1, 3), 16)).toBeLessThan(0xa0)
+  })
+})
+
+describe('when resolving the product card palette for a rarity', () => {
+  it('should return the drawn flap, stroke, label and a radial glow for a known rarity', () => {
+    const p = rarityCardPalette('Legendary')
+    expect(p).toMatchObject({
+      flap: '#a24bf3',
+      stroke: '#dba0ff',
+      label: '#b05dff',
+      labelBg: 'rgba(176, 93, 255, 0.2)'
+    })
+    expect(p.background).toMatch(/^radial-gradient\(ellipse 65\.4% 65\.4% at 50% 50%, rgb\(223 197 250\) 37\.5%/)
+    expect(p.background).toMatch(/rgb\(162 75 243\) 100%\)$/)
+  })
+
+  it('should take the flap from the rarity token, so the card matches the filter swatch', () => {
+    expect(rarityCardPalette('exotic').flap).toBe(rarities.exotic)
+  })
+
+  it('should return the flat no-rarity tile for a missing or unknown rarity', () => {
+    for (const rarity of [undefined, null, '', 'base']) {
+      expect(rarityCardPalette(rarity)).toEqual({
+        flap: '#a09ba8',
+        stroke: '#a09ba8',
+        label: '#cfcdd4',
+        labelBg: 'rgba(236, 235, 237, 0.2)',
+        background: '#ecebed'
+      })
+    }
+  })
+})
+
+describe('rarityTileStyle', () => {
+  it('pairs the rarity wash with its stroke', () => {
+    const p = rarityCardPalette('epic')
+    expect(rarityTileStyle('epic')).toEqual({ background: p.background, borderColor: p.stroke })
   })
 })

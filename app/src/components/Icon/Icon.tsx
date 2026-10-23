@@ -73,6 +73,7 @@ export type IconName =
   | 'ethereum'
   | 'external-link'
   | 'eye'
+  | 'eye-off'
   | 'facebook'
   | 'filter'
   | 'fitting-room'

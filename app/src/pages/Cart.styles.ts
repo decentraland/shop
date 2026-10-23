@@ -301,8 +301,8 @@ export const Thumb = styled.div`
      a row this wide, and small is what a buyer sees of an item they are about to pay for. */
   width: 172px;
   height: 171px;
-  background: ${colors.media};
-  border-radius: ${radius.card};
+  border: 1.5px solid transparent;
+  border-radius: ${radius.tile};
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -340,7 +340,7 @@ export const ThumbLink = styled(Link)`
 // Green "ready to buy" check overlaid on the thumbnail (decorative).
 export const ThumbCheck = styled.span`
   position: absolute;
-  top: 7.5px;
+  bottom: 7.5px;
   left: 7.5px;
   width: 20px;
   height: 20px;

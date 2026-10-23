@@ -38,6 +38,8 @@ import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
 import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { EmptyState } from '~/components/EmptyState'
+import { CategoryFlap } from '~/components/CategoryFlap'
+import { rarityTileStyle } from '~/lib/rarity'
 import { ContractName, getContract } from 'decentraland-transactions'
 import { resolveLiveCoupon, resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
 import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase, type ListingCoupon } from '~/lib/buy'
@@ -1394,7 +1396,8 @@ export function Cart() {
                     status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
                   return (
                     <S.Card data-unavailable={unavailable || undefined} key={item.id}>
-                      <S.Thumb data-thumb>
+                      <S.Thumb data-thumb style={rarityTileStyle(item.rarity)}>
+                        <CategoryFlap item={item} size="sm" testId="cart-line-flap" />
                         {detailPath ? (
                           <S.ThumbLink to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
                             {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}

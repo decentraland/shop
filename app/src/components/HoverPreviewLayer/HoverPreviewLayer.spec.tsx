@@ -27,7 +27,7 @@ vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }
 const { hoverCapable } = vi.hoisted(() => ({ hoverCapable: { value: true } }))
 vi.mock('~/lib/hover', () => ({ canHover: () => hoverCapable.value }))
 
-import { HoverPreviewLayer } from './HoverPreviewLayer'
+import { HoverPreviewLayer, previewClip } from './HoverPreviewLayer'
 import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
@@ -214,5 +214,21 @@ describe('HoverPreviewLayer — how the hovered asset is identified to the previ
     expect(options?.contractAddress).toBe('0xc04528c14c8ffd84c7c1fb6719b4a89853035cdd')
     expect(options?.itemId).toBe('7')
     expect(options?.urns).toBeUndefined()
+  })
+})
+
+describe('when clipping the preview to the hovered card', () => {
+  it('should leave the preview whole when there is nothing to keep clear of', () => {
+    expect(previewClip(null, null)).toBeUndefined()
+  })
+
+  it('should cut the flap corner along its diagonal and step round the heart', () => {
+    expect(previewClip({ left: 200, bottom: 40 }, { width: 74, height: 76 })).toBe(
+      'polygon(74px 0, 200px 0, 200px 40px, 100% 40px, 100% 100%, 0 100%, 0 76px)'
+    )
+  })
+
+  it('should still cut the flap on a card without a heart', () => {
+    expect(previewClip(null, { width: 56, height: 58 })).toBe('polygon(56px 0, 100% 0, 100% 100%, 0 100%, 0 58px)')
   })
 })

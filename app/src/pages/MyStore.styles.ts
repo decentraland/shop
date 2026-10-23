@@ -1,7 +1,6 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
-import { Dropdown } from '~/components/Dropdown'
 import { Icon } from '~/components/Icon'
 import { SaleTag } from '~/components/SaleTag'
 import { SaleTimer } from '~/components/SaleTimer'
@@ -701,47 +700,6 @@ export const HeadRight = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-`
-
-/**
- * The shop's own dropdown, re-inked for a white panel.
- *
- * Its trigger is drawn for the purple field — a translucent black fill with near-white text — which on
- * this surface reads as a disabled control. Same shape, panel colours.
- */
-/**
- * The sort control, inked for a dark panel like every other control in this table.
- *
- * It used to be a white pill, which hover turned translucent while the label stayed near-black: the
- * control went dark and its text went with it. Transparent with a hairline is the same language the
- * pager and the row action speak, and hover only deepens the fill.
- */
-export const Sort = styled(Dropdown)`
-  /* Direct child only: the menu's options are buttons as well, and a descendant rule turned them white
-     on the white menu, which is a menu you cannot read. */
-  > button {
-    gap: 24px;
-    height: 40px;
-    padding: 4px 4px 4px 12px;
-    background: transparent;
-    border: 0.5px solid ${theme.colors.white};
-    border-radius: ${theme.radius.btn};
-    color: ${theme.colors.white};
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0;
-  }
-  > button:hover {
-    border-color: ${theme.colors.softWhite};
-    background: ${theme.colors.glassFaint};
-    color: ${theme.colors.softWhite};
-  }
-  /* The chevron's colour is an inline style on the shared component, so a class cannot reach it — this
-     is the one place that has to shout. */
-  > button .ico {
-    color: ${theme.colors.softWhite} !important;
-  }
 `
 
 export const PanelHint = styled.span`
@@ -1678,9 +1636,11 @@ export const PageBtn = styled.button`
   ${pageControl}
 `
 
-/** The page you are on wears the shop's purple; the rest are plain. */
+/** Page numbers are soft filled tiles; only the arrows carry the hairline. */
 export const PageNum = styled.button`
   ${pageControl}
+  border-color: transparent;
+  background: ${theme.colors.glassFaint};
 
   /* The page you are on is the one solid control in the row, which is how the design marks it. */
   &[aria-current='page'] {

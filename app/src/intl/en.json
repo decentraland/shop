@@ -445,6 +445,8 @@
     "close": "Close"
   },
   "itemDetail": {
+    "collectionBy": "Collection <name></name>",
+    "hides": "Hides",
     "genderMale": "Male",
     "genderFemale": "Female",
     "genderUnisex": "Unisex",
@@ -471,8 +473,6 @@
     "playShowcase": "Play showcase",
     "showcaseTitle": "Showcase video",
     "showcaseClose": "Close",
-    "creator": "Creator",
-    "collection": "Collection",
     "price": "Price",
     "stock": "Stock",
     "outOfStock": "Out of stock",

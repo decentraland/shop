@@ -4,15 +4,10 @@ import { theme } from '~/styles/theme'
 const { colors, font, gradients, radius } = theme
 
 /**
- * The checkout CTA pair (Figma 2187:453378 / 453391, and the add-to-cart drawer 2250:271335).
+ * The checkout CTA pair: `primary` advances (the buy gradient, solid red on hover) and `glass` dismisses
+ * (translucent white on the dark cart drawer). Every surface that ends in "check out" draws the same pair.
  *
- * `data-variant='primary'` is the advancing action — the BUY Button gradient, flattening to solid red on
- * hover. `data-variant='secondary'` is the dismissing one beside it — a hairline soft-black outline.
- *
- * Shared rather than restated per surface: every place that ends in "check out" draws the SAME button, and
- * the fitting room's used to be the purple Button variant instead, which read as a different action.
- *
- * Note the hover keeps the fill on `background-image`: a gradient cannot interpolate to a plain colour, so
+ * The hover keeps the fill on `background-image`: a gradient cannot interpolate to a plain colour, so
  * setting `background` there blanks the button mid-transition.
  */
 export const checkoutCtaCss = css`
@@ -22,7 +17,7 @@ export const checkoutCtaCss = css`
   gap: 8px;
   height: 46px;
   padding: 0 12px;
-  border-radius: ${radius.card};
+  border-radius: ${radius.cta};
   font-family: ${font.sans};
   font-size: 13px;
   font-weight: 600;
@@ -37,19 +32,57 @@ export const checkoutCtaCss = css`
     background: ${gradients.buyBtn};
     color: ${colors.white};
   }
-  &[data-variant='primary']:hover,
+  &[data-variant='glass'] {
+    border: 0;
+    background: ${colors.glass};
+    color: ${colors.softWhite};
+  }
+
+  @media (hover: hover) {
+    &[data-variant='primary']:hover {
+      background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
+    }
+    &[data-variant='glass']:hover {
+      background: ${colors.glassStrong};
+    }
+  }
   &[data-variant='primary']:active {
     background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
   }
-  &[data-variant='secondary'] {
-    border: 0.5px solid ${colors.text};
-    background: ${colors.white};
-    color: ${colors.text};
+`
+
+/**
+ * The buy-credits CTA (the nav's GET CREDITS, the home hero, the live promo tile): the BUY Button gradient
+ * that flattens to solid red on hover/press and grows an orange ring just outside the button. Geometry
+ * (height, padding, type size) stays with each surface.
+ */
+export const creditsCtaCss = css`
+  position: relative;
+  background: ${gradients.buyBtn};
+  color: ${colors.white};
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border: 2px solid ${colors.orange};
+    border-radius: calc(${radius.cta} + 2px);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
   }
-  /* Figma's outlined hover (738:53251): the fill inverts to soft-black-2 with a soft-white label. The
-     white-fill hover the dark-field buttons take would be invisible on this light drawer. */
-  &[data-variant='secondary']:hover {
-    background: ${colors.text2};
-    color: ${colors.softWhite};
+  @media (hover: hover) {
+    &:hover {
+      background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
+    }
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+  &:active {
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
+  }
+  &:active::after {
+    opacity: 1;
   }
 `

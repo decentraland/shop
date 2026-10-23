@@ -153,9 +153,9 @@ export const PriceBox = styled.span`
   gap: 4px;
   height: 42px;
   padding: 8px;
-  border: 0.5px solid ${theme.colors.softWhite};
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.1);
+  border: 0.5px solid ${theme.colors.gray4};
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.glassFaint};
 
   /* theme.colors.orange, which theme.ts already designates for input borders — not a rarity hue. This
      was theme.rarities.epic, the colour EPIC means everywhere else in the app, which read as unrelated
@@ -217,7 +217,7 @@ export const SliderFill = styled('div', noForward('minPct', 'maxPct'))<{ minPct:
   transform: translateY(-50%);
   left: ${({ minPct }) => `${minPct}%`};
   right: ${({ maxPct }) => `${100 - maxPct}%`};
-  background: ${theme.colors.rarity};
+  background: ${theme.colors.orange};
   border-radius: 2px;
 `
 
@@ -249,7 +249,7 @@ export const SliderInput = styled.input`
     height: 16px;
     border-radius: 50%;
     background: ${theme.colors.white};
-    border: 2px solid ${theme.colors.rarity};
+    border: 2px solid ${theme.colors.orange};
     box-shadow: 0 1px 3px rgba(22, 21, 24, 0.25);
     cursor: pointer;
   }
@@ -259,7 +259,7 @@ export const SliderInput = styled.input`
     height: 16px;
     border-radius: 50%;
     background: ${theme.colors.white};
-    border: 2px solid ${theme.colors.rarity};
+    border: 2px solid ${theme.colors.orange};
     box-shadow: 0 1px 3px rgba(22, 21, 24, 0.25);
     cursor: pointer;
   }

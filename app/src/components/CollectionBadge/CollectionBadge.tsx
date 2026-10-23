@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CatalogItem } from '~/lib/api'
 import { capitalizeFirst } from '~/lib/text'
@@ -12,12 +13,15 @@ export function CollectionBadge({
   contractAddress,
   name,
   items,
-  className
+  className,
+  label
 }: {
   contractAddress?: string
   name?: string
   items?: CatalogItem[]
   className?: string
+  /** The line around the name, e.g. `name => t('…', { name })` for "Collection {name}"; the name alone without it. */
+  label?: (name: ReactNode) => ReactNode
 }) {
   const navigate = useNavigate()
   if (!contractAddress || !name) return null
@@ -26,6 +30,7 @@ export function CollectionBadge({
     .map(i => i.thumbnail)
     .filter((t): t is string => !!t)
     .slice(0, 4)
+  const display = <S.Display data-testid="creator-display">{capitalizeFirst(name)}</S.Display>
   const row1 = thumbs.slice(0, 2)
   const row2 = thumbs.slice(2, 4)
 
@@ -56,7 +61,7 @@ export function CollectionBadge({
           ) : null}
         </Collage>
       ) : null}
-      <S.Name data-testid="creator-name">{capitalizeFirst(name)}</S.Name>
+      <S.Name data-testid="creator-name">{label ? label(display) : display}</S.Name>
     </S.Root>
   )
 }

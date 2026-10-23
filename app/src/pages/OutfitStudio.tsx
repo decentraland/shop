@@ -230,7 +230,7 @@ function StudioList() {
                 <Button
                   as={Link}
                   to={`/outfits/${outfit.id}/edit`}
-                  variant="outline"
+                  variant="glass"
                   size="sm"
                   data-testid="outfit-studio-edit"
                 >
@@ -266,7 +266,7 @@ function StudioList() {
               {/* Unpublish is the gentler default for a live outfit; delete is the irreversible path. */}
               {confirming.published ? (
                 <Button
-                  variant="purple"
+                  variant="primary"
                   data-testid="outfit-studio-confirm-unpublish"
                   disabled={busyId === confirming.id}
                   onClick={() => void mutate(confirming, 'unpublish')}
@@ -275,7 +275,7 @@ function StudioList() {
                 </Button>
               ) : null}
               <Button
-                variant={confirming.published ? 'outline' : 'purple'}
+                variant={confirming.published ? 'outline' : 'primary'}
                 data-testid="outfit-studio-confirm-delete"
                 disabled={busyId === confirming.id}
                 onClick={() => void mutate(confirming, 'delete')}
@@ -687,7 +687,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 <img src={thumbSrc} alt="" />
               </S.ThumbPreview>
             ) : null}
-            <S.UploadBtn as="label" variant="outline" size="sm" data-busy={thumbBusy || undefined}>
+            <S.UploadBtn as="label" variant="glass" size="sm" data-busy={thumbBusy || undefined}>
               {thumbBusy ? t('outfits.studio.uploading') : t('outfits.studio.upload')}
               <input
                 type="file"
@@ -737,7 +737,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 data-testid="outfit-studio-import"
               />
               <Button
-                variant="outline"
+                variant="glass"
                 size="sm"
                 onClick={applyImport}
                 disabled={importText.trim() === ''}
@@ -769,7 +769,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
             {resolution.isError ? (
               <S.ResolveError>
                 <ErrorNotice message={t('outfits.detail.resolveError')} testId="outfit-studio-resolve-error" />
-                <Button variant="outline" data-testid="outfit-studio-retry" onClick={resolution.retry}>
+                <Button variant="glass" data-testid="outfit-studio-retry" onClick={resolution.retry}>
                   {t('outfits.detail.retry')}
                 </Button>
               </S.ResolveError>
@@ -854,7 +854,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
         ) : null}
         <S.SaveActions>
           <Button
-            variant="outline"
+            variant="glass"
             data-testid="outfit-studio-save"
             disabled={saving || thumbBusy || !nameValid}
             onClick={() => void save(draft.published)}

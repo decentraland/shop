@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import type { Page } from 'puppeteer'
+import type { ElementHandle, Page } from 'puppeteer'
 import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
 import * as fx from './fixtures'
@@ -25,6 +25,35 @@ afterEach(async () => {
 // Regression guards for the browse (Collectibles) toolbar + grid layout. These caught two real bugs:
 // a duplicated result count in the toolbar, and mobile cards overflowing the viewport (the card body
 // grid was missing `display: grid`). Cheap structural assertions — no pixel comparisons.
+
+/**
+ * Where the resting tags row sits: the rarity tag and the price must both be visible, side by side on one
+ * row under the creator, and inside the card's own box. Measured from the handles, so a hidden element
+ * (no box) reads as not shown.
+ */
+async function tagsRowOf(card: ElementHandle<Element>) {
+  const box = async (sel: string) => (await card.$(sel))?.boundingBox() ?? null
+  const [tag, price, author, frame] = await Promise.all([
+    box('[data-testid="chip-rarity"]'),
+    box('[data-testid="card-price"]'),
+    box('[data-testid="card-author"]'),
+    card.boundingBox()
+  ])
+  if (!tag || !price || !author || !frame)
+    return { bothShown: false, sameRow: false, priceRightOfTag: false, belowCreator: false, insideCard: false }
+  const mid = (b: { y: number; height: number }) => b.y + b.height / 2
+  return {
+    bothShown: tag.width > 0 && price.width > 0,
+    sameRow: Math.abs(mid(tag) - mid(price)) <= 6,
+    priceRightOfTag: price.x >= tag.x + tag.width,
+    belowCreator: tag.y >= author.y + author.height && price.y >= author.y + author.height,
+    insideCard:
+      tag.x >= frame.x &&
+      price.x + price.width <= frame.x + frame.width + 0.5 &&
+      price.y + price.height <= frame.y + frame.height
+  }
+}
+
 describe('collectibles browse layout', () => {
   it('renders exactly one result count in the toolbar', async () => {
     app = await launchApp({ path: '/items' })
@@ -50,8 +79,8 @@ describe('collectibles browse layout', () => {
     expect(cardOverflow).toBe(false)
   })
 
-  // One layout per breakpoint: the per-card measurement is gone, so however long the name, a desktop
-  // card keeps the ordinary footer — ellipsised name with the price beside it, chips, and the
+  // One layout per breakpoint: however long the name, a desktop card keeps the ordinary footer — an
+  // ellipsised name, the creator under it, then the tags with the price on their right, and the
   // full-width Add to cart (the round action belongs to the mobile layout).
   it('keeps a long-named card on the ordinary desktop layout (no per-card stacking)', async () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
@@ -65,39 +94,35 @@ describe('collectibles browse layout', () => {
     await page.evaluate(() => document.fonts?.ready)
     await page.waitForSelector('[data-testid="card-cart"]')
 
-    const cards = await page.$$eval('[data-testid="card"]', els =>
-      els.map(el => {
-        const name = el.querySelector('[data-testid="card-link"]')?.getAttribute('aria-label') ?? ''
-        const price = (el.querySelector('[data-testid="card-price"]') as HTMLElement).getBoundingClientRect()
-        const author = (el.querySelector('[data-testid="card-author"]') as HTMLElement).getBoundingClientRect()
-        const roundEl = el.querySelector('[data-testid="card-add-round"]') as HTMLElement | null
-        return {
-          name,
-          cart: !!el.querySelector('[data-testid="card-cart"]'),
-          roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
-          chips: !!el.querySelector('[data-chips]')?.childElementCount,
-          // The stacked layout's tell was the price dropping under the name/author column.
-          priceBelow: price.top >= author.bottom
-        }
-      })
+    const handles = await page.$$('[data-testid="card"]')
+    const cards = await Promise.all(
+      handles.map(async el => ({
+        name: await el.$eval('[data-testid="card-link"]', l => l.getAttribute('aria-label') ?? ''),
+        roundShown: await el
+          .$eval('[data-testid="card-add-round"]', r => getComputedStyle(r).display !== 'none')
+          .catch(() => false),
+        ...(await tagsRowOf(el))
+      }))
     )
 
     expect(cards.length).toBe(2)
     for (const card of cards) {
-      expect(card.priceBelow, card.name).toBe(false)
-      expect(card.cart, card.name).toBe(true)
       expect(card.roundShown, card.name).toBe(false)
-      expect(card.chips, card.name).toBe(true)
+      expect(card.bothShown, card.name).toBe(true)
+      expect(card.sameRow, card.name).toBe(true)
+      expect(card.priceRightOfTag, card.name).toBe(true)
+      expect(card.belowCreator, card.name).toBe(true)
+      expect(card.insideCard, card.name).toBe(true)
     }
   })
 
-  // ...but a name that only just misses the row must NOT restructure the card. This is the regression:
-  // "Midnight Black Tuxedo Trousers" is a real catalogue name that wanted 11px more than its row had, and
-  // that was enough to move its price, reshape its action and drop its rarity/category chips — one odd
-  // card in a grid of 48. The name box ellipsises, so a few pixels must cost a few pixels.
-  it('keeps a name that only slightly exceeds its row inline, chips and all', async () => {
+  // ...and a name that overflows its row must NOT restructure the card. The regression was a real catalogue
+  // name that wanted a few pixels more than its row had, and that was enough to move its price, reshape its
+  // action and drop its tags — one odd card in a grid of 48. The name box ellipsises, so overflowing it must
+  // cost nothing but the ellipsis. The name now has the row to itself, so it takes a longer one to overflow.
+  it('keeps a name that overflows its row inline, tags and all', async () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
-    const snug = 'Midnight Black Tuxedo Trousers'
+    const snug = 'Midnight Black Tuxedo Trousers With Satin Side Stripe'
     app = await launchApp({
       path: '/items',
       fixtures: { unifiedListings: { data: [rows[1], { ...rows[0], name: snug }] } }
@@ -108,33 +133,35 @@ describe('collectibles browse layout', () => {
     await page.evaluate(() => document.fonts?.ready)
     await page.waitForSelector('[data-testid="card-cart"]')
 
-    const card = await page.evaluate(name => {
-      const el = [...document.querySelectorAll('[data-testid="card"]')].find(
-        c => c.querySelector('[data-testid="card-link"]')?.getAttribute('aria-label') === name
-      ) as HTMLElement
-      const span = el.querySelector('[title]')?.querySelector('span') as HTMLElement
-      const roundEl = el.querySelector('[data-testid="card-add-round"]') as HTMLElement | null
-      return {
-        stacked: el.hasAttribute('data-stacked'),
-        // The round action is always in the DOM (CSS reveals it per layout), so presence proves nothing —
-        // what matters is that this card does not SHOW it.
-        roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
-        cart: !!el.querySelector('[data-testid="card-cart"]'),
-        chips: !!el.querySelector('[data-chips]')?.childElementCount,
-        // Proof the name really does overflow its box, so this test cannot pass for the wrong reason by
-        // asserting nothing about the tolerance because there was nothing to tolerate. Only meaningful in
-        // the inline layout — stacked, the name owns the full row and would not overflow — so it is
-        // asserted after `stacked`.
-        overflows: span.offsetWidth > (span.closest('[title]') as HTMLElement).clientWidth
-      }
-    }, snug)
+    const handle = (
+      await Promise.all(
+        (await page.$$('[data-testid="card"]')).map(async el => ({
+          el,
+          name: await el.$eval('[data-testid="card-link"]', l => l.getAttribute('aria-label') ?? '')
+        }))
+      )
+    ).find(c => c.name === snug)!.el
+    const card = {
+      ...(await handle.evaluate(el => {
+        const span = el.querySelector('[title]')?.querySelector('span') as HTMLElement
+        const roundEl = el.querySelector<HTMLElement>('[data-testid="card-add-round"]')
+        return {
+          // The round action is always in the DOM (CSS reveals it per layout), so presence proves nothing —
+          // what matters is that this card does not SHOW it.
+          roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
+          // Proof the name really does overflow its box, so this test cannot pass for the wrong reason.
+          overflows: span.offsetWidth > (span.closest('[title]') as HTMLElement).clientWidth
+        }
+      })),
+      ...(await tagsRowOf(handle))
+    }
 
-    // The card keeps the ordinary layout: price beside the name, full-width Add to cart, chips intact.
-    expect(card.stacked).toBe(false)
-    expect(card.roundShown).toBe(false)
-    expect(card.cart).toBe(true)
-    expect(card.chips).toBe(true)
+    // The card keeps the ordinary layout: no round action, tags and price on their own row.
     expect(card.overflows).toBe(true)
+    expect(card.roundShown).toBe(false)
+    expect(card.bothShown).toBe(true)
+    expect(card.sameRow).toBe(true)
+    expect(card.insideCard).toBe(true)
   })
 
   // The filter sidebar scrolls internally, and overflow clips BOTH axes — an absolutely-positioned

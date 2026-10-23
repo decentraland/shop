@@ -40,9 +40,9 @@ export const Panel = styled.aside`
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(480px, 100vw);
+  width: min(500px, 100vw);
   height: 100%;
-  background: ${colors.white};
+  background: ${colors.accent};
   box-shadow: -8px 0 32px rgba(22, 21, 24, 0.18);
   /* Full right-to-left entrance, ease-in-out ("easy ease"). */
   animation: ${slide} 0.32s cubic-bezier(0.45, 0, 0.25, 1);
@@ -60,15 +60,15 @@ export const Head = styled.header`
   justify-content: space-between;
   gap: 8px;
   padding: 16px;
-  border-bottom: 1px solid ${colors.gray4};
+  border-bottom: 2px solid ${colors.glassFaint};
 `
 
 export const Title = styled.h2`
   margin: 0;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.6;
-  color: ${colors.text};
+  color: ${colors.gray5};
 `
 
 export const Close = styled.button`
@@ -78,13 +78,13 @@ export const Close = styled.button`
   width: 31px;
   height: 31px;
   border: 0;
-  background: none;
-  color: ${colors.text};
+  background: ${colors.overlayLight};
+  color: ${colors.white};
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: ${radius.btn};
 
   &:hover {
-    background: ${colors.media};
+    background: ${colors.overlay};
   }
 `
 
@@ -113,7 +113,8 @@ export const Banner = styled.div`
   gap: 16px;
   padding: 12px;
   border-radius: 16px;
-  background: rgba(193, 238, 207, 0.5);
+  /* The design's translucent mint, laid over white so the purple panel does not tint it. */
+  background: linear-gradient(rgba(193, 238, 207, 0.5), rgba(193, 238, 207, 0.5)), ${colors.white};
 
   & p {
     margin: 0;
@@ -150,10 +151,9 @@ export const Card = styled.li`
   display: flex;
   gap: 12px;
   align-items: stretch;
-  border: 1px solid ${colors.gray4};
-  border-radius: ${radius.card};
+  border-radius: ${radius.tile};
   overflow: hidden;
-  background: ${colors.white};
+  background: ${colors.overlay};
 
   &[data-unavailable] [data-thumb] {
     opacity: 0.5;
@@ -171,10 +171,12 @@ export const Thumb = styled.div`
   flex: none;
   display: grid;
   place-items: center;
-  width: 128px;
+  width: 137px;
+  min-height: 139px;
   align-self: stretch;
-  background: ${colors.media};
-  border-radius: ${radius.card};
+  border: 1.5px solid transparent;
+  border-radius: ${radius.tile};
+  overflow: hidden;
 
   & img {
     width: 82%;
@@ -186,7 +188,7 @@ export const Thumb = styled.div`
 
 export const ThumbCheck = styled.span`
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   left: 8px;
   width: 20px;
   height: 20px;
@@ -206,25 +208,30 @@ export const Name = styled.div`
   font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-right: 28px; /* clear the delete button */
 `
 
-// Creator subline: reuse CreatorBadge but drop its avatar for the text-only treatment.
 export const By = styled(CreatorBadge)`
   margin-top: 4px;
-  font-size: 10px;
-  color: ${colors.muted};
+  gap: 6px;
+  font-size: 12px;
+  color: ${colors.softWhite};
 
   & [data-avatar] {
-    display: none;
+    width: 20px;
+    height: 20px;
+    border: 1.43px solid ${colors.glassRing};
+    background: ${colors.glassFaint};
   }
-  & [data-testid='creator-name'] {
-    font-size: 10px;
-    line-height: 1.43;
+  & [data-testid='creator-name'],
+  & [data-testid='creator-display'] {
+    font-size: 12px;
+    line-height: 1;
+    color: ${colors.softWhite};
   }
 `
 
@@ -241,7 +248,7 @@ export const Stepper = styled.div`
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border: 0.5px solid ${colors.muted2};
+  background: ${colors.glassFaint};
   border-radius: ${radius.pill};
 `
 
@@ -253,11 +260,12 @@ export const Step = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
 
   &:disabled {
-    color: ${colors.muted2};
+    color: ${colors.glassText};
+    opacity: 0.5;
     cursor: default;
   }
 `
@@ -268,7 +276,7 @@ export const Qty = styled.span`
   font-size: 14px;
   font-weight: 500;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const Price = styled.div`
@@ -278,14 +286,14 @@ export const Price = styled.div`
   font-size: 24px;
   font-weight: 600;
   line-height: 1;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   white-space: nowrap;
 `
 
 export const Diamond = styled(CurrencyIcon)`
   width: 22px;
   height: 22px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const Unavailable = styled.span`
@@ -296,7 +304,7 @@ export const Unavailable = styled.span`
   font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
-  color: ${colors.text2};
+  color: ${colors.gray4};
 `
 
 export const Warn = styled(Icon)`
@@ -314,11 +322,11 @@ export const Del = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.muted};
+  color: ${colors.softWhite};
   cursor: pointer;
 
   &:hover {
-    color: ${colors.err};
+    color: ${colors.dclRed};
   }
 `
 
@@ -328,8 +336,10 @@ export const Foot = styled.footer`
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: ${colors.white};
-  border-top: 1px solid ${colors.gray4};
+  background: ${colors.drawerFoot};
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 2px solid ${colors.glassFaint};
   box-shadow: 0 -4px 12px 2px rgba(0, 0, 0, 0.12);
 `
 
@@ -341,10 +351,10 @@ export const TotalRow = styled.div`
 `
 
 export const TotalLabel = styled.span`
-  font-size: 14px;
+  font-size: 24px;
   font-weight: 600;
   line-height: 1.57;
-  color: ${colors.muted1};
+  color: ${colors.softWhite};
 `
 
 export const TotalVal = styled.span`
@@ -352,15 +362,15 @@ export const TotalVal = styled.span`
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const TotalDiamond = styled(CurrencyIcon)`
-  width: 28px;
-  height: 28px;
-  color: ${colors.text};
+  width: 22px;
+  height: 22px;
+  color: ${colors.softWhite};
 `
 
 // Figma (2187:451640) sits the two CTAs side by side, each taking half the row.

@@ -2,10 +2,11 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorName } from '~/components/CreatorName'
+import { onDark } from '~/styles/surface'
 
 const { colors, gradients, radius, z } = theme
 
-// Shared checkout-modal shell (Figma "Buy Asset"): the scrim + card + header/balance + body states
+// Shared checkout-modal shell: the scrim + card + header/balance + body states
 // (asset row, warning, pack picker, total, CTAs, processing, success). Used by BOTH the single-item PDP
 // BuyModal and the multi-item CartCheckoutModal; the latter adds its own `.cart-checkout*` pieces on top.
 
@@ -52,13 +53,17 @@ export const Card = styled.div`
   max-height: 100%;
   overflow: hidden;
   background: ${colors.white};
-  border-radius: 16px;
+  border-radius: ${radius.modal};
   padding: 12px 16px 16px;
   box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);
   animation: cart-pop-in 0.16s ease;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
+
+  &[data-surface='dark'] {
+    background: ${colors.accent};
+  }
 
   &[data-tall] {
     min-height: 379px;
@@ -72,6 +77,10 @@ export const Head = styled.div`
   gap: 4px;
   padding-bottom: 16px;
   border-bottom: 1px solid ${colors.gray4};
+
+  ${onDark} {
+    border-bottom: 2px solid ${colors.glass};
+  }
 `
 
 export const HeadRow = styled.div`
@@ -87,6 +96,11 @@ export const Title = styled.h2`
   font-weight: 700;
   line-height: 1.6;
   color: ${colors.text};
+
+  ${onDark} {
+    font-weight: 600;
+    color: ${colors.softWhite};
+  }
 `
 
 export const X = styled.button`
@@ -96,6 +110,10 @@ export const X = styled.button`
   cursor: pointer;
   padding: 2px;
   line-height: 0;
+
+  ${onDark} path {
+    stroke: ${colors.white};
+  }
 `
 
 export const Balance = styled.div`
@@ -108,17 +126,29 @@ export const BalanceLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
   color: ${colors.muted1};
+
+  ${onDark} {
+    color: ${colors.gray4};
+  }
 `
 
 export const BalanceIco = styled(CurrencyIcon)`
   width: 14px;
   height: 14px;
   background: ${colors.text};
+
+  ${onDark} {
+    background: ${colors.softWhite};
+  }
 `
 
 export const BalanceValue = styled.span`
   font-size: 14px;
   color: ${colors.text};
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
 `
 
 export const Body = styled.div`
@@ -149,6 +179,15 @@ export const Asset = styled.div`
   ${theme.media.maxWidth('mobile')} {
     gap: 12px;
   }
+
+  /* On the dark modal the asset is a tile of its own, artwork flush against its left edge. */
+  ${onDark} {
+    gap: 12px;
+    align-items: stretch;
+    background: ${colors.overlay};
+    border-radius: ${radius.tile};
+    overflow: hidden;
+  }
 `
 
 export const AssetThumb = styled.div`
@@ -173,6 +212,20 @@ export const AssetThumb = styled.div`
     height: 78px;
     border-radius: 7px;
   }
+
+  ${onDark} {
+    position: relative;
+    width: 176px;
+    height: 179px;
+    border: 1.5px solid transparent;
+    border-radius: ${radius.tile};
+  }
+  ${theme.media.maxWidth('mobile')} {
+    ${onDark} {
+      width: 120px;
+      height: 120px;
+    }
+  }
 `
 
 export const AssetInfo = styled.div`
@@ -182,6 +235,12 @@ export const AssetInfo = styled.div`
   flex-direction: column;
   justify-content: center;
   gap: 4px;
+
+  ${onDark} {
+    justify-content: space-between;
+    gap: 12px;
+    padding: 24px 16px 24px 8px;
+  }
 `
 
 export const AssetName = styled.div`
@@ -195,6 +254,12 @@ export const AssetName = styled.div`
   ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
+
+  ${onDark} {
+    font-weight: 600;
+    line-height: 1.2;
+    color: ${colors.softWhite};
+  }
 `
 
 // Resolves the creator address → profile display name; takes an `address` prop.
@@ -205,6 +270,12 @@ export const AssetCreator = styled(CreatorName)`
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 10px;
+  }
+
+  ${onDark} {
+    margin-top: 12px;
+    font-size: 14px;
+    color: ${colors.softWhite};
   }
 `
 
@@ -225,12 +296,24 @@ export const AssetPrice = styled.div`
       font-size: 20px;
     }
   }
+
+  ${onDark} span {
+    font-size: 24px;
+    font-weight: 600;
+    color: ${colors.softWhite};
+  }
 `
 
 export const AssetPriceIco = styled(CurrencyIcon)`
   width: 18px;
   height: 18px;
   background: ${colors.text2};
+
+  ${onDark} {
+    width: 20px;
+    height: 20px;
+    background: ${colors.softWhite};
+  }
 `
 
 // Insufficient-funds banner: warm peach fill with a Brand/Purple warning glyph and soft-black-2 text.
@@ -262,6 +345,10 @@ export const WarningText = styled.p`
   & b {
     font-weight: 700;
   }
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
 `
 
 // "Learn More" under the insufficient-funds copy — opens the credits page (with its FAQ) in a new tab
@@ -277,6 +364,13 @@ export const WarningLink = styled.a`
 
   &:hover {
     color: ${colors.accent};
+  }
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
+  ${onDark}:hover {
+    color: ${colors.gray4};
   }
 `
 
@@ -340,6 +434,17 @@ export const Pack = styled.button`
     transform: scale(1.03);
   }
 
+  ${onDark} {
+    border-color: transparent;
+    background: ${colors.modalTile};
+  }
+  ${onDark}:hover:not(:disabled),
+  ${onDark}[data-on] {
+    background-image: linear-gradient(${colors.modalTile}, ${colors.modalTile}), ${gradients.buyBtn};
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+  }
+
   ${theme.media.maxWidth('mobile')} {
     height: 83px;
     gap: 6px;
@@ -367,11 +472,19 @@ export const PackAmount = styled.span`
   font-size: 24px;
   font-weight: 500;
   color: ${colors.text};
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
 `
 
 export const PackUsd = styled.span`
   font-size: 14px;
   color: ${colors.text};
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
 `
 
 export const Total = styled.div`
@@ -380,6 +493,10 @@ export const Total = styled.div`
   justify-content: space-between;
   border-top: 1px solid ${colors.gray4};
   padding-top: 12px;
+
+  ${onDark} {
+    border-top: 2px solid ${colors.glass};
+  }
 `
 
 export const TotalCredits = styled.div`
@@ -389,23 +506,38 @@ export const TotalCredits = styled.div`
   font-size: 24px;
   font-weight: 700;
   color: ${colors.text};
+
+  ${onDark} {
+    font-weight: 600;
+    color: ${colors.softWhite};
+  }
 `
 
 export const TotalIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
   background: ${colors.text};
+
+  ${onDark} {
+    width: 22px;
+    height: 22px;
+    background: ${colors.softWhite};
+  }
 `
 
 export const TotalUsd = styled.span`
   font-size: 14px;
   font-weight: 600;
   color: ${colors.muted1};
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
 `
 
 // Pinned to the bottom of the (scrollable) body, so the primary action of a state that outgrows a short
 // viewport — no-funds stacks a warning, the asset, 4 pack tiles and the total above it — is never below
-// the fold. The white fill hides the content scrolling underneath; the negative margin cancels its
+// the fold. The card-coloured fill hides the content scrolling underneath; the negative margin cancels its
 // padding so the buttons keep their exact place in the states that don't scroll.
 export const Ctas = styled.div`
   position: sticky;
@@ -415,6 +547,10 @@ export const Ctas = styled.div`
   margin-top: -8px;
   padding-top: 8px;
   background: ${colors.white};
+
+  ${onDark} {
+    background: ${colors.accent};
+  }
 
   /*
    * data-stack — one CTA per row on a phone.
@@ -448,7 +584,7 @@ export const Btn = styled.button`
   /* Let the CTAs shrink so their min-content can't widen the modal past the viewport on mobile. */
   min-width: 0;
   height: 46px;
-  border-radius: ${radius.card};
+  border-radius: ${radius.cta};
   border: 0;
   cursor: pointer;
   font-size: 15px;
@@ -463,8 +599,7 @@ export const Btn = styled.button`
   &[data-full] {
     width: 100%;
   }
-  /* The design system's primary fill (Figma 738:53266 "BUY Button") — the same gradient the cart's
-     CHECKOUT carries, so the two ends of the buy flow match. */
+  /* The buy gradient — the same one the cart's CHECKOUT carries, so the two ends of the flow match. */
   &[data-variant='gradient'] {
     background: ${gradients.buyBtn};
     color: ${colors.softWhite};
@@ -479,12 +614,20 @@ export const Btn = styled.button`
     color: ${colors.text2};
     font-size: 13px;
   }
-  /* Figma's outlined hover (738:53251), which on this light card is the readable half of the pair: the
-     white-fill hover the dark-field buttons take would be invisible here. Same treatment as the
-     drawer's dismissing CTA (CartPopover ctaCss) — the two sit in one flow. */
+  /* On a light card the outline fills soft-black on hover; a white-fill hover would be invisible here. */
   &[data-variant='outline']:hover:not(:disabled) {
     background: ${colors.text2};
     color: ${colors.softWhite};
+  }
+  /* On the dark modal the dismissing CTA is the translucent white secondary. */
+  ${onDark}[data-variant='outline'] {
+    border: 0;
+    background: ${colors.glass};
+    color: ${colors.softWhite};
+    font-size: 15px;
+  }
+  ${onDark}[data-variant='outline']:hover:not(:disabled) {
+    background: ${colors.glassStrong};
   }
   &[data-variant='ruby'] {
     background: ${colors.dclRed};
@@ -492,29 +635,13 @@ export const Btn = styled.button`
     font-size: 13px;
     letter-spacing: 0.61px;
   }
-  // Solid accent fill (the error state's "Try again").
-  &[data-variant='purple'] {
-    background: ${colors.accent};
-    color: ${colors.softWhite};
-    font-size: 13px;
+  ${onDark}[data-variant='ruby'] {
+    font-size: 15px;
+    letter-spacing: 0.46px;
   }
-  /**
-   * Hover, and ONLY where hovering is a thing.
-   *
-   * Two bugs lived in one selector here. It used to read &:hover, &[data-variant='purple']:hover — the
-   * first half unqualified, so the PURPLE hover fill was painted over every variant that had no hover of
-   * its own. Ruby was the only one, so the post-purchase CTA turned violet the moment it was hovered:
-   * measured rgb(255,45,85) at rest and rgb(122,43,191) hovered.
-   *
-   * And on a phone that is not a hover at all. A tap synthesises :hover and LEAVES it there, so the CTA
-   * that lands under the finger after the buy confirms comes up already violet — which is how this was
-   * reported. Gating on hover: hover is the same fix, for the same reason, that the creators rail uses
-   * on its card lift.
-   */
+  /* Hover only where hovering exists: a tap synthesises :hover and leaves it on, so the CTA under the
+     finger after a purchase would come up already in its hover state. */
   @media (hover: hover) {
-    &[data-variant='purple']:hover:not(:disabled) {
-      background: ${colors.accentHover};
-    }
     &[data-variant='ruby']:hover:not(:disabled) {
       filter: brightness(1.08);
     }
@@ -546,6 +673,10 @@ export const BuyError = styled.div`
   background: rgba(255, 201, 213, 0.5);
   border-radius: 16px;
   padding: 24px 16px;
+
+  ${onDark} {
+    background: none;
+  }
 `
 
 export const BuyErrorArt = styled.img`
@@ -565,6 +696,10 @@ export const BuyErrorText = styled.p`
   & b {
     font-weight: 700;
   }
+
+  ${onDark} {
+    color: ${colors.softWhite};
+  }
 `
 
 export const ProcessingText = styled.div`
@@ -572,6 +707,11 @@ export const ProcessingText = styled.div`
   font-weight: 700;
   color: ${colors.text2};
   text-align: center;
+
+  ${onDark} {
+    font-weight: 400;
+    color: ${colors.softWhite};
+  }
 `
 
 export const Progress = styled.div`
@@ -581,6 +721,10 @@ export const Progress = styled.div`
   background: ${colors.media};
   border-radius: 100px;
   overflow: hidden;
+
+  ${onDark} {
+    background: ${colors.glass};
+  }
 `
 
 // Indeterminate by default (a sliding shimmer). `data-step` is the determinate variant used by the
@@ -591,7 +735,7 @@ export const ProgressFill = styled.span`
   height: 100%;
   width: 40%;
   border-radius: 100px;
-  background: ${gradients.amethyst};
+  background: ${gradients.progress};
   animation: buy-modal-progress 1.1s ease-in-out infinite;
 
   @keyframes buy-modal-progress {
@@ -627,6 +771,10 @@ export const Success = styled.div`
     gap: 24px;
     padding: 16px 24px;
   }
+  ${onDark} {
+    background: none;
+    padding: 0;
+  }
   @media (max-width: 600px) {
     &[data-wide] {
       flex-direction: column;
@@ -645,6 +793,10 @@ export const SuccessText = styled.p`
 
   & b {
     font-weight: 700;
+  }
+
+  ${onDark} {
+    color: ${colors.softWhite};
   }
 
   &[data-wide] {

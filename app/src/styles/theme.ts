@@ -46,6 +46,12 @@ const colors = {
   // mirrored in styles/index.css beside the gradient, so it moves with the field rather than drifting.
   fieldBottomWashed: '#3c1556',
   modalViolet: '#4c147c', // the builder's dark modal surface (Create Collection, Item Details)
+  // A tile on the dark modal: black 40% composited over the accent, opaque so a gradient ring can sit
+  // behind it (the pack picker's selected border).
+  modalTile: '#3f1365',
+  // The creator and collection names on the item page: a soft lavender link on the dark field.
+  nameLink: '#a0abff',
+  drawerFoot: 'rgba(84, 25, 135, 0.8)', // the cart drawer's frosted footer over its accent panel
   accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)
@@ -79,6 +85,7 @@ const colors = {
   errStrong: '#d64545',
   successBg: '#dcf3e4', // success-banner light-green fill
   successBorder: '#34ce77', // success-banner border
+  successWash: 'rgba(74, 255, 129, 0.2)', // success banner on the dark field
   orange: '#ff7439', // the warm stop of `gradients.buyBtn` — input borders, accent details
   white: '#ffffff',
   // Hairline on a translucent field over the purple — the search box and the notify-me email input.
@@ -96,6 +103,11 @@ const colors = {
   // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).
   glass: 'rgba(255, 255, 255, 0.2)',
   glassFaint: 'rgba(255, 255, 255, 0.1)',
+  glassStrong: 'rgba(255, 255, 255, 0.3)', // the selected category row, a hovered dropdown
+  glassText: 'rgba(255, 255, 255, 0.7)', // DCL/White70% — quiet labels on dark surfaces
+  glassRing: 'rgba(255, 255, 255, 0.5)', // hairline ring around avatars on dark surfaces
+  loadingWash: 'rgba(143, 66, 219, 0.8)', // the loading card's violet, solid end
+  loadingWashFaint: 'rgba(143, 66, 219, 0.3)', // the loading card's violet, faded end
   /**
    * A panel that LIFTS the purple field instead of darkening it — the store editor's card.
    *
@@ -118,6 +130,73 @@ export const rarities = {
   exotic: '#9cd71e',
   mythic: '#ff4bed',
   unique: '#fea217'
+} as const
+
+/**
+ * The product card's per-rarity artwork.
+ *
+ * `glow` is the thumbnail's radial gradient: the ellipse is `size` of the tile on both axes, so it keeps
+ * the drawn proportion at any card width. `stroke` is the 1.5px border and `label` the rarity tag's text;
+ * the flap takes the rarity token itself and the tag's fill is `label` at 20% (see lib/rarity).
+ */
+export const rarityCard = {
+  common: {
+    stroke: '#a0f4ff',
+    label: '#73d3d3',
+    size: '74.3%',
+    glow: 'rgb(223 244 245) 36.5%, rgb(169 228 228) 68.3%, rgb(115 211 211) 100%'
+  },
+  uncommon: {
+    stroke: '#ffb4aa',
+    label: '#ff8362',
+    size: '65.9%',
+    glow: 'rgb(255 202 187) 45.7%, rgb(255 167 143) 72.8%, rgb(255 131 98) 100%'
+  },
+  rare: {
+    stroke: '#6fefaa',
+    label: '#34ce76',
+    size: '66.4%',
+    glow: 'rgb(193 238 207) 60.6%, rgb(158 230 185) 70.4%, rgb(123 222 163) 80.3%, rgb(87 214 140) 90.1%, rgb(52 206 118) 100%'
+  },
+  epic: {
+    stroke: '#5dcfff',
+    label: '#438fff',
+    size: '135.5%',
+    glow: 'rgb(187 222 251) 2.9%, rgb(150 206 252) 26.9%, rgb(114 189 253) 51%, rgb(77 173 254) 75%, rgb(40 156 255) 99%'
+  },
+  legendary: {
+    stroke: '#dba0ff',
+    label: '#b05dff',
+    size: '65.4%',
+    glow: 'rgb(223 197 250) 37.5%, rgb(193 136 247) 68.8%, rgb(177 106 245) 84.4%, rgb(162 75 243) 100%'
+  },
+  exotic: {
+    stroke: '#caffa0',
+    label: '#9cd71e',
+    size: '76.2%',
+    glow: 'rgb(232 255 197) 32.2%, rgb(211 254 138) 66.1%, rgb(200 254 108) 83.1%, rgb(189 253 78) 100%'
+  },
+  mythic: {
+    stroke: '#ff95e8',
+    label: '#ff4bed',
+    size: '67.9%',
+    glow: 'rgb(255 188 246) 30.8%, rgb(255 132 242) 65.4%, rgb(255 103 239) 82.7%, rgb(255 75 237) 100%'
+  },
+  unique: {
+    stroke: '#fdffa0',
+    label: '#fea217',
+    size: '70.3%',
+    glow: 'rgb(255 236 181) 40.9%, rgb(255 218 142) 55.6%, rgb(255 199 102) 70.4%, rgb(254 181 63) 85.2%, rgb(254 171 43) 92.6%, rgb(254 162 23) 100%'
+  }
+} as const
+
+// The same card without a rarity: a flat pale tile with a grey hairline.
+export const rarityCardNone = {
+  flap: '#a09ba8',
+  stroke: '#a09ba8',
+  label: '#cfcdd4',
+  labelBg: 'rgba(236, 235, 237, 0.2)',
+  fill: '#ecebed'
 } as const
 
 /**
@@ -160,16 +239,20 @@ const gradients = {
   ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)',
   // Figma style "BUY Button" (738:53266) — the near-vertical orange→red on GET CREDITS and the promo
   // CTAs. One token because those two must stay identical; they drifted apart once already.
-  buyBtn: 'linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%)'
+  buyBtn: 'linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%)',
+  // The fill of every progress bar: ruby on the left warming to amber as it advances.
+  progress: 'linear-gradient(90deg, #ff2d55 0%, #ffbc5b 100%)'
 } as const
 
 const radius = {
   card: '12px',
   chip: '4px',
-  btn: '8px',
+  btn: '8px', // controls: dropdowns, inputs, icon hit areas
+  cta: '12px', // buttons (the Button primitive and the buy-credits CTAs)
   pill: '50px',
   banner: '24px',
-  modal: '16px' // modal shell + the callout blocks stacked inside it
+  modal: '16px', // modal shell + the callout blocks stacked inside it
+  tile: '16px' // the product card and its artwork tile
 } as const
 
 const font = {
@@ -216,6 +299,6 @@ const media = {
   minWidth: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
-export const theme = { colors, rarities, saleHeat, gradients, radius, font, media, z }
+export const theme = { colors, rarities, rarityCard, rarityCardNone, saleHeat, gradients, radius, font, media, z }
 
 export type AppTheme = typeof theme

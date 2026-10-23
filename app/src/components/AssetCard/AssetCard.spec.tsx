@@ -9,7 +9,7 @@ import { AssetCard } from './AssetCard'
 // drive the resolved-name / short-address-fallback states directly (no real Catalyst fetch), and so
 // cards WITHOUT a creator (the default makeItem) never touch it.
 const { useProfile } = vi.hoisted(() => ({
-  useProfile: vi.fn((): { data?: { name?: string } } => ({ data: undefined }))
+  useProfile: vi.fn((): { data?: { name?: string }; isLoading?: boolean } => ({ data: undefined }))
 }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile }))
 import { useCart } from '~/store/cart'
@@ -61,21 +61,61 @@ beforeEach(() => {
   useProfile.mockReset().mockReturnValue({ data: undefined })
 })
 
+describe('AssetCard artwork tile', () => {
+  it('should mark the category on a flap painted in the rarity colour, outside the tags', () => {
+    const { container } = renderCard(makeItem({ rarity: 'epic', category: 'wearable', wearableCategory: 'upper_body' }))
+    const flap = container.querySelector('[data-testid="card-flap"]') as HTMLElement
+    expect(flap.style.color).toBe('rgb(40, 156, 255)')
+    expect(flap.querySelector('[data-testid="card-flap-icon"]')).not.toBeNull()
+    // No gender on this fixture, so with the category on the flap the tags hold no icon chip at all.
+    expect(container.querySelectorAll('[data-chips] [data-variant="icon"]')).toHaveLength(0)
+  })
+
+  it('should paint the tile with the rarity glow and stroke', () => {
+    const { container } = renderCard(makeItem({ rarity: 'epic' }))
+    const media = container.querySelector('[data-testid="card-media"]') as HTMLElement
+    expect(media.style.background).toMatch(/radial-gradient/)
+    expect(media.style.getPropertyValue('--tile-stroke')).toBe('#5dcfff')
+  })
+
+  it('should tint the rarity tag in the rarity colour', () => {
+    const { container } = renderCard(makeItem({ rarity: 'legendary' }))
+    const tag = container.querySelector('[data-testid="chip-rarity"]') as HTMLElement
+    expect(tag.style.color).toBe('rgb(176, 93, 255)')
+    expect(tag.style.background).toBe('rgba(176, 93, 255, 0.2)')
+  })
+
+  it('should put the price on the tags row, which the hover swaps for the action', () => {
+    const { container } = renderCard(makeItem({ priceCredits: 7 }))
+    const price = container.querySelector('[data-testid="card-price"]')
+    expect(price?.closest('[data-chips]')).not.toBeNull()
+  })
+})
+
 describe('AssetCard author row', () => {
-  it('renders the resolved "By {creator}" line (capitalised) under the title', () => {
+  it('renders the creator under the title as an avatar and the capitalised name, with no "By"', () => {
     useProfile.mockReturnValue({ data: { name: 'soul magic' } })
     const { container } = renderCard(makeItem({ creator: '0x' + 'ab'.repeat(20) }))
     const author = container.querySelector('[data-testid="card-author"]')
-    expect(author).not.toBeNull()
-    expect(author?.textContent).toBe('By Soul magic')
+    expect(author?.querySelector('[data-avatar]')).not.toBeNull()
+    expect(author?.querySelector('[data-testid="creator-display"]')?.textContent).toBe('Soul magic')
+    expect(author?.textContent).not.toMatch(/\bBy\b/)
   })
 
-  it('falls back to a short address (never the raw 42-char wallet) while the profile has no name', () => {
+  it('falls back to a short address (never the raw 42-char wallet) when the profile has no name', () => {
     const addr = '0x' + 'ab'.repeat(20)
     const { container } = renderCard(makeItem({ creator: addr }))
+    const display = container.querySelector('[data-testid="card-author"] [data-testid="creator-display"]')
+    expect(display?.textContent).toMatch(/^0x/i)
+    expect(display?.textContent).not.toContain(addr)
+  })
+
+  it('holds the row blank while the profile loads, rather than flashing an address', () => {
+    useProfile.mockReturnValue({ data: undefined, isLoading: true })
+    const { container } = renderCard(makeItem({ creator: '0x' + 'ab'.repeat(20) }))
     const author = container.querySelector('[data-testid="card-author"]')
-    expect(author?.textContent).toMatch(/^By 0x/i)
-    expect(author?.textContent).not.toContain(addr)
+    expect(author?.querySelector('[data-testid="creator-display"]')).toBeNull()
+    expect(author?.textContent).not.toMatch(/0x/i)
   })
 
   it('renders no author line when the item has no creator address', () => {

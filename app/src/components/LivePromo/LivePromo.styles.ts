@@ -1,8 +1,9 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { creditsCtaCss } from '~/styles/cta.styles'
 
-const { colors, radius, gradients, media } = theme
+const { colors, radius, media } = theme
 
 // Live promo tile. The rounded card (CardBg) is inset from the wrapper's top by --lp-crest, and the
 // avatar spans the FULL wrapper — so its head rises past the card's top edge (the Figma outfit-card
@@ -109,52 +110,20 @@ export const Title = styled.h3`
   white-space: pre-line;
 `
 
-// Flare CTA pill, visually a button — the whole tile is the link. Inner disables pointer events;
-// the pill re-enables them so its hover ring can fire (clicks still bubble to the tile Link).
+// Credits CTA, visually a button — the whole tile is the link. Inner disables pointer events; the CTA
+// re-enables them so its hover state can fire (clicks still bubble to the tile Link).
 export const Cta = styled.span`
+  ${creditsCtaCss};
   pointer-events: auto;
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 40px;
   padding: 0 18px;
-  border-radius: ${radius.btn};
-  background: ${gradients.buyBtn};
-  color: ${colors.softWhite};
+  border-radius: ${radius.cta};
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   text-transform: uppercase;
   white-space: nowrap;
-  transition: filter 0.15s ease;
-
-  /* Same hover ring as the nav's GET CREDITS: a gradient stroke OUTSIDE the pill with a gap the page
-     shows through — masked, since a plain outline can't take a gradient. */
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -6px;
-    border-radius: calc(${radius.btn} + 6px);
-    padding: 2px;
-    background: ${gradients.buyBtn};
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    pointer-events: none;
-  }
-
-  &:hover {
-    filter: brightness(1.08);
-  }
-  &:hover::before {
-    opacity: 1;
-  }
 `
