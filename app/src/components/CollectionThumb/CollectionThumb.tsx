@@ -27,7 +27,13 @@ export function useCollectionPreview(contractAddress: string, enabled = true) {
 // so any number of items looks intentional. Every cell carries its item's rarity wash: the collection card
 // used to opt out, which left a grid of collections reading as white plates on the purple page while the
 // item cards beside them were coloured.
-export function CollectionMosaic({ items, className }: { items: CatalogItem[]; className?: string }) {
+export function CollectionMosaic({
+  items,
+  className
+}: {
+  items: Pick<CatalogItem, 'id' | 'rarity' | 'thumbnail'>[]
+  className?: string
+}) {
   const cells = items.slice(0, MOSAIC_COUNT)
   return (
     <S.Mosaic className={className} data-count={cells.length} aria-hidden>

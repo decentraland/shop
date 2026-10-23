@@ -71,7 +71,8 @@
     "copied": "Kopiert",
     "sortColumn": "Nach {column} sortieren",
     "sortedAsc": "{column}, aufsteigend sortiert. Klicke, um absteigend zu sortieren",
-    "sortedDesc": "{column}, absteigend sortiert. Klicke, um aufsteigend zu sortieren"
+    "sortedDesc": "{column}, absteigend sortiert. Klicke, um aufsteigend zu sortieren",
+    "noMatches": "Keine Treffer"
   },
   "collection": {
     "breadcrumb": "Sammlerstücke",
@@ -777,6 +778,10 @@
       "compareNone": "Kein Vergleich",
       "collection": "Kollektion",
       "allCollections": "Alle Kollektionen",
+      "searchCollections": "Kollektionen suchen",
+      "searchItems": "Artikel suchen",
+      "itemCount": "{count, plural, one {# Artikel} other {# Artikel}}",
+      "collectionCount": "{count, plural, one {# Kollektion} other {# Kollektionen}}",
       "thisPeriod": "Dieser Zeitraum",
       "previousPeriod": "Vorheriger Zeitraum",
       "lastYear": "Vorjahr",

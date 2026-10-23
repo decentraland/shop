@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { CollectionMosaic } from '~/components/CollectionThumb'
 import { CurrencyMark } from '~/components/CurrencyMark'
 import { SalesChart } from '~/components/SalesChart'
 import { activeLocale, t } from '~/intl/i18n'
@@ -88,7 +89,11 @@ export function StoreSalesPanel({
   rows: SaleRow[]
   truncated: boolean
   fetching: boolean
-  collections: { contractAddress: string; name: string; items: { itemId: string; name: string }[] }[]
+  collections: {
+    contractAddress: string
+    name: string
+    items: { key: string; itemId: string; name: string; thumbnail: string; rarity: string }[]
+  }[]
   onTrack: (event: string, props: Record<string, unknown>) => void
   /** Rows to compare against instead of reading them, for the invented store, which has no address to read. */
   comparisonRows?: SaleRow[]
@@ -182,9 +187,23 @@ export function StoreSalesPanel({
     { value: 'year', label: t('myStore.chart.compareYear') },
     { value: 'none', label: t('myStore.chart.compareNone') }
   ]
+  const mosaicOf = (items: { key: string; thumbnail: string; rarity: string }[]) => (
+    <CollectionMosaic items={items.map(i => ({ id: i.key, thumbnail: i.thumbnail, rarity: i.rarity }))} />
+  )
   const collectionOptions = [
-    { value: 'all', label: t('myStore.chart.allCollections') },
-    ...collections.map(c => ({ value: c.contractAddress.toLowerCase(), label: c.name }))
+    {
+      value: 'all',
+      label: t('myStore.chart.allCollections'),
+      // One item from each of the first collections, so "all" reads as the lot of them.
+      media: mosaicOf(collections.flatMap(c => c.items.slice(0, 1)).slice(0, 4)),
+      hint: t('myStore.chart.collectionCount', { count: collections.length })
+    },
+    ...collections.map(c => ({
+      value: c.contractAddress.toLowerCase(),
+      label: c.name,
+      media: mosaicOf(c.items),
+      hint: t('myStore.chart.itemCount', { count: c.items.length })
+    }))
   ]
 
   return (
@@ -230,14 +249,24 @@ export function StoreSalesPanel({
                 setItem('all')
               }}
               ariaLabel={t('myStore.chart.collection')}
+              searchPlaceholder={t('myStore.chart.searchCollections')}
               className="store-chart-collection"
             />
           ) : null}
           {scoped && scoped.items.length > 1 ? (
             <S.Select
               options={[
-                { value: 'all', label: t('myStore.chart.allItems') },
-                ...scoped.items.map(i => ({ value: i.itemId, label: i.name }))
+                {
+                  value: 'all',
+                  label: t('myStore.chart.allItems'),
+                  media: mosaicOf(scoped.items),
+                  hint: t('myStore.chart.itemCount', { count: scoped.items.length })
+                },
+                ...scoped.items.map(i => ({
+                  value: i.itemId,
+                  label: i.name,
+                  media: mosaicOf([i])
+                }))
               ]}
               value={item}
               onChange={value => {
@@ -245,6 +274,7 @@ export function StoreSalesPanel({
                 setItem(value)
               }}
               ariaLabel={t('myStore.chart.item')}
+              searchPlaceholder={t('myStore.chart.searchItems')}
               className="store-chart-item"
             />
           ) : null}
