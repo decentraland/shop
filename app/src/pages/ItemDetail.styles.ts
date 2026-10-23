@@ -561,7 +561,9 @@ const badgeDetailCss = css`
   [data-testid='creator-display'] {
     color: ${colors.nameLink};
   }
-  &[data-link]:hover [data-testid='creator-display'] {
+  /* Hover only underlines; the shared badge also darkens the name, which is meant for light surfaces. */
+  &[data-link]:hover [data-testid='creator-name'] {
+    color: ${colors.softWhite};
     text-decoration: underline;
   }
 `

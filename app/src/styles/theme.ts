@@ -172,7 +172,7 @@ export const rarityCard = {
   },
   exotic: {
     stroke: '#caffa0',
-    label: '#caff73',
+    label: '#9cd71e',
     size: '76.2%',
     glow: 'rgb(232 255 197) 32.2%, rgb(211 254 138) 66.1%, rgb(200 254 108) 83.1%, rgb(189 253 78) 100%'
   },
