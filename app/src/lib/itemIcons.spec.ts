@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { categoryIcon, genderIcon, singleShapeIcon } from '~/lib/itemIcons'
+import { categoryIcon, genderIcon, singleShapeIcon, wearableSlotIcon, wearableSlotLabel } from '~/lib/itemIcons'
 
 const item = (over: Partial<Parameters<typeof categoryIcon>[0]> = {}) => ({
   category: 'wearable',
@@ -52,5 +52,24 @@ describe('singleShapeIcon', () => {
     expect(singleShapeIcon({ gender: 'female' })).toBe('gender-female')
     expect(singleShapeIcon({ gender: 'unisex' })).toBeNull()
     expect(singleShapeIcon({ gender: null })).toBeNull()
+  })
+})
+
+describe('wearable slots', () => {
+  it('names a slot through the catalogue, including the ones whose key differs from the slot', () => {
+    expect(wearableSlotLabel('eyebrows')).toBe('Eyebrows')
+    expect(wearableSlotLabel('upper_body')).toBe('Upper Body')
+    expect(wearableSlotLabel('hands_wear')).toBe('Handwear')
+  })
+
+  it('spaces out a slot the catalogue has no name for rather than dropping it', () => {
+    expect(wearableSlotLabel('hands')).toBe('hands')
+    expect(wearableSlotLabel('odd_slot')).toBe('odd slot')
+  })
+
+  it('gives a slot its own glyph where there is one, else its group glyph', () => {
+    expect(wearableSlotIcon('tiara')).toBe('cat-tiara')
+    expect(wearableSlotIcon('upper_body')).toBe('cat-upper')
+    expect(wearableSlotIcon('hands')).toBeNull()
   })
 })

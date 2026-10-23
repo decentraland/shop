@@ -32,7 +32,7 @@ import { livePrices, manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing, GaslessCancelFailedError } from '~/lib/buy'
 import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
-import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
+import { fetchWearableTraits } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
@@ -54,7 +54,7 @@ import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { useCampaignBadge } from '~/hooks/useCampaignBadge'
 import { shortAddress } from '~/lib/address'
-import { t } from '~/intl/i18n'
+import { t, tNode } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -72,8 +72,8 @@ import { OfferStock } from '~/components/OfferStock'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
-import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
-import { categoryIcon, genderIcon } from '~/lib/itemIcons'
+import { rarityCardPalette, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
+import { categoryIcon, genderIcon, wearableSlotIcon, wearableSlotLabel } from '~/lib/itemIcons'
 import { saleBadgePct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
@@ -500,19 +500,21 @@ export function ItemDetail() {
   )
 
   /**
-   * VRM export, when the creator blocked it. `blockVrmExport` lives on the wearable's Catalyst entity and on no
-   * marketplace endpoint, so it costs its own lookup — worth it because it is a restriction the buyer inherits:
-   * they will not be able to take this item out to a VRM avatar. Stated exactly as the marketplace states it,
-   * badge and tooltip both. Wearables only, and only once the urn is known.
+   * Two facts from the wearable's own Catalyst entity, which no marketplace endpoint carries, so they cost their
+   * own lookup: whether the creator blocked VRM export (a restriction the buyer inherits, stated as the
+   * marketplace states it, badge and tooltip both) and which categories it hides on the avatar. Wearables only,
+   * and only once the urn is known.
    */
   const itemUrnFromMeta = itemTraits?.urn ?? null
-  const { data: vrmBlocked } = useQuery({
-    queryKey: ['item-vrm', itemUrnFromMeta],
+  const { data: wearableTraits } = useQuery({
+    queryKey: ['item-wearable-traits', itemUrnFromMeta],
     enabled: !!itemUrnFromMeta && current.category === 'wearable',
     staleTime: 30 * 60_000,
     retry: false,
-    queryFn: () => fetchVrmExportBlocked(itemUrnFromMeta as string)
+    queryFn: () => fetchWearableTraits(itemUrnFromMeta as string)
   })
+  const vrmBlocked = wearableTraits?.vrmBlocked ?? null
+  const hides = wearableTraits?.hides ?? []
 
   /**
    * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
@@ -1386,14 +1388,14 @@ export function ItemDetail() {
                       to={rarityLink}
                       data-variant="rarity"
                       data-testid="detail-rarity-link"
-                      style={{ background: rarityColor(rarity) }}
+                      style={{ background: rarityCardPalette(rarity).label }}
                     >
                       {current.rarity}
                     </S.DetailChipLink>
                   </Tooltip>
                 ) : (
                   <Tooltip content={rarityDescription(current.rarity)}>
-                    <S.DetailChip data-variant="rarity" style={{ background: rarityColor(rarity) }}>
+                    <S.DetailChip data-variant="rarity" style={{ background: rarityCardPalette(rarity).label }}>
                       {current.rarity}
                     </S.DetailChip>
                   </Tooltip>
@@ -1516,40 +1518,50 @@ export function ItemDetail() {
               ) : null}
 
               {(!hidesCreator && (current.creator || creatorPending)) || collection?.name || collectionPending ? (
-                <S.Meta>
+                <S.Meta data-testid="detail-meta">
                   {hidesCreator ? null : current.creator ? (
-                    <S.MetaCol>
-                      <S.Label>{t('itemDetail.creator')}</S.Label>
-                      <S.DetailCreator address={current.creator} linkToProfile hidePrefix />
-                    </S.MetaCol>
+                    <S.DetailCreator address={current.creator} linkToProfile />
                   ) : creatorPending ? (
-                    <S.MetaCol>
-                      <S.Label>{t('itemDetail.creator')}</S.Label>
-                      <S.SkBadge aria-hidden data-testid="creator-loading">
-                        <S.SkAva />
-                        <S.SkName />
-                      </S.SkBadge>
-                    </S.MetaCol>
+                    <S.SkBadge aria-hidden data-testid="creator-loading">
+                      <S.SkAva />
+                      <S.SkName />
+                    </S.SkBadge>
                   ) : null}
                   {collection?.name ? (
-                    <S.MetaCol data-collection>
-                      <S.Label>{t('itemDetail.collection')}</S.Label>
-                      <S.DetailCollection
-                        contractAddress={current.contractAddress}
-                        name={collection.name}
-                        items={siblings}
-                      />
-                    </S.MetaCol>
+                    <S.DetailCollection
+                      contractAddress={current.contractAddress}
+                      name={collection.name}
+                      items={siblings}
+                      label={name => tNode('itemDetail.collectionBy', { name: () => name })}
+                    />
                   ) : collectionPending ? (
-                    <S.MetaCol data-collection>
-                      <S.Label>{t('itemDetail.collection')}</S.Label>
-                      <S.SkBadge aria-hidden data-testid="collection-loading">
-                        <S.SkAva />
-                        <S.SkName />
-                      </S.SkBadge>
-                    </S.MetaCol>
+                    <S.SkBadge aria-hidden data-testid="collection-loading">
+                      <S.SkAva />
+                      <S.SkName />
+                    </S.SkBadge>
                   ) : null}
                 </S.Meta>
+              ) : null}
+
+              {/* The categories this wearable keeps off the avatar, so a buyer knows what it will take off. */}
+              {hides.length ? (
+                <S.Hides data-testid="detail-hides">
+                  <S.Label>
+                    <Icon name="eye-off" size={20} />
+                    {t('itemDetail.hides')}
+                  </S.Label>
+                  <S.HidesList>
+                    {hides.map(category => {
+                      const icon = wearableSlotIcon(category)
+                      return (
+                        <S.DetailChip key={category} data-testid="detail-hides-chip">
+                          {icon ? <Icon name={icon} size={22} /> : null}
+                          {wearableSlotLabel(category)}
+                        </S.DetailChip>
+                      )
+                    })}
+                  </S.HidesList>
+                </S.Hides>
               ) : null}
 
               <S.Divider />
@@ -2131,12 +2143,8 @@ function ItemInfoSkeleton() {
         ))}
       </S.DescRow>
       <S.Meta>
-        {[0, 1].map(i => (
-          <S.MetaCol key={i} {...(i === 1 ? { 'data-collection': true } : {})}>
-            <S.SkelLabel className="skeleton" />
-            <S.SkelBadge />
-          </S.MetaCol>
-        ))}
+        <S.SkelBadge />
+        <S.SkelBadge />
       </S.Meta>
       <S.Divider />
       <S.SkelPrice className="skeleton" />

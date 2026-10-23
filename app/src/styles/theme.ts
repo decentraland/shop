@@ -48,6 +48,8 @@ const colors = {
   // A tile on the dark modal: black 40% composited over the accent, opaque so a gradient ring can sit
   // behind it (the pack picker's selected border).
   modalTile: '#3f1365',
+  // The creator and collection names on the item page: a soft lavender link on the dark field.
+  nameLink: '#a0abff',
   drawerFoot: 'rgba(84, 25, 135, 0.8)', // the cart drawer's frosted footer over its accent panel
   accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)

@@ -43,6 +43,7 @@
   --cerise: linear-gradient(135deg, #ff2d55 0%, #c640cd 100%); /* DCL/Gradients/Cerise — card hover border */
   --buy-btn: linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%); /* Figma "BUY Button" */
   --progress: linear-gradient(90deg, #ff2d55 0%, #ffbc5b 100%);
+  --name-link: #a0abff; /* creator and collection names on the item page */
   --radius-card: 12px;
   --radius-chip: 4px;
   --radius-btn: 8px;
