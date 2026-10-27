@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { crumbGutter } from '~/styles/crumbs.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -35,11 +36,22 @@ export const Checkout = styled.div`
   }
 `
 
+// Pinned to the viewport gutter so the back link lines up with the sub-nav, not indented over the cards.
+export const Crumbs = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 48px;
+  ${crumbGutter};
+
+  ${mobile} {
+    display: none;
+  }
+`
+
 export const Back = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 16px;
   padding: 0;
   border: 0;
   background: none;
@@ -59,10 +71,6 @@ export const Back = styled.button`
   & .ico {
     width: 18px;
     height: 18px;
-  }
-
-  ${mobile} {
-    display: none;
   }
 `
 
@@ -84,22 +92,21 @@ export const Body = styled.div`
 // so the band starts flush under the sticky sub-nav instead of leaving a seam.
 export const Top = styled.div`
   position: relative;
-  /* The band's own breathing room, above the breadcrumb and under the panels, which is what sets how big
-     the section reads. Deliberately generous rather than hugging the cards: the zone is the checkout, and
-     at the old 48px it read as a strip squeezed between the sub-nav and the cross-sell rail.
+  /* No top padding: the back link opens the band at breadcrumb height and its own margin spaces the
+     panels. The bottom is the band's breathing room under the panels, deliberately generous rather than
+     hugging the cards: the zone is the checkout, and a tight one read as a strip squeezed between the
+     sub-nav and the cross-sell rail.
 
      No min-height floor: Figma's 733px was sized for an opaque band that had to reach the cross-sell, and
      keeping it here only pushed the rail below down behind a stretch of empty wash. The band tracks its
      content, and this padding is what surrounds it. */
-  padding-top: 58px;
   padding-bottom: 107px;
 
   /* The wash that gives the cards a floor instead of leaving them on the bare field.
 
-     Every surface on this page is ONE step of this same token, never a heavier one: translucent fills
-     stack, and 40% steps had the item card reaching 78% black, which read as heavy. At one step each a
-     panel on the band lands at 36% and an item card on the panel at 49%, enough for a line to read as a
-     row without going near black. */
+     Translucent fills stack, so the panels stay at one step of this same token and only the item cards
+     take the full overlay: a panel on the band lands at 36% and an item card on it at 62%, enough for a
+     line to stand off its panel without the page going near black. */
   &::before {
     content: '';
     position: absolute;
@@ -120,8 +127,9 @@ export const Top = styled.div`
   }
 
   ${mobile} {
-    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout), and a tall band
-       on a short viewport costs more than it gives. */
+    /* The back link is hidden here, so the band needs its own top padding. The fixed summary bar already
+       reserves room at the bottom (see Checkout), and a tall band on a short viewport costs more than it
+       gives. */
     padding-top: 24px;
     padding-bottom: 32px;
 
@@ -144,20 +152,36 @@ export const Left = styled.div`
 // apart read as a seam rather than as two things, and the header has no meaning away from the list it
 // counts.
 export const PanelHead = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   /* Pulled out to the card's edges, then the padding is put back on the row itself, so the row reads as
-     the card's own header strip rather than as content indented inside it. No rule under it: the gap
-     below already separates the header from the list, and the line only added weight. */
-  margin: -24px -24px 16px;
+     the card's own header strip rather than as content indented inside it. */
+  margin: -24px -24px 24px;
   padding: 12px 12px 12px 24px;
+
+  /* The rule is inset to the card's padding, not edge to edge like the row, so it spans exactly the
+     lines below it, as the summary's rule does under its title. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 0;
+    border-bottom: 1px solid ${colors.cardLine};
+  }
 
   ${mobile} {
     gap: 8px;
-    margin: -16px -16px 12px;
+    margin: -16px -16px 16px;
     padding: 8px 16px;
+
+    &::after {
+      left: 16px;
+      right: 16px;
+    }
   }
 `
 
@@ -262,16 +286,13 @@ export const Card = styled.div`
   display: flex;
   align-items: stretch;
   gap: 12px;
-  /* One wash step, not the full overlay: it stacks on the band and the panel (see Top). */
-  background: ${colors.overlayLight};
+  /* The full overlay, a step heavier than the panel, so each line stands off it (see Top). */
+  background: ${colors.overlay};
   border-radius: ${radius.tile};
   overflow: hidden;
 
   &[data-unavailable] [data-thumb] {
     opacity: 0.5;
-  }
-  &[data-unavailable] [data-check] {
-    display: none;
   }
   &[data-unavailable] [data-desc] {
     opacity: 0.7;
@@ -318,19 +339,6 @@ export const Thumb = styled.div`
 export const ThumbLink = styled(Link)`
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-`
-
-// Green "ready to buy" check overlaid on the thumbnail (decorative).
-export const ThumbCheck = styled.span`
-  position: absolute;
-  bottom: 7.5px;
-  left: 7.5px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #34ce77;
   display: grid;
   place-items: center;
 `

@@ -1321,10 +1321,12 @@ export function Cart() {
     return (
       <S.Checkout>
         <S.Top>
-          <S.Back onClick={() => navigate(-1)} type="button">
-            <Icon name="arrow-left" />
-            {t('nav.cart')}
-          </S.Back>
+          <S.Crumbs>
+            <S.Back onClick={() => navigate(-1)} type="button">
+              <Icon name="arrow-left" />
+              {t('nav.cart')}
+            </S.Back>
+          </S.Crumbs>
 
           <S.CartEmpty>
             {/* Default (dark) variant: the light one is a white card, and on the purple field it was the
@@ -1351,10 +1353,12 @@ export function Cart() {
       {/* Top section (breadcrumb + cart/summary panels) sits on the band; the cross-sell below it is on
           the bare field — Figma 1182-232377. */}
       <S.Top>
-        <S.Back onClick={() => navigate(-1)} type="button">
-          <Icon name="arrow-left" />
-          {t('nav.cart')}
-        </S.Back>
+        <S.Crumbs>
+          <S.Back onClick={() => navigate(-1)} type="button">
+            <Icon name="arrow-left" />
+            {t('nav.cart')}
+          </S.Back>
+        </S.Crumbs>
 
         <S.Body>
           <S.Left>
@@ -1405,18 +1409,6 @@ export function Cart() {
                         ) : item.thumbnail ? (
                           <img src={item.thumbnail} alt={item.name} />
                         ) : null}
-                        <S.ThumbCheck data-check aria-hidden>
-                          <svg viewBox="0 0 20 20" width="12" height="12">
-                            <path
-                              d="M5 10.5l3 3 7-7.5"
-                              fill="none"
-                              stroke="#fff"
-                              strokeWidth="2.4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </S.ThumbCheck>
                       </S.Thumb>
                       <S.Info>
                         <S.Desc data-desc>
