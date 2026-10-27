@@ -13,7 +13,7 @@ import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
 import * as S from './CartPopover.styles'
 
-// A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
+// A single cart line: thumbnail, name, creator, quantity stepper, price, delete.
 // PRIMARY (mint) lines support multiple copies — minus decrements (floored at 1), plus increments up to
 // remaining stock, and the price shows the line subtotal. SECONDARY lines are a single unique token, so
 // the stepper is hidden (qty is always 1). The trash button removes the whole line.
@@ -41,9 +41,6 @@ function CartRow({
       <S.Thumb data-thumb style={rarityTileStyle(item.rarity)}>
         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
         <CategoryFlap item={item} size="sm" testId="cart-flap" />
-        <S.ThumbCheck data-check>
-          <CheckCircleIcon />
-        </S.ThumbCheck>
       </S.Thumb>
       <S.Info>
         <div data-desc>

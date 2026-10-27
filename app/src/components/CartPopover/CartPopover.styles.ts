@@ -158,9 +158,6 @@ export const Card = styled.li`
   &[data-unavailable] [data-thumb] {
     opacity: 0.5;
   }
-  &[data-unavailable] [data-check] {
-    display: none;
-  }
   &[data-unavailable] [data-desc] {
     opacity: 0.7;
   }
@@ -184,14 +181,6 @@ export const Thumb = styled.div`
     object-fit: contain;
     filter: drop-shadow(0.6px 2.2px 2.8px rgba(0, 0, 0, 0.1));
   }
-`
-
-export const ThumbCheck = styled.span`
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  width: 20px;
-  height: 20px;
 `
 
 export const Info = styled.div`
