@@ -100,14 +100,12 @@ const cta = `
   cursor: pointer;
   transition: background 0.15s ease;
 
-  background: ${colors.overlay};
+  background: ${colors.glass};
   color: ${colors.softWhite};
 
-  &:hover {
-    background: rgba(0, 0, 0, 0.55);
-  }
+  &:hover,
   &:active {
-    background: rgba(0, 0, 0, 0.65);
+    background: ${colors.glassStrong};
   }
 
   /* The solid treatment, for an empty state whose CTA is the point of the screen rather than a way out

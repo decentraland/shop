@@ -42,6 +42,7 @@ import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
+import { Button } from '~/components/Button'
 import * as S from './MyAssets.styles'
 import manaLight from '~/assets/mana-matic-light.svg'
 
@@ -797,8 +798,8 @@ export function MyAssets() {
                           )
                         })()
                       ) : (
-                        <S.SaleCta
-                          variant="purple"
+                        <Button
+                          variant="primary"
                           size="sm"
                           data-testid="creation-group-sale"
                           onClick={() => {
@@ -807,7 +808,7 @@ export function MyAssets() {
                           }}
                         >
                           {t('creatorSale.putOnSale')}
-                        </S.SaleCta>
+                        </Button>
                       )
                     ) : null}
                   </S.CollectionHead>

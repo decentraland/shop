@@ -425,7 +425,7 @@ export function CreatorSaleModal({
             <S.ActionBtn variant="white" onClick={onClose}>
               {t('creatorSale.done')}
             </S.ActionBtn>
-            <S.ActionBtn variant="purple" onClick={viewStore}>
+            <S.ActionBtn variant="primary" onClick={viewStore}>
               {t('creatorSale.viewStore')}
             </S.ActionBtn>
           </S.Actions>

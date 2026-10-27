@@ -1,5 +1,4 @@
 import styled from '@emotion/styled'
-import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { noForward } from '~/styles/emotion'
@@ -276,28 +275,6 @@ export const SaleState = styled.span`
   }`
     )
     .join('')}
-`
-
-export const SaleCta = styled(Button)`
-  && {
-    background: ${theme.gradients.buyBtn};
-    color: ${theme.colors.white};
-  }
-  /* The purple variant paints its solid hover state through a ::before overlay, which would cover the
-     gradient; the hover below swaps the fill directly instead. */
-  &&::before {
-    content: none;
-  }
-  &&:hover:not(:disabled),
-  &&:active:not(:disabled) {
-    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
-  }
-  /* Three ampersands, not two: the purple variant's own disabled rule carries one more class than a
-     two-ampersand override, so it would otherwise repaint the button flat purple when nothing is listed. */
-  &&&:disabled {
-    background: ${theme.gradients.buyBtn};
-    opacity: 0.55;
-  }
 `
 
 /** Fixed frame so every header lines up whatever each collection's mosaic holds. */

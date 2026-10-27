@@ -7,13 +7,12 @@ import manaLight from '~/assets/mana-matic-light.svg'
 import * as S from './PaymentCtas.styles'
 
 /**
- * The purchase CTAs, one per payment rail the buyer's balances actually support (Figma 1558-320257 /
- * 1558-320267). Shared by the item Buy Now flow and the cart checkout so both read identically.
+ * The purchase CTAs, one per payment rail the buyer's balances actually support. Shared by the item Buy Now flow and the cart checkout so both read identically.
  *
  * Each button IS the payment — it states exactly what it charges and buys in one click, instead of the
  * older select-then-confirm step:
- *   • credits   — "BUY ASSET ◈135"           (the default rail, amethyst)
- *   • mana      — "BUY WITH MANA ◈50.07"     (dark, per the Figma)
+ *   • credits   — "BUY ASSET ◈135"           (the default rail, buy gradient)
+ *   • mana      — "BUY WITH MANA ◈50.07"     (dark)
  *   • combined  — "BUY WITH ◈40 + 35.2 MANA" (dark; credits first, MANA covers the remainder)
  *
  * There are never three enabled at once: `combined` only exists when the credits alone fall short, which

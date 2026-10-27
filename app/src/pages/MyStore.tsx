@@ -33,6 +33,7 @@ import { Price } from '~/components/Price'
 import { Tooltip } from '~/components/Tooltip'
 import { Icon, type IconName } from '~/components/Icon'
 import { Button } from '~/components/Button'
+import { Dropdown } from '~/components/Dropdown'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IssueModal } from '~/components/IssueModal'
@@ -2052,7 +2053,7 @@ export function MyStore() {
                           </S.PanelTitle>
                           <S.HeadActions>
                             {stats.collections.length > 1 ? (
-                              <S.Sort
+                              <Dropdown
                                 options={[
                                   { value: 'sold', label: t('myStore.sortSold') },
                                   { value: 'earned', label: t('myStore.sortEarned') },

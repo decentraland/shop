@@ -61,7 +61,7 @@ export function Studio() {
       <S.Root>
         <ErrorNotice message={t('studio.loadError')} testId="studio-error" />
         <div>
-          <Button variant="outline" onClick={() => void studios.refetch()}>
+          <Button variant="glass" onClick={() => void studios.refetch()}>
             {t('studio.retry')}
           </Button>
         </div>
@@ -119,7 +119,7 @@ export function Studio() {
           </S.Picker>
         ) : null}
         <Button
-          variant="purple"
+          variant="primary"
           onClick={() => setGifting(true)}
           disabled={paused && leftRows === 0}
           data-testid="studio-gift"
@@ -180,7 +180,7 @@ export function Studio() {
         {detail.hasNextPage ? (
           <div>
             <Button
-              variant="outline"
+              variant="glass"
               size="sm"
               onClick={() => void detail.fetchNextPage()}
               disabled={detail.isFetchingNextPage}

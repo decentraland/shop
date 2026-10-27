@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { crumbGutter } from '~/styles/crumbs.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -35,11 +36,22 @@ export const Checkout = styled.div`
   }
 `
 
+// Pinned to the viewport gutter so the back link lines up with the sub-nav, not indented over the cards.
+export const Crumbs = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 48px;
+  ${crumbGutter};
+
+  ${mobile} {
+    display: none;
+  }
+`
+
 export const Back = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 16px;
   padding: 0;
   border: 0;
   background: none;
@@ -59,10 +71,6 @@ export const Back = styled.button`
   & .ico {
     width: 18px;
     height: 18px;
-  }
-
-  ${mobile} {
-    display: none;
   }
 `
 
@@ -84,23 +92,21 @@ export const Body = styled.div`
 // so the band starts flush under the sticky sub-nav instead of leaving a seam.
 export const Top = styled.div`
   position: relative;
-  /* The band's own breathing room, above the breadcrumb and under the panels, which is what sets how big
-     the section reads. Deliberately generous rather than hugging the cards: the zone is the checkout, and
-     at the old 48px it read as a strip squeezed between the sub-nav and the cross-sell rail.
+  /* No top padding: the back link opens the band at breadcrumb height and its own margin spaces the
+     panels. The bottom is the band's breathing room under the panels, deliberately generous rather than
+     hugging the cards: the zone is the checkout, and a tight one read as a strip squeezed between the
+     sub-nav and the cross-sell rail.
 
      No min-height floor: Figma's 733px was sized for an opaque band that had to reach the cross-sell, and
      keeping it here only pushed the rail below down behind a stretch of empty wash. The band tracks its
      content, and this padding is what surrounds it. */
-  padding-top: 58px;
   padding-bottom: 107px;
 
   /* The wash that gives the cards a floor instead of leaving them on the bare field.
 
-     Every surface on this page is ONE step of this same token, never two: translucent fills stack, and
-     the previous pass had a 40% panel over a 40% band compositing to 64%, with the item card on top of
-     both reaching 78% — which is what read as heavy. At one step each, a panel on the band lands at 36%
-     and the item card adds nothing (see Card). Depth comes from borders and spacing, not from piling up
-     black. */
+     Translucent fills stack, so the panels stay at one step of this same token and only the item cards
+     take the full overlay: a panel on the band lands at 36% and an item card on it at 62%, enough for a
+     line to stand off its panel without the page going near black. */
   &::before {
     content: '';
     position: absolute;
@@ -121,8 +127,9 @@ export const Top = styled.div`
   }
 
   ${mobile} {
-    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout), and a tall band
-       on a short viewport costs more than it gives. */
+    /* The back link is hidden here, so the band needs its own top padding. The fixed summary bar already
+       reserves room at the bottom (see Checkout), and a tall band on a short viewport costs more than it
+       gives. */
     padding-top: 24px;
     padding-bottom: 32px;
 
@@ -145,20 +152,36 @@ export const Left = styled.div`
 // apart read as a seam rather than as two things, and the header has no meaning away from the list it
 // counts.
 export const PanelHead = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   /* Pulled out to the card's edges, then the padding is put back on the row itself, so the row reads as
-     the card's own header strip rather than as content indented inside it. No rule under it: the gap
-     below already separates the header from the list, and the line only added weight. */
-  margin: -24px -24px 16px;
+     the card's own header strip rather than as content indented inside it. */
+  margin: -24px -24px 24px;
   padding: 12px 12px 12px 24px;
+
+  /* The rule is inset to the card's padding, not edge to edge like the row, so it spans exactly the
+     lines below it, as the summary's rule does under its title. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 0;
+    border-bottom: 1px solid ${colors.cardLine};
+  }
 
   ${mobile} {
     gap: 8px;
-    margin: -16px -16px 12px;
+    margin: -16px -16px 16px;
     padding: 8px 16px;
+
+    &::after {
+      left: 16px;
+      right: 16px;
+    }
   }
 `
 
@@ -217,7 +240,6 @@ export const PanelTitle = styled.h1`
   }
 `
 
-// Soft-black outline button.
 export const Fitting = styled.button`
   display: inline-flex;
   align-items: center;
@@ -225,9 +247,9 @@ export const Fitting = styled.button`
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border: 2px solid ${colors.softWhite};
-  border-radius: ${radius.btn};
-  background: none;
+  border: 0;
+  border-radius: ${radius.cta};
+  background: ${colors.glass};
   color: ${colors.softWhite};
   font-size: 13px;
   font-weight: 600;
@@ -236,26 +258,16 @@ export const Fitting = styled.button`
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: background 0.15s ease;
 
-  /* Mixed from currentColor so the wash cannot drift from the border colour. */
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, currentColor 6%, transparent);
-  }
-  &:active:not(:disabled) {
-    filter: brightness(0.97);
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: ${colors.glassStrong};
+    }
   }
   &:disabled {
     opacity: 0.55;
     cursor: default;
-  }
-
-  /* Mobile keeps the full 40px button and thins the outline to 1px (1182:236892) rather than shrinking
-     the type, which had it reading smaller than the row title beside it. */
-  ${mobile} {
-    border-width: 1px;
   }
 `
 
@@ -274,19 +286,13 @@ export const Card = styled.div`
   display: flex;
   align-items: stretch;
   gap: 12px;
-  /* No fill: the line is drawn by its border alone, over whatever the panel behind it is. A third
-     translucent layer here is what pushed this card to 78% black in the previous pass (see Top), and it
-     buys nothing — the white design separated these lines with a border too, the card being white on a
-     white panel. */
-  border: 1px solid ${colors.cardLine};
-  border-radius: ${radius.card};
+  /* The full overlay, a step heavier than the panel, so each line stands off it (see Top). */
+  background: ${colors.overlay};
+  border-radius: ${radius.tile};
   overflow: hidden;
 
   &[data-unavailable] [data-thumb] {
     opacity: 0.5;
-  }
-  &[data-unavailable] [data-check] {
-    display: none;
   }
   &[data-unavailable] [data-desc] {
     opacity: 0.7;
@@ -301,8 +307,8 @@ export const Thumb = styled.div`
      a row this wide, and small is what a buyer sees of an item they are about to pay for. */
   width: 172px;
   height: 171px;
-  background: ${colors.media};
-  border-radius: ${radius.card};
+  border: 1.5px solid transparent;
+  border-radius: ${radius.tile};
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -333,19 +339,6 @@ export const Thumb = styled.div`
 export const ThumbLink = styled(Link)`
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-`
-
-// Green "ready to buy" check overlaid on the thumbnail (decorative).
-export const ThumbCheck = styled.span`
-  position: absolute;
-  top: 7.5px;
-  left: 7.5px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #34ce77;
   display: grid;
   place-items: center;
 `
@@ -407,23 +400,21 @@ export const NameLink = styled(Link)`
   ${nameCss};
 `
 
-// Reuse CreatorBadge but drop its avatar for the text-only "By {creator}" treatment.
 export const Creator = styled(CreatorBadge)`
-  font-size: 10px;
-  line-height: 1.43;
-  color: ${colors.gray4};
-
   & [data-avatar] {
-    display: none;
-  }
-  /* The shared badge switches this to its dark ink on hover (badge.styles), which was drawn for a white
-     card and lands around 1.1:1 here — the name disappears under the cursor. */
-  &[data-link]:hover [data-testid='creator-name'] {
-    color: ${colors.softWhite};
+    width: 20px;
+    height: 20px;
+    border: 1.43px solid ${colors.glassRing};
+    background: ${colors.glassFaint};
   }
   & [data-testid='creator-name'] {
-    font-size: 10px;
-    line-height: 1.43;
+    font-size: 12px;
+    line-height: 1.2;
+    color: ${colors.softWhite};
+  }
+  /* The shared badge switches the name to its dark ink on hover (badge.styles), drawn for a white card. */
+  &[data-link]:hover [data-testid='creator-name'] {
+    color: ${colors.softWhite};
   }
 `
 
@@ -441,7 +432,7 @@ export const Stepper = styled.div`
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border: 0.5px solid ${colors.cardLine};
+  background: ${colors.glassFaint};
   border-radius: ${radius.pill};
 `
 
@@ -457,7 +448,8 @@ export const Step = styled.button`
   cursor: pointer;
 
   &:disabled {
-    color: ${colors.gray4};
+    color: ${colors.glassText};
+    opacity: 0.5;
     cursor: default;
   }
 `
@@ -560,7 +552,7 @@ const iconBtn = css`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.gray4};
+  color: ${colors.softWhite};
   cursor: pointer;
   transition: color 0.12s ease;
 
@@ -573,8 +565,10 @@ const iconBtn = css`
 export const Fav = styled.button`
   ${iconBtn};
 
-  &:hover:not(:disabled) {
-    color: ${colors.softWhite};
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      color: ${colors.dclRed};
+    }
   }
   &[data-on] {
     color: ${colors.dclRed};
@@ -614,9 +608,7 @@ export const Summary = styled.aside`
   border-radius: 16px;
   padding: 32px;
 
-  /* PaymentCtas renders both here and inside the checkout modal, whose shell is still white, so its
-     defaults were picked against white and only break on this card. Overridden in the summary's scope
-     rather than in the component, so the modal keeps what works there.
+  /* PaymentCtas' defaults were picked against a light card, so this one overrides them in its own scope.
 
      The focus ring is the blocking one: accent (#691fa9) against this card measures 1.2:1, and 1.65:1 on
      the mobile bar, where WCAG 1.4.11 asks 3:1 of a focus indicator — on the page's main action, for the

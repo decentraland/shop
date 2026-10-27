@@ -116,11 +116,9 @@ export const Banner = styled.div`
   justify-content: center;
   gap: 16px;
   padding: 24px 16px;
-  /* The ok green (#1ea672) at 14% — the same translucent fill the Activity cards use for a settled
-     status, which is what this field was measured against. The solid mint it had was built for white. */
-  background: rgba(30, 166, 114, 0.14);
-  border: 1px solid ${colors.cardLine};
-  border-radius: 16px;
+  background: ${colors.successWash};
+  border: 2px solid ${colors.successBorder};
+  border-radius: ${radius.tile};
 
   ${narrow} {
     flex-direction: column;
@@ -130,8 +128,8 @@ export const Banner = styled.div`
 
 export const BannerCheck = styled.span`
   flex-shrink: 0;
-  width: 60px;
-  height: 60px;
+  width: 44px;
+  height: 44px;
   line-height: 0;
 `
 
@@ -151,46 +149,28 @@ export const BannerText = styled.p`
   }
 `
 
-// One bordered card holding every row; on a narrow screen the card chrome moves to the rows themselves,
-// which read better as separate tiles than as a long divided list.
+// Each purchase is its own dark tile, with the artwork flush against the tile's left edge.
 export const List = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  background: ${colors.overlay};
-  border: 1px solid ${colors.cardLine};
-  border-radius: 16px;
-
-  ${narrow} {
-    gap: 12px;
-    padding: 0;
-    background: none;
-    border: 0;
-  }
+  gap: 8px;
 `
 
 export const ListRow = styled.div`
   display: flex;
   flex-direction: column;
+  padding-right: 24px;
+  background: ${colors.overlay};
+  border-radius: ${radius.tile};
+  overflow: hidden;
 
   ${narrow} {
-    padding: 16px;
-    background: ${colors.overlay};
-    border: 1px solid ${colors.cardLine};
-    border-radius: 16px;
+    padding-right: 12px;
   }
 `
 
-// Hairline between rows — only between items, never above the first, and never on the tiled layout.
 export const Divider = styled.span`
-  display: block;
-  height: 1px;
-  margin: 12px 0;
-  background: ${colors.cardLine};
-
-  ${narrow} {
-    display: none;
-  }
+  display: none;
 `
 
 // The topped-up credit bundle that landed with the purchase (buy credits + item together), shown as a
@@ -273,9 +253,8 @@ export const RowThumb = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${colors.media};
-  border: 0.134px solid ${colors.muted2};
-  border-radius: ${radius.btn};
+  border: 1.5px solid transparent;
+  border-radius: ${radius.tile};
   overflow: hidden;
 
   & img {
@@ -294,7 +273,7 @@ export const RowThumb = styled.div`
 // "Purchased" check badge in the thumbnail corner.
 export const RowCheck = styled.span`
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   left: 8px;
   width: 20px;
   height: 20px;
@@ -368,7 +347,7 @@ export const RowPriceIco = styled(CurrencyIcon)`
   background: ${colors.softWhite};
 `
 
-// CTA row: ghost MY ASSETS + ruby TRY IN WORLD, each flexing to fill. Stays side-by-side on mobile.
+// CTA row: glass MY ITEMS + ruby TRY IN WORLD, each flexing to fill. Stays side-by-side on mobile.
 export const Ctas = styled.div`
   display: flex;
   gap: 12px;
@@ -377,7 +356,7 @@ export const Ctas = styled.div`
   margin-top: 4px;
 `
 
-// data-variant='ghost' (accent outline) | 'ruby' (filled DCL red). Cta is the in-app button; CtaLink is
+// data-variant='glass' (translucent white) | 'ruby' (filled DCL red). Cta is the in-app button; CtaLink is
 // the same treatment for an off-app destination (Jump in) that needs a real anchor.
 const ctaCss = css`
   flex: 1;
@@ -388,10 +367,10 @@ const ctaCss = css`
   justify-content: center;
   gap: 12px;
   padding: 0 24px;
-  border-radius: ${radius.btn};
+  border-radius: ${radius.cta};
   font-weight: 600;
   font-size: 15px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.46px;
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
@@ -399,15 +378,13 @@ const ctaCss = css`
     filter 0.15s ease,
     background 0.15s ease;
 
-  /* The secondary CTA keeps its light fill and dark ink: on the purple field a white button IS the
-     quiet option beside the red one, and inverting it would make both buttons shout. */
-  &[data-variant='ghost'] {
-    background: ${colors.softWhite};
-    border: 1px solid ${colors.softWhite};
-    color: ${colors.text2};
+  &[data-variant='glass'] {
+    background: ${colors.glass};
+    border: 0;
+    color: ${colors.softWhite};
   }
-  &[data-variant='ghost']:hover {
-    filter: brightness(0.92);
+  &[data-variant='glass']:hover {
+    background: ${colors.glassStrong};
   }
   &[data-variant='ruby'] {
     background: ${colors.dclRed};

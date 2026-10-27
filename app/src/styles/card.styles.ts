@@ -44,18 +44,17 @@ const RING_OUTSET = 2
  */
 export const RING_INSET = RING_WIDTH - RING_OUTSET
 
-// Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient
-// (#ff2d55 → #c640cd). A gradient fill masked down to the ring, since a border can't carry one.
+// Hover stroke: 3px of the Cerise gradient (#ff2d55 → #c640cd), following the host's corner radius. A gradient fill masked down to the ring, since a border can't carry one.
 //
 // Straddles the card's edge — 2px out, 1px in — like the nav/promo rings. At inset 0 its outer arc landed
 // on the same curve as the card's rounded clip, where mask-clip and background-clip multiply into ~25%
 // coverage instead of 50%, and the near-white media read through it as a white line outside the border.
 // So the host must NOT clip, and rounds its media/footer individually instead.
-export const ringHover = css`
+export const ringHover = (cornerRadius: string = radius.card) => css`
   inset: -${RING_OUTSET}px;
   border: 0;
   padding: ${RING_WIDTH}px;
-  border-radius: calc(${radius.card} + ${RING_OUTSET}px);
+  border-radius: calc(${cornerRadius} + ${RING_OUTSET}px);
   background: ${gradients.cerise};
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,

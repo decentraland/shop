@@ -1,3 +1,4 @@
+import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 import type { IconName } from '~/components/Icon'
 
@@ -43,6 +44,58 @@ export function categoryIcon(item: Pick<CatalogItem, 'category' | 'wearableCateg
   // Emote with an unmapped/missing sub-category still gets the generic emote glyph.
   if (item.category === 'emote') return 'emote-misc'
   return null
+}
+
+// The slot's own glyph where the set has one; the group glyph (categoryIcon) otherwise.
+const SLOT_ICON: Record<string, IconName> = {
+  eyebrows: 'cat-eyebrows',
+  eyes: 'cat-eyes',
+  eyewear: 'cat-eyewear',
+  earring: 'cat-earring',
+  facial_hair: 'cat-facial-hair',
+  hair: 'cat-hair',
+  hat: 'cat-hat',
+  helmet: 'cat-helmet',
+  mask: 'cat-mask',
+  mouth: 'cat-mouth',
+  tiara: 'cat-tiara',
+  top_head: 'cat-top-head'
+}
+
+/** Icon for one wearable slot, e.g. in the list of what an item hides; null when we have none. */
+export function wearableSlotIcon(slot: string): IconName | null {
+  const key = slot.toLowerCase()
+  return SLOT_ICON[key] ?? categoryIcon({ category: 'wearable', wearableCategory: key })
+}
+
+// Slots whose catalogue name key is not the slot itself.
+const SLOT_LABEL_KEY: Record<string, string> = {
+  upper_body: 'upperBody',
+  lower_body: 'lowerBody',
+  hands_wear: 'handwear',
+  facial_hair: 'facialHair',
+  top_head: 'topHead',
+  skin: 'skins'
+}
+const NAMED_SLOTS = new Set([
+  'head',
+  'feet',
+  'hair',
+  'eyes',
+  'eyebrows',
+  'mouth',
+  'earring',
+  'eyewear',
+  'hat',
+  'helmet',
+  'mask',
+  'tiara'
+])
+
+/** The translated name of a wearable slot (`upper_body` → "Upper Body"), or the slot spaced out when it has none. */
+export function wearableSlotLabel(slot: string): string {
+  const key = SLOT_LABEL_KEY[slot] ?? (NAMED_SLOTS.has(slot) ? slot : null)
+  return key ? t(`categories.${key}`) : slot.replace(/_/g, ' ')
 }
 
 /** Gender icon only for items limited to one body shape; null for unisex or unknown. */

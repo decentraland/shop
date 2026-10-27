@@ -170,7 +170,7 @@ export function Dropdown({
         >
           {searchable ? (
             <S.Search>
-              <Icon name="search" size={16} color={theme.colors.muted} aria-hidden />
+              <Icon name="search" size={16} color={theme.colors.glassText} aria-hidden />
               <input
                 ref={searchRef}
                 type="search"

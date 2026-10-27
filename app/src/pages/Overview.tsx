@@ -269,7 +269,7 @@ export function Overview() {
         <S.HeroCta
           as="a"
           href={campaignHero.cta.href}
-          variant="purple"
+          variant="primary"
           data-testid="hero-campaign-cta"
           onClick={() =>
             track('Shop Clicked Banner', {
@@ -285,7 +285,7 @@ export function Overview() {
     }
 
     return (
-      <S.HeroCta as={Link} to="/credits" variant="purple" data-testid="hero-credits-cta">
+      <S.HeroCta as={Link} to="/credits" variant="primary" data-testid="hero-credits-cta">
         <CurrencyIcon size={18} />
         {t('overview.heroCta')}
       </S.HeroCta>

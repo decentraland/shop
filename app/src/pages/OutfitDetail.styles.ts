@@ -7,7 +7,7 @@ import { Chip } from '~/styles/chip.styles'
 import { crumbGutter } from '~/styles/crumbs.styles'
 import { theme } from '~/styles/theme'
 
-const { colors, radius, media, gradients } = theme
+const { colors, radius, media } = theme
 
 export const Root = styled.div`
   max-width: 1721px;
@@ -185,7 +185,7 @@ export const ItemCard = styled.li`
     position: absolute;
     z-index: 5;
     pointer-events: none;
-    ${ringHover};
+    ${ringHover()};
     opacity: 0;
     transition: opacity 0.3s ease;
   }
@@ -413,8 +413,7 @@ export const TotalValue = styled.span`
   color: ${colors.softWhite};
 `
 
-// The page's one CTA, on the same "BUY Button" gradient as the PDP's Buy now and the cart's checkout —
-// the purple variant's amethyst fill would disappear into the violet field. A pill in the phone bar.
+// The page's one CTA. A pill in the phone bar.
 export const Cta = styled(Button)`
   width: 100%;
   min-height: 52px;
@@ -423,16 +422,6 @@ export const Cta = styled(Button)`
   align-items: center;
   justify-content: center;
   gap: 10px;
-
-  && {
-    background: ${gradients.buyBtn};
-  }
-  &&::before {
-    content: none;
-  }
-  &&:hover:not(:disabled) {
-    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
-  }
 
   ${media.maxWidth('mobile')} {
     border-radius: ${radius.pill};

@@ -121,8 +121,8 @@ export const Ctas = styled.div`
   gap: 12px;
 `
 
-// Solid purple fill and a hairline dark outline at a 12px radius — the shared Button primitive's `purple`
-// and `outline` variants are the amethyst gradient and a magenta border, so they can't dress these.
+// Solid purple fill and a hairline dark outline at a 12px radius, drawn here rather than through the shared
+// Button variants because this modal keeps its own purple treatment.
 const cta = `
   flex: 1 1 0;
   min-width: 0;

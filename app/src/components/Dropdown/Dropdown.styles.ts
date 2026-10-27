@@ -13,25 +13,32 @@ export const Trigger = styled.button`
   align-items: center;
   justify-content: space-between;
   gap: 24px;
+  height: 40px;
   padding: 4px 4px 4px 12px;
-  background: rgba(0, 0, 0, 0.12);
-  border: 0.5px solid ${colors.muted2};
+  background: transparent;
+  border: 0.5px solid ${colors.white};
   border-radius: ${radius.btn};
-  color: #ecebed;
-  font-weight: 600;
+  color: ${colors.white};
+  font-weight: 500;
   font-size: 12px;
   line-height: 1.43;
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 
   &:hover {
-    border-color: ${colors.white};
+    background: ${colors.glassStrong};
+    border-color: ${colors.softWhite};
+  }
+  &[data-open] {
+    background: ${colors.glass};
   }
   &:focus-visible {
-    outline: 0;
-    border-color: ${colors.accent};
+    outline: 2px solid ${colors.white};
+    outline-offset: 2px;
   }
 `
 
@@ -48,7 +55,8 @@ export const Menu = styled.div`
   min-width: 174px;
   max-width: calc(100vw - 32px);
   overflow: hidden;
-  background: ${colors.white};
+  background: ${colors.gray0};
+  backdrop-filter: blur(6px);
   border-radius: ${radius.btn};
   box-shadow: 0 4px 25px 5px rgba(0, 0, 0, 0.25);
   animation: cart-pop-in 0.16s ease;
@@ -73,11 +81,11 @@ export const Search = styled.label`
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: ${radius.btn};
-  background: ${colors.surfaceHover};
+  background: ${colors.glassFaint};
   cursor: text;
 
   &:focus-within {
-    border-color: ${colors.accent};
+    border-color: ${colors.white};
   }
   input {
     flex: 1;
@@ -87,14 +95,14 @@ export const Search = styled.label`
     background: transparent;
     font-family: ${font.sans};
     font-size: 14px;
-    color: ${colors.gray0};
+    color: ${colors.softWhite};
 
     /* iOS zooms into a field under 16px when it takes focus, and this one does on every opening. */
     @media (pointer: coarse) {
       font-size: 16px;
     }
     &::placeholder {
-      color: ${colors.muted};
+      color: ${colors.glassText};
     }
     &::-webkit-search-cancel-button {
       display: none;
@@ -112,7 +120,7 @@ export const List = styled.ul`
   padding: 0;
 
   [data-searchable] > & {
-    border-top: 1px solid ${colors.line};
+    border-top: 1px solid ${colors.glassFaint};
   }
 `
 
@@ -128,7 +136,7 @@ export const Status = styled.span`
 export const Empty = styled.li`
   padding: 12px;
   font-size: 14px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 export const Option = styled.button`
@@ -137,13 +145,13 @@ export const Option = styled.button`
   width: 100%;
   height: 40px;
   text-align: left;
-  background: ${colors.white};
+  background: transparent;
   border: 0;
   padding: 4px 4px 4px 8px;
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;
-  color: ${colors.gray0};
+  color: ${colors.gray4};
   white-space: nowrap;
   cursor: pointer;
 
@@ -155,10 +163,11 @@ export const Option = styled.button`
   /* A searchable menu moves its highlight with the mouse, so hover there would draw a second one. */
   &[data-highlight],
   div:not([data-searchable]) > ul > li > &:hover {
-    background: ${colors.surfaceHover};
+    background: ${colors.glassFaint};
   }
   &[data-active] {
-    background: ${colors.media};
+    background: ${colors.glassFaint};
+    color: ${colors.white};
   }
 `
 
@@ -175,7 +184,7 @@ export const OptionText = styled.span`
   small {
     font-size: 12px;
     line-height: 1.33;
-    color: ${colors.muted};
+    color: ${colors.glassText};
   }
 `
 
@@ -183,7 +192,7 @@ export const OptionMedia = styled.span`
   flex: none;
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: ${radius.btn};
   overflow: hidden;
-  background: #f5f4f7;
+  background: ${colors.glassFaint};
 `

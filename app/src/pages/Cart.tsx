@@ -38,6 +38,8 @@ import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
 import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { EmptyState } from '~/components/EmptyState'
+import { CategoryFlap } from '~/components/CategoryFlap'
+import { rarityTileStyle } from '~/lib/rarity'
 import { ContractName, getContract } from 'decentraland-transactions'
 import { resolveLiveCoupon, resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
 import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase, type ListingCoupon } from '~/lib/buy'
@@ -1319,10 +1321,12 @@ export function Cart() {
     return (
       <S.Checkout>
         <S.Top>
-          <S.Back onClick={() => navigate(-1)} type="button">
-            <Icon name="arrow-left" />
-            {t('nav.cart')}
-          </S.Back>
+          <S.Crumbs>
+            <S.Back onClick={() => navigate(-1)} type="button">
+              <Icon name="arrow-left" />
+              {t('nav.cart')}
+            </S.Back>
+          </S.Crumbs>
 
           <S.CartEmpty>
             {/* Default (dark) variant: the light one is a white card, and on the purple field it was the
@@ -1349,10 +1353,12 @@ export function Cart() {
       {/* Top section (breadcrumb + cart/summary panels) sits on the band; the cross-sell below it is on
           the bare field — Figma 1182-232377. */}
       <S.Top>
-        <S.Back onClick={() => navigate(-1)} type="button">
-          <Icon name="arrow-left" />
-          {t('nav.cart')}
-        </S.Back>
+        <S.Crumbs>
+          <S.Back onClick={() => navigate(-1)} type="button">
+            <Icon name="arrow-left" />
+            {t('nav.cart')}
+          </S.Back>
+        </S.Crumbs>
 
         <S.Body>
           <S.Left>
@@ -1394,7 +1400,8 @@ export function Cart() {
                     status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
                   return (
                     <S.Card data-unavailable={unavailable || undefined} key={item.id}>
-                      <S.Thumb data-thumb>
+                      <S.Thumb data-thumb style={rarityTileStyle(item.rarity)}>
+                        <CategoryFlap item={item} size="sm" testId="cart-line-flap" />
                         {detailPath ? (
                           <S.ThumbLink to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
                             {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
@@ -1402,18 +1409,6 @@ export function Cart() {
                         ) : item.thumbnail ? (
                           <img src={item.thumbnail} alt={item.name} />
                         ) : null}
-                        <S.ThumbCheck data-check aria-hidden>
-                          <svg viewBox="0 0 20 20" width="12" height="12">
-                            <path
-                              d="M5 10.5l3 3 7-7.5"
-                              fill="none"
-                              stroke="#fff"
-                              strokeWidth="2.4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </S.ThumbCheck>
                       </S.Thumb>
                       <S.Info>
                         <S.Desc data-desc>
@@ -1424,7 +1419,7 @@ export function Cart() {
                           ) : (
                             <S.Name title={item.name}>{item.name}</S.Name>
                           )}
-                          {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
+                          {item.creator ? <S.Creator address={item.creator} linkToProfile hidePrefix /> : null}
                           {/* A line with no tokenId is a fresh mint, i.e. bought straight from the creator
                               (Figma 1553-317153 "Tag-Creator") — the same rule the stepper uses to decide a
                               line supports quantity. Resales carry a tokenId and get no chip.

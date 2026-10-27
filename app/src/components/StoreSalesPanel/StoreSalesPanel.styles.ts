@@ -59,23 +59,6 @@ export const MetricBtn = styled.button`
 export const Select = styled(Dropdown)`
   > button {
     gap: 16px;
-    height: 40px;
-    padding: 4px 4px 4px 12px;
-    background: transparent;
-    border: 0.5px solid ${theme.colors.white};
-    border-radius: ${theme.radius.btn};
-    color: ${theme.colors.white};
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0;
-  }
-  > button:hover {
-    border-color: ${theme.colors.softWhite};
-    background: ${theme.colors.glassFaint};
-  }
-  > button .ico {
-    color: ${theme.colors.softWhite} !important;
   }
 `
 
