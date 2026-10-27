@@ -1427,7 +1427,7 @@ export function Cart() {
                           ) : (
                             <S.Name title={item.name}>{item.name}</S.Name>
                           )}
-                          {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
+                          {item.creator ? <S.Creator address={item.creator} linkToProfile hidePrefix /> : null}
                           {/* A line with no tokenId is a fresh mint, i.e. bought straight from the creator
                               (Figma 1553-317153 "Tag-Creator") — the same rule the stepper uses to decide a
                               line supports quantity. Resales carry a tokenId and get no chip.

@@ -27,9 +27,7 @@ const buttonBase = `
   border: 0;
   border-radius: 12px;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: background 0.15s ease;
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
@@ -41,6 +39,10 @@ const buttonBase = `
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
+  }
+  /* The dark checkout modal is painted in accent, which would hide an accent ring. */
+  ${onDark}:focus-visible {
+    outline-color: ${theme.colors.softWhite};
   }
   &:disabled {
     opacity: 0.6;
@@ -54,8 +56,14 @@ export const CreditsBtn = styled.button`
   ${buttonBase}
   background: ${theme.gradients.buyBtn};
 
-  &:hover:not(:disabled) {
-    filter: brightness(1.08);
+  /* On background-image, not background: a gradient cannot interpolate to a plain colour. */
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+    }
+  }
+  &:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
 `
 
