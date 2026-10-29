@@ -183,9 +183,11 @@ describe('when a player account is typed and the Credits are not yet', () => {
     }).toEqual({ accountValid: 'true', accountInvalid: null, creditsInvalid: null, problem: null })
   })
 
-  describe('and the Credits field is left empty', () => {
+  describe('and the Credits field is left empty for another field of the row', () => {
     beforeEach(() => {
-      fireEvent.blur(screen.getByTestId('studio-gift-credits'))
+      fireEvent.blur(screen.getByTestId('studio-gift-credits'), {
+        relatedTarget: screen.getByTestId('studio-gift-account')
+      })
     })
 
     it('should mark the Credits field, not the account, and explain it under the Credits', () => {

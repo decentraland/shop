@@ -62,15 +62,16 @@ function fieldOf(problem: RowProblem): RowField {
 
 /**
  * Whether a row's problem is shown yet. A field is judged once it (or its row) is left or holds something to judge; an
- * account still being typed is not, so a half-typed address never reads as a mistake. A missing reason is shown once the
- * rest of the row is filled in, as nothing else would say why the row cannot be reviewed.
+ * account still being typed is not, so a half-typed address never reads as a mistake. A missing reason is shown at
+ * once, as nothing else would say why the row cannot be reviewed.
  */
 function isProblemShown(problem: RowProblem, row: DraftRow, visited: (field: RowField) => boolean): boolean {
   const field = fieldOf(problem)
   if (visited(field)) return true
   if (field === 'account') return row.account.trim().length >= ADDRESS_LENGTH
   if (field === 'credits') return row.credits.trim() !== ''
-  return problem.code !== 'reasonMissing' || (row.account.trim() !== '' && row.credits.trim() !== '')
+  // A reason problem only comes up once the account and the Credits are right, so the rest of the row is filled in.
+  return true
 }
 
 function rowProblemText(problem: RowProblem): string {
@@ -425,7 +426,9 @@ export function StudioGiftModal({
                       ×
                     </S.RemoveButton>
                     {shownProblem && invalidField ? (
+                      // An alert, as it usually appears once focus has already moved on to another field.
                       <S.Problem
+                        role="alert"
                         id={problemId}
                         data-cell="problem"
                         data-field={invalidField}
