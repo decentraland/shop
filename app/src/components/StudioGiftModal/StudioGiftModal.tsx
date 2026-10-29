@@ -40,6 +40,39 @@ type Step = 'edit' | 'confirm' | 'run'
 /** A row being edited, with an id of its own so removing one never moves another's input or focus. */
 type EditRow = DraftRow & { id: number }
 
+const ROW_FIELDS = ['account', 'credits', 'reason'] as const
+
+type RowField = (typeof ROW_FIELDS)[number]
+
+const ADDRESS_LENGTH = 42
+
+/** The input a row problem belongs to, so it is marked and explained under that input and no other. */
+function fieldOf(problem: RowProblem): RowField {
+  switch (problem.code) {
+    case 'account':
+    case 'duplicate':
+      return 'account'
+    case 'credits':
+    case 'overMax':
+      return 'credits'
+    default:
+      return 'reason'
+  }
+}
+
+/**
+ * Whether a row's problem is shown yet. A field is judged once it (or its row) is left or holds something to judge; an
+ * account still being typed is not, so a half-typed address never reads as a mistake. A missing reason is shown once the
+ * rest of the row is filled in, as nothing else would say why the row cannot be reviewed.
+ */
+function isProblemShown(problem: RowProblem, row: DraftRow, visited: (field: RowField) => boolean): boolean {
+  const field = fieldOf(problem)
+  if (visited(field)) return true
+  if (field === 'account') return row.account.trim().length >= ADDRESS_LENGTH
+  if (field === 'credits') return row.credits.trim() !== ''
+  return problem.code !== 'reasonMissing' || (row.account.trim() !== '' && row.credits.trim() !== '')
+}
+
 function rowProblemText(problem: RowProblem): string {
   switch (problem.code) {
     case 'duplicate':
@@ -98,6 +131,8 @@ export function StudioGiftModal({
   const [step, setStep] = useState<Step>(pending?.rows.some(isRetryable) ? 'run' : 'edit')
   const [rows, setRows] = useState<EditRow[]>(() => [newRow()])
   const [sharedReason, setSharedReason] = useState('')
+  // Row fields the operator has left (or that came from a paste), keyed `${rowId}:${field}`.
+  const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set())
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [pasted, setPasted] = useState<Omit<PastedRows, 'rows'> | null>(null)
@@ -126,12 +161,18 @@ export function StudioGiftModal({
   const updateRow = (id: number, patch: Partial<DraftRow>) =>
     setRows(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)))
 
+  const markVisited = (keys: string[]) =>
+    setVisited(current => (keys.every(key => current.has(key)) ? current : new Set([...current, ...keys])))
+
   const addPasted = () => {
     const { rows: added, ...report } = parsePastedRows(pasteText)
     setPasted(report)
     if (added.length > 0) {
+      const fresh = added.map(row => newRow(row))
       // Pasted rows replace a lone empty row instead of following it.
-      setRows(current => [...current.filter(row => !isBlankRow(row)), ...added.map(row => newRow(row))])
+      setRows(current => [...current.filter(row => !isBlankRow(row)), ...fresh])
+      // A pasted row is finished as far as the operator is concerned, so whatever is wrong with it shows at once.
+      markVisited(fresh.flatMap(row => ROW_FIELDS.map(field => `${row.id}:${field}`)))
       setPasteText('')
       setPasteOpen(false)
     }
@@ -318,16 +359,36 @@ export function StudioGiftModal({
             <S.Rows>
               {rows.map((row, index) => {
                 const problem = check.rowProblems[index]
-                const touched = row.account !== '' || row.credits !== ''
+                const shownProblem =
+                  problem && isProblemShown(problem, row, field => visited.has(`${row.id}:${field}`)) ? problem : null
+                const invalidField = shownProblem ? fieldOf(shownProblem) : null
+                const problemId = `studio-gift-problem-${row.id}`
+                const fieldProps = (field: RowField) => ({
+                  onBlur: () => markVisited([`${row.id}:${field}`]),
+                  'aria-invalid': invalidField === field ? ('true' as const) : undefined,
+                  'aria-describedby': invalidField === field ? problemId : undefined
+                })
+                const accountValid = row.account.trim() !== '' && (!problem || fieldOf(problem) !== 'account')
                 return (
-                  <S.Row key={row.id} data-testid="studio-gift-row">
+                  <S.Row
+                    key={row.id}
+                    data-testid="studio-gift-row"
+                    onBlur={event => {
+                      // Leaving the row means it is as finished as the operator meant it, so a field left empty
+                      // is judged too: otherwise Review would stay off with nothing saying why.
+                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                        markVisited(ROW_FIELDS.map(field => `${row.id}:${field}`))
+                      }
+                    }}
+                  >
                     <S.Cell data-cell="account">
                       <S.Input
                         aria-label={t('studio.modal.account')}
                         placeholder={t('studio.modal.account')}
                         value={row.account}
                         onChange={event => updateRow(row.id, { account: event.target.value })}
-                        aria-invalid={touched && problem ? 'true' : undefined}
+                        {...fieldProps('account')}
+                        data-valid={accountValid ? 'true' : undefined}
                         data-testid="studio-gift-account"
                       />
                     </S.Cell>
@@ -338,6 +399,7 @@ export function StudioGiftModal({
                         inputMode="numeric"
                         value={row.credits}
                         onChange={event => updateRow(row.id, { credits: event.target.value })}
+                        {...fieldProps('credits')}
                         data-testid="studio-gift-credits"
                       />
                     </S.Cell>
@@ -348,6 +410,7 @@ export function StudioGiftModal({
                         maxLength={MAX_REASON_LENGTH}
                         value={row.reason}
                         onChange={event => updateRow(row.id, { reason: event.target.value })}
+                        {...fieldProps('reason')}
                       />
                     </S.Cell>
                     <S.RemoveButton
@@ -361,9 +424,14 @@ export function StudioGiftModal({
                     >
                       ×
                     </S.RemoveButton>
-                    {touched && problem ? (
-                      <S.Problem data-cell="problem" data-testid="studio-gift-problem">
-                        {rowProblemText(problem)}
+                    {shownProblem && invalidField ? (
+                      <S.Problem
+                        id={problemId}
+                        data-cell="problem"
+                        data-field={invalidField}
+                        data-testid="studio-gift-problem"
+                      >
+                        {rowProblemText(shownProblem)}
                       </S.Problem>
                     ) : null}
                   </S.Row>

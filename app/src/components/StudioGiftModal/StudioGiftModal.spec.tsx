@@ -167,6 +167,108 @@ describe('when the rows repeat recent gifts of the studio', () => {
   })
 })
 
+describe('when a player account is typed and the Credits are not yet', () => {
+  beforeEach(() => {
+    renderModal()
+    type('studio-gift-shared-reason', 'Top player')
+    type('studio-gift-account', PLAYER_A)
+  })
+
+  it('should mark the account as valid and say nothing about the Credits yet', () => {
+    expect({
+      accountValid: screen.getByTestId('studio-gift-account').getAttribute('data-valid'),
+      accountInvalid: screen.getByTestId('studio-gift-account').getAttribute('aria-invalid'),
+      creditsInvalid: screen.getByTestId('studio-gift-credits').getAttribute('aria-invalid'),
+      problem: screen.queryByTestId('studio-gift-problem')
+    }).toEqual({ accountValid: 'true', accountInvalid: null, creditsInvalid: null, problem: null })
+  })
+
+  describe('and the Credits field is left empty', () => {
+    beforeEach(() => {
+      fireEvent.blur(screen.getByTestId('studio-gift-credits'))
+    })
+
+    it('should mark the Credits field, not the account, and explain it under the Credits', () => {
+      expect({
+        accountInvalid: screen.getByTestId('studio-gift-account').getAttribute('aria-invalid'),
+        creditsInvalid: screen.getByTestId('studio-gift-credits').getAttribute('aria-invalid'),
+        problemField: screen.getByTestId('studio-gift-problem').getAttribute('data-field')
+      }).toEqual({ accountInvalid: null, creditsInvalid: 'true', problemField: 'credits' })
+    })
+  })
+
+  describe('and the operator leaves the row without going through the Credits', () => {
+    beforeEach(() => {
+      fireEvent.blur(screen.getByTestId('studio-gift-account'), {
+        relatedTarget: screen.getByTestId('studio-gift-add')
+      })
+    })
+
+    it('should say what is missing, as Review stays off', () => {
+      expect({
+        problemField: screen.getByTestId('studio-gift-problem').getAttribute('data-field'),
+        reviewEnabled: !screen.getByTestId('studio-gift-review').hasAttribute('disabled')
+      }).toEqual({ problemField: 'credits', reviewEnabled: false })
+    })
+  })
+
+  describe('and the operator moves on to the Credits', () => {
+    beforeEach(() => {
+      fireEvent.blur(screen.getByTestId('studio-gift-account'), {
+        relatedTarget: screen.getByTestId('studio-gift-credits')
+      })
+    })
+
+    it('should not call the empty Credits a mistake yet', () => {
+      expect(screen.queryByTestId('studio-gift-problem')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and the Credits are not a whole number', () => {
+    beforeEach(() => {
+      type('studio-gift-credits', '1.5')
+    })
+
+    it('should explain it under the Credits at once', () => {
+      expect(screen.getByTestId('studio-gift-problem').getAttribute('data-field')).toBe('credits')
+    })
+  })
+})
+
+describe('when a player account is still being typed', () => {
+  beforeEach(() => {
+    renderModal()
+    type('studio-gift-account', '0xa1a1')
+  })
+
+  it('should not call it a mistake until the field is left', () => {
+    const before = screen.queryByTestId('studio-gift-problem')
+    fireEvent.blur(screen.getByTestId('studio-gift-account'))
+
+    expect({
+      before,
+      after: screen.getByTestId('studio-gift-problem').getAttribute('data-field'),
+      accountInvalid: screen.getByTestId('studio-gift-account').getAttribute('aria-invalid')
+    }).toEqual({ before: null, after: 'account', accountInvalid: 'true' })
+  })
+})
+
+describe('when a pasted line has a cut-short account', () => {
+  beforeEach(() => {
+    renderModal()
+    type('studio-gift-shared-reason', 'Top player')
+    fireEvent.click(screen.getByTestId('studio-gift-paste-toggle'))
+    type('studio-gift-paste', `${PLAYER_A}, 100\n0xb2b2, 50`)
+    fireEvent.click(screen.getByTestId('studio-gift-paste-add'))
+  })
+
+  it('should show the problem on that row at once, without waiting for the field to be left', () => {
+    expect(screen.getAllByTestId('studio-gift-problem').map(problem => problem.getAttribute('data-field'))).toEqual([
+      'account'
+    ])
+  })
+})
+
 describe('when a row is added and left blank', () => {
   it('should leave it out of the gifts instead of blocking the review', () => {
     renderModal()
