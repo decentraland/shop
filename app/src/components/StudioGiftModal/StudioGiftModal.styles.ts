@@ -188,6 +188,9 @@ const field = `
   &:focus-visible {
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
   }
+  &[data-valid='true'] {
+    border-color: ${colors.successBorder};
+  }
   &[aria-invalid='true'] {
     border-color: ${colors.dclRed};
   }
@@ -218,9 +221,16 @@ export const Row = styled.li`
   gap: 8px;
   align-items: start;
 
+  /* A problem sits under the field it is about. */
   & > [data-cell='problem'] {
     grid-column: 1 / -1;
     margin-top: -4px;
+  }
+  & > [data-field='credits'] {
+    grid-column: 2 / -1;
+  }
+  & > [data-field='reason'] {
+    grid-column: 3 / -1;
   }
 
   ${media.maxWidth('mobile')} {
@@ -228,7 +238,8 @@ export const Row = styled.li`
     padding-bottom: 10px;
     border-bottom: 1px solid ${hairline};
 
-    & > [data-cell='account'] {
+    & > [data-cell='account'],
+    & > [data-cell='problem'] {
       grid-column: 1 / -1;
     }
   }
