@@ -54,7 +54,14 @@ export const calendarPopup = `
     color: ${ink.text};
     border-radius: 8px;
   }
-  .react-datepicker__day:hover {
+  /* The filled days keep their own fill: hover would swap it for a faint one under the same dark ink. */
+  .react-datepicker__day:hover:not(
+      .react-datepicker__day--selected,
+      .react-datepicker__day--keyboard-selected,
+      .react-datepicker__day--range-start,
+      .react-datepicker__day--range-end,
+      .react-datepicker__day--selecting-range-start
+    ) {
     background: ${ink.hover};
   }
   .react-datepicker__day--selected,

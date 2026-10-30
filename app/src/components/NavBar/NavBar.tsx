@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router
 import * as Sentry from '@sentry/react'
 import { Network } from '@dcl/schemas'
 import { Experimental_CssVarsProvider as CssVarsProvider } from '@mui/material/styles'
-import { dark as ui2Dark } from 'decentraland-ui2/dist/theme'
+import { light as ui2Light } from 'decentraland-ui2/dist/theme'
 import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
@@ -377,7 +377,7 @@ export function NavBar() {
                  formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
                  instead of white-screening the whole navbar/app. */}
               <Sentry.ErrorBoundary fallback={<></>}>
-                <CssVarsProvider theme={ui2Dark} defaultMode="dark">
+                <CssVarsProvider theme={ui2Light} defaultMode="light">
                   <Suspense fallback={null}>
                     <NotificationsBell />
                   </Suspense>

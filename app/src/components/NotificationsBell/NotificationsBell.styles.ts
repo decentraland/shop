@@ -161,6 +161,15 @@ export const Item = styled.div`
   &:hover {
     background: ${colors.glass};
   }
+
+  /* ui2's bid and royalty rows paint their amount in its light theme's secondary ink, which vanishes on this
+     panel. The row is ui2's own, so the amount is reached through MUI's stable class. */
+  & .MuiButtonBase-root {
+    color: ${colors.glassText};
+  }
+  & .MuiButtonBase-root svg path {
+    fill: currentColor;
+  }
 `
 
 export const Empty = styled.div`

@@ -50,27 +50,29 @@ export const darkCard = `
     color: ${colors.softWhite};
   }
 
-  && [data-variant='outline'],
-  && [data-variant='white'] {
+  /* Scoped to buttons and links: other components use data-variant for their own variants. */
+
+  && :is(button, a)[data-variant='outline'],
+  && :is(button, a)[data-variant='white'] {
     background: transparent;
     border: 0.5px solid ${colors.softWhite};
     color: ${colors.softWhite};
   }
-  && [data-variant='outline']:hover:not(:disabled),
-  && [data-variant='outline']:active:not(:disabled),
-  && [data-variant='white']:hover:not(:disabled),
-  && [data-variant='white']:active:not(:disabled) {
+  && :is(button, a)[data-variant='outline']:hover:not(:disabled),
+  && :is(button, a)[data-variant='outline']:active:not(:disabled),
+  && :is(button, a)[data-variant='white']:hover:not(:disabled),
+  && :is(button, a)[data-variant='white']:active:not(:disabled) {
     background: ${colors.glassFaint};
     border-color: ${colors.softWhite};
     color: ${colors.softWhite};
   }
-  && [data-variant='ghost'] {
+  && :is(button, a)[data-variant='ghost'] {
     background: transparent;
     border: 1px solid ${dark.hairline};
     color: ${colors.softWhite};
   }
-  && [data-variant='ghost']:hover:not(:disabled),
-  && [data-variant='ghost']:active:not(:disabled) {
+  && :is(button, a)[data-variant='ghost']:hover:not(:disabled),
+  && :is(button, a)[data-variant='ghost']:active:not(:disabled) {
     background: ${colors.glassFaint};
   }
 `
