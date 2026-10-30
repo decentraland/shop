@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { calendarPopup } from '~/styles/datePicker'
+import { dark, darkCard, darkField } from '~/styles/darkSurface'
 
 export const Root = styled.div`
   position: absolute;
@@ -10,9 +11,8 @@ export const Root = styled.div`
   display: flex;
   flex-direction: column;
   max-width: calc(100vw - 32px);
-  background: ${theme.colors.white};
+  ${darkCard}
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(22, 21, 24, 0.24);
   overflow: hidden;
 
   ${calendarPopup}
@@ -33,12 +33,13 @@ export const Root = styled.div`
   .react-datepicker {
     border: 0;
     box-shadow: none;
+    background: transparent;
     border-radius: 0;
     display: flex;
     justify-content: center;
   }
   .react-datepicker__month-container + .react-datepicker__month-container {
-    border-left: 1px solid rgba(22, 21, 24, 0.1);
+    border-left: 1px solid ${dark.hairline};
   }
   .react-datepicker__day {
     width: 2rem;
@@ -48,15 +49,15 @@ export const Root = styled.div`
   }
   .react-datepicker__day--in-range,
   .react-datepicker__day--in-selecting-range {
-    background: rgba(105, 31, 169, 0.12);
-    color: ${theme.colors.text};
+    background: ${theme.colors.glassStrong};
+    color: ${theme.colors.softWhite};
   }
   .react-datepicker__day--range-start,
   .react-datepicker__day--range-end,
   .react-datepicker__day--selecting-range-start,
   .react-datepicker__day--selected {
-    background: ${theme.colors.accent};
-    color: ${theme.colors.white};
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.fieldBottomWashed};
   }
   .react-datepicker__day--range-start,
   .react-datepicker__day--selecting-range-start {
@@ -76,21 +77,24 @@ export const Root = styled.div`
     select {
       height: 28px;
       padding: 0 6px;
-      border: 1px solid rgba(22, 21, 24, 0.16);
+      ${darkField}
       border-radius: 8px;
-      background: ${theme.colors.white};
-      color: ${theme.colors.text};
       font-family: ${theme.font.sans};
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
     }
+    /* The native option list is drawn by the OS on a light sheet, so its rows keep dark ink. */
+    option {
+      background: ${theme.colors.white};
+      color: ${theme.colors.text};
+    }
     select:focus-visible {
-      outline: 2px solid ${theme.colors.accent};
+      outline: 2px solid ${theme.colors.softWhite};
       outline-offset: 1px;
     }
     .react-datepicker__navigation:focus-visible {
-      outline: 2px solid ${theme.colors.accent};
+      outline: 2px solid ${theme.colors.softWhite};
       outline-offset: -2px;
     }
 
@@ -132,7 +136,7 @@ export const Presets = styled.div`
   flex: none;
   min-width: 132px;
   padding: 10px 8px;
-  border-right: 1px solid rgba(22, 21, 24, 0.1);
+  border-right: 1px solid ${dark.hairline};
 
   ${theme.media.maxWidth('sm')} {
     flex-direction: row;
@@ -140,7 +144,7 @@ export const Presets = styled.div`
     gap: 6px;
     min-width: 0;
     border-right: 0;
-    border-bottom: 1px solid rgba(22, 21, 24, 0.1);
+    border-bottom: 1px solid ${dark.hairline};
   }
 `
 
@@ -150,7 +154,7 @@ export const Preset = styled.button`
   border: 0;
   border-radius: ${theme.radius.btn};
   background: transparent;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-size: 13px;
   font-weight: 600;
@@ -159,20 +163,19 @@ export const Preset = styled.button`
   cursor: pointer;
 
   &:hover {
-    background: rgba(105, 31, 169, 0.08);
+    background: ${theme.colors.glassFaint};
   }
   &[aria-pressed='true'] {
-    background: ${theme.colors.accent};
-    color: ${theme.colors.white};
+    background: ${theme.colors.glassStrong};
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 
   ${theme.media.maxWidth('sm')} {
     min-height: 44px;
-    border: 1px solid rgba(105, 31, 169, 0.24);
+    border: 1px solid ${dark.hairline};
     border-radius: ${theme.radius.pill};
   }
 `
@@ -183,10 +186,10 @@ export const Foot = styled.div`
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border-top: 1px solid rgba(22, 21, 24, 0.1);
+  border-top: 0.5px solid ${dark.rule};
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.glassText};
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 12px;
@@ -202,17 +205,20 @@ export const Btn = styled.button`
   min-height: 36px;
   padding: 0 14px;
   border-radius: ${theme.radius.btn};
-  border: 1px solid rgba(22, 21, 24, 0.16);
-  background: ${theme.colors.white};
-  color: ${theme.colors.text};
+  border: 0.5px solid ${theme.colors.softWhite};
+  background: transparent;
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 
+  &:not([data-variant='primary']):hover:not(:disabled) {
+    background: ${theme.colors.glassFaint};
+  }
   &[data-variant='primary'] {
-    border-color: ${theme.colors.accent};
-    background: ${theme.colors.accent};
+    border-color: transparent;
+    background: ${theme.gradients.buyBtn};
     color: ${theme.colors.white};
   }
   &:disabled {
@@ -220,7 +226,7 @@ export const Btn = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `

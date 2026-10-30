@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { Modal as BaseModal } from '~/styles/modal.styles'
+import { dark } from '~/styles/darkSurface'
 
 const { colors, gradients, radius } = theme
 
@@ -17,7 +18,7 @@ export const Modal = styled(BaseModal)`
 export const Progress = styled.div`
   height: 6px;
   border-radius: 999px;
-  background: ${colors.line};
+  background: ${dark.hairline};
   overflow: hidden;
   margin: 6px 0 14px;
 `
@@ -71,7 +72,7 @@ export const Thumb = styled.span`
   height: 34px;
   border-radius: ${radius.btn};
   overflow: hidden;
-  background: ${colors.media};
+  background: ${dark.raised};
   display: grid;
   place-items: center;
 
@@ -93,13 +94,13 @@ export const Name = styled.span`
 export const Price = styled.span`
   font-weight: 700;
   font-size: 13px;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 `
 
 export const Status = styled.span`
   font-size: 12px;
   font-weight: 700;
-  color: ${colors.accent};
+  color: ${colors.nameLink};
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -108,19 +109,19 @@ export const Status = styled.span`
 `
 
 export const Wait = styled.span`
-  color: ${colors.muted2};
+  color: ${colors.glassText};
   font-weight: 600;
 `
 
 export const Skip = styled.span`
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-weight: 600;
 `
 
 // A row that FAILED, as against one the seller declined: the same slot, in the error red, so the two
 // don't read as the same outcome.
 export const Fail = styled.span`
-  color: ${colors.errStrong};
+  color: ${dark.errorText};
   font-weight: 600;
 `
 

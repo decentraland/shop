@@ -1,73 +1,88 @@
 import { theme } from '~/styles/theme'
+import { dark } from '~/styles/darkSurface'
+
+const { colors } = theme
+
+const ink = {
+  text: colors.softWhite,
+  bg: colors.fieldBottomWashed,
+  edge: dark.hairline,
+  shadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+  quiet: colors.glassText,
+  hover: colors.glassFaint,
+  selected: colors.softWhite,
+  selectedText: colors.fieldBottomWashed,
+  link: colors.nameLink
+}
 
 /**
- * The Shop's calendar, as a fragment to interpolate into whatever wraps a react-datepicker.
- *
- * The library ships its own CSS (imported once per consumer) drawn for a different product; this repaints
- * the popup white and on-brand. It lives here rather than in one modal's styles because two modals now
- * open a calendar, and a seller meeting one treatment in the sell flow and another in the discount flow
- * would be reading two different products.
- *
- * Only the POPUP. The field itself stays with its own component: a date field is sized by the row it sits
- * in, and those rows disagree — one is a full-width input, the other a chip in a wrapping row.
+ * The Shop's calendar, as a fragment to interpolate into whatever wraps a react-datepicker: the library ships CSS
+ * drawn for a different product, and every Shop calendar should read as the same one. Only the popup; the field
+ * stays with its own component.
  */
 export const calendarPopup = `
-  /* ---- Calendar popup: white / on-brand (override react-datepicker defaults) ---- */
   .react-datepicker-popper {
     z-index: 40;
   }
   .react-datepicker {
     font-family: ${theme.font.sans};
     font-size: 13px;
-    color: ${theme.colors.text};
-    background: ${theme.colors.white};
-    border: 1px solid rgba(22, 21, 24, 0.1);
+    color: ${ink.text};
+    background: ${ink.bg};
+    border: 1px solid ${ink.edge};
     border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(22, 21, 24, 0.14);
+    box-shadow: ${ink.shadow};
     overflow: hidden;
   }
   .react-datepicker__triangle {
     display: none;
   }
   .react-datepicker__header {
-    background: ${theme.colors.white};
-    border-bottom: 1px solid rgba(22, 21, 24, 0.1);
+    background: ${ink.bg};
+    border-bottom: 1px solid ${ink.edge};
     padding-top: 12px;
   }
   .react-datepicker__current-month {
-    color: ${theme.colors.text};
+    color: ${ink.text};
     font-weight: 600;
     font-size: 14px;
   }
   .react-datepicker__day-name {
-    color: ${theme.colors.muted2};
+    color: ${ink.quiet};
   }
   .react-datepicker__day {
-    color: ${theme.colors.text};
+    color: ${ink.text};
     border-radius: 8px;
   }
-  .react-datepicker__day:hover {
-    background: rgba(105, 31, 169, 0.1);
+  /* The filled days keep their own fill: hover would swap it for a faint one under the same dark ink. */
+  .react-datepicker__day:hover:not(
+      .react-datepicker__day--selected,
+      .react-datepicker__day--keyboard-selected,
+      .react-datepicker__day--range-start,
+      .react-datepicker__day--range-end,
+      .react-datepicker__day--selecting-range-start
+    ) {
+    background: ${ink.hover};
   }
   .react-datepicker__day--selected,
   .react-datepicker__day--keyboard-selected {
-    background: ${theme.colors.accent};
-    color: ${theme.colors.white};
+    background: ${ink.selected};
+    color: ${ink.selectedText};
   }
   .react-datepicker__day--today {
     font-weight: 700;
   }
   .react-datepicker__day--disabled {
-    color: ${theme.colors.muted2};
+    color: ${ink.quiet};
     opacity: 0.5;
   }
   .react-datepicker__navigation-icon::before {
-    border-color: ${theme.colors.accent};
+    border-color: ${ink.link};
   }
   .react-datepicker__today-button {
-    background: ${theme.colors.white};
-    border-top: 1px solid rgba(22, 21, 24, 0.1);
-    color: ${theme.colors.accent};
+    background: ${ink.bg};
+    border-top: 1px solid ${ink.edge};
+    color: ${ink.link};
     font-weight: 600;
     padding: 10px;
   }

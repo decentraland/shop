@@ -197,7 +197,12 @@ function ResellerRow({
             ) : isLegacy ? (
               // Legacy (MANA) resale: Buy-only via the market/credits checkout (no cart — the cart
               // assumes fixed credit prices; a MANA line's price floats with the rate).
-              <S.BuyBtn onClick={onBuyLegacy} aria-label={t('assetCard.buyNow')} data-testid="resale-buy">
+              <S.BuyBtn
+                variant="primary"
+                onClick={onBuyLegacy}
+                aria-label={t('assetCard.buyNow')}
+                data-testid="resale-buy"
+              >
                 {t('resales.buy')}
               </S.BuyBtn>
             ) : (
@@ -205,6 +210,7 @@ function ResellerRow({
               // accessible name.
               <>
                 <S.AddBtn
+                  variant="outline"
                   onClick={onAdd}
                   disabled={inCart}
                   aria-label={inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
@@ -213,7 +219,12 @@ function ResellerRow({
                   <Icon name="cart" className="ico" />
                   <span>{inCart ? t('assetCard.inCart') : t('resales.add')}</span>
                 </S.AddBtn>
-                <S.BuyBtn onClick={onBuyNative} aria-label={t('assetCard.buyNow')} data-testid="resale-buy">
+                <S.BuyBtn
+                  variant="primary"
+                  onClick={onBuyNative}
+                  aria-label={t('assetCard.buyNow')}
+                  data-testid="resale-buy"
+                >
                   {t('resales.buy')}
                 </S.BuyBtn>
               </>

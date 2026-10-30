@@ -109,7 +109,7 @@ export function AuthorizeStep({
           <S.OutlineBtn type="button" onClick={onCancel} disabled={busy}>
             {t('authorizeStep.cancel')}
           </S.OutlineBtn>
-          <S.PurpleBtn
+          <S.PrimaryBtn
             type="button"
             data-testid="authorize-step-action"
             onClick={() => void authorize()}
@@ -123,7 +123,7 @@ export function AuthorizeStep({
             ) : (
               t('authorizeStep.authorize')
             )}
-          </S.PurpleBtn>
+          </S.PrimaryBtn>
         </S.Actions>
       </S.Card>
     </S.Scrim>

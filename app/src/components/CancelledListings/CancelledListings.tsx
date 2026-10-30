@@ -103,7 +103,7 @@ export function CancelledListings({
                   href={target.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  variant="outline"
+                  variant="glass"
                   size="sm"
                   data-testid="cancelled-listings-action"
                   data-target="marketplace"

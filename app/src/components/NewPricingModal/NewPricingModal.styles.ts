@@ -1,10 +1,9 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { Button } from '~/components/Button'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 const { colors, font, radius, z } = theme
-
-// Mirrors the modal shell shared by the Issue / Sell / Primary-list modals (white 16px card, header
-// with a close, purple ctas) rather than importing from them, per the convention those files set.
 
 export const Scrim = styled.div`
   position: fixed;
@@ -24,9 +23,8 @@ export const Card = styled.div`
   max-height: 100%;
   overflow-y: auto;
   padding: 12px 16px 16px;
+  ${darkCard}
   border-radius: ${radius.modal};
-  background: ${colors.white};
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -44,7 +42,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -52,7 +50,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -66,7 +64,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   .ico {
     width: 100%;
@@ -79,7 +77,7 @@ export const Close = styled.button`
     inset: -11px;
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.white};
     outline-offset: 2px;
   }
 `
@@ -87,7 +85,8 @@ export const Close = styled.button`
 export const Info = styled.div`
   padding: 16px;
   border-radius: ${radius.modal};
-  background: ${colors.infoGreen};
+  border: 1px solid rgba(52, 206, 119, 0.45);
+  background: rgba(52, 206, 119, 0.12);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -98,7 +97,7 @@ export const InfoTitle = styled.h3`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.57;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const InfoText = styled.p`
@@ -106,7 +105,7 @@ export const InfoText = styled.p`
   font-weight: 500;
   font-size: 14px;
   line-height: 1.334;
-  color: ${colors.text2};
+  color: ${colors.glassText};
 `
 
 export const Foot = styled.div`
@@ -121,8 +120,8 @@ export const Ctas = styled.div`
   gap: 12px;
 `
 
-// Solid purple fill and a hairline dark outline at a 12px radius, drawn here rather than through the shared
-// Button variants because this modal keeps its own purple treatment.
+// Sizing only: the colours are the shared Button variants (primary gradient; outline, which the dark card
+// redraws as a light hairline).
 const cta = `
   flex: 1 1 0;
   min-width: 0;
@@ -134,47 +133,21 @@ const cta = `
   padding: 0 12px;
   border-radius: ${radius.card};
   font-family: ${font.sans};
-  font-weight: 600;
-  font-size: 13px;
   line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
 
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.white};
     outline-offset: 2px;
   }
 `
 
-// The dismissal is drawn as a plain outlined button — a 0.5px dark hairline and dark label, not a second
-// purple one. Only UPDATE PRICES wears the accent, which is what makes it the obvious of the two.
-export const Secondary = styled.button`
+export const Secondary = styled(Button)`
   ${cta};
-  border: 0.5px solid ${colors.text};
-  background: ${colors.white};
-  color: ${colors.text2};
-
-  &:hover {
-    background: ${colors.panel};
-  }
 `
 
-export const Primary = styled.button`
+export const Primary = styled(Button)`
   ${cta};
-  border: 0;
-  background: ${colors.accent};
-  color: ${colors.softWhite};
-
-  &:hover {
-    background: ${colors.accentHover};
-  }
-  &:active {
-    background: ${colors.accentActive};
-  }
 `
 
 export const OptOut = styled.label`
@@ -183,7 +156,7 @@ export const OptOut = styled.label`
   justify-content: center;
   font-size: 14.049px;
   line-height: normal;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
 `
 
@@ -198,5 +171,15 @@ export const OptOutBox = styled.span`
 
   & input {
     --box: 13.714px;
+    border-color: ${colors.glassText};
+    background: transparent;
+  }
+  /* The accent fill would sink into the card, so a ticked box is soft-white with a card-coloured tick. */
+  & input:checked {
+    border-color: ${colors.softWhite};
+    background: ${colors.softWhite};
+  }
+  & input:checked::before {
+    border-color: ${colors.fieldBottomWashed};
   }
 `

@@ -193,6 +193,7 @@ export function PrimaryListModal({
     return (
       <S.Scrim onClick={onClose} role="presentation">
         <S.Card
+          data-surface="dark"
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -220,8 +221,12 @@ export function PrimaryListModal({
             </S.SuccessDetail>
           </S.SuccessBanner>
           <S.Actions>
-            <S.OutlineBtn onClick={onClose}>{t('getCredits.done')}</S.OutlineBtn>
-            <S.PurpleBtn onClick={viewInShop}>{t('primaryList.viewInShop')}</S.PurpleBtn>
+            <S.ActionBtn variant="outline" onClick={onClose}>
+              {t('getCredits.done')}
+            </S.ActionBtn>
+            <S.ActionBtn variant="primary" onClick={viewInShop}>
+              {t('primaryList.viewInShop')}
+            </S.ActionBtn>
           </S.Actions>
         </S.Card>
       </S.Scrim>
@@ -232,6 +237,7 @@ export function PrimaryListModal({
     return (
       <S.Scrim role="presentation">
         <S.Card
+          data-surface="dark"
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -253,6 +259,7 @@ export function PrimaryListModal({
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
       <S.Card
+        data-surface="dark"
         data-testid="modal"
         onClick={e => e.stopPropagation()}
         role="dialog"
@@ -332,6 +339,7 @@ export function PrimaryListModal({
         <ErrorNotice message={error} />
 
         <S.PrimaryBtn
+          variant="primary"
           onClick={() => void publish()}
           disabled={busy || unchanged || cancelFailed === 'pending' || enabled === null || !priceValid}
           data-testid="list-submit"

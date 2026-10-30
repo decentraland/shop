@@ -328,7 +328,7 @@ export function SearchDropdown({
                     {...option(suggestionRowId('recent', term))}
                     onClick={() => activate(suggestionRowId('recent', term), 'click')}
                   >
-                    <Icon name="search" size={16} color={theme.colors.muted} />
+                    <Icon name="search" size={16} color={theme.colors.glassText} />
                     <S.RecentText>{term}</S.RecentText>
                   </S.RecentBtn>
                 ))}

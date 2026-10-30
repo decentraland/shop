@@ -276,7 +276,7 @@ export function ImportListings({ hideWhenDone = false }: { hideWhenDone?: boolea
 
         <S.ListBlock>
           <S.SelectAll>
-            <S.CheckSlot data-tone="on-dark">
+            <S.CheckSlot>
               <F.Checkbox
                 type="checkbox"
                 checked={allSelected}

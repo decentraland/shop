@@ -426,7 +426,13 @@ export function NameBuyModal({
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
-      <S.Card role="dialog" aria-modal="true" aria-label={headTitle} onClick={e => e.stopPropagation()}>
+      <S.Card
+        data-surface="dark"
+        role="dialog"
+        aria-modal="true"
+        aria-label={headTitle}
+        onClick={e => e.stopPropagation()}
+      >
         {showHead && (
           <>
             <S.HeadRow>
@@ -436,7 +442,8 @@ export function NameBuyModal({
               </S.Close>
             </S.HeadRow>
             <S.Balance>
-              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+              <span data-label>{t('names.myCreditsBalance')}</span> <CurrencyIcon />{' '}
+              {balanceLabel(balance, balanceError)}
             </S.Balance>
             <S.Divider />
           </>
@@ -644,7 +651,8 @@ export function NameBuyModal({
               </S.Close>
             </S.HeadRow>
             <S.Balance>
-              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+              <span data-label>{t('names.myCreditsBalance')}</span> <CurrencyIcon />{' '}
+              {balanceLabel(balance, balanceError)}
             </S.Balance>
             <S.Divider />
 
@@ -692,7 +700,8 @@ export function NameBuyModal({
               </S.Close>
             </S.HeadRow>
             <S.Balance>
-              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+              <span data-label>{t('names.myCreditsBalance')}</span> <CurrencyIcon />{' '}
+              {balanceLabel(balance, balanceError)}
             </S.Balance>
             <S.Divider />
 

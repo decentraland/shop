@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { darkCard } from '~/styles/darkSurface'
 
 const { colors, radius, font } = theme
 
@@ -62,11 +63,9 @@ export const Panel = styled.div`
   z-index: ${theme.z.tooltip};
   width: 268px;
   padding: 14px;
+  ${darkCard}
   border-radius: ${radius.modal};
-  background: ${colors.white};
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   font-family: ${font.sans};
-  color: ${colors.blackBtn};
   text-align: left;
 `
 
@@ -92,6 +91,5 @@ export const Caveat = styled.p`
   margin: 0;
   font-size: 12px;
   line-height: 1.4;
-  color: ${colors.blackBtn};
-  opacity: 0.65;
+  color: ${colors.glassText};
 `
