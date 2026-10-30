@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ProviderType } from '@dcl/schemas'
+// The real class, so renaming it breaks this test rather than silently returning the bucket to `unknown`.
+// Rewording its message deliberately breaks nothing: that is the point of matching on `name`.
+import { NameRouteExpiredError } from '~/lib/names'
 import {
   track,
   trackPage,
@@ -176,6 +179,16 @@ describe('analytics wrapper', () => {
     expect(errorCode({ message: 'insufficient credits' })).toBe('insufficient_credits')
     expect(errorCode({ message: 'boom' })).toBe('unknown')
     expect(isUserRejection({ message: 'boom' })).toBe(false)
+  })
+
+  /**
+   * Built from the real class, not a hand-written shape: this bucket is the only signal that says whether
+   * the NAME rail's quote-expiry margin is set right, so a rename or a reworded message has to fail here
+   * rather than quietly returning the rate to `unknown` where nobody would notice it went missing.
+   */
+  it('errorCode gives the NAME quote expiry its own bucket', () => {
+    expect(errorCode(new NameRouteExpiredError())).toBe('route_expired')
+    expect(isUserRejection(new NameRouteExpiredError())).toBe(false)
   })
 
   it('trackPage sends the Shop Viewed Page event with the page prop', () => {
