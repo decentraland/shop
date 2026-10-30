@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { ChainId, getChainName } from '@dcl/schemas'
+import { config } from '~/config'
 
 /**
  * The wallet's network: reading it, and CHANGING it only when the user asked for that.
@@ -66,6 +67,22 @@ export async function activeChainId(provider: ethers.providers.Web3Provider): Pr
   // worse than not answering, since a wrong chain here means submitting to a contract that holds no code.
   if (!Number.isFinite(parsed)) throw new Error(`Wallet answered eth_chainId with an unusable value: ${String(raw)}`)
   return parsed
+}
+
+/**
+ * The read-only RPC for a chain.
+ *
+ * MANA is deployed on both Polygon and Ethereum at DIFFERENT addresses, so a contract's chain and the RPC
+ * it is queried over must always agree: resolving the L1 address and then calling it over the Polygon RPC
+ * hits an address that holds no such contract there. A `balanceOf` answers 0 — a wrong balance rather than
+ * an error — and an `allowance` returns `0x`, which ethers cannot decode and surfaces as a revert.
+ */
+export function rpcUrlForChain(chainId: number): string {
+  // Coerced, and NaN-safe on purpose: `config.chainId` is a plain number while callers pass the `ChainId`
+  // enum, and an undefined on either side must fall to the settlement RPC rather than match an undefined
+  // `ethereumChainId` and answer with an undefined URL.
+  const ethereum = Number(config.ethereumChainId)
+  return Number.isFinite(ethereum) && Number(chainId) === ethereum ? config.ethereumRpcUrl : config.rpcUrl
 }
 
 /**
