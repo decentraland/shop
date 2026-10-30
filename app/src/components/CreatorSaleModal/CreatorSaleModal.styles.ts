@@ -189,6 +189,28 @@ export const Search = styled.label`
   }
 `
 
+export const SearchClear = styled.button`
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: ${colors.glass};
+  color: ${colors.softWhite};
+  cursor: pointer;
+
+  &:hover {
+    background: ${colors.glassHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.softWhite};
+    outline-offset: 2px;
+  }
+`
+
 /** The choose-a-collection step: the same row, made clickable. */
 export const PickList = styled.div`
   display: flex;

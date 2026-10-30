@@ -104,9 +104,6 @@ export const Search = styled.label`
     &::placeholder {
       color: ${colors.glassText};
     }
-    &::-webkit-search-cancel-button {
-      display: none;
-    }
   }
 `
 

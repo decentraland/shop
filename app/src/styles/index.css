@@ -197,6 +197,13 @@ button {
   font-family: inherit;
   cursor: pointer;
 }
+/* Chrome and Safari draw a blue clear button in every search field. It ignores our field colours and would
+   duplicate the clear button each field draws for itself. */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
 h1,
 h2 {
   margin: 0;

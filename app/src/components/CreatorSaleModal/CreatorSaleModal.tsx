@@ -661,6 +661,16 @@ export function CreatorSaleModal({
                 aria-label={t('creatorSale.searchCollections')}
                 data-testid="creator-sale-pick-search"
               />
+              {query ? (
+                <S.SearchClear
+                  type="button"
+                  aria-label={t('search.clear')}
+                  onClick={() => setQuery('')}
+                  data-testid="creator-sale-pick-search-clear"
+                >
+                  <Icon name="close" size={12} aria-hidden />
+                </S.SearchClear>
+              ) : null}
             </S.Search>
           ) : null}
           {choices.length >= SEARCH_FROM ? (
