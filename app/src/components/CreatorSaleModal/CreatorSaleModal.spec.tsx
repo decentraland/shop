@@ -257,3 +257,38 @@ describe('when the creator lingers on the review before signing', () => {
     clock.mockRestore()
   })
 })
+
+describe('when the creator searches a long list of collections', () => {
+  const many: SaleableCollection[] = Array.from({ length: 8 }, (_, i) => ({
+    ...collection,
+    contractAddress: '0x' + String(i).repeat(40).slice(0, 40),
+    name: `Collection ${i}`
+  }))
+
+  function openPicker() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <CreatorSaleModal session={session} collections={many} onClose={vi.fn()} source="my_store" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  it('should offer no clear button while the search is empty', () => {
+    openPicker()
+    expect(screen.queryByTestId('creator-sale-pick-search-clear')).toBeNull()
+  })
+
+  it('should clear the search from its own button once something is typed', () => {
+    openPicker()
+    const input = screen.getByTestId<HTMLInputElement>('creator-sale-pick-search')
+    fireEvent.change(input, { target: { value: 'Collection 3' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+    expect(input.value).toBe('')
+    expect(screen.queryByTestId('creator-sale-pick-search-clear')).toBeNull()
+  })
+})
