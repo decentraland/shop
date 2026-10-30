@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 const { colors, radius, media, font } = theme
 
@@ -95,10 +96,8 @@ export const Panel = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: ${colors.white};
-  border: 1px solid ${colors.line};
+  ${darkCard}
   border-radius: ${radius.card};
-  box-shadow: 0 8px 32px rgba(22, 21, 24, 0.18);
   font-family: ${font.sans};
   animation: ${slideDown} 0.15s ease;
 
@@ -129,13 +128,13 @@ export const Header = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid ${colors.line};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.span`
   font-size: 18px;
   font-weight: 600;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const List = styled.div`
@@ -150,17 +149,17 @@ export const List = styled.div`
 // One row per notification, newest first. The inner content (icon, title, body with its links, relative
 // timestamp and the unread dot) is decentraland-ui2's per-type renderer, shared with the marketplace.
 export const Item = styled.div`
-  border-bottom: 1px solid ${colors.line};
+  border-bottom: 1px solid ${dark.hairline};
   transition: background 0.12s ease;
 
   &:last-of-type {
     border-bottom: 0;
   }
   &[data-unread='true'] {
-    background: ${colors.promptLilac};
+    background: ${colors.glassFaint};
   }
   &:hover {
-    background: ${colors.media};
+    background: ${colors.glass};
   }
 `
 
@@ -169,7 +168,7 @@ export const Empty = styled.div`
   align-items: center;
   justify-content: center;
   padding: 40px 24px;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-size: 15px;
   text-align: center;
 `

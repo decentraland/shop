@@ -1,17 +1,18 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CollectionThumb } from '~/components/CollectionThumb'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 const { colors, radius, media } = theme
 
-const hover = '#f5f4f7'
+const hover = colors.glassFaint
 
 // The keyboard's row looks like the hovered one, plus a ring: hover alone would leave a keyboard user with
 // no way to tell where they are once the pointer rests on another row.
 const active = `
   &[data-active] {
     background: ${hover};
-    box-shadow: inset 0 0 0 2px ${colors.accent};
+    box-shadow: inset 0 0 0 2px ${colors.softWhite};
   }
 `
 
@@ -23,10 +24,8 @@ export const Pop = styled.div`
   left: 0;
   right: 0;
   z-index: 60;
-  background: ${colors.white};
-  border: 1px solid ${colors.line};
+  ${darkCard}
   border-radius: ${radius.card};
-  box-shadow: 0 14px 36px rgba(20, 20, 30, 0.18);
   padding: 8px;
   animation: cart-pop-in 0.16s ease;
   max-height: min(70vh, 560px);
@@ -101,10 +100,10 @@ export const Chips = styled.div`
 export const Chip = styled.button`
   height: 36px;
   padding: 0 14px;
-  border: 1px solid ${colors.line};
+  border: 1px solid ${dark.hairline};
   border-radius: ${radius.pill};
-  background: ${colors.white};
-  color: ${colors.text};
+  background: ${dark.raised};
+  color: ${colors.softWhite};
   font-size: 14px;
   cursor: pointer;
 
@@ -123,13 +122,13 @@ export const SectionHead = styled.div`
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: ${colors.muted};
+  color: ${colors.glassText};
 `
 
 export const Clear = styled.button`
   background: none;
   border: 0;
-  color: ${colors.accent};
+  color: ${colors.nameLink};
   font-weight: 600;
   font-size: 12px;
   cursor: pointer;
@@ -151,6 +150,7 @@ export const Row = styled.button`
   border: 0;
   padding: 8px 10px;
   border-radius: 10px;
+  color: ${colors.softWhite};
   text-align: left;
   cursor: pointer;
 
@@ -165,7 +165,7 @@ export const Thumb = styled.span`
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: ${colors.media};
+  background: ${dark.raised};
   overflow: hidden;
 
   & img {
@@ -187,7 +187,7 @@ export const Thumb = styled.span`
   &[data-variant='icon'] .ico {
     width: 18px;
     height: 18px;
-    color: ${colors.muted};
+    color: ${colors.glassText};
   }
 `
 
@@ -225,7 +225,7 @@ export const Name = styled.span`
 export const Sub = styled.span`
   min-width: 0;
   font-size: 12px;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -252,23 +252,25 @@ export const SeeAll = styled.button`
   margin-bottom: -8px;
   padding: 10px 10px 18px;
   border: 0;
-  border-top: 1px solid ${colors.line};
-  background: ${colors.white};
-  color: ${colors.accent};
+  border-top: 1px solid ${dark.hairline};
+  background: ${colors.fieldBottomWashed};
+  color: ${colors.nameLink};
   font-weight: 700;
   font-size: 13px;
   text-align: center;
   cursor: pointer;
 
-  &:hover {
-    background: ${hover};
-  }
   ${active}
+  /* Rows scroll under this bar, so its hover has to stay opaque: the glass laid over the card's own colour. */
+  &:hover,
+  &[data-active] {
+    background: linear-gradient(${hover}, ${hover}), ${colors.fieldBottomWashed};
+  }
 `
 
 export const Empty = styled.p`
   padding: 16px 10px;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-size: 14px;
   text-align: center;
 `
@@ -286,7 +288,7 @@ export const RecentBtn = styled.button`
   border-radius: 10px;
   text-align: left;
   font-size: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
   overflow: hidden;
 
@@ -316,14 +318,14 @@ export const Live = styled.span`
 export const RecentRemove = styled.button`
   background: none;
   border: 0;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-size: 16px;
   line-height: 1;
   padding: 6px 10px;
   cursor: pointer;
 
   &:hover {
-    color: ${colors.text};
+    color: ${colors.softWhite};
   }
 `
 

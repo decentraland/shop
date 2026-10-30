@@ -1,8 +1,10 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
+import { dark, darkCard, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
-// "Issue copies" modal — same visual language as PrimaryListModal.styles / SellModal.styles (white
-// rounded card, header + close, framed inputs, purple full-width CTA, green success screen). The
+// "Issue copies" modal — same visual language as PrimaryListModal.styles / SellModal.styles (dark card,
+// header + close, framed inputs, primary CTA, success screen). The
 // issue-specific bits are the repeatable recipient ROWS (address + amount + remove) and the running
 // "{sum} / {available}" total line. Kept self-contained (mirrors the shared pieces) rather than
 // importing from the other modals so they stay decoupled.
@@ -23,10 +25,9 @@ export const Card = styled.div`
   max-width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: 16px;
+  ${darkCard}
+  border-radius: ${theme.radius.modal};
   padding: 12px 16px 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -38,7 +39,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -47,7 +48,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -59,7 +60,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 18px;
@@ -70,7 +71,7 @@ export const Close = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -80,7 +81,7 @@ export const Subtitle = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   text-align: left;
 `
 
@@ -98,8 +99,8 @@ export const Thumb = styled.div`
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  background: ${theme.colors.media};
-  border: 1px solid ${theme.colors.gray4};
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   overflow: hidden;
 
   img {
@@ -116,7 +117,7 @@ export const AssetName = styled.p`
   font-weight: 600;
   font-size: 16px;
   line-height: 1.4;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 // Container for the recipient rows.
@@ -152,29 +153,18 @@ export const AmountField = styled.label`
 export const FieldLabel = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 export const Input = styled.input`
   height: 42px;
   padding: 0 10px;
-  border: 0.5px solid ${theme.colors.text};
   border-radius: 8px;
-  background: ${theme.colors.white};
+  ${darkField}
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
   outline: none;
 
-  &::placeholder {
-    color: ${theme.colors.muted2};
-  }
-  &:focus {
-    border-color: ${theme.colors.magenta};
-  }
-  &[aria-invalid='true'] {
-    border-color: ${theme.colors.err};
-  }
   /* Strip the number spinners on the amount input. */
   &::-webkit-outer-spin-button,
   &::-webkit-inner-spin-button {
@@ -195,10 +185,10 @@ export const RemoveBtn = styled.button`
   place-items: center;
   width: 42px;
   height: 42px;
-  border: 0.5px solid ${theme.colors.gray4};
+  border: 1px solid ${dark.hairline};
   border-radius: 8px;
-  background: ${theme.colors.white};
-  color: ${theme.colors.muted};
+  background: transparent;
+  color: ${theme.colors.gray4};
   cursor: pointer;
 
   .ico {
@@ -206,15 +196,15 @@ export const RemoveBtn = styled.button`
     height: 16px;
   }
   &:hover:not(:disabled) {
-    color: ${theme.colors.err};
-    border-color: ${theme.colors.err};
+    color: ${dark.errorText};
+    border-color: ${theme.colors.dclRed};
   }
   &:disabled {
     opacity: 0.35;
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -232,7 +222,7 @@ export const AddRowBtn = styled.button`
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 13px;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.nameLink};
 
   .ico {
     width: 16px;
@@ -243,7 +233,7 @@ export const AddRowBtn = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -254,7 +244,7 @@ export const Total = styled.p<{ over?: boolean }>`
   font-family: ${theme.font.sans};
   font-size: 13px;
   line-height: 1.5;
-  color: ${p => (p.over ? theme.colors.err : theme.colors.text)};
+  color: ${p => (p.over ? dark.errorText : theme.colors.softWhite)};
 
   strong {
     font-weight: 700;
@@ -266,22 +256,14 @@ export const Note = styled.p`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1.5;
-  color: ${theme.colors.muted};
-`
-
-export const Status = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: ${theme.colors.muted};
-  text-align: center;
+  color: ${theme.colors.glassText};
 `
 
 export const FieldError = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
   font-size: 11px;
-  color: ${theme.colors.err};
+  color: ${dark.errorText};
 `
 
 export const Actions = styled.div`
@@ -293,64 +275,11 @@ export const Actions = styled.div`
   }
 `
 
-export const OutlineBtn = styled.button`
+export const ActionBtn = styled(Button)`
   flex: 1 1 0;
   height: 48px;
-  border: 2px solid ${theme.colors.accent};
   border-radius: 12px;
-  background: transparent;
-  color: ${theme.colors.accent};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: rgba(105, 31, 169, 0.06);
-  }
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
 `
-
-export const PrimaryBtn = styled.button`
-  flex: 1 1 0;
-  height: 48px;
-  border: 0;
-  border-radius: 12px;
-  cursor: pointer;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.white};
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-  &:disabled {
-    cursor: not-allowed;
-    background: rgba(105, 31, 169, 0.2);
-    color: ${theme.colors.white};
-  }
-`
-
-// ---- Success state (mirrors PrimaryListModal's green banner) -------------------------------------
 
 export const SuccessBanner = styled.div`
   display: flex;
@@ -359,7 +288,8 @@ export const SuccessBanner = styled.div`
   gap: 16px;
   padding: 24px 16px;
   border-radius: 16px;
-  background: rgba(193, 238, 207, 0.5);
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   text-align: center;
 `
 
@@ -383,7 +313,7 @@ export const SuccessText = styled.p`
   font-family: ${theme.font.sans};
   font-size: 20px;
   line-height: 1.334;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 
   b {
     font-weight: 700;

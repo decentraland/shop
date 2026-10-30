@@ -84,9 +84,16 @@ export const Row = styled.li`
   gap: 16px;
   row-gap: 12px;
   padding: 12px 16px 12px 12px;
-  border: 1px solid ${colors.gray4};
+  border: 1px solid ${colors.cardLine};
   border-radius: ${radius.card};
-  background: ${colors.white};
+  /* Translucent over the violet field, like the Activity and My Store cards. */
+  background: ${colors.overlay};
+  color: ${colors.softWhite};
+
+  .ccy-mark,
+  .ccy {
+    color: ${colors.softWhite};
+  }
 `
 
 export const Thumb = styled.div`
@@ -122,7 +129,7 @@ export const Name = styled.div`
   font-weight: 600;
   font-size: 16px;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -158,7 +165,7 @@ export const Price = styled.div`
 export const PriceLabel = styled.span`
   font-size: 12px;
   font-weight: 500;
-  color: ${colors.muted};
+  color: ${colors.glassText};
 `
 
 export const PriceValue = styled.span`
@@ -167,7 +174,7 @@ export const PriceValue = styled.span`
   gap: 4px;
   font-weight: 600;
   font-size: 16px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   font-variant-numeric: tabular-nums;
 
   & .ico {

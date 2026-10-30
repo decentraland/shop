@@ -2,11 +2,24 @@ import styled from '@emotion/styled'
 import { Button } from '~/components/Button'
 import { Shell } from '~/components/ManaPricingBanner/ManaPricingBanner.styles'
 import { Chip as BaseChip } from '~/styles/chip.styles'
+import { dark, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 const { colors, font, media, radius } = theme
 
-// The "nothing left to migrate" state: a white card centred in the section.
+// Panels resting on the violet field: translucent, like the Activity and My Store cards, not an opaque slab.
+const onField = `
+  border: 1px solid ${colors.cardLine};
+  background: ${colors.overlay};
+  color: ${colors.softWhite};
+
+  .ccy-mark,
+  .ccy {
+    color: ${colors.softWhite};
+  }
+`
+
+// The "nothing left to migrate" state: a card centred in the section.
 export const Empty = styled.div`
   display: flex;
   flex-direction: column;
@@ -26,7 +39,7 @@ export const EmptyCard = styled.div`
   gap: 24px;
   padding: 16px;
   border-radius: ${radius.modal};
-  background: ${colors.white};
+  ${onField}
   text-align: center;
 `
 
@@ -61,7 +74,7 @@ export const EmptyText = styled.div`
   gap: 12px;
   padding-bottom: 16px;
   line-height: 1.6;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // h2, not h1: the tool is a section of the Activity page, which owns the page heading.
@@ -169,11 +182,13 @@ export const Body = styled.div`
   padding: 12px;
 `
 
-// The same lilac strip as the My Assets nudge, carrying a count instead of a call to action.
+// The My Assets nudge's shell, carrying a count instead of a call to action.
 export const Progress = styled(Shell)`
+  border: 1px solid ${colors.cardLine};
+  background: ${colors.glassFaint};
   font-size: 14px;
   line-height: 1.334;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 `
 
 export const Count = styled.span`
@@ -209,10 +224,8 @@ export const SelectAll = styled.label`
 /**
  * A fixed 40px slot so the checkbox lines up with the one on every row below it.
  *
- * It also dresses the checkbox it holds, because the design gives this tool two skins of the shared
- * control and neither is the primitive's default: ticked is the primary red here, not violet, and the
- * `on-dark` slot (Select All, which sits on the violet page rather than on a white row) drops the white
- * fill for the page itself so only the outline shows.
+ * It also dresses the checkbox it holds: the design ticks this tool's boxes in the primary red, not the
+ * primitive's violet, and draws the outline at full strength.
  */
 export const CheckSlot = styled.span`
   flex: none;
@@ -221,23 +234,13 @@ export const CheckSlot = styled.span`
   width: 40px;
   height: 40px;
 
+  & input {
+    border-color: ${colors.softWhite};
+  }
   & input:checked,
   & input[data-indeterminate='true'] {
     background: ${colors.dclRed};
     border-color: ${colors.dclRed};
-  }
-
-  &[data-tone='on-dark'] input {
-    background: transparent;
-    border-color: ${colors.white};
-  }
-  &[data-tone='on-dark'] input:checked,
-  &[data-tone='on-dark'] input[data-indeterminate='true'] {
-    background: ${colors.dclRed};
-    border-color: ${colors.dclRed};
-  }
-  &[data-tone='on-dark'] input:focus-visible {
-    outline-color: ${colors.white};
   }
 `
 
@@ -254,9 +257,8 @@ export const Row = styled.article`
   gap: 12px;
   row-gap: 8px;
   padding: 12px 24px 12px 0;
-  border: 1px solid ${colors.gray4};
   border-radius: ${radius.card};
-  background: ${colors.white};
+  ${onField}
   overflow: hidden;
   transition: opacity 0.25s ease;
 `
@@ -314,7 +316,7 @@ export const Name = styled.div`
   font-weight: 600;
   font-size: 16px;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -371,9 +373,8 @@ export const PriceField = styled.div`
   width: 144px;
   height: 42px;
   padding: 8px;
-  border: 0.5px solid ${colors.muted2};
+  ${darkField}
   border-radius: ${radius.btn};
-  background: ${colors.panel};
 
   /* The OUTLINED credit glyph, not the filled gradient mark: the filled one is right for a price you are
      being shown, and this is a price you are typing. The design still draws it in the currency's own red
@@ -384,14 +385,7 @@ export const PriceField = styled.div`
     height: 17px;
     color: ${colors.dclRed};
   }
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-
-  &:focus-within {
-    border-color: ${colors.accent};
-    box-shadow: 0 0 0 3px ${colors.rarityBg};
-  }
+  transition: border-color 0.15s;
 
   ${media.maxWidth('mobile')} {
     width: 100%;
@@ -407,7 +401,7 @@ export const PriceInput = styled.input`
   font: inherit;
   font-weight: 600;
   font-size: 16px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   text-align: right;
   font-variant-numeric: tabular-nums;
 `
@@ -418,7 +412,7 @@ export const PriceSub = styled.div`
   gap: 4px;
   font-weight: 500;
   font-size: 12px;
-  color: ${colors.gray0};
+  color: ${colors.glassText};
 
   /* Centred under the full-width field it converts, not parked at its right edge. */
   ${media.maxWidth('mobile')} {
@@ -429,19 +423,15 @@ export const PriceSub = styled.div`
 export const PriceWas = styled.span`
   font-weight: 300;
   font-size: 10px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 // The `shimmer` keyframe is global (index.css).
-//
-// The ONE skeleton that does not take the shared `--skeleton-lo/hi` stops, and must not be "unified" into
-// them: those are translucent WHITE, for the purple field every other skeleton sits on. This table's own
-// surface is white, where they would be invisible. Light greys on light, deliberately.
 export const SkeletonRow = styled.div`
   height: 101px;
   border: 1px solid transparent;
   border-radius: ${radius.card};
-  background: linear-gradient(100deg, #ededed 30%, #f7f7f7 50%, #ededed 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: shimmer 1.3s infinite linear;
 `
@@ -452,9 +442,15 @@ export const Dock = styled.div`
   right: 0;
   bottom: 0;
   z-index: 30;
-  background: ${colors.white};
-  backdrop-filter: blur(12px);
-  border-top: 1px solid ${colors.line};
+  /* Opaque, unlike the panels above it: rows scroll underneath, and a translucent bar would show them through. */
+  background: ${colors.fieldBottomWashed};
+  border-top: 1px solid ${dark.hairline};
+  color: ${colors.softWhite};
+
+  .ccy-mark,
+  .ccy {
+    color: ${colors.softWhite};
+  }
 `
 
 export const DockInner = styled.div`
@@ -492,7 +488,7 @@ export const DockTotal = styled.div`
   gap: 6px;
   font-weight: 600;
   font-size: 16px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   & .ico {
     width: 17px;
@@ -502,7 +498,7 @@ export const DockTotal = styled.div`
 
 export const DockSub = styled.div`
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.glassText};
 `
 
 export const DockSpacer = styled.span`

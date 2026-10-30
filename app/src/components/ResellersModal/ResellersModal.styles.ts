@@ -1,4 +1,6 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
+import { dark, darkCard } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 export const Scrim = styled.div`
@@ -19,9 +21,8 @@ export const Card = styled.div`
   width: 1128px;
   max-width: 100%;
   max-height: 92vh;
-  background: ${theme.colors.white};
-  border-radius: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  ${darkCard}
+  border-radius: ${theme.radius.modal};
 
   &:focus {
     outline: none;
@@ -34,7 +35,7 @@ export const Head = styled.div`
   align-items: center;
   gap: 8px;
   padding: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -45,7 +46,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -58,14 +59,14 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 18.5px;
     height: 18.5px;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 4px;
   }
 `
@@ -90,7 +91,7 @@ export const Toolbar = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 8px;
-  background: ${theme.colors.white};
+  background: ${theme.colors.fieldBottomWashed};
 `
 
 export const Count = styled.p`
@@ -98,7 +99,7 @@ export const Count = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 export const SortBy = styled.div`
@@ -107,11 +108,17 @@ export const SortBy = styled.div`
   display: inline-flex;
   align-items: center;
   padding: 4px 4px 4px 12px;
-  border: 0.5px solid ${theme.colors.lineStrong};
+  border: 1px solid ${dark.hairline};
   border-radius: 8px;
-  background: ${theme.colors.white};
+  background: ${dark.raised};
+
+  &:focus-within {
+    border-color: ${dark.focusEdge};
+  }
 
   select {
+    /* So the native option list opens dark too, not white text on a white menu. */
+    color-scheme: dark;
     appearance: none;
     /* 24px design gap + the 24px chevron that sits on top of it. */
     padding: 0 48px 0 0;
@@ -121,12 +128,12 @@ export const SortBy = styled.div`
     font-weight: 500;
     font-size: 12px;
     line-height: 1.43;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
     cursor: pointer;
     outline: none;
   }
   select:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -135,20 +142,20 @@ export const SortBy = styled.div`
     right: 4px;
     width: 24px;
     height: 24px;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
     pointer-events: none;
   }
 `
 
 export const TableWrap = styled.div`
   flex: none;
-  border: 1px solid ${theme.colors.lineStrong};
+  border: 1px solid ${dark.hairline};
   border-radius: 16px;
   /* The four equal columns need the design width to hold their content, so a narrower modal scrolls
      the table here rather than letting the page scroll sideways. */
   overflow-x: auto;
   overflow-y: hidden;
-  background: ${theme.colors.white};
+  background: transparent;
 `
 
 export const Table = styled.table`
@@ -162,13 +169,13 @@ export const Table = styled.table`
     padding: 8px 8px 8px 16px;
     text-align: left;
     vertical-align: middle;
-    background: ${theme.colors.media};
-    border-right: 0.5px solid ${theme.colors.lineStrong};
+    background: ${dark.raised};
+    border-right: 0.5px solid ${dark.hairline};
     font-family: ${theme.font.sans};
     font-weight: 600;
     font-size: 16px;
     line-height: 1.5;
-    color: ${theme.colors.text};
+    color: ${theme.colors.softWhite};
     text-transform: capitalize;
   }
   th:last-of-type {
@@ -179,12 +186,12 @@ export const Table = styled.table`
     height: 56px;
     padding: 8px 8px 8px 16px;
     vertical-align: middle;
-    border-right: 0.5px solid ${theme.colors.lineStrong};
-    border-bottom: 0.5px solid ${theme.colors.lineStrong};
+    border-right: 0.5px solid ${dark.hairline};
+    border-bottom: 0.5px solid ${dark.hairline};
     font-family: ${theme.font.sans};
     font-size: 14px;
     line-height: 1.43;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
   td:last-of-type {
     border-right: 0;
@@ -192,11 +199,7 @@ export const Table = styled.table`
 
   tbody tr:hover,
   tbody tr:focus-within {
-    background: ${theme.colors.media};
-  }
-  tbody tr:hover td,
-  tbody tr:focus-within td {
-    border-bottom-color: ${theme.colors.media};
+    background: ${theme.colors.glassFaint};
   }
 
   /* Stack every cell into a card — a 4-column grid is unusable at phone widths. The column name is
@@ -209,7 +212,7 @@ export const Table = styled.table`
     }
     tr {
       display: block;
-      border-bottom: 0.5px solid ${theme.colors.lineStrong};
+      border-bottom: 0.5px solid ${dark.hairline};
     }
     tr:last-of-type {
       border-bottom: 0;
@@ -233,12 +236,8 @@ export const Table = styled.table`
       margin-bottom: 2px;
       font-size: 12px;
       line-height: 1.43;
-      color: ${theme.colors.muted};
+      color: ${theme.colors.glassText};
       text-transform: capitalize;
-    }
-    tbody tr:hover td,
-    tbody tr:focus-within td {
-      border-bottom-color: transparent;
     }
   }
 `
@@ -257,7 +256,7 @@ const ownerBase = `
     height: 32px;
     border: 2.286px solid rgba(255, 255, 255, 0.5);
     border-radius: 50%;
-    background: ${theme.colors.media};
+    background: ${dark.raised};
     object-fit: cover;
     overflow: hidden;
     color: ${theme.colors.white};
@@ -272,7 +271,7 @@ const ownerBase = `
     font-family: ${theme.font.sans};
     font-size: 14px;
     line-height: 1.43;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -294,14 +293,14 @@ export const OwnerButton = styled.button`
     text-decoration: underline;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
     border-radius: 4px;
   }
 `
 
 export const Muted = styled.span`
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 // Price + row actions share the last cell: the amount sits left, the buy affordances right.
@@ -319,17 +318,17 @@ export const PriceCell = styled.div`
     font-weight: 600;
     font-size: 16px;
     line-height: 1.5;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
-  /* The credits mark is always near-black here — never the violet accent. */
+  /* The credits mark follows the ink — never the violet accent. */
   .amount .ccy {
     flex: none;
     width: 22px;
     height: 22px;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
   .approx {
-    color: ${theme.colors.muted};
+    color: ${theme.colors.glassText};
     font-weight: 600;
   }
 `
@@ -364,9 +363,7 @@ const rowButton = `
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border: 0;
   border-radius: 12px;
-  cursor: pointer;
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 13px;
@@ -381,34 +378,18 @@ const rowButton = `
     height: 20px;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
 
-export const AddBtn = styled.button`
+export const AddBtn = styled(Button)`
   ${rowButton}
   min-width: 106px;
-  background: ${theme.colors.text2};
-  color: ${theme.colors.softWhite};
-
-  &:hover:not(:disabled) {
-    filter: brightness(1.35);
-  }
-  &:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
 `
 
-export const BuyBtn = styled.button`
+export const BuyBtn = styled(Button)`
   ${rowButton}
-  background: ${theme.colors.accent};
-  color: ${theme.colors.softWhite};
-
-  &:hover:not(:disabled) {
-    background: ${theme.colors.accentHover};
-  }
 `
 
 export const OwnChip = styled.span`
@@ -417,12 +398,12 @@ export const OwnChip = styled.span`
   height: 40px;
   padding: 0 12px;
   border-radius: 12px;
-  background: ${theme.colors.chip};
+  background: ${theme.colors.glassFaint};
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 13px;
   line-height: 24px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
   white-space: nowrap;
 `
 
@@ -439,17 +420,17 @@ export const PageLabel = styled.p`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1;
-  color: ${theme.colors.gray0};
+  color: ${theme.colors.glassText};
 `
 
 export const PageBtn = styled.button`
   display: grid;
   place-items: center;
   padding: 10px;
-  border: 1px solid ${theme.colors.text2};
+  border: 1px solid ${theme.colors.softWhite};
   border-radius: 4px;
-  background: ${theme.colors.white};
-  color: ${theme.colors.text2};
+  background: transparent;
+  color: ${theme.colors.softWhite};
   cursor: pointer;
 
   /* One chevron glyph turned into ‹ / › so no extra asset is needed. */
@@ -461,13 +442,17 @@ export const PageBtn = styled.button`
   &[data-dir='prev'] .ico {
     transform: rotate(90deg);
   }
+  &:hover:not(:disabled) {
+    background: ${theme.colors.glassFaint};
+  }
   &:disabled {
-    border-color: ${theme.colors.lineStrong};
-    color: ${theme.colors.lineStrong};
+    border-color: ${dark.hairline};
+    color: ${theme.colors.glassText};
+    opacity: 0.6;
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -478,7 +463,7 @@ export const Empty = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
   text-align: center;
 `
 
@@ -493,12 +478,12 @@ export const Classic = styled.div`
     font-family: ${theme.font.sans};
     font-weight: 600;
     font-size: 15px;
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
   .classic-note {
     font-family: ${theme.font.sans};
     font-size: 13px;
-    color: ${theme.colors.muted};
+    color: ${theme.colors.glassText};
   }
 `
 
@@ -507,12 +492,12 @@ export const ClassicChip = styled.span`
   align-items: center;
   padding: 2px 8px;
   border-radius: ${theme.radius.chip};
-  background: ${theme.colors.chip};
+  background: ${theme.colors.glassFaint};
   font-family: ${theme.font.sans};
   font-size: 11px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 export const ClassicLink = styled.a`
@@ -521,16 +506,16 @@ export const ClassicLink = styled.a`
   gap: 6px;
   height: 40px;
   padding: 0 14px;
-  border: 1px solid ${theme.colors.lineStrong};
+  border: 1px solid ${dark.hairline};
   border-radius: 12px;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.nameLink};
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 13px;
   text-decoration: none;
 
   &:hover {
-    background: ${theme.colors.chip};
+    background: ${theme.colors.glassFaint};
   }
   .ico {
     width: 14px;

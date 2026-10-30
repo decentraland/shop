@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
+import { darkCard, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 const { colors, radius, media, z } = theme
@@ -203,8 +204,8 @@ export const ConfirmScrim = styled.div`
 
 export const ConfirmPanel = styled.div`
   position: relative;
-  background: ${colors.bg};
-  border-radius: ${radius.card};
+  ${darkCard}
+  border-radius: ${radius.modal};
   padding: 24px;
   max-width: 420px;
   width: 100%;
@@ -324,8 +325,7 @@ export const ShapeBtn = styled.button`
 
   &[data-selected] {
     border-color: ${colors.softWhite};
-    background: ${colors.softWhite};
-    color: ${colors.text};
+    background: ${colors.glassStrong};
   }
 `
 
@@ -393,16 +393,14 @@ export const HexInput = styled.input`
   width: 88px;
   height: 26px;
   padding: 0 6px;
-  border: 1px solid ${colors.lineStrong};
+  ${darkField}
   border-radius: ${radius.chip};
-  background: ${colors.white};
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  color: ${colors.text};
   text-transform: lowercase;
 
   &[data-invalid] {
-    border-color: ${colors.errStrong};
+    border-color: ${colors.dclRed};
   }
 `
 
@@ -430,14 +428,12 @@ export const ImportRow = styled.div`
 export const NameInput = styled.input`
   height: 44px;
   padding: 0 14px;
-  border: 1px solid ${colors.lineStrong};
+  ${darkField}
   border-radius: ${radius.btn};
-  background: ${colors.white};
   font: inherit;
-  color: ${colors.text};
 
   &:focus {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: -1px;
   }
 `

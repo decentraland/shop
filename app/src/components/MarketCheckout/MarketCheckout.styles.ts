@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { css } from '@emotion/react'
+import { dark, darkCard } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -31,10 +32,9 @@ export const Card = styled.div`
   z-index: 1;
   width: 100%;
   max-width: 420px;
-  background: ${colors.white};
-  border-radius: ${radius.banner};
+  ${darkCard}
+  border-radius: ${radius.modal};
   padding: 24px;
-  box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);
   animation: cart-pop-in 0.16s ease;
 `
 
@@ -51,7 +51,7 @@ export const Thumb = styled.div`
   flex: none;
   border-radius: 12px;
   overflow: hidden;
-  background: ${colors.media};
+  background: ${dark.raised};
 
   & img {
     width: 100%;
@@ -63,19 +63,20 @@ export const Thumb = styled.div`
 export const Name = styled.div`
   font-weight: 700;
   font-size: 16px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   margin-bottom: 6px;
 `
 
 export const Price = styled.div`
-  background: ${colors.panel};
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 14px;
 `
 
 export const PriceLabel = styled.div`
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 6px;
@@ -88,21 +89,21 @@ export const PriceValue = styled.div`
   gap: 8px;
   font-weight: 700;
   font-size: 24px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   &[data-approx] {
-    color: ${colors.text2};
+    color: ${colors.gray5};
   }
 `
 
 export const Approx = styled.span`
-  color: ${colors.muted};
+  color: ${colors.glassText};
 `
 
 export const Diamond = styled(CurrencyIcon)`
   width: 20px;
   height: 20px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // Composes the global `.muted` for colour; adds spacing.

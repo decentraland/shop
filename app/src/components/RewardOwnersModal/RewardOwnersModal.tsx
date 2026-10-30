@@ -209,10 +209,11 @@ export function RewardOwnersModal({
         ) : null}
 
         <S.Actions>
-          <S.OutlineBtn type="button" onClick={onClose}>
+          <S.ActionBtn variant="outline" type="button" onClick={onClose}>
             {t('sellModal.cancel')}
-          </S.OutlineBtn>
-          <S.PrimaryBtn
+          </S.ActionBtn>
+          <S.ActionBtn
+            variant="primary"
             type="button"
             disabled={!ready}
             onClick={() => {
@@ -227,7 +228,7 @@ export function RewardOwnersModal({
             data-testid="reward-continue"
           >
             {t('reward.continue')}
-          </S.PrimaryBtn>
+          </S.ActionBtn>
         </S.Actions>
       </S.Card>
     </S.Scrim>

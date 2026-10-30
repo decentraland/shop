@@ -1,5 +1,7 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
 import { calendarPopup } from '~/styles/datePicker'
+import { dark, darkCard, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 // Sell / list modal (Figma 1528-305117) and its listing-success state (Figma 1528-306276). 560px card
@@ -21,10 +23,9 @@ export const Card = styled.div`
   max-width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: 16px;
+  ${darkCard}
+  border-radius: ${theme.radius.modal};
   padding: 12px 16px 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -36,7 +37,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -45,7 +46,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -57,7 +58,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 18px;
@@ -68,7 +69,7 @@ export const Close = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -78,7 +79,7 @@ export const Subtitle = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   text-align: left;
 `
 
@@ -96,8 +97,8 @@ export const Thumb = styled.div`
   width: 180px;
   height: 180px;
   border-radius: 16px;
-  background: ${theme.colors.media};
-  border: 1px solid ${theme.colors.gray4};
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   overflow: hidden;
 
   img {
@@ -133,7 +134,7 @@ export const AssetName = styled.p`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const AssetBy = styled.p`
@@ -141,7 +142,7 @@ export const AssetBy = styled.p`
   font-family: ${theme.font.sans};
   font-size: 10px;
   line-height: 1.43;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 // Price + Expiration fields, side by side.
@@ -165,7 +166,7 @@ export const Field = styled.label`
 export const FieldLabel = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 // The framed input row (price glyph + number + USD hint, or the date input).
@@ -176,28 +177,19 @@ export const InputBox = styled.div`
   gap: 4px;
   height: 42px;
   padding: 0 8px;
-  border: 0.5px solid ${theme.colors.text};
   border-radius: 8px;
-  background: ${theme.colors.white};
-
-  &:focus-within {
-    border-color: ${theme.colors.magenta};
-  }
-  &[aria-invalid='true'] {
-    border-color: ${theme.colors.err};
-  }
+  ${darkField}
 
   .ccy {
     flex: none;
     width: 22px;
     height: 22px;
-    color: ${theme.colors.rarity};
   }
   .cal {
     flex: none;
     width: 18px;
     height: 18px;
-    color: ${theme.colors.text};
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -209,10 +201,10 @@ export const PriceInput = styled.input`
   background: transparent;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &::placeholder {
-    color: ${theme.colors.muted2};
+    color: ${theme.colors.gray4};
   }
   /* Strip the number spinners — the glyph + USD hint carry the affordance. */
   &::-webkit-outer-spin-button,
@@ -230,12 +222,11 @@ export const UsdHint = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 10px;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.glassText};
 `
 
 // Wrapper around react-datepicker. Styles BOTH the input (to match the price InputBox: border, radius,
-// height) AND the calendar popup to a WHITE, on-brand theme — the library's default CSS is imported in
-// SellModal, this overrides it. (A native <input type="date"> can't be themed like this — hence the lib.)
+// height) AND the calendar popup — the library's default CSS is imported in SellModal, this overrides it. (A native <input type="date"> can't be themed like this — hence the lib.)
 export const DateField = styled.div`
   .react-datepicker-wrapper {
     display: block;
@@ -249,66 +240,28 @@ export const DateField = styled.div`
     width: 100%;
     height: 42px;
     padding: 0 8px;
-    border: 0.5px solid ${theme.colors.text};
     border-radius: 8px;
-    background: ${theme.colors.white};
+    ${darkField}
     font-family: ${theme.font.sans};
     font-size: 13px;
-    color: ${theme.colors.text};
     outline: none;
   }
-  .react-datepicker__input-container input:focus {
-    border-color: ${theme.colors.magenta};
-  }
   &[data-invalid='true'] .react-datepicker__input-container input {
-    border-color: ${theme.colors.err};
+    border-color: ${theme.colors.dclRed};
   }
   /* The showIcon calendar glyph inside the field. */
   .react-datepicker__calendar-icon {
-    fill: ${theme.colors.text};
+    fill: ${theme.colors.softWhite};
     opacity: 0.85;
   }
 
   ${calendarPopup}
 `
 
-// Full-width primary action (Put up for sale) — solid purple (Figma 1528-305251; the disabled state
-// is the same purple at 20%, so the enabled fill is the solid accent, not the dark PDP button).
-export const PrimaryBtn = styled.button`
+export const PrimaryBtn = styled(Button)`
   width: 100%;
   height: 48px;
-  border: 0;
   border-radius: 16px;
-  cursor: pointer;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.white};
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-  &:disabled {
-    cursor: not-allowed;
-    background: rgba(105, 31, 169, 0.2);
-    color: ${theme.colors.white};
-  }
-`
-
-export const Status = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: ${theme.colors.muted};
-  text-align: center;
 `
 
 // Small informational line under the price field (e.g. the credits-proceeds hint shown when
@@ -318,10 +271,8 @@ export const Note = styled.p`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1.5;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
-
-// ---- Success state (Figma 1528-306276) ----------------------------------------------------------
 
 export const SuccessBanner = styled.div`
   display: flex;
@@ -330,7 +281,8 @@ export const SuccessBanner = styled.div`
   gap: 16px;
   padding: 24px 16px;
   border-radius: 16px;
-  background: rgba(193, 238, 207, 0.5);
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   text-align: center;
 `
 
@@ -354,7 +306,7 @@ export const SuccessText = styled.p`
   font-family: ${theme.font.sans};
   font-size: 20px;
   line-height: 1.334;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 
   b {
     font-weight: 700;
@@ -370,52 +322,8 @@ export const Actions = styled.div`
   }
 `
 
-// Purple-outline secondary (My items) — Figma 1528-306276 (2px #691fa9, radius 12).
-export const OutlineBtn = styled.button`
+export const ActionBtn = styled(Button)`
   flex: 1 1 0;
   height: 48px;
-  border: 2px solid ${theme.colors.accent};
   border-radius: 12px;
-  background: transparent;
-  color: ${theme.colors.accent};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover {
-    background: rgba(105, 31, 169, 0.06);
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-`
-
-// Solid purple primary (Done) — Figma 1528-306276 (radius 12).
-export const PurpleBtn = styled.button`
-  flex: 1 1 0;
-  height: 48px;
-  border: 0;
-  border-radius: 12px;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.softWhite};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover {
-    background: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
 `

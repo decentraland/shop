@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 // The pre-action authorization STEP shown before a buy/sell for self-custody wallets: a bordered row
 // card for the thing being authorized, muted supporting copy, and the shop's modal shell
@@ -27,10 +28,9 @@ export const Card = styled.div`
   max-width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: 16px;
+  ${darkCard}
+  border-radius: ${theme.radius.modal};
   padding: 12px 16px 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -42,7 +42,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -51,7 +51,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -63,7 +63,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 18px;
@@ -74,7 +74,7 @@ export const Close = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `
@@ -85,7 +85,7 @@ export const Close = styled.button`
 export const StepCount = styled.span`
   margin-left: auto;
   margin-right: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
   font-size: 14px;
   white-space: nowrap;
 `
@@ -96,8 +96,8 @@ export const Row = styled.div`
   align-items: center;
   gap: 14px;
   padding: 14px 18px;
-  background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.line};
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   border-radius: 16px;
 `
 
@@ -105,12 +105,12 @@ export const Thumb = styled.div`
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: ${theme.colors.media};
+  background: ${dark.raised};
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.glassText};
 
   img {
     width: 100%;
@@ -132,13 +132,13 @@ export const RowInfo = styled.div`
 
 export const RowName = styled.span`
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const RowDesc = styled.span`
   font-size: 13px;
   line-height: 1.45;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 // Reassuring, jargon-light footnote (no gas, revocable from Approvals).
@@ -146,7 +146,7 @@ export const Note = styled.p`
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.gray4};
 `
 
 export const Actions = styled.div`
@@ -161,41 +161,9 @@ export const Actions = styled.div`
 export const OutlineBtn = styled.button`
   flex: 1 1 0;
   height: 48px;
-  border: 2px solid ${theme.colors.accent};
+  border: 0.5px solid ${theme.colors.softWhite};
   border-radius: 12px;
   background: transparent;
-  color: ${theme.colors.accent};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: rgba(105, 31, 169, 0.06);
-  }
-  &:disabled {
-    cursor: default;
-    opacity: 0.5;
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-`
-
-export const PurpleBtn = styled.button`
-  flex: 1 1 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 48px;
-  border: 0;
-  border-radius: 12px;
-  background: ${theme.colors.accent};
   color: ${theme.colors.softWhite};
   cursor: pointer;
   font-family: ${theme.font.sans};
@@ -206,14 +174,46 @@ export const PurpleBtn = styled.button`
   text-transform: uppercase;
 
   &:hover:not(:disabled) {
-    background: ${theme.colors.accentHover};
+    background: ${theme.colors.glassFaint};
   }
   &:disabled {
     cursor: default;
-    background: rgba(105, 31, 169, 0.4);
+    opacity: 0.5;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
+`
+
+export const PrimaryBtn = styled.button`
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: ${theme.gradients.buyBtn};
+  color: ${theme.colors.white};
+  cursor: pointer;
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+
+  &:hover:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+  }
+  &:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `

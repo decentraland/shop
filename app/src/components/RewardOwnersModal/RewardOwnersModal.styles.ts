@@ -1,15 +1,15 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { dark } from '~/styles/darkSurface'
 
 // The issue modal's card, header and buttons, so choosing the owners and issuing to them read as one flow.
 export {
+  ActionBtn,
   Actions,
   Card,
   Close,
   Head,
   Note,
-  OutlineBtn,
-  PrimaryBtn,
   Scrim,
   Subtitle,
   Title
@@ -25,7 +25,7 @@ export const Label = styled.span`
   font-family: ${theme.font.sans};
   font-size: 13px;
   font-weight: 600;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Chips = styled.div`
@@ -38,25 +38,27 @@ export const Chip = styled.button`
   min-height: 40px;
   padding: 0 14px;
   border-radius: ${theme.radius.pill};
-  border: 1px solid rgba(22, 21, 24, 0.16);
-  background: ${theme.colors.white};
-  color: ${theme.colors.text};
+  border: 0;
+  background: ${theme.colors.glass};
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 
+  &:hover:not(:disabled):not([aria-pressed='true']) {
+    background: ${theme.colors.glassHover};
+  }
   &[aria-pressed='true'] {
-    border-color: ${theme.colors.accent};
-    background: ${theme.colors.accent};
-    color: ${theme.colors.white};
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
   }
   &:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `
@@ -76,24 +78,28 @@ export const ItemOption = styled.button`
   width: 100%;
   min-height: 48px;
   padding: 6px 10px;
-  border: 1px solid rgba(22, 21, 24, 0.12);
+  border: 1px solid ${dark.hairline};
   border-radius: 10px;
-  background: ${theme.colors.white};
+  background: ${dark.raised};
   text-align: left;
   cursor: pointer;
   font-family: ${theme.font.sans};
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
+  &:hover:not(:disabled):not([aria-pressed='true']) {
+    background: ${theme.colors.glassFaint};
+  }
   &[aria-pressed='true'] {
-    border-color: ${theme.colors.accent};
-    box-shadow: inset 0 0 0 1px ${theme.colors.accent};
+    border-color: ${theme.colors.softWhite};
+    background: ${theme.colors.glassStrong};
+    box-shadow: inset 0 0 0 1px ${theme.colors.softWhite};
   }
   &:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 
@@ -120,7 +126,7 @@ export const ItemText = styled.span`
   }
   span {
     font-size: 12px;
-    color: ${theme.colors.muted};
+    color: ${theme.colors.glassText};
   }
 `
 
@@ -131,16 +137,16 @@ export const Recipients = styled.ol`
   overflow-y: auto;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   li {
     padding: 3px 0;
   }
   li span {
-    color: ${theme.colors.muted};
+    color: ${theme.colors.glassText};
   }
-  /* The dashboard drives the MANA mark white for its dark panels, and this modal opens inside it on white. */
+  /* The MANA mark is drawn dark; knocked out to white so it reads on the card. */
   [data-kind='mana'] img {
-    filter: none;
+    filter: brightness(0) invert(1);
   }
 `

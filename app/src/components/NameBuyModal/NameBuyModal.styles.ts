@@ -1,6 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
-import * as M from '~/components/BuyModal/modal.styles'
+import { dark, darkField } from '~/styles/darkSurface'
 
 // Buy-NAME modal (Figma: available 1368-354539, confirm 1368-354579, completing 1368-354623,
 // success 1368-354667). A single dialog that walks confirm → completing → success/error, mirroring
@@ -26,10 +26,11 @@ export const Card = styled.div`
   max-width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: 16px;
+  background: ${theme.colors.accent};
+  color: ${theme.colors.softWhite};
+  border-radius: ${theme.radius.modal};
   padding: 20px 24px 24px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);
 
   ${theme.media.maxWidth('mobile')} {
     padding: 16px;
@@ -46,10 +47,10 @@ export const HeadRow = styled.div`
 export const Title = styled.h2`
   margin: 0;
   font-family: ${theme.font.sans};
-  font-weight: 700;
+  font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -61,7 +62,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.white};
 
   .ico {
     width: 18px;
@@ -72,7 +73,7 @@ export const Close = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
 `
@@ -84,18 +85,22 @@ export const Balance = styled.div`
   margin-top: 4px;
   font-family: ${theme.font.sans};
   font-size: 14px;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 
+  & > [data-label] {
+    font-weight: 600;
+    color: ${theme.colors.gray4};
+  }
   .ico {
     width: 16px;
     height: 16px;
-    color: ${theme.colors.text};
+    color: ${theme.colors.softWhite};
   }
 `
 
 export const Divider = styled.hr`
   border: 0;
-  border-top: 1px solid ${theme.colors.line};
+  border-top: 2px solid ${theme.colors.glass};
   margin: 16px 0;
 `
 
@@ -104,6 +109,9 @@ export const NameRow = styled.div`
   display: flex;
   align-items: center;
   gap: 16px;
+  padding: 12px 16px 12px 12px;
+  border-radius: ${theme.radius.tile};
+  background: ${theme.colors.overlay};
 `
 
 /**
@@ -187,21 +195,21 @@ export const NameText = styled.div`
   font-weight: 700;
   font-size: 20px;
   line-height: 1.3;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   span {
     font-weight: 400;
-    color: ${theme.colors.muted2};
+    color: ${theme.colors.glassText};
   }
 `
 
 export const NameSub = styled.div`
   font-family: ${theme.font.sans};
   font-size: 14px;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.glassText};
 `
 
 export const RowPrice = styled.div`
@@ -212,28 +220,29 @@ export const RowPrice = styled.div`
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 24px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 22px;
     height: 22px;
-    color: ${theme.colors.text};
+    color: ${theme.colors.softWhite};
   }
 `
 
-// Figma 1356:335201 — the lilac confirmation panel.
+// The confirmation panel, tinted lilac at the edge so it still reads as the step's one call to act.
 export const Confirm = styled.div`
   margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
-  background: ${theme.colors.promptLilac};
+  border: 1px solid rgba(244, 233, 255, 0.35);
+  background: ${theme.colors.overlay};
 `
 
 export const ConfirmTitle = styled.div`
   font-family: ${theme.font.sans};
   font-weight: 700;
   font-size: 16px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const ConfirmBody = styled.p`
@@ -241,13 +250,13 @@ export const ConfirmBody = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.5;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.glassText};
 
-  /* The chosen NAME is filled with the gradient the design runs through it (1356:335140), not a flat
-     violet — background-clip is the only way to paint a text run with one. */
+  /* The chosen NAME is filled with a gradient (background-clip is the only way to paint a text run with one).
+     The design's red-to-magenta sinks into the dark panel, so it runs through the lighter warm stops. */
   b {
     font-weight: 700;
-    background: linear-gradient(180deg, ${theme.colors.dclRed}, ${theme.colors.magenta});
+    background: linear-gradient(180deg, ${theme.colors.flareAmber}, ${dark.errorText});
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
@@ -259,23 +268,16 @@ export const ReenterRow = styled.label`
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: ${theme.colors.softWhite};
-  /* A hairline in Gray 2, not a full pixel of soft-black: this field sits INSIDE the lilac panel and
-     the heavier edge made it read as the modal's primary control (Figma 1356:335172). */
-  border: 0.5px solid ${theme.colors.muted};
+  ${darkField}
   border-radius: 8px;
   cursor: text;
-
-  &:focus-within {
-    border-color: ${theme.colors.magenta};
-  }
 `
 
 export const ReenterAt = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 18px;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.glassText};
 `
 
 export const ReenterInput = styled.input`
@@ -287,10 +289,10 @@ export const ReenterInput = styled.input`
   font-family: ${theme.font.sans};
   font-size: 16px;
   font-weight: 600;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &::placeholder {
-    color: ${theme.colors.muted2};
+    color: ${theme.colors.gray4};
     font-weight: 400;
   }
 `
@@ -299,7 +301,7 @@ export const ReenterSuffix = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 16px;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.glassText};
 `
 
 // Full-width primary action — the design system's primary button (Figma 1356:335120), the same one
@@ -328,7 +330,7 @@ export const PrimaryBtn = styled.button`
     background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
   &:disabled {
@@ -365,10 +367,10 @@ export const StatusBlock = styled.div`
 
 export const ProcessingText = styled.div`
   font-family: ${theme.font.sans};
-  font-weight: 700;
+  font-weight: 400;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
   text-align: center;
 `
 
@@ -379,7 +381,7 @@ export const ProcessingNote = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.57;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
   text-align: center;
 `
 
@@ -403,7 +405,7 @@ export const Progress = styled.div`
   max-width: 400px;
   height: 10px;
   border-radius: 100px;
-  background: rgba(0, 0, 0, 0.1);
+  background: ${theme.colors.glass};
   overflow: hidden;
 
   span {
@@ -437,7 +439,7 @@ export const ProgressCount = styled.span`
   font-family: ${theme.font.sans};
   font-size: 16px;
   line-height: 22px;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 `
 
 // Success banner.
@@ -448,7 +450,7 @@ export const SuccessBanner = styled.div`
   gap: 16px;
   padding: 24px;
   border-radius: 12px;
-  background: #e2f5ea;
+  background: ${theme.colors.overlay};
   text-align: center;
 `
 
@@ -472,7 +474,7 @@ export const SuccessText = styled.p`
   font-family: ${theme.font.sans};
   font-size: 16px;
   line-height: 1.4;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   b {
     font-weight: 700;
@@ -492,10 +494,10 @@ export const Actions = styled.div`
 export const OutlineBtn = styled.button`
   flex: 1;
   height: 48px;
-  border: 1px solid ${theme.colors.accent};
+  border: 0;
   border-radius: 8px;
-  background: ${theme.colors.white};
-  color: ${theme.colors.accent};
+  background: ${theme.colors.glass};
+  color: ${theme.colors.softWhite};
   cursor: pointer;
   font-family: ${theme.font.sans};
   font-weight: 600;
@@ -504,10 +506,10 @@ export const OutlineBtn = styled.button`
   text-transform: uppercase;
 
   &:hover {
-    background: rgba(105, 31, 169, 0.06);
+    background: ${theme.colors.glassStrong};
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
 `
@@ -533,7 +535,7 @@ export const RubyBtn = styled.a`
     filter: brightness(1.05);
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
 `
@@ -546,17 +548,18 @@ export const ErrorBox = styled.div`
   padding: 16px;
   margin-top: 8px;
   border-radius: 12px;
-  background: rgba(255, 45, 85, 0.1);
+  border: 1px solid rgba(255, 45, 85, 0.5);
+  background: rgba(255, 45, 85, 0.16);
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.5;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 22px;
     height: 22px;
     flex: none;
-    color: ${theme.colors.dclRed};
+    color: ${dark.errorText};
   }
 
   /**
@@ -565,10 +568,11 @@ export const ErrorBox = styled.div`
    * all of which would contradict themselves rendered in the red error treatment.
    */
   &[data-tone='info'] {
-    background: ${theme.colors.panel};
+    border-color: ${dark.hairline};
+    background: ${theme.colors.overlay};
 
     .ico {
-      color: ${theme.colors.accent};
+      color: ${theme.colors.nameLink};
     }
   }
 `
@@ -581,54 +585,6 @@ export const NoFunds = styled.div`
   flex-direction: column;
   gap: 24px;
   margin-top: 16px;
-`
-
-/**
- * The design's 2x2 at every width (Figma 2996-434120), not just on a phone.
- *
- * The shared shell's row wraps to fit, which is right in the item modal — it is wide enough for four
- * tiles on one line. This card is 560px, so the same row puts three across the top and strands the
- * fourth alone on a full-width line. The row gap is what the Recommended badge hangs into.
- */
-export const Packs = styled(M.Packs)`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px 12px;
-
-  ${theme.media.maxWidth('mobile')} {
-    gap: 24px 12px;
-  }
-`
-
-export const PackTile = styled(M.Pack)`
-  position: relative;
-`
-
-// The pill that marks the pack which actually closes the gap. Same treatment as the Get Credits grid's
-// badge (gradients.flare on the card's top edge), at the size these smaller tiles take.
-export const PackBadge = styled.span`
-  position: absolute;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px 4px 8px;
-  border-radius: ${theme.radius.pill};
-  background: ${theme.gradients.flare};
-  font-family: ${theme.font.sans};
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
-  color: ${theme.colors.white};
-  white-space: nowrap;
-
-  .ico {
-    width: 16px;
-    height: 16px;
-  }
 `
 
 // Not the shared M.Ctas: that one is sticky to the bottom of BuyModal's own scrollable body, and this
