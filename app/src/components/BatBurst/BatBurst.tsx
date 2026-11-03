@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import batUrl from './bat.svg'
+import snowflakeUrl from './snowflake.svg'
 import { between } from '~/lib/random'
 import * as S from './BatBurst.styles'
 
@@ -13,6 +14,11 @@ type Bat = { dx: number; dy: number; rot: number; size: number; scale: number; d
  * like it contains a firework.
  */
 export type BurstFrom = 'center' | 'left' | 'right'
+
+/** What flies out: bats for Halloween, snowflakes for the holidays. The motion is the same. */
+export type BurstKind = 'bat' | 'snowflake'
+
+const SPRITE: Record<BurstKind, string> = { bat: batUrl, snowflake: snowflakeUrl }
 
 /** Fewer per side, because an edge burst is rendered twice — once per side — for the same moment. */
 const COUNT: Record<BurstFrom, number> = { center: 7, left: 4, right: 4 }
@@ -57,7 +63,15 @@ function planBats(from: BurstFrom): Bat[] {
  * The container needs `position: relative`; the burst is zero-sized and non-interactive, so it changes
  * neither layout nor hit-testing.
  */
-export function BatBurst({ from = 'center', onDone }: { from?: BurstFrom; onDone?: () => void }) {
+export function BatBurst({
+  from = 'center',
+  kind = 'bat',
+  onDone
+}: {
+  from?: BurstFrom
+  kind?: BurstKind
+  onDone?: () => void
+}) {
   // Read once at mount: a burst is a one-shot, so reacting to a mid-flight settings change could only cut
   // it off. An absent matchMedia plays, matching Confetti and BatFlight.
   const [bats] = useState(() => (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? [] : planBats(from)))
@@ -77,11 +91,11 @@ export function BatBurst({ from = 'center', onDone }: { from?: BurstFrom; onDone
   if (!bats.length) return null
 
   return (
-    <S.Origin aria-hidden data-from={from} data-testid="bat-burst">
+    <S.Origin aria-hidden data-from={from} data-kind={kind} data-testid="bat-burst">
       {bats.map((bat, i) => (
         <S.Bat
           key={i}
-          src={batUrl}
+          src={SPRITE[kind]}
           alt=""
           style={{
             ['--dx' as string]: `${bat.dx}px`,

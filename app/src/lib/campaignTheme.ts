@@ -8,9 +8,15 @@
  * Kept apart from `styles/theme.ts`: that is the design system every surface imports, this is a temporary
  * coat of paint over it that most of the year is not there at all.
  */
-export const CAMPAIGN_THEMES = ['halloween'] as const
+export const CAMPAIGN_THEMES = ['halloween', 'holidays'] as const
 
 export type CampaignTheme = (typeof CAMPAIGN_THEMES)[number]
+
+/** Other names a campaign tag is likely to carry for a theme, so tagging the event `christmas` still dresses it. */
+const ALIASES: Partial<Record<string, CampaignTheme>> = {
+  christmas: 'holidays',
+  xmas: 'holidays'
+}
 
 /**
  * A theme name as the flag or the CMS spells it, or `null` for anything this build cannot paint.
@@ -19,6 +25,7 @@ export type CampaignTheme = (typeof CAMPAIGN_THEMES)[number]
  * least as likely as `halloween`.
  */
 export function parseCampaignTheme(value: string | null | undefined): CampaignTheme | null {
-  const slug = value?.trim().toLowerCase()
-  return CAMPAIGN_THEMES.includes(slug as CampaignTheme) ? (slug as CampaignTheme) : null
+  const slug = value?.trim().toLowerCase() ?? ''
+  const theme = ALIASES[slug] ?? slug
+  return CAMPAIGN_THEMES.includes(theme as CampaignTheme) ? (theme as CampaignTheme) : null
 }

@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { CancelledListingsNotice } from '~/components/CancelledListingsBanner'
 import { BatFlight } from '~/components/BatFlight'
+import { Snowfall } from '~/components/Snowfall'
 import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
@@ -228,6 +229,12 @@ export function App() {
         <Sentry.ErrorBoundary fallback={<></>}>
           <BatFlight />
           <SpiderDrop />
+        </Sentry.ErrorBoundary>
+      ) : null}
+      {campaignTheme === 'holidays' && !plainField ? (
+        <Sentry.ErrorBoundary fallback={<></>}>
+          <Snowfall depth="back" />
+          <Snowfall depth="front" />
         </Sentry.ErrorBoundary>
       ) : null}
       <NavBar />

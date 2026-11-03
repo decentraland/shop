@@ -39,6 +39,7 @@ vi.mock('~/hooks/useOutfits', () => ({ useIsOutfitCreator: () => false }))
 // own chrome; `null` is the ordinary state, with no campaign running.
 const { useEventTab } = vi.hoisted(() => ({ useEventTab: vi.fn<() => string | null>(() => null) }))
 vi.mock('~/hooks/useEventTab', () => ({ useEventTab }))
+vi.mock('~/hooks/useCampaignTheme', () => ({ useCampaignTheme: () => null }))
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => ({ data: 0, isError: false, isLoading: false }) }))
 vi.mock('~/hooks/useManaBalance', () => ({
   useManaBalance: () => ({ data: undefined }),

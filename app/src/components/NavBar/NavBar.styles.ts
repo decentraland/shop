@@ -76,6 +76,17 @@ const rainbow = keyframes`
   }
 `
 
+// A candy cane turning: the stripes slide along by exactly one period, so the loop has no seam. The period
+// along x of a 45-degree stripe pair 11px wide is 11 * sqrt(2).
+const candyStripe = keyframes`
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 15.56px 0;
+  }
+`
+
 // A guttering candle, on the SAME 6s period as the gradient drift above.
 //
 // It ran at 4.5s first, and two animations on co-prime periods beat against each other: the dip landed at
@@ -224,6 +235,21 @@ export const Tabs = styled.nav`
     filter: drop-shadow(0 0 10px rgba(255, 106, 0, 0.55));
   }
 
+  /* HOLIDAYS. The label is a candy cane: red and white stripes on the diagonal, turning slowly, with a warm
+     red glow so the white stripes still separate from the bar. Same clipped-gradient mechanism as above, so
+     the same re-stated background-clip applies. */
+  html[data-campaign-theme='holidays'] & a[data-event],
+  html[data-campaign-theme='holidays'] & a[data-event]:hover,
+  html[data-campaign-theme='holidays'] & a[data-event].active {
+    background: repeating-linear-gradient(-45deg, #ffffff 0 5.5px, #ff2e45 5.5px 11px);
+    background-size: 15.56px 15.56px;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: ${candyStripe} 1.6s linear infinite;
+    filter: drop-shadow(0 0 8px rgba(255, 46, 69, 0.6));
+  }
+
   /* Listed explicitly: the themed rules above outrank the unqualified selector on specificity, so a bare
      reset would leave the Halloween tab animating for a reader who asked for stillness. The glow is a
      static filter and stays — it is not motion. */
@@ -231,7 +257,10 @@ export const Tabs = styled.nav`
     & a[data-event],
     html[data-campaign-theme='halloween'] & a[data-event],
     html[data-campaign-theme='halloween'] & a[data-event]:hover,
-    html[data-campaign-theme='halloween'] & a[data-event].active {
+    html[data-campaign-theme='halloween'] & a[data-event].active,
+    html[data-campaign-theme='holidays'] & a[data-event],
+    html[data-campaign-theme='holidays'] & a[data-event]:hover,
+    html[data-campaign-theme='holidays'] & a[data-event].active {
       animation: none;
     }
   }

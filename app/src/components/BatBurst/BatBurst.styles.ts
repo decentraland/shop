@@ -52,4 +52,10 @@ export const Bat = styled.img`
      The same pumpkin rim the flying one carries, so they stay readable either way. */
   filter: drop-shadow(0 0 3px rgba(255, 122, 24, 0.7));
   animation: var(--dur) cubic-bezier(0.2, 0.7, 0.35, 1) var(--delay) both ${scatter};
+
+  /* White flakes vanish against the light card, so they carry an icy blue rim instead of the pumpkin one. */
+  [data-kind='snowflake'] > & {
+    filter: drop-shadow(0 0 1px rgba(20, 70, 180, 1)) drop-shadow(0 0 1px rgba(20, 70, 180, 1))
+      drop-shadow(0 0 6px rgba(60, 140, 255, 0.9));
+  }
 `
