@@ -76,14 +76,22 @@ const rainbow = keyframes`
   }
 `
 
-// A candy cane turning: the stripes slide along by exactly one period, so the loop has no seam. The period
-// along x of a 45-degree stripe pair 11px wide is 11 * sqrt(2).
-const candyStripe = keyframes`
-  from {
-    background-position: 0 0;
+// A string-light bulb changing colour: red, then green, each held long enough to read before it fades over.
+// The glow moves with the colour, so the haze never sits a different hue from the letters.
+const holidayGlow = keyframes`
+  0%,
+  40% {
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
   }
-  to {
-    background-position: 15.56px 0;
+  50%,
+  90% {
+    color: #3ddc84;
+    filter: drop-shadow(0 0 6px rgba(54, 217, 122, 0.75));
+  }
+  100% {
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
   }
 `
 
@@ -235,19 +243,16 @@ export const Tabs = styled.nav`
     filter: drop-shadow(0 0 10px rgba(255, 106, 0, 0.55));
   }
 
-  /* HOLIDAYS. The label is a candy cane: red and white stripes on the diagonal, turning slowly, with a warm
-     red glow so the white stripes still separate from the bar. Same clipped-gradient mechanism as above, so
-     the same re-stated background-clip applies. */
+  /* HOLIDAYS. A solid label that changes colour like the bulbs hanging under it. Solid rather than a
+     clipped gradient: at this size any pattern inside the glyphs turns to noise. The background is cleared
+     because the base rule's gradient would otherwise still paint behind the now-coloured text. */
   html[data-campaign-theme='holidays'] & a[data-event],
   html[data-campaign-theme='holidays'] & a[data-event]:hover,
   html[data-campaign-theme='holidays'] & a[data-event].active {
-    background: repeating-linear-gradient(-45deg, #ffffff 0 5.5px, #ff2e45 5.5px 11px);
-    background-size: 15.56px 15.56px;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: ${candyStripe} 1.6s linear infinite;
-    filter: drop-shadow(0 0 8px rgba(255, 46, 69, 0.6));
+    background: none;
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+    animation: ${holidayGlow} 5s ease-in-out infinite;
   }
 
   /* Listed explicitly: the themed rules above outrank the unqualified selector on specificity, so a bare
