@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { WrongNetworkError } from '~/lib/network'
 import type { AuthIdentity } from '@dcl/crypto'
 import type { ethers } from 'ethers'
 
@@ -10,7 +11,14 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 
 // Pin the server base URLs so asserted URLs are env-independent.
 vi.mock('~/config', () => ({
-  config: { creditsServerUrl: 'https://credits.example', chainId: 137 }
+  // `ethereumChainId` is not decoration: the Ethereum rail resolves its contracts and its RPC from it, and
+  // a mock without it registers against `undefined` — which reads as a passing test over a broken call.
+  config: {
+    creditsServerUrl: 'https://credits.example',
+    chainId: 137,
+    ethereumChainId: 1,
+    ethereumRpcUrl: 'https://rpc.example/mainnet'
+  }
 }))
 
 // checkNameAvailability reads DCLRegistrar.available on-chain. Stub only ethers.Contract (+ the
@@ -67,6 +75,16 @@ vi.mock('~/lib/buy', () => ({ sendUseCredits }))
 const { ensureAuthorization } = vi.hoisted(() => ({ ensureAuthorization: vi.fn() }))
 vi.mock('~/lib/authorizations', () => ({ ensureAuthorization, AuthorizationKind: { Allowance: 'allowance' } }))
 
+/**
+ * The Ethereum rail's chain guard. PARTIAL mock: `~/lib/errors` reads `isWrongNetworkError` and
+ * `chainLabel` from this module, so replacing it wholesale turns every friendly error into a
+ * missing-export crash — which is how the credits rail's own failure cases broke the first time.
+ */
+const { requireChain } = vi.hoisted(() => ({ requireChain: vi.fn() }))
+vi.mock('~/lib/network', async orig => ({ ...(await orig<Record<string, unknown>>()), requireChain }))
+// The REAL class and the REAL guard: a hand-made `{ name: 'WrongNetworkError' }` would pass a check the
+// production error has to satisfy through `instanceof`, which is exactly the gap that let this ship.
+
 // Gasless submit + settlement wait. Fully mock the module (its real graph pulls decentraland-
 // transactions' cross-chain ESM) but provide stand-in error classes — names.ts and this spec both
 // import them from the SAME mock, so the `instanceof` checks inside names.ts line up.
@@ -104,6 +122,8 @@ import {
   checkNameAvailability,
   fetchNameCreditRoute,
   registerNameWithUsdCredits,
+  registerNameWithEthereumMana,
+  NameGasNotPayableError,
   sanitizeNameInput,
   sizeNameUsdCents,
   validateName,
@@ -838,5 +858,92 @@ describe('when the buyer pays part of the NAME with MANA', () => {
     })
 
     expect(authorizeUsdCredit.mock.calls[0][1]).toBe(4000)
+  })
+})
+
+/**
+ * Paying a NAME with MANA the buyer already holds on ETHEREUM.
+ *
+ * Nothing crosses a chain: approve the controller, call `register`, done. No credit is reserved, which
+ * makes this the only rail that serves a buyer holding none — and the only one the shop cannot make
+ * gasless, which is why it is self-custody only.
+ */
+describe('when the buyer pays a NAME with Ethereum MANA', () => {
+  const WEB3 = {} as ethers.providers.Web3Provider
+  const L1_SIGNER = { getAddress: async () => BUYER } as unknown as ethers.providers.JsonRpcSigner
+  const run = (over: Record<string, unknown> = {}) =>
+    registerNameWithEthereumMana({
+      name: 'my-name',
+      signer: L1_SIGNER,
+      web3Provider: WEB3,
+      providerType: 'injected' as never,
+      ...over
+    })
+
+  beforeEach(() => {
+    requireChain.mockResolvedValue(undefined)
+    ensureAuthorization.mockResolvedValue(undefined)
+    registerMock.mockReset()
+    registerMock.mockResolvedValue({ hash: '0xl1tx', wait: async () => ({ status: 1 }) })
+  })
+
+  it('should approve the controller and register, spending no credits', async () => {
+    const res = await run()
+
+    expect(res).toEqual({ status: 'registered', originTxHash: '0xl1tx' })
+    expect(registerMock).toHaveBeenCalledWith('my-name', BUYER.toLowerCase())
+    // The whole 100 MANA price, and never a credit.
+    expect(ensureAuthorization.mock.calls[0][0].requiredWei).toBe(BigInt(NAME_PRICE_IN_WEI))
+    expect(ensureAuthorization.mock.calls[0][0].auth.chainId).toBe(1)
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A managed wallet holds no ETH, so this rail would prompt for a confirmation its owner cannot satisfy
+   * and revert. Callers gate on it, but the gate is re-checked here rather than trusted: this is the one
+   * rail where being wrong costs a failed on-chain attempt.
+   */
+  it('should refuse a wallet that cannot pay its own gas, with an error the UI can translate', async () => {
+    await expect(run({ providerType: 'magic' })).rejects.toBeInstanceOf(NameGasNotPayableError)
+
+    expect(ensureAuthorization).not.toHaveBeenCalled()
+    expect(registerMock).not.toHaveBeenCalled()
+  })
+
+  // A wallet still pointed at Polygon would sign against the wrong chain, so the write never starts.
+  it('should not register when the wallet is on the wrong chain', async () => {
+    requireChain.mockRejectedValueOnce(new Error('wrong network'))
+
+    await expect(run()).rejects.toThrow()
+    expect(registerMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The wrong chain has to reach the CALLER as itself.
+   *
+   * The modal answers it with a screen offering the switch, and that screen is the rail's whole way in for a
+   * wallet sitting on Polygon — which is where the shop's wallets sit by default. Wrapped in a friendly
+   * Error the way every other failure is, `isWrongNetworkError` sees a plain `Error`, the check fails, and
+   * the buyer gets the generic failure panel with nothing to act on.
+   */
+  it('should let a wrong-network error through instead of wrapping it', async () => {
+    const wrong = new WrongNetworkError(137, 1)
+    requireChain.mockRejectedValueOnce(wrong)
+
+    await expect(run()).rejects.toBe(wrong)
+  })
+
+  // A mined-but-reverted tx is not a registration, however successful the receipt looks.
+  it('should treat a reverted transaction as a failure', async () => {
+    registerMock.mockResolvedValueOnce({ hash: '0xl1tx', wait: async () => ({ status: 0 }) })
+
+    await expect(run()).rejects.toThrow()
+  })
+
+  // The raw failure never reaches the buyer — friendlyError owns what they read.
+  it('should not surface a raw error message', async () => {
+    registerMock.mockRejectedValueOnce(new Error('RAW_L1_INTERNAL'))
+
+    await expect(run()).rejects.toThrow(/couldn.t register the name/i)
   })
 })
