@@ -1,3 +1,42 @@
+/* Inter, served from our own origin.
+
+   It used to come from fonts.googleapis.com, and that cost more than it looked like. The stylesheet was
+   render-blocking and cross-origin, so the browser could not paint until it had resolved a second host,
+   negotiated TLS with it, fetched a CSS file and only then discovered the font on a THIRD host. Measured
+   on a throttled phone, removing that chain took the simulated First Contentful Paint from 4809ms to
+   2411ms — the single largest thing standing between the home page and its first pixel.
+
+   One file per subset covers the whole 400–700 range: Google was already serving a variable font, so the
+   three static weights the old URL asked for were three declarations pointing at the same binary.
+   `unicode-range` is copied from that stylesheet, so a page of English or Spanish downloads only the
+   48 KB latin file and never the 85 KB extended one.
+
+   `swap` rather than `block`: the fallback stack in `--sans` is metrically close enough that the swap is
+   not a jolt, and blocking text on a font is the behaviour this change exists to remove.
+
+   Inter is licensed under the SIL Open Font License 1.1 — see assets/fonts/OFL.txt, which ships beside
+   the binaries as that licence requires. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../assets/fonts/inter-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../assets/fonts/inter-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 /* These custom properties are DUPLICATED in styles/theme.ts (the `colors`/`radius`/`gradients`/`font`
    tokens) and MUST stay in sync one-for-one. Both are live: index.css rules below + component styled
    defs read theme.ts, and some components emit raw `var(--…)` strings. Change one → change the other. */
