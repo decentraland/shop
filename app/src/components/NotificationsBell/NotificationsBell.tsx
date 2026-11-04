@@ -5,7 +5,13 @@ import { Icon } from '~/components/Icon'
 import { ItemDiscountedNotification } from '~/components/ItemDiscountedNotification'
 import { useWallet } from '~/store/wallet'
 import { useLocale } from '~/store/locale'
-import { fetchNotifications, markNotificationsRead, type ShopNotification } from '~/lib/notifications'
+import {
+  fetchNotifications,
+  markNotificationsRead,
+  notificationPeople,
+  type ShopNotification
+} from '~/lib/notifications'
+import { fetchProfiles } from '~/lib/profile'
 import { shortAddress } from '~/lib/address'
 import { t, type Locale } from '~/intl/i18n'
 import * as S from './NotificationsBell.styles'
@@ -60,6 +66,26 @@ export function NotificationsBell() {
   // sort on the value actually rendered.
   const items = useMemo(() => [...fetched].sort((a, b) => b.timestamp - a.timestamp), [fetched])
   const unreadCount = items.filter(n => !n.read).length
+
+  // ui2's rows show whatever renderProfile returns ahead of any name the notification itself carries, so
+  // returning a bare address here would hide the sender's name everywhere.
+  const people = useMemo(() => notificationPeople(items), [items])
+  const addresses = useMemo(() => [...people.keys()].sort(), [people])
+  const { data: profiles } = useQuery({
+    queryKey: ['notification-profiles', addresses],
+    enabled: isOpen && addresses.length > 0,
+    staleTime: 5 * 60_000,
+    // A new sender arriving on a poll changes the key; keep the names already shown until the new batch lands.
+    placeholderData: previous => previous,
+    queryFn: () => fetchProfiles(addresses)
+  })
+  const renderProfile = useCallback(
+    (address: string) => {
+      const key = address.toLowerCase()
+      return profiles?.get(key)?.name || people.get(key) || shortAddress(address)
+    },
+    [people, profiles]
+  )
 
   // Unread notifications are marked read when the panel CLOSES, same as the marketplace. It matters more
   // here than there: the unread dot is now the only thing that separates a new notification from an old
@@ -139,7 +165,7 @@ export function NotificationsBell() {
               if (!Component) return null
               return (
                 <S.Item key={n.id} data-testid="notification-item" data-unread={!n.read}>
-                  <Component notification={n} locale={toNotificationLocale(locale)} renderProfile={shortAddress} />
+                  <Component notification={n} locale={toNotificationLocale(locale)} renderProfile={renderProfile} />
                 </S.Item>
               )
             })}
