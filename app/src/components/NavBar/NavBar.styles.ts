@@ -76,6 +76,25 @@ const rainbow = keyframes`
   }
 `
 
+// A string-light bulb changing colour: red, then green, each held long enough to read before it fades over.
+// The glow moves with the colour, so the haze never sits a different hue from the letters.
+const holidayGlow = keyframes`
+  0%,
+  40% {
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+  }
+  50%,
+  90% {
+    color: #3ddc84;
+    filter: drop-shadow(0 0 6px rgba(54, 217, 122, 0.75));
+  }
+  100% {
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+  }
+`
+
 // A guttering candle, on the SAME 6s period as the gradient drift above.
 //
 // It ran at 4.5s first, and two animations on co-prime periods beat against each other: the dip landed at
@@ -224,6 +243,18 @@ export const Tabs = styled.nav`
     filter: drop-shadow(0 0 10px rgba(255, 106, 0, 0.55));
   }
 
+  /* HOLIDAYS. A solid label that changes colour like the bulbs hanging under it. Solid rather than a
+     clipped gradient: at this size any pattern inside the glyphs turns to noise. The background is cleared
+     because the base rule's gradient would otherwise still paint behind the now-coloured text. */
+  html[data-campaign-theme='holidays'] & a[data-event],
+  html[data-campaign-theme='holidays'] & a[data-event]:hover,
+  html[data-campaign-theme='holidays'] & a[data-event].active {
+    background: none;
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+    animation: ${holidayGlow} 5s ease-in-out infinite;
+  }
+
   /* Listed explicitly: the themed rules above outrank the unqualified selector on specificity, so a bare
      reset would leave the Halloween tab animating for a reader who asked for stillness. The glow is a
      static filter and stays — it is not motion. */
@@ -231,7 +262,10 @@ export const Tabs = styled.nav`
     & a[data-event],
     html[data-campaign-theme='halloween'] & a[data-event],
     html[data-campaign-theme='halloween'] & a[data-event]:hover,
-    html[data-campaign-theme='halloween'] & a[data-event].active {
+    html[data-campaign-theme='halloween'] & a[data-event].active,
+    html[data-campaign-theme='holidays'] & a[data-event],
+    html[data-campaign-theme='holidays'] & a[data-event]:hover,
+    html[data-campaign-theme='holidays'] & a[data-event].active {
       animation: none;
     }
   }

@@ -13,6 +13,11 @@ describe('parseCampaignTheme', () => {
     expect(parseCampaignTheme('  HALLOWEEN  ')).toBe('halloween')
   })
 
+  it('dresses a campaign tagged with another name for the holidays in the holiday theme', () => {
+    expect(parseCampaignTheme('Christmas')).toBe('holidays')
+    expect(parseCampaignTheme('xmas')).toBe('holidays')
+  })
+
   it('reads a theme it cannot paint as no theme rather than passing it on', () => {
     expect(parseCampaignTheme('prom')).toBeNull()
     expect(parseCampaignTheme('halloween-2026')).toBeNull()

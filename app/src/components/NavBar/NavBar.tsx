@@ -12,6 +12,7 @@ import { useIsOutfitCreator } from '~/hooks/useOutfits'
 import { useMyStoreEnabled } from '~/hooks/useMyStoreEnabled'
 import { useIsCreator } from '~/hooks/useIsCreator'
 import { useEventTab } from '~/hooks/useEventTab'
+import { useCampaignTheme } from '~/hooks/useCampaignTheme'
 import { useBalance } from '~/hooks/useBalance'
 import { useWalletChain } from '~/hooks/useWalletChain'
 import { useManaBalances } from '~/hooks/useManaBalance'
@@ -19,6 +20,7 @@ import { manaWeiToNumber } from '~/lib/mana-format'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { HeldCredits } from '~/components/HeldCredits'
+import { HolidayLights } from '~/components/HolidayLights'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
@@ -97,6 +99,7 @@ export function NavBar() {
   const iap = isIapMode()
   // The seasonal event tab, when one is running and actually has collections in it.
   const eventTab = useEventTab()
+  const campaignTheme = useCampaignTheme()
   // Checkout is a flow, not a place to browse from: inside the iOS web view the cart and its success
   // screen drop the shop's sub-nav entirely (Figma 2703:399357 Cart), leaving the back arrow the page
   // already renders as the only way out. The global bar above stays — it carries the credits balance,
@@ -518,6 +521,13 @@ export function NavBar() {
             </S.Cart>
             <CartPopover />
           </S.CartWrap>
+          {/* Hung from this bar rather than from the page so it rides along when the bar sticks. Boundaried
+              like the other seasonal decorations: a fault in one must never take the nav with it. */}
+          {campaignTheme === 'holidays' ? (
+            <Sentry.ErrorBoundary fallback={<></>}>
+              <HolidayLights />
+            </Sentry.ErrorBoundary>
+          ) : null}
         </S.Subnav>
       )}
     </>

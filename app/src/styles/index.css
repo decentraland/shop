@@ -177,6 +177,28 @@ body::before {
   background-image: url("../images/background/DCL_LogoPattern_Halloween.png");
   opacity: 0.12;
 }
+
+/* HOLIDAYS. The same radial geometry turned to a winter night: midnight blue instead of the Shop's purple,
+   with moonlight banked up from the bottom edge the way it comes off a field of snow, and a faint warm glow
+   at the top where the string of lights hangs from the nav. */
+:root[data-campaign-theme="holidays"]:not([data-campaign-field="plain"]) body {
+  background:
+    radial-gradient(
+        60% 40% at 50% 106%,
+        rgba(186, 220, 255, 0.3) 0%,
+        rgba(140, 186, 255, 0.1) 48%,
+        rgba(140, 186, 255, 0) 78%
+      )
+      fixed,
+    radial-gradient(70% 26% at 50% -4%, rgba(255, 196, 120, 0.14) 0%, rgba(255, 196, 120, 0) 70%) fixed,
+    radial-gradient(61.64% 109.58% at 50% 54.49%, #2c3577 0%, #222a64 25%, #19204f 50%, #10153a 75%, #080b22 100%) fixed;
+}
+/* Raised like the Halloween sheet, for the same reason: its field is near-black, so at the plain tile's
+   0.03 the trees and reindeer would not read. */
+:root[data-campaign-theme="holidays"]:not([data-campaign-field="plain"]) body::before {
+  background-image: url("../images/background/DCL_LogoPattern_Holidays.png");
+  opacity: 0.1;
+}
 /* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
    panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
    BAND behind the panels (Figma draws it as a rect over the artboard, not as a page background), which

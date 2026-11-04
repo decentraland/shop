@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart, type AddToCartSource } from '~/store/cart'
-import { BatBurst } from '~/components/BatBurst'
+import { BatBurst, type BurstKind } from '~/components/BatBurst'
 import { useFavorite } from '~/store/favorites'
 import { useLocale } from '~/store/locale'
 import { useHoverPreview } from '~/store/hoverPreview'
@@ -112,6 +112,7 @@ export function AssetCard(props: AssetCardProps) {
   const { key: favKey, faved, toggle: toggleFav } = useFavorite(item)
   const favCount = useFavoriteCount(item)
   const [burst, setBurst] = useState(0)
+  const burstKind = useRef<BurstKind>('bat')
   const [hoverBurst, setHoverBurst] = useState(0)
   const lastHoverBurst = useRef(0)
   const locale = useLocale(s => s.locale)
@@ -446,7 +447,9 @@ export function AssetCard(props: AssetCardProps) {
             // the instant of the click, and subscribing every card in a 50-card grid to the campaign
             // queries to decorate one of them is a poor trade. Only on the way IN — un-favouriting is not
             // a moment to celebrate.
-            if (!faved && document.documentElement.dataset.campaignTheme === 'halloween') {
+            const season = document.documentElement.dataset.campaignTheme
+            if (!faved && (season === 'halloween' || season === 'holidays')) {
+              burstKind.current = season === 'holidays' ? 'snowflake' : 'bat'
               setBurst(n => n + 1)
             }
             toggleFav(item, source)
@@ -458,7 +461,7 @@ export function AssetCard(props: AssetCardProps) {
             <S.FavFill name="heart-solid" size={16} aria-hidden />
           </S.FavIcons>
           {favCountLabel ? <S.FavCount data-testid="card-fav-count">{favCountLabel}</S.FavCount> : null}
-          {burst ? <BatBurst key={burst} onDone={() => setBurst(0)} /> : null}
+          {burst ? <BatBurst key={burst} kind={burstKind.current} onDone={() => setBurst(0)} /> : null}
         </S.Fav>
       ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
