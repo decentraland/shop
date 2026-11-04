@@ -1,4 +1,5 @@
-import { ethers } from 'ethers'
+import type { ethers } from 'ethers'
+import { loadEthers } from '~/lib/lazy-ethers'
 import { ChainId, ProviderType } from '@dcl/schemas'
 import { Authenticator, type AuthIdentity } from '@dcl/crypto'
 import { localStorageGetIdentity, localStorageStoreIdentity } from '@dcl/single-sign-on-client'
@@ -35,19 +36,20 @@ async function toSession(res: {
   // Without it, a session that outlives a network change — the user switching from the navbar, or from
   // their wallet directly — makes this cached provider throw "underlying network changed" on the next
   // call, which is what used to break "Remove from sale" for anyone not already on the trade's chain.
-  const web3Provider = new ethers.providers.Web3Provider(res.provider as ethers.providers.ExternalProvider, 'any')
+  const lib = await loadEthers()
+  const web3Provider = new lib.providers.Web3Provider(res.provider as ethers.providers.ExternalProvider, 'any')
   const signer = web3Provider.getSigner()
 
   // Reuse a valid stored identity, otherwise create one (a single wallet signature).
   let identity = localStorageGetIdentity(address)
   if (!identity) {
-    const ephemeral = ethers.Wallet.createRandom()
+    const ephemeral = lib.Wallet.createRandom()
     identity = await Authenticator.initializeAuthChain(
       address,
       {
         address: ephemeral.address,
-        publicKey: ethers.utils.hexlify(ephemeral.publicKey),
-        privateKey: ethers.utils.hexlify(ephemeral.privateKey)
+        publicKey: lib.utils.hexlify(ephemeral.publicKey),
+        privateKey: lib.utils.hexlify(ephemeral.privateKey)
       },
       IDENTITY_EXPIRATION_MINUTES,
       message => signer.signMessage(message)

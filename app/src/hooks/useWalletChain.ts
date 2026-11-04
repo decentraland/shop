@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 // preview helpers already use). Vite bundles all of @dcl/schemas into one chunk either way.
 import { ChainId, getNetwork, getNetworkMapping } from '@dcl/schemas/dist/dapps/chain-id'
 import { Network } from '@dcl/schemas/dist/dapps/network'
-import { ethers } from 'ethers'
 // lib/network owns the chain vocabulary — the live read, the Amoy add-params and the labels — so the
 // navbar and the gas-paying legs cannot disagree about what chain the wallet is on or how Amoy is added.
 import { activeChainId as readChainId, AMOY_ADD_PARAMS } from '~/lib/network'
@@ -141,7 +140,7 @@ export function useWalletChain(session: Session | null): WalletChain {
       setPendingChainId(target)
       try {
         try {
-          await web3Provider.send('wallet_switchEthereumChain', [{ chainId: ethers.utils.hexValue(target) }])
+          await web3Provider.send('wallet_switchEthereumChain', [{ chainId: `0x${target.toString(16)}` }])
         } catch (e) {
           // Only Amoy gets the add: offering to ADD any chain the wallet does not recognise would let a
           // misconfigured environment teach someone's wallet about a network we made up.

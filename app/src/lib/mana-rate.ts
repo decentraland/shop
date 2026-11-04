@@ -1,4 +1,5 @@
-import { ethers } from 'ethers'
+import type { ethers } from 'ethers'
+import { loadEthers } from '~/lib/lazy-ethers'
 import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import type { ManaRate } from '~/lib/mana-convert'
@@ -73,14 +74,15 @@ export function manaRateQueryOptions() {
 }
 
 export async function readManaUsdRate(marketplaceAddress: string): Promise<ManaRate> {
-  const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
-  const mkt = new ethers.Contract(
+  const lib = await loadEthers()
+  const provider = new lib.providers.JsonRpcProvider(config.rpcUrl)
+  const mkt = new lib.Contract(
     marketplaceAddress,
     ['function manaUsdAggregator() view returns (address)'],
     provider
   ) as OracleReaderContract
   const aggAddr = await mkt.manaUsdAggregator()
-  const agg = new ethers.Contract(
+  const agg = new lib.Contract(
     aggAddr,
     [
       'function decimals() view returns (uint8)',
