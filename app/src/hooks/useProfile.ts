@@ -10,6 +10,9 @@ export function useProfile(address?: string) {
     queryKey: ['profile', address],
     enabled: !!address,
     staleTime: 5 * 60_000,
-    queryFn: (): Promise<ProfileAvatar | undefined> => fetchProfile(address!)
+    // react-query v5 fails a query that resolves `undefined` (without retrying), so a missing profile
+    // must resolve `null` — otherwise it never caches and every remounting consumer refetches it.
+    queryFn: async (): Promise<ProfileAvatar | null> => (await fetchProfile(address!)) ?? null,
+    select: (profile): ProfileAvatar | undefined => profile ?? undefined
   })
 }
