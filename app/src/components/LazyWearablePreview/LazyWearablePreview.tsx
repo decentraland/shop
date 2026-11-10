@@ -5,6 +5,7 @@ import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
 import { config } from '~/config'
 import { useUnityWearablePreview } from '~/hooks/useUnityWearablePreview'
+import { useMeasuredMbps } from '~/hooks/useMeasuredMbps'
 
 // The 3D preview iframe + its controller/schema deps only matter on hover (cards) and the detail
 // page, so load them on demand instead of in the initial bundle. The type import is erased at build
@@ -26,9 +27,9 @@ const UNTRACKED_FALLBACK_REASONS = new Set(['mobile', 'default-babylon'])
 
 // Resolves the mount renderer decision (final for the component's life): tracks a real Babylon capability
 // fallback once (see UNTRACKED_FALLBACK_REASONS for the excluded cases) and returns whether to attempt Unity.
-function resolveUnityRenderer(unity: boolean, id?: string): boolean {
+function resolveUnityRenderer(unity: boolean, measuredMbps: number | null, id?: string): boolean {
   if (!unity) return false
-  const decision = pickRenderer()
+  const decision = pickRenderer(measuredMbps)
   if (decision.renderer === PreviewRenderer.BABYLON && !UNTRACKED_FALLBACK_REASONS.has(decision.reason)) {
     track('Shop Preview Renderer Fallback', { reason: decision.reason, preview_id: id ?? null })
   }
@@ -43,13 +44,17 @@ function resolveUnityRenderer(unity: boolean, id?: string): boolean {
  */
 export function WearablePreview({ unity = true, ...props }: Props) {
   const flag = useUnityWearablePreview()
+  const wantsUnity = unity && flag.enabled
+  // The probe only runs when the link is what is left to decide: a phone, data saver or a device below the
+  // bar has already settled on Babylon, and that visitor should not pay for the download.
+  const link = useMeasuredMbps(wantsUnity && pickRenderer().renderer === PreviewRenderer.UNITY)
 
-  // The renderer is decided once per mount (below), so rendering before the flag resolves would mean loading
-  // a Babylon scene and replacing it a tick later. Nothing is shown for that window instead — callers already
-  // cover it with their own loading state, and the flag file is normally warm from the app's other reads.
-  if (unity && flag.pending) return null
+  // The renderer is decided once per mount (below), so rendering before the flag and the probe resolve would
+  // mean loading a Babylon scene and replacing it a tick later. Nothing is shown for that window instead —
+  // callers already cover it with their own loading state, and both are cached after the first preview.
+  if (unity && (flag.pending || link.pending)) return null
 
-  return <Preview unity={unity && flag.enabled} {...props} />
+  return <Preview unity={wantsUnity} measuredMbps={link.mbps} {...props} />
 }
 
 function Preview({
@@ -58,9 +63,10 @@ function Preview({
   onError,
   onLoad,
   onRenderer,
+  measuredMbps = null,
   ...props
-}: Props) {
-  const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
+}: Props & { measuredMbps?: number | null }) {
+  const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, measuredMbps, props.id))
   const chainId: ChainId = config.chainId
 
   return (

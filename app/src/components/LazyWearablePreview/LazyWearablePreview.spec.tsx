@@ -7,9 +7,11 @@ import { WearablePreview } from '~/components/LazyWearablePreview'
 import { resetFeatureFlagsCache } from '~/lib/featureFlags'
 import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
+import { measureDownlinkMbps } from '~/lib/connectionSpeed'
 
 vi.mock('~/lib/pickRenderer', () => ({ pickRenderer: vi.fn() }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
+vi.mock('~/lib/connectionSpeed', () => ({ measureDownlinkMbps: vi.fn() }))
 
 // Stand in for the real decentraland-ui2 iframe component; record the props it receives and expose a
 // hook to fire onError/onLoad like the real iframe.
@@ -52,6 +54,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetFeatureFlagsCache()
   stubFlag(true)
+  vi.mocked(measureDownlinkMbps).mockResolvedValue(50)
 })
 
 afterEach(() => {
@@ -207,5 +210,43 @@ describe('LazyWearablePreview', () => {
     renderPreview(<WearablePreview unity />)
     expect(screen.queryByTestId('wp')).toBeNull()
     expect(pickRenderer).not.toHaveBeenCalled()
+  })
+
+  describe('link probe', () => {
+    it('decides the renderer with the measured link speed', async () => {
+      mockPick(PreviewRenderer.UNITY)
+      vi.mocked(measureDownlinkMbps).mockResolvedValue(42)
+      renderPreview(<WearablePreview unity />)
+      await screen.findByTestId('wp')
+      expect(pickRenderer).toHaveBeenLastCalledWith(42)
+    })
+
+    it('renders nothing while the probe runs', async () => {
+      mockPick(PreviewRenderer.UNITY)
+      vi.mocked(measureDownlinkMbps).mockReturnValue(new Promise(() => {}))
+      renderPreview(<WearablePreview unity />)
+      await vi.waitFor(() => expect(measureDownlinkMbps).toHaveBeenCalled())
+      expect(screen.queryByTestId('wp')).toBeNull()
+    })
+
+    it('skips the probe when the device already settles on Babylon', async () => {
+      mockPick(PreviewRenderer.BABYLON, 'mobile')
+      renderPreview(<WearablePreview unity />)
+      await screen.findByTestId('wp')
+      expect(measureDownlinkMbps).not.toHaveBeenCalled()
+      expect(lastProps.unity).toBe(false)
+    })
+
+    it('measures once for every preview on the page', async () => {
+      mockPick(PreviewRenderer.UNITY)
+      renderPreview(
+        <>
+          <WearablePreview unity />
+          <WearablePreview unity />
+        </>
+      )
+      expect(await screen.findAllByTestId('wp')).toHaveLength(2)
+      expect(measureDownlinkMbps).toHaveBeenCalledOnce()
+    })
   })
 })
