@@ -541,6 +541,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   if (u.hostname.includes('fonts.google') || u.hostname.includes('gstatic')) {
     return req.respond({ status: 200, headers: { 'content-type': 'text/css', ...CORS }, body: '' })
   }
+  if (u.hostname.includes('intercom')) {
+    return req.respond({ status: 200, headers: { 'content-type': 'application/javascript', ...CORS }, body: '' })
+  }
 
   // JSON-RPC read provider.
   if (u.hostname.includes('rpc-amoy') || u.hostname.includes('rpc.decentraland')) {
