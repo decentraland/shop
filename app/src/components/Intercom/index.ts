@@ -1,1 +1,1 @@
-export { Intercom, intercomData } from './Intercom'
+export { Intercom } from './Intercom'
