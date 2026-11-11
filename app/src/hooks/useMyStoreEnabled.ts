@@ -8,9 +8,9 @@ import { useWallet } from '~/store/wallet'
  *
  * The flag decides whether the feature exists at all; its VARIANT, when it carries one, narrows that to a
  * list of addresses. An absent or empty list is NOT an empty guest list — it means nobody asked for a
- * restriction, so the flag alone answers and everyone gets in. That is the opposite reading from the
- * pre-launch gate, where an empty list hides the Shop from all, and the reason is what each flag is for:
- * this one opens something new, that one closes everything until launch.
+ * restriction, so the flag alone answers and everyone gets in. Note that this is the opposite reading
+ * from a flag whose list is a guest list for something already closed, where empty means nobody: the
+ * direction follows from what the flag is for, and this one opens a surface rather than closing one.
  */
 export type MyStoreAccess =
   /** Not known yet — show NEITHER the page nor its absence. */

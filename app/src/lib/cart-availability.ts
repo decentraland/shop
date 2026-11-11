@@ -1,5 +1,6 @@
 import type { Trade } from '@dcl/schemas'
 import { resolveLiveTrade, fetchStoreMintState, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
+import { getMarketplaceForTrade } from '~/lib/marketplace'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable
@@ -23,6 +24,8 @@ export function isLineBuyable(status: CartLineAvailability | undefined): boolean
 // with no live listing reads as sold-out; a SECONDARY (unique token) line reads as unavailable.
 export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: Trade | null): CartLineAvailability {
   if (!trade) return item.tokenId ? 'unavailable' : 'sold-out'
+  // As in resolveLine: a trade naming a marketplace not deployed on its chain cannot settle anywhere.
+  if (!getMarketplaceForTrade(trade)) return 'unavailable'
   // checks.expiration is stored in epoch MILLISECONDS (see lib/trade-encoding.ts), so it compares
   // directly against Date.now(). Only treat a real, positive, past timestamp as expired.
   const expiration = (trade.checks as { expiration?: number } | undefined)?.expiration

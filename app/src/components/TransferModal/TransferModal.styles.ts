@@ -1,4 +1,6 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
+import { dark, darkCard, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 // Transfer-collectible modal. The destination-address form that backs the PDP "Transfer" action
@@ -21,10 +23,9 @@ export const Card = styled.div`
   max-width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: 16px;
+  ${darkCard}
+  border-radius: ${theme.radius.modal};
   padding: 12px 16px 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -39,7 +40,7 @@ export const Head = styled.div`
   flex-direction: column;
   gap: 4px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const HeadRow = styled.div`
@@ -55,7 +56,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -67,7 +68,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 18px;
@@ -78,7 +79,7 @@ export const Close = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -96,7 +97,7 @@ export const Thumb = styled.img`
   height: 72px;
   border-radius: 12px;
   object-fit: cover;
-  background: ${theme.colors.media};
+  background: ${dark.raised};
 `
 
 export const AssetName = styled.p`
@@ -105,7 +106,7 @@ export const AssetName = styled.p`
   font-weight: 600;
   font-size: 18px;
   line-height: 1.4;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Field = styled.label`
@@ -117,30 +118,18 @@ export const Field = styled.label`
 export const FieldLabel = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 export const Input = styled.input`
   width: 100%;
   height: 44px;
   padding: 0 12px;
-  border: 1px solid ${theme.colors.text};
   border-radius: 8px;
-  background: ${theme.colors.white};
+  ${darkField}
   font-family: ${theme.font.sans};
   font-size: 14px;
-  color: ${theme.colors.text};
-
-  &::placeholder {
-    color: ${theme.colors.muted2};
-  }
-  &:focus-visible {
-    outline: none;
-    border-color: ${theme.colors.magenta};
-  }
-  &[aria-invalid='true'] {
-    border-color: ${theme.colors.err};
-  }
+  outline: none;
   &:disabled {
     opacity: 0.6;
   }
@@ -151,11 +140,12 @@ export const Warning = styled.p`
   margin: 0;
   padding: 12px 14px;
   border-radius: 10px;
-  background: rgba(255, 45, 85, 0.1);
+  border: 1px solid rgba(255, 45, 85, 0.5);
+  background: ${dark.raised};
   font-family: ${theme.font.sans};
   font-size: 13px;
   line-height: 1.5;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 `
 
 export const Actions = styled.div`
@@ -167,66 +157,14 @@ export const Actions = styled.div`
   }
 `
 
-// Dark-outline secondary (Cancel) — matches the PDP outline CTA spec (2px #242129).
-export const OutlineBtn = styled.button`
-  flex: 1;
-  height: 48px;
-  border: 2px solid ${theme.colors.blackBtn};
-  border-radius: 16px;
-  background: transparent;
-  color: ${theme.colors.text};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: rgba(36, 33, 41, 0.06);
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-  &:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-`
-
-// Dark-solid primary (Transfer) — matches the PDP dark CTA spec (#242129 / #fcfcfc).
-export const PrimaryBtn = styled.button`
+export const ActionBtn = styled(Button)`
   flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   height: 48px;
-  border: 0;
   border-radius: 16px;
-  background: ${theme.colors.blackBtn};
-  color: ${theme.colors.softWhite};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    filter: brightness(1.35);
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-  &:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
 `
 
 // Success state, mirroring the listing success modal (Figma 1528-306276).
@@ -237,7 +175,8 @@ export const SuccessBanner = styled.div`
   gap: 16px;
   padding: 24px 16px;
   border-radius: 16px;
-  background: rgba(193, 238, 207, 0.5);
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   text-align: center;
 `
 
@@ -261,7 +200,7 @@ export const SuccessText = styled.p`
   font-family: ${theme.font.sans};
   font-size: 16px;
   line-height: 1.34;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 
   b {
     font-weight: 700;

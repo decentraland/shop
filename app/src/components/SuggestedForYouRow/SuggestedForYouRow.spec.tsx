@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import type { SuggestedItem, SuggestionReasonKind } from '~/lib/api'
 
 /**
@@ -18,13 +19,15 @@ const { useSuggestedForYou, track } = vi.hoisted(() => ({
 }))
 vi.mock('~/hooks/useSuggestedForYou', () => ({ useSuggestedForYou }))
 vi.mock('~/lib/analytics', () => ({ track }))
-// The card has its own coverage; here it is one box on a rail.
+// The card has its own coverage; here it is one box on a rail, plus the note the rail hands it.
 vi.mock('~/components/AssetCard', () => ({
-  AssetCard: ({ item }: { item: SuggestedItem }) => <div data-testid="asset-card">{item.name}</div>
+  AssetCard: ({ item, note }: { item: SuggestedItem; note?: ReactNode }) => (
+    <div data-testid="asset-card">
+      {item.name}
+      {note}
+    </div>
+  )
 }))
-// Resolving trigger names is a network concern with its own path; the reason copy is covered by
-// suggestionReasons.spec.
-vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: [] }) }))
 
 import { SuggestedForYouRow } from './SuggestedForYouRow'
 
@@ -125,6 +128,64 @@ describe('when the rail renders', () => {
 
   it('should render one card per row', () => {
     expect(screen.getAllByTestId('asset-card')).toHaveLength(4)
+  })
+
+  it('should explain every card by its category', () => {
+    const categories = screen.getAllByTestId('suggested-reason').map(node => node.getAttribute('data-kind'))
+    expect(categories).toEqual(['owned', 'owned', 'creator', 'activity'])
+  })
+
+  it('should word the explanation for its category, not for the item behind it', () => {
+    expect(screen.getAllByTestId('suggested-reason')[0].textContent).toBe('Based on items you own')
+  })
+})
+
+describe('when the answer mixes in rows the server could only call trending', () => {
+  beforeEach(() => {
+    hookReturns({
+      result: {
+        data: [
+          item(1, 'co_owned'),
+          item(2, 'trending'),
+          item(3, 'favorite_similar'),
+          item(4, 'equipped_similar'),
+          item(5, 'trending'),
+          item(6, 'creator_affinity')
+        ],
+        personalized: true,
+        algorithm: 'v1'
+      }
+    })
+    renderRow()
+  })
+
+  it('should leave them out, so every card on the rail says why it is there', () => {
+    expect(screen.getAllByTestId('asset-card')).toHaveLength(4)
+  })
+
+  it('should count only what it showed in the impression', () => {
+    expect(emitted('viewed_suggestions')[0][1]).toMatchObject({
+      count: 4,
+      reason_counts: { co_owned: 1, favorite_similar: 1, equipped_similar: 1, creator_affinity: 1 }
+    })
+  })
+})
+
+describe('when leaving the trending rows out leaves too few to fill a rail', () => {
+  beforeEach(() => {
+    hookReturns({
+      result: {
+        data: [item(1, 'co_owned'), item(2, 'trending'), item(3, 'trending'), item(4, 'creator_affinity')],
+        personalized: true,
+        algorithm: 'v1'
+      }
+    })
+    renderRow()
+  })
+
+  it('should hide the rail as too few, the same as if the server had sent only those', () => {
+    expect(screen.queryAllByTestId('asset-card')).toHaveLength(0)
+    expect(emitted('hidden_suggestions')[0][1]).toMatchObject({ reason: 'too_few', count: 2 })
   })
 })
 

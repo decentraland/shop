@@ -1,17 +1,21 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
-import { PrelaunchNotice } from '~/components/PrelaunchNotice'
+import { CancelledListingsNotice } from '~/components/CancelledListingsBanner'
+import { BatFlight } from '~/components/BatFlight'
+import { Snowfall } from '~/components/Snowfall'
+import { SpiderDrop } from '~/components/SpiderDrop'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
+import { DiscountsAnnouncementHost } from '~/components/DiscountsAnnouncementHost'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { Intercom } from '~/components/Intercom'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { useCampaignThemeAttribute } from '~/hooks/useCampaignTheme'
 import { useDialogScrollLock } from '~/hooks/useDialogScrollLock'
-import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { config } from '~/config'
@@ -42,7 +46,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/success': 'success',
   '/authorizations': 'authorizations',
   '/outfits/manage': 'outfit_studio',
-  '/outfits/new': 'outfit_studio'
+  '/outfits/new': 'outfit_studio',
+  '/studio': 'studio'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
@@ -53,6 +58,7 @@ const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ def
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
+const Studio = lazy(() => import('~/pages/Studio').then(m => ({ default: m.Studio })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyStore = lazy(() => import('~/pages/MyStore').then(m => ({ default: m.MyStore })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
@@ -97,7 +103,7 @@ const ReloadCta = styled(Button)`
 // Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
 // The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary. Reuses the home
 // page's empty-state shell.
-function CrashFallback() {
+export function CrashFallback() {
   return (
     <OV.Empty>
       <OV.EmptyTitle>{t('app.crash.title')}</OV.EmptyTitle>
@@ -112,10 +118,11 @@ function CrashFallback() {
 // Redirect for a route whose PREFIX was renamed, forwarding whatever followed it: /assets/creator/0x1?q=a
 // → /items/creator/0x1?q=a. A plain <Navigate to="/items"> can't do this — it takes a literal path, so it
 // would drop both the sub-path and the query, landing a shared creator or outfit link on the bare grid.
-function RenamedPathRedirect({ to }: { to: string }) {
-  const rest = useParams()['*']
-  const { search, hash } = useLocation()
-  return <Navigate to={`${to}${rest ? `/${rest}` : ''}${search}${hash}`} replace />
+// The sub-path is cut from the pathname, not read from the `*` param: the app mounts under a catch-all
+// route whose own splat would leak into this one and turn /assets into /items/assets.
+function RenamedPathRedirect({ from, to }: { from: string; to: string }) {
+  const { pathname, search, hash } = useLocation()
+  return <Navigate to={`${to}${pathname.slice(from.length)}${search}${hash}`} replace />
 }
 
 // Alias to a fixed path, carrying the incoming query and hash. The root alias needs it most: every
@@ -135,19 +142,33 @@ export function AliasRedirect({ to }: { to: string }) {
   return <Navigate to={`${path}${query ? `?${query}` : ''}${hash}`} replace />
 }
 
+/**
+ * Pages that keep the plain page field while a campaign skin is on. A creator's dashboard is read, not
+ * browsed: its charts and tables sit on translucent panels, and a seasonal pattern under them is noise.
+ */
+const PLAIN_FIELD_ROUTES = new Set(['/my-store'])
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
   useDialogScrollLock()
-  const prelaunch = useShopPrelaunch()
   const location = useLocation()
+  // Paints the running event's skin onto <html>; a no-op the rest of the year.
+  const campaignTheme = useCampaignThemeAttribute()
+  // The skin stays on (the nav's event tab still wears it); only the page field and its decorations go.
+  const plainField = PLAIN_FIELD_ROUTES.has(location.pathname)
+  useEffect(() => {
+    if (!plainField) return
+    const root = document.documentElement
+    root.dataset.campaignField = 'plain'
+    return () => {
+      delete root.dataset.campaignField
+    }
+  }, [plainField])
 
-  // Start the silent wallet restore HERE, not only in the navbar.
-  //
-  // The curtain returns before the shell, so while it is up the navbar is unmounted — and the navbar is
-  // what used to kick this off. That worked by accident: the restore promise outlived the unmount. It stops
-  // working the moment the decision waits on the restore, because then nothing would ever start it and the
-  // page would stay blank forever. The store dedupes concurrent callers, so the navbar can keep asking too.
+  // Start the silent wallet restore HERE, not only in the navbar. The navbar used to be the only caller,
+  // which made every consumer of the session depend on that one component staying mounted. The store
+  // dedupes concurrent callers, so the navbar can keep asking too.
   const restoreWallet = useWallet(s => s.restore)
   useEffect(() => {
     void restoreWallet()
@@ -172,25 +193,22 @@ export function App() {
               : path.startsWith('/outfits/')
                 ? 'outfit_studio'
                 : 'other')
+    // The invented store is a reviewer reading it, not a visit. Only honoured where the override itself
+    // is (config.previewHost), so the live Shop always counts.
+    // Read off window rather than added as a dependency: a page view is per ROUTE, and depending on the
+    // query string would count every filter change on the grids as a visit.
+    const params = new URLSearchParams(window.location.search)
+    if (config.previewHost && params.get('mock') === '1') return
     trackPage(page)
   }, [location.pathname])
 
-  // The pre-launch curtain. Returned BEFORE the shell so no NavBar, footer or route is mounted: each of those
-  // is a door into a Shop that is meant to be closed. Cosmetic only — what refuses a purchase is the same flag
-  // read server-side by credits-server (see useShopPrelaunch).
-  //
-  // 'pending' renders NOTHING. The decision needs the wallet session, which arrives after the flag, and
-  // showing either answer before both are in produced a visible flash of the holding page on every refresh
-  // for wallets that are in fact allowed. Nothing is the only honest thing to show while the question is
-  // open, and it is brief: an ungated environment never reaches this, and a gated one is waiting on a cached
-  // flag read plus a storage read.
-  if (prelaunch === 'pending') {
-    return null
-  }
-  if (prelaunch === 'hidden') {
-    return <PrelaunchNotice />
-  }
-
+  // Nothing gates the shell. There used to be a pre-launch curtain here that rendered NOTHING until a
+  // feature-flag read and the wallet restore had both settled — and since that read only starts once the
+  // entry chunk has executed, it held the FIRST PAINT of every visit behind a network round trip
+  // (measured: flags at 231ms, first render at 273ms). The Shop is launched, the flag is no longer in the
+  // file, and the half that actually refuses a purchase was always the server's: credits-server reads
+  // `shop-prelaunch` on /credits/authorize against the signed-fetch address. That half is untouched, so
+  // closing the Shop again is a server concern plus a new curtain, not a revert of this.
   return (
     <>
       <ScrollReset />
@@ -201,7 +219,33 @@ export function App() {
       <Sentry.ErrorBoundary fallback={<></>}>
         <Intercom />
       </Sentry.ErrorBoundary>
+      {/* Boundaried like the decorations below: a failed read or chunk must never take the shell with it. */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <DiscountsAnnouncementHost />
+      </Sentry.ErrorBoundary>
+      {/* Seasonal decoration, mounted only while that skin is on — it brings its own lazy chunk, so an
+          ordinary day neither renders nor downloads it.
+
+          Boundaried for the same reason the footer below is, and it matters more here: these live outside
+          the main ErrorBoundary, and a rejected lazy import (chunk 404, ad blocker, a drop in coverage
+          mid-navigation) is NOT caught by Suspense. Without this, a decoration failing to download takes
+          the nav, the cart and the checkout down with it — on the busiest days of the campaign. */}
+      {campaignTheme === 'halloween' && !plainField ? (
+        <Sentry.ErrorBoundary fallback={<></>}>
+          <BatFlight />
+          <SpiderDrop />
+        </Sentry.ErrorBoundary>
+      ) : null}
+      {campaignTheme === 'holidays' && !plainField ? (
+        <Sentry.ErrorBoundary fallback={<></>}>
+          <Snowfall depth="back" />
+          <Snowfall depth="front" />
+        </Sentry.ErrorBoundary>
+      ) : null}
       <NavBar />
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <CancelledListingsNotice />
+      </Sentry.ErrorBoundary>
       {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
           whose content is genuinely short (the credits packs) look better with the footer visible than
           with a screenful of empty space under a single card — see .page[data-route] in index.css. */}
@@ -235,6 +279,8 @@ export function App() {
               {/* Under /items so the Collectibles tab lights up on an outfit. */}
               <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
+              {/* Reached by its address only: the studios that gift Credits to their players are few, and invited. */}
+              <Route path="/studio" element={<Studio />} />
               <Route path="/my-items" element={<MyAssets />} />
               <Route path="/my-store" element={<MyStore />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
@@ -248,9 +294,9 @@ export function App() {
                   (/assets/outfits/:id) have been shared as links. The splat covers both of those plus
                   anything added under the prefix later; the bare /assets is listed separately so the
                   redirect doesn't depend on a splat matching zero segments. */}
-              <Route path="/assets" element={<RenamedPathRedirect to="/items" />} />
-              <Route path="/assets/*" element={<RenamedPathRedirect to="/items" />} />
-              <Route path="/my-assets" element={<RenamedPathRedirect to="/my-items" />} />
+              <Route path="/assets" element={<RenamedPathRedirect from="/assets" to="/items" />} />
+              <Route path="/assets/*" element={<RenamedPathRedirect from="/assets" to="/items" />} />
+              <Route path="/my-assets" element={<RenamedPathRedirect from="/my-assets" to="/my-items" />} />
               {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
                   it has been the target of the My Items nudge for months, so it is in histories and
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}

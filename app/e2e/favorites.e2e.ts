@@ -98,12 +98,16 @@ describe('favorite an item', () => {
       const wrap = document.getElementById('hover-preview')?.parentElement as HTMLElement
       const layer = wrap.getBoundingClientRect()
       const fav = (document.querySelector('[data-testid="card-fav"]') as HTMLElement).getBoundingClientRect()
-      const cut = /polygon\(0px 0px, ([\d.]+)px 0px, [\d.]+px ([\d.]+)px/.exec(wrap.style.clipPath)
+      const flap = (document.querySelector('[data-testid="card-flap"]') as HTMLElement).getBoundingClientRect()
+      // The clip starts past the category flap's corner, then steps round the heart.
+      const cut = /polygon\(([\d.]+)px 0px, ([\d.]+)px 0px, [\d.]+px ([\d.]+)px/.exec(wrap.style.clipPath)
       return {
-        cutLeft: layer.left + Number(cut?.[1]),
-        cutBottom: layer.top + Number(cut?.[2]),
+        flapCutRight: layer.left + Number(cut?.[1]),
+        cutLeft: layer.left + Number(cut?.[2]),
+        cutBottom: layer.top + Number(cut?.[3]),
         layerRight: layer.right,
-        fav: { left: fav.left, right: fav.right, bottom: fav.bottom }
+        fav: { left: fav.left, right: fav.right, bottom: fav.bottom },
+        flapRight: flap.right
       }
     })
 
@@ -112,6 +116,8 @@ describe('favorite an item', () => {
     expect(geometry.cutLeft).toBeLessThanOrEqual(geometry.fav.left)
     expect(geometry.cutBottom).toBeGreaterThanOrEqual(geometry.fav.bottom)
     expect(geometry.fav.right).toBeLessThanOrEqual(geometry.layerRight + 1)
+    // ...and the flap's corner is cut away too, so the preview never paints over the category glyph.
+    expect(geometry.flapCutRight).toBeGreaterThanOrEqual(geometry.flapRight)
   })
 
   it('lets go of the card once the pointer leaves, though the click left the heart focused', async () => {

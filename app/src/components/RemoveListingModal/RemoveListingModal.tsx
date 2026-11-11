@@ -86,14 +86,15 @@ export function RemoveListingModal({
           <Button variant="outline" onClick={onClose} disabled={busy}>
             {t('sellModal.cancel')}
           </Button>
-          <S.Submit
+          <Button
+            variant="primary"
             onClick={() => void submit()}
             // A pending relay may still land: another fee-less attempt would race it, so only the paid path stays open.
             disabled={busy || relayFailed === 'pending'}
             data-testid="remove-confirm"
           >
             {busy ? <Spinner size="small" /> : t('itemDetail.manageRemove')}
-          </S.Submit>
+          </Button>
         </M.Actions>
       </S.Card>
     </M.Backdrop>

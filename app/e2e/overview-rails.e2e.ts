@@ -90,8 +90,12 @@ describe('the overview rails', () => {
 describe('the best deals rail', () => {
   const NOW_S = Math.floor(Date.now() / 1000)
   // `pct` off a 100-credit compare-at, ending in `i + 1` days. `saleEndsAt` is unix SECONDS, like the server.
+  // A USD-pegged row: without the MANA-coupon opt-in the server only discounts those, and a MANA row would be
+  // re-priced at the live rate away from this fixed pair.
   const onSale = (row: Row, i: number, pct: number): Row => ({
     ...row,
+    source: 'native',
+    manaWei: null,
     tradeId: `deal-${i}`,
     itemId: `deal-${i}`,
     tokenId: null,

@@ -2,12 +2,11 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
 // The shared button primitive. Base = the solid dark CTA; colour variants ride on data-variant and the
-// compact size on data-size (the same hooks tests assert on — no style-only prop reaches the DOM),
-// mirroring `.btn` / `.btn--*` / `.btn--sm` from index.css one-for-one. Consumers add layout-only
-// tweaks (width, margin, position) by wrapping with `styled(Button)`, NOT by re-declaring variants.
+// compact size on data-size (the same hooks tests assert on — no style-only prop reaches the DOM). Consumers
+// add layout-only tweaks (width, margin, position) by wrapping with `styled(Button)`, NOT by re-declaring variants.
 export const Root = styled.button`
   border: 0;
-  border-radius: ${theme.radius.btn};
+  border-radius: ${theme.radius.cta};
   padding: 12px 22px;
   font-weight: 700;
   font-size: 15px;
@@ -24,66 +23,80 @@ export const Root = styled.button`
     cursor: default;
   }
 
-  /* Primary CTA = Amethyst gradient (Figma "Add to cart" primary), solid purple on hover/press. The
-     solid state is a ::before overlay faded in over the gradient — swapping the background itself from
-     gradient to flat isn't animatable, so transitioning it flashed dark mid-hover. */
-  &[data-variant='purple'] {
-    position: relative;
-    /* Own stacking context so the z-index:-1 overlay sits above THIS background but below the label. */
-    isolation: isolate;
-    background: ${theme.gradients.amethyst};
-    color: ${theme.colors.softWhite};
+  /* Primary CTA: the "BUY Button" gradient, flattening to solid red on hover/press. The hover sets
+     background-image rather than background, because a gradient cannot interpolate to a plain colour and
+     swapping the whole background blanks the button mid-transition. */
+  &[data-variant='primary'] {
+    background: ${theme.gradients.buyBtn};
+    color: ${theme.colors.white};
     text-transform: uppercase;
-    letter-spacing: 0.046em;
+    letter-spacing: 0.46px;
     font-size: 13px;
+    font-weight: 600;
   }
-  &[data-variant='purple']::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background: ${theme.colors.accent};
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    pointer-events: none;
+  @media (hover: hover) {
+    &[data-variant='primary']:hover:not(:disabled) {
+      background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+    }
   }
-  &[data-variant='purple']:hover:not(:disabled)::before,
-  &[data-variant='purple']:active:not(:disabled)::before {
-    opacity: 1;
+  &[data-variant='primary']:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
-  &[data-variant='purple']:active:not(:disabled) {
+  &[data-variant='primary']:active:not(:disabled) {
     transform: translateY(1px);
   }
-  /* Figma primary disabled: flat 20% purple fill (not a dimmed gradient). */
-  &[data-variant='purple']:disabled {
-    background: rgba(105, 31, 169, 0.2);
-    opacity: 1;
+  &[data-variant='primary']:disabled {
+    opacity: 0.5;
   }
 
-  /* Outlined primary (Figma outlined variant): magenta border + purple label; fills solid purple on
-     hover/press. */
+  /* Outlined, for light surfaces (modals, drawers): a soft-black hairline that fills soft-black on
+     hover/press and flips its label white. */
   &[data-variant='outline'] {
-    background: ${theme.colors.white};
-    border: 2px solid ${theme.colors.magenta};
-    color: ${theme.colors.accent};
+    background: transparent;
+    border: 0.5px solid ${theme.colors.text};
+    color: ${theme.colors.text};
     text-transform: uppercase;
-    letter-spacing: 0.046em;
+    letter-spacing: 0.46px;
     font-size: 13px;
     font-weight: 600;
   }
   &[data-variant='outline']:hover:not(:disabled),
   &[data-variant='outline']:active:not(:disabled) {
-    background: ${theme.colors.accent};
-    border-color: ${theme.colors.accent};
-    color: ${theme.colors.softWhite};
+    background: ${theme.colors.text};
+    color: ${theme.colors.white};
   }
   &[data-variant='outline']:active:not(:disabled) {
     transform: translateY(1px);
   }
-  /* Figma outlined disabled: the whole control at 30% opacity. */
   &[data-variant='outline']:disabled {
-    opacity: 0.3;
+    opacity: 0.5;
+  }
+
+  /* Secondary, for dark surfaces and artwork: a translucent white fill that turns soft-white with a dark
+     label on hover/press. */
+  &[data-variant='glass'] {
+    background: ${theme.colors.glass};
+    color: ${theme.colors.softWhite};
+    text-transform: uppercase;
+    letter-spacing: 0.46px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  @media (hover: hover) {
+    &[data-variant='glass']:hover:not(:disabled) {
+      background: ${theme.colors.softWhite};
+      color: ${theme.colors.text2};
+    }
+  }
+  &[data-variant='glass']:active:not(:disabled) {
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text2};
+  }
+  &[data-variant='glass']:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  &[data-variant='glass']:disabled {
+    opacity: 0.5;
   }
 
   /* Primary red — the flat Primary fill, for a CTA that is already the one thing to do on the surface it

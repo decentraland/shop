@@ -10,6 +10,7 @@ import {
   ORACLE_RATE
 } from './rpc'
 import * as fx from '../fixtures'
+import { DISCOUNTS_ANNOUNCEMENT_PROMPT, DISMISSED_PROMPTS_KEY } from '../../src/lib/dismissed-prompts'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 
@@ -57,8 +58,10 @@ export type Fixtures = {
   importable: unknown
   shopListings: unknown
   collections: unknown
-  creatorNames: unknown
-  accounts: unknown
+  /** Ranked creators for the search dropdown (/v3/catalog/creators/search). */
+  creators: unknown
+  /** How many times `/v3/catalog/suggest` answers 500 before it answers at all — the dropdown's error path. */
+  suggestFailures?: number
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
@@ -73,6 +76,8 @@ export type Fixtures = {
   trade: unknown
   userStore: unknown
   purchases: unknown
+  /** credits-server `/users/:address/credit-orders`: credit-pack purchases, seller payouts and gifts. */
+  creditOrders: unknown
   sales: unknown
   /** Overrides on top of the summary derived from `sales`; omit to let the rows speak for themselves. */
   salesSummary: unknown
@@ -88,6 +93,38 @@ export type Fixtures = {
    * Undefined keeps the default "nothing on sale", which the publish spec relies on.
    */
   collectionSaleState?: unknown
+  /** The studios the test account acts for, served (and spent from) by the mock `/operator/studios`. */
+  studios?: StudioMock | null
+}
+
+/**
+ * A studio's budget and gifts as the mock credits-server keeps them. Gifts are made for real (the balance goes down,
+ * the gift is listed) and remembered by idempotency key, so a resumed list is answered "already gifted".
+ */
+export type StudioMock = {
+  studios: Array<{
+    id: string
+    name: string
+    status: 'active' | 'paused'
+    balanceCents: number
+    grantedCents: number
+    grantCount: number
+  }>
+  maxGrantCents: number | null
+  /** Accounts refused as one of the studio's own operators. */
+  operatorAccounts?: string[]
+  /** Accounts whose first gift is MADE but answered 502, the way a lost answer looks to the page. */
+  lostAnswerAccounts?: string[]
+  /** The studio is paused once this many gifts have been made, the way ops pausing it mid-list looks to the page. */
+  pauseAfterGifts?: number
+}
+
+/** Sets a mocked studio's status while a spec runs, the way ops pausing or resuming it from internal-tools would. */
+export function setMockStudioStatus(studioId: string, status: 'active' | 'paused'): void {
+  const studio = studioStore?.studios.find(item => item.id === studioId)
+  if (!studio) throw new Error(`No mocked studio ${studioId}`)
+  studio.status = status
+  if (studioStore) studioStore.pauseAfterGifts = undefined
 }
 
 function defaults(): Fixtures {
@@ -96,8 +133,7 @@ function defaults(): Fixtures {
     importable: fx.importable,
     shopListings: fx.shopListings,
     collections: fx.collections,
-    creatorNames: fx.creatorNames,
-    accounts: fx.accounts,
+    creators: fx.creators,
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
@@ -127,6 +163,12 @@ function defaults(): Fixtures {
     // sales on, and "empty ranking → no section" is the behaviour most specs run in.
     rankings: { data: [] },
     purchases: { purchases: [] },
+    creditOrders: {
+      total: 0,
+      orders: [],
+      earnings: { total: 0, availableCents: 0, items: [] },
+      gifts: { total: 0, items: [] }
+    },
     sales: { data: [], total: 0 },
     salesSummary: undefined,
     // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
@@ -184,6 +226,68 @@ let mintedCents = 0
 // the my-favorites page can prove the heart actually persisted server-side. Newest first, like the
 // real service. Reset per run in launchApp.
 let favoritePicks: string[] = []
+
+// Stateful studios: the operator endpoints of the credits-server. Reset per run in launchApp.
+let studioStore: StudioMock | null = null
+let studioGifts: Record<string, Array<Record<string, unknown>>> = {}
+let studioKeys = new Set<string>()
+
+function studioRoute(req: HTTPRequest, path: string): Promise<void> | null {
+  if (path === '/operator/studios') {
+    return json(req, {
+      studios: studioStore?.studios ?? [],
+      grantLimits: { maxGrantCents: studioStore?.maxGrantCents ?? null }
+    })
+  }
+  const match = path.match(/^\/operator\/studios\/([^/]+)(\/grants)?$/)
+  if (!match) return null
+  const studio = studioStore?.studios.find(item => item.id === match[1])
+  if (!studioStore || !studio) return json(req, { error: 'Studio not found', code: 'STUDIO_NOT_FOUND' }, 404)
+  const gifts = (studioGifts[studio.id] ??= [])
+  if (!match[2]) {
+    return json(req, {
+      studio,
+      grants: gifts,
+      page: { limit: 25, offset: 0, total: gifts.length },
+      grantLimits: { maxGrantCents: studioStore.maxGrantCents }
+    })
+  }
+  const body = JSON.parse(req.postData() || '{}') as {
+    address: string
+    credits: number
+    reason: string
+    idempotencyKey: string
+  }
+  const account = body.address.toLowerCase()
+  if (studioKeys.has(body.idempotencyKey)) return json(req, { replayed: true, balanceCents: studio.balanceCents })
+  if (studioStore.operatorAccounts?.includes(account)) {
+    return json(req, { error: 'That account is an operator of this studio', code: 'STUDIO_OPERATOR' }, 403)
+  }
+  if (studio.status === 'paused') return json(req, { error: 'Paused', code: 'STUDIO_PAUSED' }, 409)
+  const cents = body.credits * 10
+  if (cents > studio.balanceCents) return json(req, { error: 'Not enough budget', code: 'STUDIO_BUDGET_EXCEEDED' }, 409)
+  studio.balanceCents -= cents
+  studio.grantedCents += cents
+  studio.grantCount += 1
+  studioKeys.add(body.idempotencyKey)
+  if (studioStore.pauseAfterGifts !== undefined && studio.grantCount >= studioStore.pauseAfterGifts) {
+    studio.status = 'paused'
+  }
+  gifts.unshift({
+    creditId: `studio-credit-${studio.grantCount}`,
+    recipient: account,
+    usdCents: cents,
+    reason: body.reason,
+    grantedBy: fx.TEST_ADDRESS,
+    createdAt: Date.now()
+  })
+  const lost = studioStore.lostAnswerAccounts ?? []
+  if (lost.includes(account)) {
+    studioStore.lostAnswerAccounts = lost.filter(item => item !== account)
+    return req.respond({ status: 502, headers: CORS, body: 'Bad gateway' })
+  }
+  return json(req, { replayed: false, balanceCents: studio.balanceCents }, 201)
+}
 
 // Saves by OTHER accounts, so a spec can tell the service's number apart from the viewer's own +1.
 const FAVORITE_BASE_COUNT = 2
@@ -251,7 +355,7 @@ function toCatalogRow(l: any) {
     // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
     // showcase-clip lookup exercise the same field they read in production.
     utility: l.utility ?? null,
-    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart } }
+    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart, bodyShapes: l.bodyShapes } }
   }
 }
 
@@ -261,7 +365,7 @@ let outfitCreatorFlag = false
 let followsFlag = false
 let creatorSalesFlag = false
 let suggestedForYouFlag = false
-let suggestedConfig: { personalized?: boolean; count?: number } = {}
+let suggestedConfig: { personalized?: boolean; count?: number; trending?: number } = {}
 let myStoreFlag = false
 /** The My Store flag's address-list variant. Undefined means no list, which is 'everyone'. */
 let myStoreAllowed: string | undefined
@@ -472,6 +576,35 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     })
   }
   // Images / builder content.
+  // Photos of people wearing an item (camera reel). Two shots, one of them a crowd, so a spec can see
+  // the rail rank them; the images themselves resolve through the image branch above.
+  const wearableImages = u.hostname.includes('camera-reel') && /^\/api\/wearables\/([^/]+)\/images$/.exec(path)
+  if (wearableImages) {
+    const photo = (id: string, people: number) => ({
+      id,
+      url: `https://camera-reel.example/${id}.jpg`,
+      thumbnailUrl: `https://camera-reel.example/${id}-thumbnail.jpg`,
+      metadata: {
+        userName: `Shooter ${id}`,
+        userAddress: `0x${id.repeat(4)}`,
+        dateTime: '1789615158',
+        realm: 'main',
+        placeId: `place-${id}`,
+        scene: { name: `Scene ${id}`, location: { x: '-3', y: '-2' } },
+        visiblePeople: Array.from({ length: people }, (_, i) => ({
+          userName: `Person ${i}`,
+          userAddress: `0x${id}${i}`,
+          wearables: [
+            `urn:decentraland:matic:collections-v2:${wearableImages[1].split('-')[0]}:${wearableImages[1].split('-')[1]}:${i}`
+          ],
+          isGuest: false,
+          isEmoting: false
+        }))
+      }
+    })
+    return json(req, { images: [photo('aa', 9), photo('bb', 1)], maxImages: 2 })
+  }
+
   if (path.includes('/contents/') || /\.(png|jpe?g|gif|svg|webp|ico)$/.test(path)) {
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
   }
@@ -543,6 +676,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
     if (/\/users\/.+\/purchases$/.test(path)) return json(req, F.purchases)
+    if (/\/users\/.+\/credit-orders$/.test(path)) return json(req, F.creditOrders)
     if (path === '/credits/authorize') {
       // The real handler ECHOES the requested price, rounded UP to a whole credit (10¢) — it never
       // prices the item itself. Mirroring that matters now that the checkouts refuse to spend a
@@ -567,6 +701,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         lines: items.map(item => ({ usdCents: Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10 }))
       })
     }
+    const studioAnswer = studioRoute(req, path)
+    if (studioAnswer) return studioAnswer
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
     // Fire-and-forget submission report. The buy flows post here right after broadcasting, so it needs a
     // response even though nothing asserts on it — an unmocked POST in the middle of a checkout is noise
@@ -672,12 +808,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         return i < rows.length ? row : { ...row, tradeId: `${row.tradeId}-s${i}`, itemId: `${100 + i}` }
       })
       const kinds = ['co_owned', 'creator_affinity', 'favorite_similar', 'equipped_similar', 'seed_similar']
+      const trending = suggestedConfig.trending ?? 0
       const data = padded.map((row, i) => ({
         ...row,
         reason:
-          kinds[i % kinds.length] === 'creator_affinity'
-            ? { kind: 'creator_affinity', creator: row.creator }
-            : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
+          i < trending
+            ? { kind: 'trending' }
+            : kinds[i % kinds.length] === 'creator_affinity'
+              ? { kind: 'creator_affinity', creator: row.creator }
+              : { kind: kinds[i % kinds.length], itemId: `${rows[0].contractAddress}-${rows[0].itemId}` },
         score: 1 - i / 100
       }))
       return json(req, {
@@ -743,6 +882,42 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
     // contractAddress / creator query param.
+    // The dropdown's one request (lib/search.ts → fetchSuggestions): items by the same name rule as the
+    // items feed, collections and creators from their fixtures, each row naming its creator the way the
+    // server does from the creator profiles (the fixture creator has a name; nobody else does).
+    if (path === '/v3/catalog/suggest') {
+      // Counted down on the run's own copy of the fixtures, so each launch starts afresh.
+      if ((F.suggestFailures ?? 0) > 0) {
+        F.suggestFailures = (F.suggestFailures ?? 0) - 1
+        return json(req, { ok: false, message: 'suggestions unavailable' }, 500)
+      }
+      const search = (u.searchParams.get('search') ?? '').trim().toLowerCase()
+      const size = (key: string, fallback: number) => Number(u.searchParams.get(key) ?? fallback)
+      const creatorName = (address: unknown) =>
+        String(address ?? '').toLowerCase() === fx.CREATOR_ADDRESS.toLowerCase() ? 'Galaxy Studio' : null
+      const matching = search
+        ? ((F.shopListings as { data: any[] }).data ?? [])
+            .map(toCatalogRow)
+            .filter(r => String(r.name).toLowerCase().includes(search))
+        : []
+      const items = matching.slice(0, size('items', 5)).map(r => ({ ...r, creatorName: creatorName(r.creator) }))
+      const collections = search
+        ? ((F.collections as { data: any[] }).data ?? [])
+            .filter(c => String(c.name).toLowerCase().includes(search))
+            .slice(0, size('collections', 4))
+            .map(c => ({ ...c, creatorName: creatorName(c.creator), items: 2, sales: 0 }))
+        : []
+      const creators = search
+        ? ((F.creators as { data: any[] }).data ?? [])
+            .filter(c => String(c.name).toLowerCase().includes(search))
+            .slice(0, size('creators', 4))
+        : []
+      return json(req, {
+        items: { data: items, total: matching.length },
+        collections: { data: collections },
+        creators: { data: creators }
+      })
+    }
     if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
@@ -771,13 +946,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       return json(req, { data: rows, total: rows.length })
     }
     if (path === '/v1/nfts') {
-      // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
-      if (u.searchParams.get('category') === 'ens') {
-        let names = (F.creatorNames as { data: any[] }).data ?? []
-        const search = u.searchParams.get('search')?.toLowerCase()
-        if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
-        return json(req, { data: names, total: names.length })
-      }
       // Owner-scoped (?owner=) vs PUBLIC token lookup (?contractAddress=&tokenId=) are different
       // questions: a buyer owns nothing yet the token still exists. Answering both from one fixture made
       // the non-owner path untestable — the viewer always looked like the owner.
@@ -788,13 +956,6 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         return json(req, { data: match, total: match.length })
       }
       return json(req, F.ownedNfts)
-    }
-    // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
-    if (path === '/v1/accounts') {
-      const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
-      let rows = (F.accounts as { data: any[] }).data ?? []
-      if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
-      return json(req, { data: rows, total: rows.length })
     }
     // Creator sales (lib/coupons). The POST answers the way marketplace-server does — the stored coupon with
     // its id, status and initial on-chain state — and the GET returns everything this run has stored.
@@ -869,6 +1030,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
     // i.e. the section rendered its skeletons and then removed itself.
     if (path === '/v3/catalog/creators') return json(req, F.rankings)
+    // Creator suggestions (lib/search.ts → fetchCreatorSuggestions): the fixture creators whose name
+    // contains the query, the way the server's ranked search would answer.
+    if (path === '/v3/catalog/creators/search') {
+      const search = u.searchParams.get('search')?.toLowerCase() ?? ''
+      const rows = ((F.creators as { data: any[] }).data ?? []).filter(c =>
+        String(c.name).toLowerCase().includes(search)
+      )
+      return json(req, { data: rows })
+    }
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     // Save counts, read in bulk for everything on screen. They move with the run's accumulator, so
     // hearting an item raises its number.
@@ -1144,6 +1314,11 @@ export async function launchApp(
      */
     creatorSales?: boolean
     /**
+     * Whether the creator still has the one-time discounts announcement to see. Defaults to FALSE: with
+     * creator sales on it would open over whatever page a spec is about. Its own spec passes true.
+     */
+    discountsAnnouncement?: boolean
+    /**
      * Whether the mocked flag file reports the personalised rail as available. Defaults to FALSE, the
      * shipped state; the suggested-for-you spec passes true to exercise the row.
      */
@@ -1152,7 +1327,8 @@ export async function launchApp(
      * What `/v3/catalog/suggested` answers. Omit for the default: the unified fixture rows, personalised.
      * A spec passes `{ personalized: false }` to exercise the row hiding itself.
      */
-    suggested?: { personalized?: boolean; count?: number }
+    /** `trending`: how many of the rows, from the top, arrive as trending (which the rail leaves out). */
+    suggested?: { personalized?: boolean; count?: number; trending?: number }
     /**
      * Whether the mocked flag file reports the creator's store dashboard as available. Defaults to FALSE,
      * the shipped state; the my-store spec passes true.
@@ -1196,6 +1372,9 @@ export async function launchApp(
   namesFlag = opts.names ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
+  studioStore = F.studios ? structuredClone(F.studios) : null
+  studioGifts = {}
+  studioKeys = new Set()
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
@@ -1219,6 +1398,23 @@ export async function launchApp(
   if (!opts.signedOut) {
     const sess = await session()
     await page.evaluateOnNewDocument(sessionInitScript(sess))
+  }
+  if (!opts.discountsAnnouncement) {
+    await page.evaluateOnNewDocument(
+      (key: string, prompt: string, account: string) => {
+        try {
+          const store = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, string[]>
+          const seen = store[account] ?? []
+          if (!seen.includes(prompt)) store[account] = [...seen, prompt]
+          localStorage.setItem(key, JSON.stringify(store))
+        } catch {
+          // Storage refused: the announcement may show, which the spec that needs it to stay away will report.
+        }
+      },
+      DISMISSED_PROMPTS_KEY,
+      DISCOUNTS_ANNOUNCEMENT_PROMPT,
+      fx.TEST_ADDRESS.toLowerCase()
+    )
   }
   if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)

@@ -2,10 +2,11 @@ import { keyframes } from '@emotion/react'
 import styled from '@emotion/styled'
 import { NavLink } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { creditsCtaCss } from '~/styles/cta.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 
-const { colors, radius, gradients, media } = theme
+const { colors, radius, media } = theme
 
 const mobile = media.maxWidth('mobile')
 // One row cannot hold the tab strip, a usable search field AND the balance/credits/cart cluster below
@@ -24,20 +25,19 @@ export const Subnav = styled.div`
   display: flex;
   align-items: center;
   gap: 24px;
-  height: 66px;
+  height: 64px;
   /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
   padding: 0 54px;
-  /* Dark-theme test: translucent deep purple (#401458, per the designer) over the page field, hairline
-     white divider. 20% at rest, deepening to 80% once the page scrolls so the bar doesn't wash out over
-     light content passing underneath — the same treatment the top nav carries. */
-  background: rgba(64, 20, 88, 0.2);
+  /* A black wash over the page field with a hairline white divider. It deepens once the page scrolls so
+     the bar doesn't wash out over light content passing underneath. */
+  background: ${colors.overlayLight};
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
   transition: background 0.25s ease;
 
   &[data-scrolled] {
-    background: rgba(64, 20, 88, 0.8);
+    background: ${colors.overlayStrong};
   }
 
   ${stacked} {
@@ -76,6 +76,51 @@ const rainbow = keyframes`
   }
 `
 
+// A string-light bulb changing colour: red, then green, each held long enough to read before it fades over.
+// The glow moves with the colour, so the haze never sits a different hue from the letters.
+const holidayGlow = keyframes`
+  0%,
+  40% {
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+  }
+  50%,
+  90% {
+    color: #3ddc84;
+    filter: drop-shadow(0 0 6px rgba(54, 217, 122, 0.75));
+  }
+  100% {
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+  }
+`
+
+// A guttering candle, on the SAME 6s period as the gradient drift above.
+//
+// It ran at 4.5s first, and two animations on co-prime periods beat against each other: the dip landed at
+// a different point of the colour sweep every cycle, so the tab read as two effects stacked — the colours
+// going by, and then an unrelated blink. Locked to one period they always coincide, and the label reads as
+// one guttering flame.
+//
+// Shallow on purpose, and still far under the three-flashes-per-second that makes a flashing element a
+// seizure risk: this sits in the nav for a whole session.
+const gutter = keyframes`
+  0%,
+  26%,
+  30%,
+  68%,
+  72%,
+  100% {
+    opacity: 1;
+  }
+  28% {
+    opacity: 0.62;
+  }
+  70% {
+    opacity: 0.52;
+  }
+`
+
 export const Tabs = styled.nav`
   /**
    * WIDE VIEWPORTS: the strip does not shrink, so no tab label is cut.
@@ -100,7 +145,7 @@ export const Tabs = styled.nav`
 
   margin-right: auto;
   display: flex;
-  gap: 40px;
+  gap: 50px;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -127,7 +172,7 @@ export const Tabs = styled.nav`
     height: 100%;
     white-space: nowrap;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.46px;
     font-size: 15px;
     font-weight: 600;
     color: ${colors.muted2};
@@ -135,11 +180,11 @@ export const Tabs = styled.nav`
   }
   & a:hover {
     color: ${colors.white};
+    border-bottom-color: ${colors.glassFaint};
   }
-  /* Active tab: white label + orange underline (Figma dark theme). */
   & a.active {
     color: ${colors.white};
-    border-bottom-color: #ff7439;
+    border-bottom-color: ${colors.dclRed};
   }
 
   /* The seasonal event tab, given the same treatment the Marketplace gives its own: the label painted
@@ -160,8 +205,67 @@ export const Tabs = styled.nav`
     animation: ${rainbow} 6s ease-in-out infinite;
   }
 
+  /* HALLOWEEN. html[…] rather than :root[…], which is the same element: stylis reads a selector that
+     STARTS with a colon as a pseudo-class of the component and concatenates the generated class onto it,
+     so :root here compiled to a rule demanding the nav BE the document root, which silently never
+     matched while the build and the unit tests stayed green.
+
+     Same mechanism as above — a gradient drifting behind transparent text — repainted in the
+     season's colours and given a second animation, because colour alone still reads as the generic
+     rainbow. The glyphs gutter like a candle and carry a pumpkin glow.
+
+     drop-shadow rather than text-shadow: the label has no colour of its own, so a text shadow would paint
+     its haze OVER the clipped gradient and wash the letters out. A filter takes the element as rendered,
+     so the glow sits behind the glyph shape where it belongs.
+
+     Repeated across hover and active for the same reason the base rule is. */
+  html[data-campaign-theme='halloween'] & a[data-event],
+  html[data-campaign-theme='halloween'] & a[data-event]:hover,
+  html[data-campaign-theme='halloween'] & a[data-event].active {
+    /* Jack-o'-lantern: candle amber down through pumpkin to a charred low, and nothing else. An earlier
+       pass spent two stops on witch purple and toxic green, and the sweep kept parking the violet over
+       the whole word — at that moment the tab reads as the generic rainbow it replaced.
+
+       The charred stop is a deep BURNT ORANGE, not the black the palette suggests: this strip sits on a
+       dark purple bar, so a true black band travelling through a four-letter label eats it. This one
+       still reads as charred and stays legible against the bar. */
+    background: linear-gradient(to right, #ffb300 0%, #ff7a18 20%, #ff4d00 40%, #a33500 55%, #ff6a00 75%, #ffb300 100%);
+    background-size: 400% 100%;
+    /* Re-stated, not inherited from the rule above: the background SHORTHAND resets background-clip to
+       border-box, so leaving these out paints the tab as a solid gradient block with the label invisible
+       inside it. */
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      ${rainbow} 6s ease-in-out infinite,
+      ${gutter} 6s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(255, 106, 0, 0.55));
+  }
+
+  /* HOLIDAYS. A solid label that changes colour like the bulbs hanging under it. Solid rather than a
+     clipped gradient: at this size any pattern inside the glyphs turns to noise. The background is cleared
+     because the base rule's gradient would otherwise still paint behind the now-coloured text. */
+  html[data-campaign-theme='holidays'] & a[data-event],
+  html[data-campaign-theme='holidays'] & a[data-event]:hover,
+  html[data-campaign-theme='holidays'] & a[data-event].active {
+    background: none;
+    color: #ff4d5e;
+    filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.75));
+    animation: ${holidayGlow} 5s ease-in-out infinite;
+  }
+
+  /* Listed explicitly: the themed rules above outrank the unqualified selector on specificity, so a bare
+     reset would leave the Halloween tab animating for a reader who asked for stillness. The glow is a
+     static filter and stays — it is not motion. */
   @media (prefers-reduced-motion: reduce) {
-    & a[data-event] {
+    & a[data-event],
+    html[data-campaign-theme='halloween'] & a[data-event],
+    html[data-campaign-theme='halloween'] & a[data-event]:hover,
+    html[data-campaign-theme='halloween'] & a[data-event].active,
+    html[data-campaign-theme='holidays'] & a[data-event],
+    html[data-campaign-theme='holidays'] & a[data-event]:hover,
+    html[data-campaign-theme='holidays'] & a[data-event].active {
       animation: none;
     }
   }
@@ -201,18 +305,19 @@ export const Search = styled.div`
   max-width: 496px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  gap: 8px;
+  background: ${colors.glassFaint};
   border: 1px solid ${theme.colors.fieldBorder};
   border-radius: ${radius.pill};
-  padding: 0 16px;
+  padding: 0 12px;
   height: 40px;
 
   & input {
     border: 0;
     outline: 0;
     width: 100%;
-    font-size: 15px;
+    font-size: 17px;
+    letter-spacing: -0.2px;
     background: transparent;
     color: ${colors.white};
   }
@@ -332,55 +437,19 @@ export const SearchClear = styled.button`
 // No auto margin here: Tabs carries the row's single one, which is what keeps this group — and the search
 // field before it — against the right edge on every route.
 export const Credits = styled(NavLink)`
-  position: relative;
+  ${creditsCtaCss};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 4px;
   height: 40px;
-  padding: 0 16px;
-  border-radius: ${radius.btn};
-  /* The orange "BUY Button" gradient — the same fill the promo CTAs carry (Figma 738:53266). */
-  background: ${gradients.buyBtn};
-  color: ${colors.softWhite};
+  padding: 0 12px;
+  border-radius: ${radius.cta};
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.46px;
   white-space: nowrap;
-  transition: filter 0.15s ease;
-
-  /* Hover ring (Figma): a gradient stroke OUTSIDE the button with a gap in between (the page shows
-     through the gap). Drawn as a masked gradient ring — a plain outline can't take a gradient. */
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -6px;
-    border-radius: calc(${radius.btn} + 6px);
-    padding: 2px;
-    background: ${gradients.buyBtn};
-    -webkit-mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    pointer-events: none;
-  }
-
-  &:hover {
-    filter: brightness(1.08);
-  }
-  &:hover::before {
-    opacity: 1;
-  }
-  &:active {
-    filter: brightness(0.95);
-  }
 
   ${stacked} {
     order: 1;
@@ -471,6 +540,36 @@ export const FavFill = styled(Icon)`
 `
 
 // position:relative anchors CartPopover's absolutely-positioned `.cart-pop`.
+/**
+ * Activity, as an icon beside the heart rather than a tab.
+ *
+ * Same 40px target and hover as the heart it sits next to, so the three controls on the right read as one
+ * group. Shares the cart's stacked order: with both at 4 the DOM decides, which puts it before the cart
+ * without renumbering anything else in the row.
+ */
+export const Activity = styled(NavLink)`
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: ${radius.btn};
+  color: #ecebed;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  &.active {
+    color: ${theme.colors.softWhite};
+  }
+
+  ${stacked} {
+    order: 4;
+  }
+`
+
 export const CartWrap = styled.div`
   position: relative;
 

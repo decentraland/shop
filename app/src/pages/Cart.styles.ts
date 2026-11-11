@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { crumbGutter } from '~/styles/crumbs.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -11,14 +12,20 @@ const { colors, gradients, radius } = theme
 
 // Cart-specific breakpoints from the Figma cart specs (two-column → single, then the fixed mobile
 // summary bar) — deliberately not the canonical app breakpoints.
-const twoCol = '@media (max-width: 1080px)'
-const mobile = '@media (max-width: 880px)'
+const TWO_COL_MAX = 1080
+const MOBILE_MAX = 880
+const twoCol = `@media (max-width: ${TWO_COL_MAX}px)`
+const mobile = `@media (max-width: ${MOBILE_MAX}px)`
+// Just above the single-column switch, where the summary is still a fixed 615px and the cart column is
+// whatever is left — about 334px. Derived from TWO_COL_MAX so the two can never drift apart.
+const narrowTwoCol = `@media (min-width: ${TWO_COL_MAX + 1}px) and (max-width: 1180px)`
 
 export const Checkout = styled.div`
   max-width: 1510px;
   margin: 0 auto;
-  /* Grows into the page's leftover height and passes it down to Upsell, so the white cross-sell band ends at
-     the footer rather than leaving a gray strip. Needs .page[data-route="/cart"] to be a flex column. */
+  /* Grows into the page's leftover height and passes it down to Upsell, so a short cart leaves its slack
+     BELOW the cross-sell rail rather than inside the band. Needs .page[data-route="/cart"] to be a flex
+     column. */
   width: 100%;
   flex: 1 0 auto;
   display: flex;
@@ -29,15 +36,28 @@ export const Checkout = styled.div`
   }
 `
 
+// Pinned to the viewport gutter so the back link lines up with the sub-nav, not indented over the cards.
+export const Crumbs = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 48px;
+  ${crumbGutter};
+
+  ${mobile} {
+    display: none;
+  }
+`
+
 export const Back = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 16px;
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.text2};
+  /* Gray 5, not Gray 4: this row leads the band, above the cards and with nothing but the wash behind it,
+     where Gray 4 drops under AA. */
+  color: ${colors.gray5};
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -46,15 +66,11 @@ export const Back = styled.button`
   transition: color 0.15s ease;
 
   &:hover {
-    color: ${colors.accent};
+    color: ${colors.softWhite};
   }
   & .ico {
     width: 18px;
     height: 18px;
-  }
-
-  ${mobile} {
-    display: none;
   }
 `
 
@@ -69,22 +85,28 @@ export const Body = styled.div`
   }
 `
 
-// Groups the breadcrumb + the two-column body, and paints the cart's light band: a full-bleed gray
-// rect over the page's purple field, which is how Figma draws it (1551:315391, 1922x798). Reaching the
-// viewport edges needs the 100vw/50% dance; the negative top eats .page's own padding so the gray
-// starts flush under the sticky sub-nav instead of leaving a purple seam.
+// Groups the breadcrumb + the two-column body over a full-bleed band, which is how Figma draws the cart
+// (1551:315391, 1922x798). The band used to be the light gray of the old marketplace; on the shop's purple
+// field it is a translucent wash instead, so the region still reads as one surface without reintroducing
+// white. Reaching the viewport edges needs the 100vw/50% dance; the negative top eats .page's own padding
+// so the band starts flush under the sticky sub-nav instead of leaving a seam.
 export const Top = styled.div`
   position: relative;
-  /* The gray band is 733px in Figma (1553-317103) — taller than the panels inside it, deliberately. Without
-     this it collapsed to the panels' height, and the page shell's own viewport-filling min-height then padded
-     the page out BELOW the cross-sell, so a strip of gray showed under "You might also like" instead of the
-     footer. Giving the band its designed height puts the leftover space where the design wants it. */
-  min-height: 733px;
-  /* Gray below the panels so the band never hugs the last card: Figma's band runs y152–950 with the
-     content ending at 854. The min-height above only covers a SHORT cart — once the list outgrows it
-     the band tracks the content, and without this padding it would butt straight into the purple. */
-  padding-bottom: 96px;
+  /* No top padding: the back link opens the band at breadcrumb height and its own margin spaces the
+     panels. The bottom is the band's breathing room under the panels, deliberately generous rather than
+     hugging the cards: the zone is the checkout, and a tight one read as a strip squeezed between the
+     sub-nav and the cross-sell rail.
 
+     No min-height floor: Figma's 733px was sized for an opaque band that had to reach the cross-sell, and
+     keeping it here only pushed the rail below down behind a stretch of empty wash. The band tracks its
+     content, and this padding is what surrounds it. */
+  padding-bottom: 107px;
+
+  /* The wash that gives the cards a floor instead of leaving them on the bare field.
+
+     Translucent fills stack, so the panels stay at one step of this same token and only the item cards
+     take the full overlay: a panel on the band lands at 36% and an item card on it at 62%, enough for a
+     line to stand off its panel without the page going near black. */
   &::before {
     content: '';
     position: absolute;
@@ -93,20 +115,22 @@ export const Top = styled.div`
     left: 50%;
     width: 100vw;
     transform: translateX(-50%);
-    background: ${colors.media};
+    background: ${colors.overlayLight};
     z-index: 0;
   }
+
+  /* The light ink is set here so descendants inherit it; the cards below carry the contrast. */
+  color: ${colors.softWhite};
   & > * {
     position: relative;
     z-index: 1;
   }
 
   ${mobile} {
-    /* The single-column layout is already taller than the desktop band, and the fixed summary bar sits over
-       the bottom of it — a floor here would only add empty gray. */
-    min-height: 0;
-
-    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout). */
+    /* The back link is hidden here, so the band needs its own top padding. The fixed summary bar already
+       reserves room at the bottom (see Checkout), and a tall band on a short viewport costs more than it
+       gives. */
+    padding-top: 24px;
     padding-bottom: 32px;
 
     &::before {
@@ -115,34 +139,57 @@ export const Top = styled.div`
   }
 `
 
-// The left column = TWO stacked white cards, 12px apart, both rounded-16 on the gray page.
+// The left column: one translucent card, rounded-16 on the band. It held two stacked cards until the
+// header moved inside the list (see PanelHead), which is why it is a column with nothing to space out.
 export const Left = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 `
 
-// Header card: "Cart: N Items" on the left, Fitting Room on the right.
-export const HeadCard = styled.div`
+// Header row: "Cart: N Items" on the left, Fitting Room on the right. It used to be a card of its own,
+// stacked above the list with a 12px gap. One card holds both now: two translucent panels a few pixels
+// apart read as a seam rather than as two things, and the header has no meaning away from the list it
+// counts.
+export const PanelHead = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: ${colors.white};
-  border-radius: 16px;
+  /* Pulled out to the card's edges, then the padding is put back on the row itself, so the row reads as
+     the card's own header strip rather than as content indented inside it. */
+  margin: -24px -24px 24px;
   padding: 12px 12px 12px 24px;
+
+  /* The rule is inset to the card's padding, not edge to edge like the row, so it spans exactly the
+     lines below it, as the summary's rule does under its title. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 0;
+    border-bottom: 1px solid ${colors.cardLine};
+  }
 
   ${mobile} {
     gap: 8px;
+    margin: -16px -16px 16px;
     padding: 8px 16px;
+
+    &::after {
+      left: 16px;
+      right: 16px;
+    }
   }
 `
 
-// Items card: the cart-card list, 24px padding all round so the last line has breathing room.
+// The cart card: the header row (see PanelHead) above the cart-card list, 24px padding all round so
+// the last line has breathing room.
 export const Panel = styled.section`
   min-width: 0;
-  background: ${colors.white};
+  background: ${colors.overlayLight};
   border-radius: 16px;
   padding: 24px;
 
@@ -169,7 +216,7 @@ export const PanelBack = styled.button`
     border: 0;
     background: none;
     padding: 0;
-    color: ${colors.text};
+    color: ${colors.softWhite};
     cursor: pointer;
 
     & .ico {
@@ -184,7 +231,7 @@ export const PanelTitle = styled.h1`
   font-size: 14px;
   font-weight: 600;
   line-height: 1.57;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   ${mobile} {
     flex: 1;
@@ -193,7 +240,6 @@ export const PanelTitle = styled.h1`
   }
 `
 
-// Soft-black outline button.
 export const Fitting = styled.button`
   display: inline-flex;
   align-items: center;
@@ -201,10 +247,10 @@ export const Fitting = styled.button`
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border: 2px solid ${colors.text2};
-  border-radius: ${radius.btn};
-  background: none;
-  color: ${colors.text2};
+  border: 0;
+  border-radius: ${radius.cta};
+  background: ${colors.glass};
+  color: ${colors.softWhite};
   font-size: 13px;
   font-weight: 600;
   line-height: 24px;
@@ -212,28 +258,16 @@ export const Fitting = styled.button`
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: background 0.15s ease;
 
-  /* Mixed from currentColor so the wash cannot drift from the border colour. */
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, currentColor 6%, transparent);
-  }
-  &:active:not(:disabled) {
-    filter: brightness(0.97);
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: ${colors.glassStrong};
+    }
   }
   &:disabled {
     opacity: 0.55;
     cursor: default;
-  }
-
-  /* Mobile keeps the full 40px button and thins the outline to 1px (1182:236892) rather than shrinking
-     the type, which had it reading smaller than the row title beside it. */
-  ${mobile} {
-    border-width: 1px;
-    border-color: ${colors.text};
-    color: ${colors.text};
   }
 `
 
@@ -252,16 +286,13 @@ export const Card = styled.div`
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: ${colors.white};
-  border: 1px solid ${colors.gray4};
-  border-radius: ${radius.card};
+  /* The full overlay, a step heavier than the panel, so each line stands off it (see Top). */
+  background: ${colors.overlay};
+  border-radius: ${radius.tile};
   overflow: hidden;
 
   &[data-unavailable] [data-thumb] {
     opacity: 0.5;
-  }
-  &[data-unavailable] [data-check] {
-    display: none;
   }
   &[data-unavailable] [data-desc] {
     opacity: 0.7;
@@ -271,10 +302,13 @@ export const Card = styled.div`
 export const Thumb = styled.div`
   position: relative;
   flex-shrink: 0;
-  width: 137.5px;
-  height: 137px;
-  background: ${colors.media};
-  border-radius: ${radius.card};
+  /* The thumb is what sets the row's height — nothing else in the line is taller — so this is where a
+     cart line is made to feel less cramped. A quarter above Figma's 137.5x137, which read small against
+     a row this wide, and small is what a buyer sees of an item they are about to pay for. */
+  width: 172px;
+  height: 171px;
+  border: 1.5px solid transparent;
+  border-radius: ${radius.tile};
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -286,6 +320,16 @@ export const Thumb = styled.div`
     filter: drop-shadow(0.56px 2.25px 2.8px rgba(0, 0, 0, 0.1));
   }
 
+  /* Just above the single-column breakpoint the summary is still a fixed 615px, so the cart column is only
+     ~334px and a 172px thumb left the name and the price nothing — the price clipped outright. Step the
+     thumb down over that range. BELOW the breakpoint there is no problem: the grid is one column there and
+     the row gets the full width. Measured with the longest real price (11K, quantity 2): clipping is gone
+     from 1120px up, and at 1181px the full-size thumb fits again with room to spare. */
+  ${narrowTwoCol} {
+    width: 120px;
+    height: 120px;
+  }
+
   ${mobile} {
     width: 120px;
     height: 120px;
@@ -295,19 +339,6 @@ export const Thumb = styled.div`
 export const ThumbLink = styled(Link)`
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-`
-
-// Green "ready to buy" check overlaid on the thumbnail (decorative).
-export const ThumbCheck = styled.span`
-  position: absolute;
-  top: 7.5px;
-  left: 7.5px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #34ce77;
   display: grid;
   place-items: center;
 `
@@ -340,14 +371,16 @@ const nameCss = css`
   font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
+  /* Underline, not a colour change: the ink here is already softWhite, so the old hover colour matched
+     the resting one and the link announced nothing on hover. */
   a&:hover {
-    color: ${colors.accent};
+    text-decoration: underline;
   }
 
   ${mobile} {
@@ -367,18 +400,21 @@ export const NameLink = styled(Link)`
   ${nameCss};
 `
 
-// Reuse CreatorBadge but drop its avatar for the text-only "By {creator}" treatment.
 export const Creator = styled(CreatorBadge)`
-  font-size: 10px;
-  line-height: 1.43;
-  color: ${colors.muted};
-
   & [data-avatar] {
-    display: none;
+    width: 20px;
+    height: 20px;
+    border: 1.43px solid ${colors.glassRing};
+    background: ${colors.glassFaint};
   }
   & [data-testid='creator-name'] {
-    font-size: 10px;
-    line-height: 1.43;
+    font-size: 12px;
+    line-height: 1.2;
+    color: ${colors.softWhite};
+  }
+  /* The shared badge switches the name to its dark ink on hover (badge.styles), drawn for a white card. */
+  &[data-link]:hover [data-testid='creator-name'] {
+    color: ${colors.softWhite};
   }
 `
 
@@ -396,7 +432,7 @@ export const Stepper = styled.div`
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border: 0.5px solid ${colors.muted2};
+  background: ${colors.glassFaint};
   border-radius: ${radius.pill};
 `
 
@@ -408,11 +444,12 @@ export const Step = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
 
   &:disabled {
-    color: ${colors.muted2};
+    color: ${colors.glassText};
+    opacity: 0.5;
     cursor: default;
   }
 `
@@ -422,7 +459,7 @@ export const Qty = styled.span`
   font-size: 14px;
   font-weight: 500;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   text-align: center;
 `
 
@@ -435,7 +472,7 @@ export const Price = styled.div`
   margin-left: auto;
   font-size: 24px;
   font-weight: 600;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 
   ${mobile} {
     font-size: 20px;
@@ -445,7 +482,7 @@ export const Price = styled.div`
 export const PriceIco = styled(CurrencyIcon)`
   width: 24px;
   height: 24px;
-  background: ${colors.text};
+  background: ${colors.softWhite};
 
   ${mobile} {
     width: 20px;
@@ -457,7 +494,7 @@ export const PriceWas = styled.span`
   margin-left: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   text-decoration: line-through;
 `
 
@@ -478,7 +515,7 @@ export const Unavailable = styled.span`
   font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 `
 
 export const Warn = styled(Icon)`
@@ -493,18 +530,18 @@ export const CreatorTag = styled.span`
   gap: 4px;
   padding: 2px 4px;
   border-radius: ${radius.chip};
-  background: #f4e9ff;
+  background: ${colors.glass};
   font-size: 10px;
   font-weight: 400;
   line-height: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // The glyph keeps the design's leaf size (11.31 × 10.94) rather than a square icon box.
 export const CreatorTagIco = styled(Icon)`
   width: 11.31px;
   height: 10.94px;
-  background: ${colors.text};
+  background: ${colors.softWhite};
 `
 
 const iconBtn = css`
@@ -515,7 +552,7 @@ const iconBtn = css`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.muted};
+  color: ${colors.softWhite};
   cursor: pointer;
   transition: color 0.12s ease;
 
@@ -528,8 +565,10 @@ const iconBtn = css`
 export const Fav = styled.button`
   ${iconBtn};
 
-  &:hover:not(:disabled) {
-    color: ${colors.text};
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      color: ${colors.dclRed};
+    }
   }
   &[data-on] {
     color: ${colors.dclRed};
@@ -551,11 +590,11 @@ export const Utils = styled.div`
 
   & .link {
     font-size: 13px;
-    color: ${colors.muted};
+    color: ${colors.gray4};
     font-weight: 600;
   }
   & .link:hover:not(:disabled) {
-    color: ${colors.text};
+    color: ${colors.softWhite};
   }
 `
 
@@ -564,10 +603,23 @@ export const Summary = styled.aside`
   top: 172px;
   display: flex;
   flex-direction: column;
-  background: ${colors.white};
+  background: ${colors.overlayLight};
   box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
   border-radius: 16px;
-  padding: 16px;
+  padding: 32px;
+
+  /* PaymentCtas' defaults were picked against a light card, so this one overrides them in its own scope.
+
+     The focus ring is the blocking one: accent (#691fa9) against this card measures 1.2:1, and 1.65:1 on
+     the mobile bar, where WCAG 1.4.11 asks 3:1 of a focus indicator — on the page's main action, for the
+     one kind of user who depends on it. The shortfall note is the same muted-ink problem already fixed
+     for Msg. */
+  button:focus-visible {
+    outline-color: ${colors.softWhite};
+  }
+  [data-testid='mana-shortfall-note'] {
+    color: ${colors.gray4};
+  }
 
   ${twoCol} {
     position: static;
@@ -583,17 +635,25 @@ export const Summary = styled.aside`
     /* Square and hard-edged against the page (1182:236910): it is a bar docked to the bottom, not a sheet
        lifted off it. */
     border-radius: 0;
+    /* Back to the compact padding: the desktop card's roomier one would make the docked bar taller than
+       the space Checkout reserves for it, and the bar would cover the last cart line. */
+    padding: 16px;
+    /* Opaque, unlike the desktop card. This one is docked to the viewport and the whole cart scrolls
+       underneath it, so a translucent fill showed the list through the total and the CTA — over one of
+       the light item thumbnails, softWhite measured 1.72:1. The token is the field's bottom stop with
+       this same wash composited in, so the bar matches where it sits. */
+    background: ${colors.fieldBottomWashed};
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
   }
 `
 
 export const SummaryTitle = styled.h2`
-  margin: 0 0 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid ${colors.gray4};
+  margin: 0 0 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid ${colors.cardLine};
   font-size: 24px;
   font-weight: 600;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   ${mobile} {
     margin-bottom: 12px;
@@ -606,7 +666,12 @@ export const SummaryTitle = styled.h2`
 export const SummaryBody = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 28px;
+
+  /* Same reason as Summary's padding: the mobile bar is docked and its height is budgeted for. */
+  ${mobile} {
+    gap: 12px;
+  }
 `
 
 // The summary's total row — Figma "Price".
@@ -621,7 +686,7 @@ export const TotalLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
   line-height: 1.57;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 export const TotalValue = styled.span`
@@ -630,7 +695,7 @@ export const TotalValue = styled.span`
   gap: 8px;
   font-size: 24px;
   font-weight: 700;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // Total + the exchange rate stacked under it, both flush right.
@@ -646,13 +711,13 @@ export const TotalRate = styled.span`
   font-size: 12px;
   font-weight: 400;
   line-height: 1;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 export const TotalIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  background: ${colors.text};
+  background: ${colors.softWhite};
   -webkit-mask-size: 24px 24px;
   mask-size: 24px 24px;
   -webkit-mask-position: left center;
@@ -690,6 +755,12 @@ export const Cta = styled.button`
 const msg = css`
   margin: 0;
   font-size: 13px;
+
+  /* These carry the global .muted class, whose ink was chosen against white — on the summary's card it
+     measures 4.10:1, under AA. Matching the two-class specificity overrides it without !important. */
+  &.muted {
+    color: ${colors.gray4};
+  }
 `
 
 export const Msg = styled.p`
@@ -698,20 +769,29 @@ export const Msg = styled.p`
 
 export const MsgNotice = styled(ErrorNotice)`
   ${msg};
+
+  /* The shared notice was drawn against a white card: near-black message ink and the flat error red for
+     the icon. On this translucent purple they measure 1.56:1 and 2.78:1 — the message is effectively
+     invisible. It is the checkout failure sitting beside the CTA, announced with role="alert", so it has
+     to survive the move off white. The icon keeps a red so the notice still reads as an error. */
+  .error-notice__msg {
+    color: ${colors.softWhite};
+  }
+  .error-notice__ico {
+    color: ${colors.saleTag};
+  }
 `
 
-// The upsell rail wraps a shared CollectionCarousel (which supplies its own top margin).
-// The cross-sell sits on WHITE while the page above is gray: a full-bleed white band starts at the
-// panels' bottom and extends down through the page's 80px bottom padding so the white meets the footer
-// with no gray strip. The top margin sits ABOVE that band, so it shows the gray page background.
+// The upsell rail wraps a shared CollectionCarousel (which supplies its own top margin). It was always
+// on the purple field; what changed is that the cart above it is too, so the seam this used to sit under
+// is gone.
 export const Upsell = styled.div`
   position: relative;
   flex: 1 0 auto;
-  margin-top: 48px;
-  /* Below the gray band the cross-sell sits straight on the purple field (Figma) — hence no band of its
-     own. The padding is the whole gap from the top of the section to the heading; the shared carousel's
-     own top margin is zeroed below so the two don't stack. */
-  padding: 47px 0 24px;
+  /* The padding is the whole gap from the top of the section to the heading; the shared carousel's own
+     top margin is zeroed below so the two don't stack. It is the only gap now — the 48px margin that used
+     to sit on top of it was clearing the old opaque band's edge, which no longer needs clearing. */
+  padding: 32px 0 24px;
 
   & section {
     margin-top: 0;

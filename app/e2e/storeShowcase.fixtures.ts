@@ -105,7 +105,7 @@ const catalogue = [
   item(QUIET_COLLECTION, 'col-winter', 2, 'Winter Capsule Parka', 0)
 ]
 
-/** The winter capsule is published and never listed, which is what puts it in "Worth a look". */
+/** The winter capsule is published and never listed, so its collection row reports nothing listed. */
 const listed = [
   listing(COLLECTION, '0', 'Neon Runner Boots', 30),
   listing(COLLECTION, '1', 'Neon Runner Jacket', 45),

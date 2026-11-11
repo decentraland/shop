@@ -98,11 +98,11 @@ vi.mock('~/lib/collections', () => ({
     creator: '0xabc0000000000000000000000000000000000abc'
   })
 }))
-const { fetchItemVideoUrl, fetchVrmExportBlocked } = vi.hoisted(() => ({
+const { fetchItemVideoUrl, fetchWearableTraits } = vi.hoisted(() => ({
   fetchItemVideoUrl: vi.fn(),
-  fetchVrmExportBlocked: vi.fn()
+  fetchWearableTraits: vi.fn()
 }))
-vi.mock('~/lib/wearable-rules', () => ({ fetchVrmExportBlocked }))
+vi.mock('~/lib/wearable-rules', () => ({ fetchWearableTraits }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]), fetchItemVideoUrl }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [], isFetched: true }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
@@ -160,7 +160,7 @@ beforeEach(() => {
   fetchItemVideoUrl.mockResolvedValue(null)
   // The v1 traits read is the page's authority on `isSmart`; null means "no answer yet / failed".
   fetchItemMeta.mockResolvedValue(null)
-  fetchVrmExportBlocked.mockResolvedValue(false)
+  fetchWearableTraits.mockResolvedValue({ vrmBlocked: false, hides: [] })
 })
 
 describe('ItemDetail — the showcase clip a creator uploaded', () => {
@@ -221,22 +221,22 @@ describe('ItemDetail — a wearable whose creator blocked VRM export', () => {
 
   it('should say so in a badge, with the reason on hover', async () => {
     fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
-    fetchVrmExportBlocked.mockResolvedValue(true)
+    fetchWearableTraits.mockResolvedValue({ vrmBlocked: true, hides: [] })
     renderPdp(newClient(), item())
 
     const badge = await screen.findByTestId('detail-export-blocked')
     expect(badge).toHaveTextContent(/export/i)
     // The tooltip's copy is also the accessible name, so it is not hover-only information.
     expect(badge).toHaveAttribute('aria-label', "This Item doesn't allow VRM export")
-    expect(fetchVrmExportBlocked).toHaveBeenCalledWith(URN)
+    expect(fetchWearableTraits).toHaveBeenCalledWith(URN)
   })
 
   it('should say nothing when export is allowed', async () => {
     fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
-    fetchVrmExportBlocked.mockResolvedValue(false)
+    fetchWearableTraits.mockResolvedValue({ vrmBlocked: false, hides: [] })
     renderPdp(newClient(), item())
 
-    await waitFor(() => expect(fetchVrmExportBlocked).toHaveBeenCalled())
+    await waitFor(() => expect(fetchWearableTraits).toHaveBeenCalled())
     expect(screen.queryByTestId('detail-export-blocked')).not.toBeInTheDocument()
   })
 
@@ -246,17 +246,42 @@ describe('ItemDetail — a wearable whose creator blocked VRM export', () => {
     renderPdp(newClient(), item({ category: 'emote', wearableCategory: 'dance' }))
 
     await waitFor(() => expect(fetchItemMeta).toHaveBeenCalled())
-    expect(fetchVrmExportBlocked).not.toHaveBeenCalled()
+    expect(fetchWearableTraits).not.toHaveBeenCalled()
     expect(screen.queryByTestId('detail-export-blocked')).not.toBeInTheDocument()
   })
 
   // Nothing to state is the honest default: a badge on a failed lookup would invent a restriction.
   it('should say nothing when the lookup cannot answer', async () => {
     fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
-    fetchVrmExportBlocked.mockResolvedValue(null)
+    fetchWearableTraits.mockResolvedValue({ vrmBlocked: null, hides: [] })
     renderPdp(newClient(), item())
 
-    await waitFor(() => expect(fetchVrmExportBlocked).toHaveBeenCalled())
+    await waitFor(() => expect(fetchWearableTraits).toHaveBeenCalled())
     expect(screen.queryByTestId('detail-export-blocked')).not.toBeInTheDocument()
+  })
+})
+
+describe('ItemDetail — a wearable that hides other categories', () => {
+  const URN = 'urn:decentraland:matic:collections-v2:0xanchor:1'
+
+  it('should list what it takes off the avatar, by name', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
+    fetchWearableTraits.mockResolvedValue({ vrmBlocked: false, hides: ['eyebrows', 'upper_body', 'odd_slot'] })
+    renderPdp(newClient(), item())
+
+    const section = await screen.findByTestId('detail-hides')
+    expect(section).toHaveTextContent(/hides/i)
+    const chips = screen.getAllByTestId('detail-hides-chip').map(c => c.textContent)
+    // A slot the catalogue has no name for is still shown, spaced out, rather than dropped.
+    expect(chips).toEqual(['Eyebrows', 'Upper Body', 'odd slot'])
+  })
+
+  it('should leave the section out when it hides nothing', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
+    fetchWearableTraits.mockResolvedValue({ vrmBlocked: false, hides: [] })
+    renderPdp(newClient(), item())
+
+    await waitFor(() => expect(fetchWearableTraits).toHaveBeenCalled())
+    expect(screen.queryByTestId('detail-hides')).not.toBeInTheDocument()
   })
 })

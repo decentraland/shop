@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -77,5 +77,22 @@ describe('the cart popover CTAs', () => {
     renderPopover()
 
     expect(screen.getByRole('button', { name: /continue shopping/i })).toBeInTheDocument()
+  })
+})
+
+describe('the cart popover quantity stepper', () => {
+  it('should tell the cart the taps came from the popover', () => {
+    cart.items[0].quantity = 2
+    try {
+      renderPopover()
+
+      fireEvent.click(screen.getByRole('button', { name: /increase quantity/i }))
+      fireEvent.click(screen.getByRole('button', { name: /decrease quantity/i }))
+
+      expect(cart.increment).toHaveBeenCalledWith('item-1', 'popover')
+      expect(cart.decrement).toHaveBeenCalledWith('item-1', 'popover')
+    } finally {
+      cart.items[0].quantity = 1
+    }
   })
 })

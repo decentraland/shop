@@ -44,18 +44,17 @@ const RING_OUTSET = 2
  */
 export const RING_INSET = RING_WIDTH - RING_OUTSET
 
-// Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient
-// (#ff2d55 → #c640cd). A gradient fill masked down to the ring, since a border can't carry one.
+// Hover stroke: 3px of the Cerise gradient (#ff2d55 → #c640cd), following the host's corner radius. A gradient fill masked down to the ring, since a border can't carry one.
 //
 // Straddles the card's edge — 2px out, 1px in — like the nav/promo rings. At inset 0 its outer arc landed
 // on the same curve as the card's rounded clip, where mask-clip and background-clip multiply into ~25%
 // coverage instead of 50%, and the near-white media read through it as a white line outside the border.
 // So the host must NOT clip, and rounds its media/footer individually instead.
-export const ringHover = css`
+export const ringHover = (cornerRadius: string = radius.card) => css`
   inset: -${RING_OUTSET}px;
   border: 0;
   padding: ${RING_WIDTH}px;
-  border-radius: calc(${radius.card} + ${RING_OUTSET}px);
+  border-radius: calc(${cornerRadius} + ${RING_OUTSET}px);
   background: ${gradients.cerise};
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -67,14 +66,25 @@ export const ringHover = css`
   mask-composite: exclude;
 `
 
-// A card's lit state paints outside its box — 2px of ring plus ~10px of glow, times the 1.025 zoom, so
-// just over 16px around a 300px card. An overflow-x rail clips the y axis too, so the room has to be
+// A card's lit state paints outside its box — 2px of ring plus ~10px of glow, and the 1.025 zoom adds
+// ~4px more each side of a 300px card, so about 16px in all. An overflow-x rail clips the y axis too, so the room has to be
 // PADDING (a negative margin would only move the clip); the negative margin-left then re-aligns the first
 // card with the section title, letting the glow spill into the page gutter.
 const RAIL_GUTTER = 18
+
+/** The space between cards in every rail that uses {@link railGutter}; the edge clip below is derived from it. */
+export const RAIL_GAP = 16
+
+// The gutter is wider than the gap, so the card just past either end of the view showed its first 2px as a
+// thin line in it. Clipping one pixel more than that leaves room for sub-pixel column widths, and costs the
+// outermost card's glow only its faintest pixel. A clip, not a mask: a masked edge still takes the pointer,
+// so hovering it lit the hidden card and its glow spilled back into view.
+const RAIL_EDGE_CLIP = Math.max(0, RAIL_GUTTER - RAIL_GAP + 1)
 
 export const railGutter = css`
   padding: ${RAIL_GUTTER}px;
   margin-left: -${RAIL_GUTTER}px;
   scroll-padding-inline: ${RAIL_GUTTER}px;
+  // A rail that drops this padding must drop the clip too, or it cuts into its own cards.
+  clip-path: inset(0 ${RAIL_EDGE_CLIP}px);
 `

@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { darkCard } from '~/styles/darkSurface'
 
 const toastIn = keyframes`
   from {
@@ -43,7 +44,7 @@ export const Icon = styled.span`
   color: ${theme.colors.white};
   font-weight: 800;
   font-size: 13px;
-  background: ${theme.colors.accent};
+  background: ${theme.colors.magenta};
 
   &[data-kind='success'] {
     background: ${theme.colors.okStrong};
@@ -61,25 +62,23 @@ export const Msg = styled.span`
 
 // A single toast. The kind (success / error / info) rides on data-kind — the same hook tests would
 // assert on — and drives both the left border and the icon fill, so no style-only prop reaches the DOM.
-// Info keeps the base accent; success/error deepen to their solid status shades.
+// The edge uses the light status shades: the solid ones the icons fill with sink into the dark card.
 export const Item = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 13px 16px;
+  ${darkCard}
   border-radius: ${theme.radius.card};
-  background: ${theme.colors.white};
-  color: ${theme.colors.text};
-  box-shadow: 0 12px 32px rgba(20, 20, 30, 0.18);
   cursor: pointer;
-  border-left: 4px solid ${theme.colors.accent};
+  border-left: 4px solid ${theme.colors.magenta};
   animation: ${toastIn} 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 
   &[data-kind='success'] {
-    border-left-color: ${theme.colors.okStrong};
+    border-left-color: ${theme.colors.successBorder};
   }
   &[data-kind='error'] {
-    border-left-color: ${theme.colors.errStrong};
+    border-left-color: ${theme.colors.dclRed};
   }
 
   @media (prefers-reduced-motion: reduce) {

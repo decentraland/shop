@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OutfitCard } from '~/components/OutfitCard'
 import { SkeletonOutfitCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
-import { isBuyableFromCreator, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
+import {
+  isBuyableFromCreator,
+  isOutfitsAvailable,
+  orderOutfitsByRecency,
+  outfitItemKey,
+  type Outfit
+} from '~/lib/outfits'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
-import { shuffle } from '~/lib/shuffle'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import * as Row from '~/styles/row.styles'
@@ -20,13 +25,14 @@ const SKELETON_COUNT = 6
 // until published outfits exist (and nothing at all when no shop-server is configured). One merged
 // catalog resolution covers every card — never one request per card.
 export function OutfitsRow() {
-  const { data, isLoading } = useOutfits()
+  const { data, isLoading: outfitsLoading } = useOutfits()
 
-  // The feed comes back newest-first, which would freeze the row in creation order — every visit
-  // shows the same few looks first. Shuffled once per fetched list (not per render), so the order
-  // varies between visits but the cards never re-order under the reader as the catalog settles.
-  const outfits = useMemo(() => shuffle(data ?? []), [data])
+  // Ordered once per fetched list (not per render), so the cards never re-order under the reader as the
+  // catalog settles.
+  const outfits = useMemo(() => orderOutfitsByRecency(data ?? []), [data])
   const resolution = useOutfitItems(outfits)
+  // Placeholders hold the row until the items resolve too, so a look that will be dropped never shows first.
+  const isLoading = outfitsLoading || resolution.isLoading
 
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -38,8 +44,8 @@ export function OutfitsRow() {
   // live on /outfits/:id, per item, where a partial look is honest. That also keeps a card's CTA always
   // reading "Add to cart".
   //
-  // While resolving — or when the catalog is DOWN — every outfit stays visible and the cards degrade
-  // instead (skeleton total / no CTA): an outage is not a sell-out and must not empty the row. The CTA
+  // When the catalog is DOWN every outfit stays visible and the cards degrade instead (no CTA): an
+  // outage is not a sell-out and must not empty the row. The CTA
   // still re-reads every item from the shop feed before anything becomes a cart line, and reports
   // whatever died in between through the partial-add toast (see useOutfitCart).
   const visible = useMemo(() => {
@@ -87,7 +93,7 @@ export function OutfitsRow() {
       el.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', measure)
     }
-  }, [measure, visible.length])
+  }, [measure, visible.length, isLoading])
 
   const scrollToPage = useCallback((target: number) => {
     const el = trackRef.current

@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { hrefFor, itemRoute, tokenRoute, detailRouteFor, canManageToken, myItemsRouteFor, routeSegment } from './routes'
+import {
+  hrefFor,
+  itemRoute,
+  tokenRoute,
+  detailRouteFor,
+  canManageToken,
+  isListingsSection,
+  myItemsRouteFor,
+  routeSegment
+} from './routes'
 
 describe('hrefFor', () => {
   beforeEach(() => {
@@ -136,5 +145,43 @@ describe('routeSegment', () => {
     expect(routeSegment('')).toBeUndefined()
     // A segment that is ONLY the stray fragment leaves nothing to look up — better undefined than ''.
     expect(routeSegment('&utm_source=client')).toBeUndefined()
+  })
+})
+
+describe('when telling whether Activity opens on its listings section', () => {
+  let query: string
+  let result: boolean
+
+  describe('and the query uses the shareable spelling', () => {
+    beforeEach(() => {
+      query = 'section=listings'
+      result = isListingsSection(new URLSearchParams(query))
+    })
+
+    it('should be true', () => {
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('and the query uses the legacy spelling', () => {
+    beforeEach(() => {
+      query = 'view=migrate'
+      result = isListingsSection(new URLSearchParams(query))
+    })
+
+    it('should be true', () => {
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('and the query names neither', () => {
+    beforeEach(() => {
+      query = 'section=creations'
+      result = isListingsSection(new URLSearchParams(query))
+    })
+
+    it('should be false', () => {
+      expect(result).toBe(false)
+    })
   })
 })

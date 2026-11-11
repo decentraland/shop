@@ -18,6 +18,7 @@ type RawItem = {
   name: string
   price?: string | null
   tradeId?: string | null
+  tradeContractAddress?: string | null
   isOnSale?: boolean
   available?: string | number | null
   creator?: string
@@ -642,6 +643,57 @@ describe("when resolving a collection's primary sale state", () => {
     })
     const map = await fetchCollectionSaleState('0xcol')
     expect(map['0']).toEqual({ isOnSale: true, priceCredits: 14, manaWei: '5000000000000000000' })
+  })
+
+  // Which marketplace a MANA trade was signed for is what says whether a creator's coupon can reach it; a
+  // collection-store price has no trade, and no coupon can ever reach it.
+  it('should name the marketplace of a MANA trade, and only of a trade', async () => {
+    mockFeeds({
+      shop: [],
+      items: [
+        [
+          rawItem({
+            itemId: '5',
+            isOnSale: true,
+            priceCredits: 9,
+            price: '2000000000000000000',
+            tradeId: 't-mana',
+            tradeContractAddress: '0xE38EF22ABE871513555CBA89ADFE45AB4F548ADA'
+          }),
+          rawItem({
+            itemId: '6',
+            isOnSale: true,
+            priceCredits: 9,
+            price: '2000000000000000000',
+            tradeId: null,
+            tradeContractAddress: '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+          })
+        ]
+      ]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['5'].manaTradeContract).toBe('0xe38ef22abe871513555cba89adfe45ab4f548ada')
+    expect(map['6'].manaTradeContract).toBeUndefined()
+  })
+
+  it('should never name a marketplace on a USD-pegged listing', async () => {
+    mockFeeds({
+      shop: [{ listingType: 'primary', itemId: '7', priceCredits: 3, tradeId: 't-pegged' }],
+      items: [
+        [
+          rawItem({
+            itemId: '7',
+            isOnSale: true,
+            priceCredits: 3,
+            price: '300000000000000000',
+            tradeId: 't-pegged',
+            tradeContractAddress: '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+          })
+        ]
+      ]
+    })
+    const map = await fetchCollectionSaleState('0xcol')
+    expect(map['7'].manaTradeContract).toBeUndefined()
   })
 
   it('should keep a store mint on sale even though it has no trade to cancel', async () => {

@@ -12,7 +12,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
-const { colors, radius, media, font, gradients } = theme
+const { colors, radius, media, font } = theme
 
 export const Detail = styled.div`
   max-width: 1721px;
@@ -385,12 +385,12 @@ export const PlayShowcase = styled.button`
 export const Label = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 500;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: ${colors.gray4};
+  color: ${colors.glassText};
 `
 
 export const Chips = styled.div`
@@ -406,25 +406,26 @@ export const Chips = styled.div`
   }
 `
 
-// PDP chip: taller and roomier than the shared base; the category/gender variant paints its own fill.
+// PDP tag: the rarity in its own solid colour (set inline), every other trait on a dark wash with its glyph.
 export const DetailChip = styled(Chip)`
-  height: 24px;
-  padding: 0 8px;
-  gap: 3px;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
+  height: 30px;
+  padding: 4px 8px 4px 6px;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: ${radius.btn};
+  letter-spacing: 0;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.14);
+  background: ${colors.overlayLight};
   color: ${colors.softWhite};
 
   & .ico {
+    width: 22px;
+    height: 22px;
     color: ${colors.softWhite};
   }
-  &[data-variant='cat'] {
-    background: rgba(255, 255, 255, 0.14);
-    color: ${colors.softWhite};
+  &[data-variant='rarity'] {
+    padding: 4px 8px;
   }
 
   /* The blocked-VRM-export badge. Warning orange, tinted at 20% for the fill — the marketplace's own
@@ -456,7 +457,7 @@ export const DetailChipLink = styled(DetailChip.withComponent(Link))`
 
   &:hover,
   &:focus-visible {
-    background: rgba(255, 255, 255, 0.26);
+    background: ${colors.overlay};
   }
 
   /* The rarity chip carries its own colour inline, so a background hover would be overridden and the
@@ -477,14 +478,14 @@ export const Section = styled.div`
 // Always inside DescRow, which owns the spacing above it and the responsive order — its own margin here
 // would stack on top of the row's, and its `order` no longer applies from inside a column.
 export const Description = styled(Section)`
-  gap: 11px;
+  gap: 10px;
 `
 
 export const DescText = styled.p`
   margin: 0;
   color: ${colors.softWhite};
-  font-size: 14px;
-  line-height: 30px;
+  font-size: 16px;
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
@@ -501,38 +502,15 @@ export const DescToggle = styled.button`
   align-self: flex-start;
 `
 
-/**
- * DESCRIPTION and UTILITY share a row, as the design pairs them (and as Meta pairs creator + collection).
- * The row carries the responsive `order` that Description used to own: nesting Description inside it took
- * that element out of the info column, so its own order no longer applied there.
- * Below lg the two stack — side by side they would each be ~150px wide, which is not a column of prose.
- */
-/**
- * ONE column geometry for both label pairs — description/utility and creator/collection.
- *
- * They used to disagree: this row was two equal halves while Meta was `space-between` with shrink-to-fit
- * columns, so UTILITY landed at 50% while COLLECTION landed wherever its content happened to start, and the
- * four labels formed two ragged columns instead of two straight ones. A shared grid makes every left label
- * start at the same x and every right label start at the same x, whatever their contents.
- */
-const infoRowCss = css`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-`
-
+// DESCRIPTION, then UTILITY under it, each a heading over its prose.
 export const DescRow = styled.div`
-  ${infoRowCss};
-  /* Clears the chips above. The pair below sits at 32px, so this is the tighter of the two steps: the
-     description belongs to the heading block it follows, the creator/collection pair is a new subject. */
-  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
 
   ${media.maxWidth('lg')} {
     order: 3;
-    grid-template-columns: 1fr;
-    /* Stacked, the two blocks need real separation — as one column they would read as one paragraph. */
-    gap: 20px;
-    margin-top: 20px;
   }
 `
 
@@ -542,49 +520,51 @@ export const DescCol = styled.div`
   min-width: 0;
 `
 
+// The creator and the collection on one row, each an avatar with its name in a sentence ("By …", "Collection …").
 export const Meta = styled.div`
-  ${infoRowCss};
-  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-top: 20px;
+  padding: 20px 0;
 
   ${media.maxWidth('lg')} {
     order: 2;
-    margin-top: 20px;
   }
 `
 
-export const MetaCol = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  min-width: 0;
-
-  &[data-collection] {
-    align-items: flex-start;
-  }
-`
-
-// PDP creator/collection badge: larger avatar + prominent purple link (overrides the compact default).
-// Shared by both badge kinds, which both carry the same reach-in data hooks.
 const badgeDetailCss = css`
   &[data-testid='creator'] {
+    gap: 6px;
     color: ${colors.softWhite};
-    font-size: 14px;
-    gap: 12px;
+    font-size: 16px;
+    font-weight: 600;
   }
   [data-avatar] {
     width: 48px;
     height: 48px;
+    border: 2px solid ${colors.glassRing};
+    border-radius: 50%;
+    background: ${colors.glassFaint};
+    overflow: hidden;
   }
   [data-letter] {
     font-size: 18px;
   }
   [data-testid='creator-name'] {
     color: ${colors.softWhite};
-    font-weight: 500;
-    text-decoration: underline;
+    font-size: 16px;
+    font-weight: 600;
   }
+  [data-testid='creator-display'] {
+    color: ${colors.nameLink};
+  }
+  /* Hover only underlines; the shared badge also darkens the name, which is meant for light surfaces. */
   &[data-link]:hover [data-testid='creator-name'] {
-    color: ${colors.gray4};
+    color: ${colors.softWhite};
+    text-decoration: underline;
   }
 `
 
@@ -596,9 +576,27 @@ export const DetailCollection = styled(CollectionBadge)`
   ${badgeDetailCss}
 `
 
+export const Hides = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 0;
+
+  /* After the description on a phone. */
+  ${media.maxWidth('lg')} {
+    order: 3;
+  }
+`
+
+export const HidesList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
 export const Divider = styled.hr`
   border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid ${colors.glass};
   margin: 24px 0 0;
   width: 100%;
 
@@ -669,13 +667,12 @@ export const StockValue = styled.div`
   }
 `
 
-// PRICE / STOCK captions: Gray 3, not Gray 4 (Figma 867:61020 / 867:61044).
 export const PriceLabel = styled.div`
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: ${colors.muted2};
+  color: ${colors.glassText};
 `
 
 // Base price row. `data-variant`: none (unavailable) / sale (flash sale) — market carries the "≈" approx.
@@ -836,8 +833,6 @@ export const Ctas = styled.div`
   }
 `
 
-// PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win over
-// the purple variant's data-variant rules. In the mobile dual bar it flexes beside the cart square.
 // Shared PDP CTA box — full-width, 48px tall, 16px radius, Inter 600 15/24 with 0.46px tracking,
 // uppercase, 8px icon gap. `&&` so these win over the Button base + any data-variant rules.
 const ctaBox = css`
@@ -858,22 +853,10 @@ const ctaBox = css`
   }
 `
 
-// Buy-now CTA: the Amethyst gradient. In the mobile sticky bar it sits beside the cart square (the
-// data-dual parent), where it flexes to share the row.
+// Buy-now CTA. In the mobile sticky bar it sits beside the cart square (the data-dual parent), where it
+// flexes to share the row.
 export const DetailCta = styled(Button)`
   ${ctaBox};
-  /* The design system's primary fill (Figma 867:61063 carries the "BUY Button" gradient), same as the
-     cart's CHECKOUT and the credits CTA. This read as a flat #fb5c19 for a while — that colour was
-     sampled off the flattened render rather than the node's fill. */
-  && {
-    background: ${gradients.buyBtn};
-  }
-  &&::before {
-    content: none;
-  }
-  &&:hover:not(:disabled) {
-    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
-  }
 
   ${media.maxWidth('lg')} {
     [data-dual] && {

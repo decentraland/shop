@@ -9,7 +9,7 @@ import { ChainId } from '@dcl/schemas'
 // package unusable from a plain-Node CLI without pulling a heavy, unrelated dep. The tool only needs
 // `{ address, name, version }` for the off-chain marketplace versions + MANAToken to build the EIP-712
 // domain and the received asset's contractAddress — no ABI (ethers calls use inline ABIs). Values verified
-// against decentraland-transactions@3.1.1 (cjs/contracts/offChainMarketplaceV2.js, offChainMarketplaceV3.js,
+// against decentraland-transactions@3.3.0 (cjs/contracts/offChainMarketplaceV2.js, offChainMarketplaceV3.js,
 // manaToken.js), and pinned there by app/src/lib/migrateListingsLockstep.spec.ts.
 //
 // If the marketplace/MANA addresses change, update this table (or restore the package import once its
@@ -83,10 +83,22 @@ const MANA_TOKEN: Partial<Record<ChainId, ContractConfig>> = {
 }
 
 /**
- * V3, deployed on the testnets only so far. Values verified against
- * decentraland-transactions@3.1.1 (cjs/contracts/offChainMarketplaceV3.js).
+ * V3, now on both mainnets as well as the testnets. Values verified against
+ * decentraland-transactions@3.3.0 (cjs/contracts/offChainMarketplaceV3.js).
  */
 const OFFCHAIN_MARKETPLACE_V3: Partial<Record<ChainId, ContractConfig>> = {
+  [ChainId.ETHEREUM_MAINNET]: {
+    address: '0x0f11d0d1671519683bd48abf3dbe779e300941cd',
+    name: 'DecentralandMarketplaceEthereum',
+    version: '1.0.0',
+    chainId: ChainId.ETHEREUM_MAINNET,
+  },
+  [ChainId.MATIC_MAINNET]: {
+    address: '0xe38ef22abe871513555cba89adfe45ab4f548ada',
+    name: 'DecentralandMarketplacePolygon',
+    version: '1.0.0',
+    chainId: ChainId.MATIC_MAINNET,
+  },
   [ChainId.ETHEREUM_SEPOLIA]: {
     address: '0x257db44ac97789c16ab277eae87dcde0c246cc9f',
     name: 'DecentralandMarketplaceEthereum',

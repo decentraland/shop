@@ -18,6 +18,7 @@ import {
   MAX_OUTFIT_ITEMS,
   OutfitsError,
   classifyOutfitItem,
+  creatorSaleBlocker,
   deleteOutfit,
   fetchAllOutfits,
   fetchOutfit,
@@ -26,6 +27,7 @@ import {
   outfitFade,
   isListingUnavailable,
   isOutfitsAvailable,
+  orderOutfitsByRecency,
   listingIdentity,
   outfitErrorKey,
   outfitGradient,
@@ -393,6 +395,22 @@ describe('when classifying resolved items', () => {
     })
   })
 
+  describe('creatorSaleBlocker', () => {
+    it('is null for a live mint', () => {
+      expect(creatorSaleBlocker(item({ available: 100, hasPrimaryListing: true }))).toBeNull()
+    })
+
+    it('reads zero supply as sold out, mint open or not', () => {
+      expect(creatorSaleBlocker(item({ available: 0, hasPrimaryListing: true }))).toBe('sold_out')
+      expect(creatorSaleBlocker(item({ available: 0, hasPrimaryListing: false }))).toBe('sold_out')
+    })
+
+    it('reads a closed mint or a missing price as not for sale', () => {
+      expect(creatorSaleBlocker(item({ available: 5, hasPrimaryListing: false }))).toBe('not_for_sale')
+      expect(creatorSaleBlocker(item({ available: 5, hasPrimaryListing: true, priceCredits: 0 }))).toBe('not_for_sale')
+    })
+  })
+
   // An emote is an ordinary outfit item: same states, same purchasable filter, counted in the CTA.
   it('should classify an emote exactly like a wearable', () => {
     const emote = item({ id: 'e', itemId: '5', category: 'emote' })
@@ -701,5 +719,42 @@ describe('when resolving an outfit for the cart', () => {
     fetchShopItems.mockResolvedValue({ items: [listing({})], total: 1 })
 
     await expect(resolveOutfitPurchases(REFS)).rejects.toThrow('gateway down')
+  })
+})
+
+describe('when ordering outfits by recency', () => {
+  const NOW = Date.UTC(2026, 9, 31)
+  const DAY = 24 * 60 * 60 * 1000
+  const at = (id: string, ageMs: number) => ({ id, createdAt: NOW - ageMs })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('puts every bucket ahead of older ones, newest first', () => {
+    const outfits = [
+      at('ancient', 400 * DAY),
+      at('year', 100 * DAY),
+      at('month', 40 * DAY),
+      at('fortnight', 15 * DAY),
+      at('week', 2 * DAY)
+    ]
+    expect(orderOutfitsByRecency(outfits, NOW).map(o => o.id)).toEqual([
+      'week',
+      'fortnight',
+      'month',
+      'year',
+      'ancient'
+    ])
+  })
+
+  it('shuffles within a bucket without crossing bucket boundaries', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const outfits = [at('t1', 1000), at('t2', 2000), at('t3', 3000), at('old', 200 * DAY)]
+    const ids = orderOutfitsByRecency(outfits, NOW).map(o => o.id)
+    expect(ids).toEqual(['t2', 't3', 't1', 'old'])
+  })
+
+  it('treats a bucket limit as exclusive', () => {
+    const ids = orderOutfitsByRecency([at('edge', 7 * DAY), at('fresh', 7 * DAY - 1)], NOW).map(o => o.id)
+    expect(ids).toEqual(['fresh', 'edge'])
   })
 })

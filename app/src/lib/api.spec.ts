@@ -9,14 +9,20 @@ vi.mock('~/config', () => ({
   }
 }))
 
+// Signed reads go through the same fetch mock, so a spec asserts on the request without a real identity.
+const signedFetchMock = vi.hoisted(() => vi.fn())
+vi.mock('decentraland-crypto-fetch', () => ({
+  default: (url: string, init: unknown) => signedFetchMock(url, init)
+}))
+
 const captureErrorMock = vi.fn()
 vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
 // The catalogue primes the creator-sales flag before mapping a row. Stubbed so these specs exercise the
 // MAPPING rather than the flag service — and so the flag's fetch does not consume a queued response.
-const { getIsFeatureEnabled } = vi.hoisted(() => ({ getIsFeatureEnabled: vi.fn(async () => true) }))
+const { getIsFeatureEnabled } = vi.hoisted(() => ({ getIsFeatureEnabled: vi.fn(async (_flag?: string) => true) }))
 vi.mock('~/lib/featureFlags', () => ({
   getIsFeatureEnabled,
-  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales' }
+  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales', SHOP_LEGACY_COUPONS: 'shop-legacy-coupons' }
 }))
 
 // postTrade dynamically imports TradeService only when creating a listing. Stub it so importing the
@@ -44,6 +50,7 @@ import {
   fetchUnified,
   fetchShopItems,
   fetchTrendingItems,
+  fetchRelatedItems,
   fetchMyAssets,
   fetchOwnedToken,
   fetchResaleTokenInfo,
@@ -58,6 +65,7 @@ import {
   resolveLiveTrade,
   fetchAssetDisplay,
   fetchUserSales,
+  fetchUserTransfers,
   TradeNotFoundError,
   postTrade,
   fetchItemMeta
@@ -818,6 +826,48 @@ describe('when filtering the unified feed by a set of collections', () => {
 
     expect(decodeURIComponent(lastUrl())).toContain(`contractAddress=${A}`)
     expect(lastUrl()).not.toContain('0x1111111111111111111111111111111111111111')
+  })
+})
+
+/**
+ * A SET of INDIVIDUAL items, which is how a campaign curates a list rather than naming whole collections.
+ *
+ * Sent ALONGSIDE the collections rather than instead of them: the server unions the two, so a campaign can
+ * name collections and loose items at once.
+ */
+describe('when filtering the unified feed by a set of items', () => {
+  const A = '0xabc0000000000000000000000000000000000001'
+  const B = '0xdef0000000000000000000000000000000000002'
+
+  it('should send the set comma-separated under its own key', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ itemIds: [`${A}-3`, `${B}-7`] })
+
+    expect(decodeURIComponent(lastUrl())).toContain(`items=${A}-3,${B}-7`)
+  })
+
+  it('should send it alongside the collections, since the server unions them', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ contractAddresses: [A], itemIds: [`${B}-7`] })
+
+    const url = decodeURIComponent(lastUrl())
+    expect(url).toContain(`contractAddress=${A}`)
+    expect(url).toContain(`items=${B}-7`)
+  })
+
+  it('should apply no item filter when none is given, or when the set is empty', async () => {
+    // Unlike the collections, an empty set needs no stand-in value: the caller that resolved to nothing
+    // never issues the request (see the grid's `selectsNothing`), and an omitted key is the correct
+    // encoding for "no item filter" whenever collections still carry the selection.
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({})
+    expect(lastUrl()).not.toContain('items=')
+
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({ itemIds: [] })
+    expect(lastUrl()).not.toContain('items=')
   })
 })
 
@@ -1798,6 +1848,101 @@ describe('when fetching the user secondary sales', () => {
   })
 })
 
+describe('fetchUserTransfers', () => {
+  const identity = { authChain: [] } as never
+
+  beforeEach(() => {
+    signedFetchMock.mockReset()
+  })
+
+  describe('and the activity feed has transfers among other events', () => {
+    beforeEach(() => {
+      signedFetchMock.mockResolvedValueOnce(
+        jsonOk({
+          data: [
+            {
+              id: 'transfer_received:t1',
+              type: 'transfer_received',
+              timestamp: 1_700_000_000_000,
+              txHash: '0xin',
+              contractAddress: '0xc',
+              tokenId: '762',
+              itemId: '0',
+              counterparty: '0xflora',
+              details: { transfer: { category: 'wearable' } }
+            },
+            { id: 'sale_buyer:s1', type: 'sale_buyer', timestamp: 1_699_000_000_000, counterparty: '0xseller' },
+            {
+              id: 'transfer_sent:t2',
+              type: 'transfer_sent',
+              timestamp: 1_698_000_000_000,
+              txHash: '0xout',
+              contractAddress: '0xemotes',
+              tokenId: '5',
+              counterparty: '0xfriend',
+              details: { transfer: { category: 'emote' } }
+            },
+            {
+              id: 'transfer_sent:t3',
+              type: 'transfer_sent',
+              timestamp: 1_697_000_000_000,
+              txHash: '0xland',
+              contractAddress: '0xparcels',
+              tokenId: '7',
+              counterparty: '0xfriend',
+              details: { transfer: { category: 'parcel' } }
+            }
+          ],
+          total: 4
+        })
+      )
+    })
+
+    it('should keep only the wearable and emote transfers, each with its direction and the other account', async () => {
+      expect(await fetchUserTransfers(identity)).toEqual([
+        {
+          id: 'transfer_received:t1',
+          direction: 'received',
+          counterparty: '0xflora',
+          contractAddress: '0xc',
+          tokenId: '762',
+          itemId: '0',
+          createdAt: 1_700_000_000_000,
+          txHash: '0xin'
+        },
+        {
+          id: 'transfer_sent:t2',
+          direction: 'sent',
+          counterparty: '0xfriend',
+          contractAddress: '0xemotes',
+          tokenId: '5',
+          itemId: null,
+          createdAt: 1_698_000_000_000,
+          txHash: '0xout'
+        }
+      ])
+    })
+
+    it('should sign a read of the activity feed', async () => {
+      await fetchUserTransfers(identity)
+      expect(signedFetchMock).toHaveBeenCalledWith(
+        'https://market.test/v1/activity?limit=500',
+        expect.objectContaining({ method: 'GET', identity, metadata: { signer: 'dcl:marketplace' } })
+      )
+    })
+  })
+
+  describe('and the server answers with an error', () => {
+    beforeEach(() => {
+      signedFetchMock.mockResolvedValueOnce(httpError(500))
+    })
+
+    it('should throw', async () => {
+      await expect(fetchUserTransfers(identity)).rejects.toThrow('fetchUserTransfers 500')
+    })
+  })
+})
+
 /**
  * THE EMOTE TRAITS HAVE TO SURVIVE THE MAPPING.
  *
@@ -1908,5 +2053,280 @@ describe('when reading the remaining supply off an item row', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'X', available }] }))
 
     expect((await fetchItemMeta('0xabc', '1'))?.available).toBeNull()
+  })
+})
+
+// Coupons on MANA listings change what the buyer is charged (the row's manaWei becomes the sale amount), so the
+// catalogue is only asked for them while the creator-sales kill switch AND the legacy-coupons flag are both on.
+describe('when the catalogue is asked to discount MANA listings', () => {
+  const flags = (on: Record<string, boolean>) =>
+    getIsFeatureEnabled.mockImplementation(async (flag?: string) => (flag ? on[flag] : undefined) ?? false)
+
+  afterEach(() => getIsFeatureEnabled.mockImplementation(async () => true))
+
+  describe('and both flags are on', () => {
+    beforeEach(() => flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true }))
+
+    it.each([
+      ['the browse grid', () => fetchShopItems({ first: 1 })],
+      ['the per-listing feed', () => fetchUnified({ first: 1 })],
+      ['the related rail', () => fetchRelatedItems('0x1', '0')],
+      ['the trending rail', () => fetchTrendingItems()]
+    ])('should opt in on %s', async (_, call) => {
+      fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+      await call()
+
+      expect(lastUrl()).toContain('includeLegacyCoupons=true')
+    })
+  })
+
+  it.each([
+    ['the legacy-coupons flag is off', { 'shop-creator-sales': true, 'shop-legacy-coupons': false }],
+    ['the creator-sales kill switch is off', { 'shop-creator-sales': false, 'shop-legacy-coupons': true }]
+  ])('should not opt in when %s', async (_, on) => {
+    flags(on)
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ first: 1 })
+
+    expect(lastUrl()).not.toContain('includeLegacyCoupons')
+  })
+
+  // A coupon is only kept with a sale the row shows; one riding a list-price row would be applied at checkout
+  // under a list-price label (and revert, if the server dropped it for a failed proof).
+  it('should drop a coupon that comes without a visible sale', async () => {
+    flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 9,
+            compareAtCredits: null,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 50_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '100000000000000000000',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0].priceCredits).toBe(9)
+    expect(items[0].coupon).toBeUndefined()
+    // No compare-at, so the server sent the list amount: it stays as it is.
+    expect(items[0].manaWei).toBe('100000000000000000000')
+  })
+
+  it('should put the MANA amount back to list when a compare-at does not beat the price', async () => {
+    flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 9,
+            compareAtCredits: 9,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 50_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '95000000000000000000',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0].coupon).toBeUndefined()
+    // The rest of the sale goes with it, or a live re-price could pair the stale compare-at with a lower price.
+    expect(items[0].compareAtCredits).toBeUndefined()
+    // The smallest list amount the contract sells for 95 MANA at 5% off: a wei under 100.
+    expect(items[0].manaWei).toBe('99999999999999999999')
+  })
+
+  // A list-price checkout charges the signed list amount; the inverse of the sale can sit a wei under it and a
+  // credit lower at the live rate, so the exact amount the catalogue sends is what the row falls back to.
+  it('should fall back to the exact list amount the catalogue sends when the kill switch is off', async () => {
+    flags({ 'shop-creator-sales': false })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 1,
+            compareAtCredits: 2,
+            saleEndsAt: 1_800_000_000,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 300_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '747065101387406625',
+            listManaWei: '1067235859124866607',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0]).toMatchObject({ priceCredits: 2, manaWei: '1067235859124866607' })
+    expect(items[0].listManaWei).toBeUndefined()
+  })
+
+  it('should carry the exact list amount beside a shown sale', async () => {
+    flags({ 'shop-creator-sales': true, 'shop-legacy-coupons': true })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 1,
+            compareAtCredits: 2,
+            saleEndsAt: 1_800_000_000,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 300_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '747065101387406625',
+            listManaWei: '1067235859124866607',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    expect(items[0]).toMatchObject({ manaWei: '747065101387406625', listManaWei: '1067235859124866607' })
+  })
+
+  // Defensive: should a discounted MANA row ever arrive with the kill switch off, the whole sale goes, MANA
+  // amount included, or the live-rate price would still be the sale.
+  it('should put a discounted MANA row back to its list amount when the kill switch is off', async () => {
+    flags({ 'shop-creator-sales': false })
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            source: 'legacy',
+            acquisition: 'trade',
+            tradeId: 't1',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '0',
+            name: 'Hat',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            creator: '0xc',
+            priceCredits: 63,
+            compareAtCredits: 90,
+            saleEndsAt: 1_800_000_000,
+            saleUnitsLeft: 5,
+            coupon: {
+              id: 'c1',
+              discountType: 1,
+              discount: 300_000,
+              signature: '0xabc',
+              proof: [],
+              collections: ['0x1']
+            },
+            manaWei: '70000000000000000000',
+            available: 5,
+            network: 'MATIC',
+            chainId: 137,
+            createdAt: 0
+          }
+        ]
+      })
+    )
+
+    const { items } = await fetchShopItems({ first: 1 })
+
+    // The smallest list amount the contract would sell for 70 MANA at 30% off: display only, a wei under 100.
+    expect(items[0]).toMatchObject({ priceCredits: 90, manaWei: '99999999999999999999' })
+    expect(items[0].coupon).toBeUndefined()
   })
 })

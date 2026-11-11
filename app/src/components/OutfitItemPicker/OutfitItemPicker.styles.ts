@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { Icon } from '~/components/Icon'
+import { Chip } from '~/styles/chip.styles'
 import { theme } from '~/styles/theme'
 
 const { colors, radius, media } = theme
@@ -122,6 +123,26 @@ export const Name = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`
+
+export const Meta = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+`
+
+export const ShapeChip = styled(Chip)`
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+
+  &[data-variant='icon'] .ico {
+    width: 14.6px;
+    height: 14.6px;
+    color: ${colors.softWhite};
+  }
 `
 
 export const Price = styled.span`

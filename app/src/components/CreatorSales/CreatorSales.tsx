@@ -5,15 +5,13 @@ import { endSale, isSaleCapped, liveSaleStatus, type CreatorSale, type CreatorSa
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError } from '~/lib/errors'
-import { formatDateTime } from '~/lib/dates'
+import { formatDateRange, formatDateTime } from '~/lib/dates'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
 import { Button } from '~/components/Button'
 import { CollectionThumb } from '~/components/CollectionThumb'
 import { SaleTag } from '~/components/SaleTag'
 import { SaleTimer } from '~/components/SaleTimer'
-import { Tooltip } from '~/components/Tooltip'
-import type { SaleLift } from '~/lib/storeMetrics'
 import * as S from './CreatorSales.styles'
 
 function statusCopy(status: CreatorSaleStatus): string {
@@ -33,47 +31,20 @@ function statusCopy(status: CreatorSaleStatus): string {
   }
 }
 
-/** Which way a discount moved the store, for the chip's colour. */
-function liftDirection(lift: SaleLift): 'up' | 'down' | 'flat' {
-  if (lift.liftPct === null || Math.round(lift.liftPct) === 0) return 'flat'
-  return lift.liftPct > 0 ? 'up' : 'down'
-}
-
-/**
- * How the discount is doing, in words.
- *
- * Past 1000% a percentage stops being a reading and starts being a number nobody can picture, so a big
- * jump is stated as a multiple instead.
- */
-function liftCopy(lift: SaleLift): string {
-  if (lift.liftPct === null) return t('creatorSale.liftNoBaseline')
-  const rounded = Math.round(lift.liftPct)
-  if (rounded === 0) return t('creatorSale.liftFlat')
-  const amount =
-    rounded >= 1000
-      ? `${Math.round(lift.duringPerDay / lift.beforePerDay).toLocaleString()}\u00d7`
-      : `${Math.abs(rounded)}%`
-  return t(rounded > 0 ? 'creatorSale.liftUp' : 'creatorSale.liftDown', { amount })
-}
-
 /** A creator's sales, newest first, with the one action a running sale has: ending it early. */
 export function CreatorSales({
   sales,
   session,
   names,
-  lift
+  tone = 'light'
 }: {
   sales: CreatorSale[]
-  session: Session
-  /**
-   * How each sale is doing against the days before it started, keyed by sale id.
-   *
-   * Optional, and null per sale where the answer would not be honest: the caller owns the rows the figure
-   * is measured from, and only it can tell whether they reach back far enough to compare against.
-   */
-  lift?: Record<string, SaleLift | null>
+  /** Without one the list is read-only: ending a sale needs the creator's signature. */
+  session: Session | null
   /** Collection names by lowercased address, so a row can say WHICH collection rather than "1 collection". */
   names?: Record<string, string>
+  /** `dark` for the dashboard's dark panels. */
+  tone?: 'light' | 'dark'
 }) {
   const queryClient = useQueryClient()
   // Which row is asking "end it now?", and which ones this session already ended (the server learns of a
@@ -83,6 +54,7 @@ export function CreatorSales({
   const [endedHere, setEndedHere] = useState<string[]>([])
 
   async function end(sale: CreatorSale) {
+    if (!session) return
     setEnding(sale.id)
     try {
       await endSale({ sale, signer: session.signer })
@@ -103,7 +75,7 @@ export function CreatorSales({
   }
 
   return (
-    <S.List data-testid="creator-sales">
+    <S.List data-testid="creator-sales" data-tone={tone}>
       {sales.map(sale => {
         const status = endedHere.includes(sale.id) ? 'cancelled' : liveSaleStatus(sale)
         const running = status === 'active' || status === 'scheduled'
@@ -123,12 +95,12 @@ export function CreatorSales({
             ) : null}
             <S.Info>
               <S.Line>
-                <S.Collections>
+                <S.Collections data-part="name">
                   {name ?? t('creatorSale.successBody', { count: sale.collections.length, pct })}
                 </S.Collections>
                 <S.Pill data-status={status}>{statusCopy(status)}</S.Pill>
               </S.Line>
-              <S.Meta>
+              <S.Meta data-part="meta">
                 {/* Beside the timer rather than in a column of its own: the two are the same kind of chip,
                     and stranded in its own cell the tag centred itself across both lines of the row while
                     the name sat on the first. */}
@@ -138,22 +110,20 @@ export function CreatorSales({
                   <SaleTimer until={sale.checks.expiration} />
                 ) : status === 'scheduled' ? (
                   t('creatorSale.startsOn', { date: formatDateTime(sale.checks.effective) })
-                ) : null}
+                ) : (
+                  // A past sale is only placeable by when it ran.
+                  <span data-testid="creator-sale-dates">
+                    {formatDateRange(sale.checks.effective, sale.checks.expiration)}
+                  </span>
+                )}
                 {isSaleCapped(sale) ? (
                   <span>{t('creatorSale.used', { used: sale.state?.uses ?? 0, total: sale.checks.uses })}</span>
                 ) : null}
-                {lift?.[sale.id] ? (
-                  <Tooltip content={t('creatorSale.liftHint')}>
-                    <S.Lift data-dir={liftDirection(lift[sale.id] as SaleLift)} data-testid="creator-sale-lift">
-                      {liftCopy(lift[sale.id] as SaleLift)}
-                    </S.Lift>
-                  </Tooltip>
-                ) : null}
               </S.Meta>
             </S.Info>
-            {running ? (
+            {running && session ? (
               confirming === sale.id ? (
-                <S.Confirm>
+                <S.Confirm data-part="action">
                   <Button
                     variant="red"
                     size="sm"
@@ -169,8 +139,9 @@ export function CreatorSales({
                 </S.Confirm>
               ) : (
                 <Button
-                  variant="outline"
+                  variant={tone === 'dark' ? 'glass' : 'outline'}
                   size="sm"
+                  data-part="action"
                   onClick={() => setConfirming(sale.id)}
                   data-testid="creator-sale-end"
                 >

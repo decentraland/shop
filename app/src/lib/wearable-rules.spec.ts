@@ -4,7 +4,7 @@ vi.mock('~/config', () => ({ config: { peerUrl: 'https://peer.test' } }))
 
 import {
   fetchWearableRules,
-  fetchVrmExportBlocked,
+  fetchWearableTraits,
   keepEquipped,
   faceOnly,
   hiddenBy,
@@ -144,33 +144,40 @@ describe('when reading the rules from the Catalyst', () => {
   })
 })
 
-// `blockVrmExport` exists on the entity and on no marketplace endpoint, which is why it has its own read.
-describe('when asking whether VRM export is blocked', () => {
-  const entity = (blockVrmExport?: boolean) =>
+// `blockVrmExport` and `hides` live on the entity and on no marketplace endpoint, which is why they have their own read.
+describe('when reading the item page traits off the wearable entity', () => {
+  const entity = (data: Record<string, unknown>) =>
     ({
       ok: true,
-      json: async () => [{ pointers: ['urn:a'], metadata: { data: { category: 'hat', blockVrmExport } } }]
+      json: async () => [{ pointers: ['urn:a'], metadata: { data: { category: 'hat', ...data } } }]
     }) as Response
 
-  it('should report the flag the creator set', async () => {
-    vi.mocked(fetch).mockResolvedValue(entity(true))
-    expect(await fetchVrmExportBlocked('urn:a')).toBe(true)
+  it('should report the VRM flag the creator set', async () => {
+    vi.mocked(fetch).mockResolvedValue(entity({ blockVrmExport: true }))
+    expect((await fetchWearableTraits('urn:a')).vrmBlocked).toBe(true)
   })
 
-  it('should report false when the flag is absent — most wearables allow it', async () => {
-    vi.mocked(fetch).mockResolvedValue(entity(undefined))
-    expect(await fetchVrmExportBlocked('urn:a')).toBe(false)
+  it('should report VRM export as allowed when the flag is absent — most wearables allow it', async () => {
+    vi.mocked(fetch).mockResolvedValue(entity({}))
+    expect((await fetchWearableTraits('urn:a')).vrmBlocked).toBe(false)
+  })
+
+  it('should list what it hides and replaces once each, without its own category', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      entity({ hides: ['eyebrows', 'hat', 'eyewear'], replaces: ['eyewear', 'tiara'] })
+    )
+    expect((await fetchWearableTraits('urn:a')).hides).toEqual(['eyebrows', 'eyewear', 'tiara'])
   })
 
   /**
    * Null, not false: "we could not find out" and "export is allowed" are different answers, and the page shows
    * the badge on neither — but only the first should ever be retried or reasoned about as unknown.
    */
-  it('should answer null when the item or the Catalyst cannot be read', async () => {
+  it('should answer unknown when the item or the Catalyst cannot be read', async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => [] } as Response)
-    expect(await fetchVrmExportBlocked('urn:a')).toBeNull()
+    expect(await fetchWearableTraits('urn:a')).toEqual({ vrmBlocked: null, hides: [] })
 
     vi.mocked(fetch).mockRejectedValue(new Error('offline'))
-    expect(await fetchVrmExportBlocked('urn:a')).toBeNull()
+    expect(await fetchWearableTraits('urn:a')).toEqual({ vrmBlocked: null, hides: [] })
   })
 })

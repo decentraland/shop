@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 
-// Green check-in-circle for the cart drawer's success banner and line thumbnails. Fills its parent box.
+// Green check-in-circle for the cart drawer's success banner. Fills its parent box.
 export function CheckCircleIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden focusable="false" {...props}>

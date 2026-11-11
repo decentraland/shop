@@ -1,10 +1,11 @@
 import styled from '@emotion/styled'
+import { darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 const { colors } = theme
 
-// The square checkbox the designs use: a thin translucent outline that fills with brand purple when
-// ticked. `--box` sets the VISIBLE square and everything else derives from it, because the design draws
+// The square checkbox the designs use: a thin light outline on the dark surface that fills with brand
+// purple when ticked. `--box` sets the VISIBLE square and everything else derives from it, because the design draws
 // the border width, corner radius and hit area as fixed fractions of the box at every size — the 1/9
 // and 2/3 ratios below hold for both the 13.71px and 17.14px variants.
 export const Checkbox = styled.input`
@@ -15,9 +16,9 @@ export const Checkbox = styled.input`
   margin: 0;
   width: var(--box);
   height: var(--box);
-  border: calc(var(--box) / 9) solid ${colors.textSecondary};
+  border: calc(var(--box) / 9) solid ${colors.glassText};
   border-radius: calc(var(--box) / 9);
-  background: ${colors.white};
+  background: transparent;
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -59,12 +60,13 @@ export const Checkbox = styled.input`
     transform: translate(-50%, -50%);
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
   }
 `
 
-// A form field (label + control). Render as a <label> via `as="label"` when wrapping an input.
+// A form field (label + control). Render as a <label> via `as="label"` when wrapping an input. Its only
+// consumer is the store editor, on the dark field, so the control takes the dark skin.
 export const Field = styled.div`
   display: flex;
   flex-direction: column;
@@ -72,11 +74,9 @@ export const Field = styled.div`
   font-size: 14px;
 
   & input {
-    background: ${colors.white};
-    border: 1px solid ${colors.lineStrong};
+    ${darkField}
     border-radius: 8px;
     padding: 10px 12px;
-    color: ${colors.text};
     font: inherit;
   }
 `

@@ -638,6 +638,9 @@ describe('when the seeded stock is out of date', () => {
  * had stopped rendering for everyone. The L1 case anchors on the COLLECTION, which shares the same container
  * — so it proves the page reached that block and chose to leave the creator out of it.
  */
+// The creator line reads "By {name}"; the collection's shares the badge but reads "Collection {name}".
+const creditedCreator = () => screen.queryAllByTestId('creator-name').find(el => el.textContent?.startsWith('By '))
+
 describe('ItemDetail — the creator attribution', () => {
   beforeEach(async () => {
     // The describe above leaves a store-mint listing behind: `vi.clearAllMocks()` clears CALLS but not
@@ -657,7 +660,7 @@ describe('ItemDetail — the creator attribution', () => {
     renderPdp()
 
     expect(await screen.findByText('Solo Collection')).toBeInTheDocument()
-    expect(screen.queryByText('Creator')).not.toBeInTheDocument()
+    expect(creditedCreator()).toBeUndefined()
   })
 
   it('should credit the creator on a Polygon item, where the address is the one who published it', async () => {
@@ -668,7 +671,7 @@ describe('ItemDetail — the creator attribution', () => {
 
     renderPdp()
 
-    expect(await screen.findByText('Creator')).toBeInTheDocument()
+    await waitFor(() => expect(creditedCreator()).toBeDefined())
   })
 })
 

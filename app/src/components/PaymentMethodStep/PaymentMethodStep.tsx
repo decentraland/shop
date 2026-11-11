@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
@@ -48,7 +48,7 @@ export function PaymentMethodStep({
    * What is being bought, as much as this step needs to name it. Not a `CatalogItem`: a NAME is not one,
    * and the row only ever renders a thumb, a title and a caption.
    */
-  asset: { name: string; caption?: ReactNode; thumb?: ReactNode }
+  asset: { name: string; caption?: ReactNode; thumb?: ReactNode; tileStyle?: CSSProperties }
   priceCredits: number
   /** The item's exact price in cents — what each leg of a split is derived from. */
   priceCents: number
@@ -158,7 +158,7 @@ export function PaymentMethodStep({
       </S.Head>
 
       <S.AssetCard>
-        <S.Thumb>{asset.thumb}</S.Thumb>
+        <S.Thumb style={asset.tileStyle}>{asset.thumb}</S.Thumb>
         <S.AssetInfo>
           <div>
             <S.AssetName title={asset.name}>{asset.name || t('buyModal.itemFallback')}</S.AssetName>
@@ -226,13 +226,13 @@ export function PaymentMethodStep({
           <S.Content>
             <S.InfoGroup>
               <S.Logo>
-                <S.RailArt src={manaCoin} w={35.328} h={35.328} alt="" aria-hidden />
+                <S.RailArt src={manaCoin} w={35.328} h={35.328} alt="" aria-hidden data-mana />
               </S.Logo>
               <S.TextBlock>
                 <S.Label>{t('buyModal.methodMana')}</S.Label>
                 <S.BalanceRow>
                   {t('buyModal.manaBalanceLabel')}
-                  <S.ManaMini src={manaCoin} alt="" aria-hidden />
+                  <S.ManaMini src={manaCoin} alt="" aria-hidden data-mana />
                   <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
                 </S.BalanceRow>
               </S.TextBlock>
@@ -241,7 +241,7 @@ export function PaymentMethodStep({
               {manaUsable ? (
                 <>
                   <S.Price>
-                    <S.ManaPriceIco src={manaCoin} alt="" aria-hidden />
+                    <S.ManaPriceIco src={manaCoin} alt="" aria-hidden data-mana />
                     <span>{formatMana(manaLeg)}</span>
                   </S.Price>
                 </>

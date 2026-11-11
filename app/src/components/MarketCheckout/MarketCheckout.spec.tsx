@@ -109,6 +109,11 @@ const listing = {
 
 const rate: ManaRate = { rate: 26960836n, decimals: 8 }
 
+/** The real Amoy V2 marketplace, the one the listing's chain deploys. */
+const MARKETPLACE_V2_AMOY = '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+/** A real marketplace, but Polygon mainnet's: valid nowhere for a listing on Amoy. */
+const MARKETPLACE_V3_POLYGON = '0xe38ef22abe871513555cba89adfe45ab4f548ada'
+
 function renderModal() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -128,7 +133,14 @@ function priceMatcher(expected: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  fetchTrade.mockResolvedValue({ signer: '0xseller' })
+  // Named on the real Amoy V2 marketplace, matching the listing's chain: the modal refuses a trade whose
+  // marketplace the registry does not deploy on its chain, since the rails would have nowhere to settle it.
+  fetchTrade.mockResolvedValue({
+    signer: '0xseller',
+    contract: MARKETPLACE_V2_AMOY,
+    chainId: 80002,
+    received: [{ assetType: 1, amount: '1000000000000000000' }]
+  })
   // ECHOES the requested price, rounded up to a whole credit — exactly what the credits-server does
   // (`Math.ceil(rawPrice / 10) * 10`). A fixed number would silently disagree with the quote this modal
   // showed, which is a real condition it now refuses to charge through.
@@ -166,6 +178,25 @@ describe('when the buyer has enough credits for the price', () => {
  * A reservation made when this modal OPENED therefore froze the listing's price out of the buyer's
  * balance for minutes just for looking, and closing the modal could not give it back any sooner.
  */
+// This checkout settles through plain `accept`, which charges the trade's signed list amount. A catalogue row
+// under a creator coupon reports the SALE amount as `manaWei`; authorizing that would under-cap the purchase.
+describe('when the listing reports a sale amount that differs from the signed trade', () => {
+  it('should price the purchase off the signed trade, not the listing', async () => {
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    fetchTrade.mockResolvedValueOnce({
+      signer: '0xseller',
+      contract: MARKETPLACE_V2_AMOY,
+      chainId: 80002,
+      received: [{ assetType: 1, amount: '1400000000000000000' }]
+    })
+    renderModal()
+    await screen.findByRole('button', { name: /confirm purchase/i })
+
+    await waitFor(() => expect(manaWeiToUsdCents).toHaveBeenCalledWith('1400000000000000000', rate))
+  })
+})
+
 describe('when the checkout is opened', () => {
   const openIt = async () => {
     manaWeiToUsdCents.mockReturnValue(2700)
@@ -673,5 +704,28 @@ describe('when the modal goes away mid-purchase', () => {
     unmount()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+})
+
+describe('when the trade names a marketplace that is not deployed on its chain', () => {
+  let soldLabel: HTMLElement
+
+  beforeEach(async () => {
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    fetchTrade.mockResolvedValue({ signer: '0xseller', contract: MARKETPLACE_V3_POLYGON, chainId: 80002 })
+    renderModal()
+    soldLabel = await screen.findByText(/sold|no longer/i)
+  })
+
+  it('should read as sold or removed, since no marketplace could settle it', () => {
+    expect(soldLabel).toBeInTheDocument()
+  })
+
+  it('should reserve no credit for it', () => {
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should never reach the buy rails', () => {
+    expect(buyWithCredits).not.toHaveBeenCalled()
   })
 })

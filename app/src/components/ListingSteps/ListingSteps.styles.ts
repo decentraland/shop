@@ -13,7 +13,7 @@ export const Count = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 18px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 export const Hint = styled.p`
@@ -21,7 +21,7 @@ export const Hint = styled.p`
   font-family: ${theme.font.sans};
   font-size: 13px;
   line-height: 1.5;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
   text-align: center;
 `
 
@@ -30,5 +30,5 @@ export const Relay = styled.p`
   font-family: ${theme.font.sans};
   font-size: 13px;
   line-height: 1.5;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `

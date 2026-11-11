@@ -6,12 +6,13 @@ import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
+import { livePrices } from '~/lib/mana-convert'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
 import { CATEGORIES } from '~/components/CategoryFilter'
-import { FilterBar, DEALS_SORTS, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
+import { FilterBar, DEALS_SORTS, type FilterChip, RARITIES, RELEVANCE_SORT, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
@@ -48,6 +49,16 @@ const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
  */
 const defaultStatusFor = (searching: boolean): FilterStatus => (searching ? 'all' : 'on_sale')
 
+/**
+ * A search opens ranked by relevance, the Deals grid by discount, everything else by newest — in that
+ * order of precedence, a query being the stronger signal of what the reader is after. A DEFAULT, like the
+ * status above: a sort picked by hand differs from it and so lands in the URL. `sort=relevance` left in a
+ * URL whose query was cleared is not among the options offered, so it falls back to this default rather
+ * than reach the server.
+ */
+const defaultSortFor = (searching: boolean, deals: boolean): string =>
+  searching ? 'relevance' : deals ? 'discount' : 'newest'
+
 export type AssetsProps = {
   /**
    * Collections the grid is pinned to. Absent = the whole catalogue.
@@ -56,6 +67,13 @@ export type AssetsProps = {
    * empty state WITHOUT querying — see `selectsNothing` below for why that distinction is load-bearing.
    */
   contracts?: string[]
+  /**
+   * Individual items the grid is pinned to, as `<contract>-<itemId>`, UNIONED with `contracts`.
+   *
+   * Only the on-sale grid honours it: the full-catalogue endpoint has no equivalent filter, and the one
+   * caller that passes this (the event) pins Status to on-sale for unrelated reasons anyway.
+   */
+  itemIds?: string[]
   /**
    * Drops the NAMEs destination from the filter panel — and, with it, from the categories the URL may
    * select. A NAME is a separate purchase, not part of a curated set of collections.
@@ -67,7 +85,7 @@ export type AssetsProps = {
   lockStatus?: FilterStatus
 }
 
-export function Assets({ contracts, hideNames = false, seo, lockStatus }: AssetsProps = {}) {
+export function Assets({ contracts, itemIds, hideNames = false, seo, lockStatus }: AssetsProps = {}) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
@@ -104,12 +122,9 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
       priceMax: '',
       smart: false,
       deals: false,
-      // Ranking by discount is the useful default once the grid IS the deals, and only there — see
-      // DEALS_SORTS. A sort the buyer picks by hand differs from this default, so it lands in the URL
-      // and survives, exactly as an explicitly chosen status does.
-      sort: dealsRequested ? 'discount' : 'newest'
+      sort: defaultSortFor(!!q, dealsRequested)
     }),
-    [defaultStatus, dealsRequested]
+    [defaultStatus, dealsRequested, q]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
@@ -157,14 +172,21 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
   //    passes isOnSale:false; 'all' leaves it unset (both).
   // Told apart from "no filter" deliberately: `undefined` is the whole catalogue, `[]` is a caller whose
   // set resolved to nothing.
-  const selectsNothing = contracts !== undefined && contracts.length === 0
+  // The selection is empty only when EVERY set the caller named is, so a campaign whose collection lookup
+  // came back empty still renders the loose items it named — which is how the server reads it too.
+  const selectsNothing = (contracts !== undefined || itemIds !== undefined) && !contracts?.length && !itemIds?.length
   const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const secondarySales = useSecondarySales()
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
-  const sortOptions = deals ? DEALS_SORTS : SORTS
-  const sortBy = (sortOptions.find(s => s.key === sort) ?? sortOptions[0]).server
+  // Relevance is offered only while a query runs; a stale `sort=relevance` without one is not among these
+  // and falls back to the first option, which is the default in force.
+  const sortOptions = [...(q ? [RELEVANCE_SORT] : []), ...(deals ? DEALS_SORTS : SORTS)]
+  // The option in force, which is also what the menu marks as selected: a stale key in the URL must not
+  // leave the menu with nothing selected while the grid sorts by the fallback.
+  const sortOption = sortOptions.find(s => s.key === sort) ?? sortOptions[0]
+  const sortBy = sortOption.server
   // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
   // + search, one card per item.
   const filters = {
@@ -185,7 +207,8 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
     // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
     // they are not purchasable in the Shop.
     listingType: secondarySales ? undefined : ('primary' as const),
-    contractAddresses: contracts?.length ? contracts : undefined
+    contractAddresses: contracts?.length ? contracts : undefined,
+    itemIds: itemIds?.length ? itemIds : undefined
   }
   // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
   // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).
@@ -326,7 +349,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
     chips.push({
       key: 'deals',
       label: t('filter.deals'),
-      onRemove: () => setFilters({ deals: false, sort: 'newest' })
+      onRemove: () => setFilters({ deals: false, sort: defaultSortFor(!!q, false) })
     })
   // Against the default in force, not against the literal On Sale: while searching, All IS the default,
   // and offering to "remove" the state the page is already in reads as a filter the reader never applied.
@@ -374,11 +397,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
                 smart={smart}
                 onSmart={v => setFilters({ smart: v })}
                 deals={deals}
-                onDeals={
-                  creatorSalesEnabled
-                    ? v => setFilters(v ? { deals: true, sort: 'discount' } : { deals: false, sort: 'newest' })
-                    : undefined
-                }
+                onDeals={creatorSalesEnabled ? v => setFilters({ deals: v, sort: defaultSortFor(!!q, v) }) : undefined}
               />
             </S.SidebarScroll>
 
@@ -400,7 +419,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
         ) : (
           <>
             <FilterBar
-              sort={sort}
+              sort={sortOption.key}
               sortOptions={sortOptions}
               onSort={v => setFilters({ sort: v })}
               total={total}
@@ -464,7 +483,7 @@ export function Assets({ contracts, hideNames = false, seo, lockStatus }: Assets
                         return livePrice == null ? (
                           <AssetCard key={listingKey(item)} item={item} mode="view" />
                         ) : (
-                          <AssetCard key={listingKey(item)} item={{ ...unified, priceCredits: livePrice }} />
+                          <AssetCard key={listingKey(item)} item={{ ...unified, ...livePrices(unified, rate) }} />
                         )
                       })}
                       {isFetchingNextPage ? <SkeletonCards count={6} /> : null}

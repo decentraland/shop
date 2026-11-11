@@ -98,11 +98,11 @@ vi.mock('~/lib/collections', () => ({
     creator: '0xabc0000000000000000000000000000000000abc'
   })
 }))
-const { fetchItemVideoUrl, fetchVrmExportBlocked } = vi.hoisted(() => ({
+const { fetchItemVideoUrl, fetchWearableTraits } = vi.hoisted(() => ({
   fetchItemVideoUrl: vi.fn(),
-  fetchVrmExportBlocked: vi.fn()
+  fetchWearableTraits: vi.fn()
 }))
-vi.mock('~/lib/wearable-rules', () => ({ fetchVrmExportBlocked }))
+vi.mock('~/lib/wearable-rules', () => ({ fetchWearableTraits }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]), fetchItemVideoUrl }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [], isFetched: true }) }))
 const { manaRate } = vi.hoisted(() => ({
@@ -171,7 +171,7 @@ beforeEach(() => {
   fetchTradeForItem.mockResolvedValue({ id: 'legacy-trade' })
   fetchItemMeta.mockResolvedValue(null)
   fetchItemVideoUrl.mockResolvedValue(null)
-  fetchVrmExportBlocked.mockResolvedValue(false)
+  fetchWearableTraits.mockResolvedValue({ vrmBlocked: false, hides: [] })
 })
 
 describe('ItemDetail — pricing a MANA-listed item opened cold', () => {

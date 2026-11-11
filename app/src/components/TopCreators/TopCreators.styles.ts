@@ -285,9 +285,9 @@ export const Cta = styled.span`
   width: 100%;
   height: ${CTA_HEIGHT}px;
   margin-top: 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.4);
-  color: ${colors.softWhite};
+  border-radius: ${radius.cta};
+  background: ${colors.glassFaint};
+  color: ${colors.white};
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.46px;
@@ -299,9 +299,8 @@ export const Cta = styled.span`
     opacity ${DURATION} ${EASE},
     background 0.15s ease;
 
-  /* Its own hover, on top of the card's reveal: the fill deepens to soft-black-2 (Figma 738:53251). */
   [data-testid='top-creator-card']:hover &:hover {
-    background: ${colors.blackBtn};
+    background: ${colors.glass};
   }
 
   [data-testid='top-creator-card']:hover &,

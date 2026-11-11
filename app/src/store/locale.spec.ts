@@ -34,6 +34,12 @@ describe('when detecting the initial locale', () => {
     expect(useLocale.getState().locale).toBe('es')
   })
 
+  it('should read a regional browser language as its base locale', async () => {
+    vi.stubGlobal('navigator', { language: 'pt-BR' })
+    const useLocale = await loadStore()
+    expect(useLocale.getState().locale).toBe('pt')
+  })
+
   it('should ignore an unsupported ?lang= / saved / browser value and default to English', async () => {
     window.history.replaceState(null, '', '/?lang=fr')
     localStorage.setItem('shop:locale', 'fr')

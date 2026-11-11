@@ -1,9 +1,9 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { onDark } from '~/styles/surface'
 
-// Purchase CTAs for the payment rails (Figma 1558-320257 "CTAs" → 1558-320267 "Button", plus the
-// exchange-rate caption 1653-368866). The MANA/mixed buttons are the design's soft-black-2 (#242129)
-// 56px pill with a 12px radius; the credits button keeps the shop's amethyst primary so the default
+// Purchase CTAs for the payment rails, plus the exchange-rate caption. The MANA/mixed buttons are a
+// soft-black-2 56px pill with a 12px radius; the credits button carries the buy gradient so the default
 // rail stays visually primary.
 
 export const Root = styled.div`
@@ -27,9 +27,7 @@ const buttonBase = `
   border: 0;
   border-radius: 12px;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: background 0.15s ease;
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
@@ -41,6 +39,10 @@ const buttonBase = `
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
+  }
+  /* The dark checkout modal is painted in accent, which would hide an accent ring. */
+  ${onDark}:focus-visible {
+    outline-color: ${theme.colors.softWhite};
   }
   &:disabled {
     opacity: 0.6;
@@ -54,8 +56,14 @@ export const CreditsBtn = styled.button`
   ${buttonBase}
   background: ${theme.gradients.buyBtn};
 
-  &:hover:not(:disabled) {
-    filter: brightness(1.08);
+  /* On background-image, not background: a gradient cannot interpolate to a plain colour. */
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
+    }
+  }
+  &:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
 `
 
@@ -138,4 +146,8 @@ export const ShortfallNote = styled.p`
   line-height: 1.4;
   color: ${theme.colors.muted};
   text-align: center;
+
+  ${onDark} {
+    color: ${theme.colors.glassText};
+  }
 `

@@ -11,5 +11,9 @@
     "allowSyntheticDefaultImports": true,
     "strict": true
   },
-  "include": ["vite.config.ts"]
+  // `src/lib/homePath.ts` is listed because the config imports it: the build injects a bootstrap into
+  // index.html that has to agree with the router about which paths are Home, and one shared module is
+  // what stops the two from drifting. Add files here one at a time — the point of this project is to keep
+  // the app's sources out of the node build.
+  "include": ["vite.config.ts", "vite-plugins/preloadHero.ts", "src/lib/homePath.ts"]
 }

@@ -28,11 +28,11 @@ import { itemIdFromTokenId } from '~/lib/token-id'
 import { routeSegment } from '~/lib/routes'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
-import { manaWeiToCredits } from '~/lib/mana-convert'
+import { livePrices, manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing, GaslessCancelFailedError } from '~/lib/buy'
 import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
-import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
+import { fetchWearableTraits } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
@@ -49,14 +49,16 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { SuggestedForYouRow } from '~/components/SuggestedForYouRow'
 import { useSuggestedForYou } from '~/hooks/useSuggestedForYou'
 import { suggestedHiddenReason } from '~/lib/suggestionEvents'
+import { explainedRows } from '~/lib/suggestionReasons'
 import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { useCampaignBadge } from '~/hooks/useCampaignBadge'
 import { shortAddress } from '~/lib/address'
-import { t } from '~/intl/i18n'
+import { t, tNode } from '~/intl/i18n'
 import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { PhotoReel } from '~/components/PhotoReel'
 import { ResellersModal } from '~/components/ResellersModal'
 import { MarketplaceRedirectModal } from '~/components/MarketplaceRedirectModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
@@ -70,9 +72,9 @@ import { OfferStock } from '~/components/OfferStock'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
-import { rarityColor, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
-import { categoryIcon, genderIcon } from '~/lib/itemIcons'
-import { saleDiscountPct } from '~/lib/sale'
+import { rarityCardPalette, rarityDescription, rarityGlowCoreRgb, rarityGlowRgb } from '~/lib/rarity'
+import { categoryIcon, genderIcon, wearableSlotIcon, wearableSlotLabel } from '~/lib/itemIcons'
+import { saleBadgePct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { useFavoriteCount } from '~/hooks/useFavoriteCount'
 import { track, itemProps, creditsToUsd } from '~/lib/analytics'
@@ -299,7 +301,7 @@ export function ItemDetail() {
     isLoading: personal.isLoading,
     isError: personal.isError,
     personalized: personal.result?.personalized,
-    rowCount: personal.result?.data.length ?? 0
+    rowCount: explainedRows(personal.result?.data ?? []).length
   })
 
   // The rail below the fold: this collection's other items, padded with the creator's and then with
@@ -498,19 +500,21 @@ export function ItemDetail() {
   )
 
   /**
-   * VRM export, when the creator blocked it. `blockVrmExport` lives on the wearable's Catalyst entity and on no
-   * marketplace endpoint, so it costs its own lookup — worth it because it is a restriction the buyer inherits:
-   * they will not be able to take this item out to a VRM avatar. Stated exactly as the marketplace states it,
-   * badge and tooltip both. Wearables only, and only once the urn is known.
+   * Two facts from the wearable's own Catalyst entity, which no marketplace endpoint carries, so they cost their
+   * own lookup: whether the creator blocked VRM export (a restriction the buyer inherits, stated as the
+   * marketplace states it, badge and tooltip both) and which categories it hides on the avatar. Wearables only,
+   * and only once the urn is known.
    */
   const itemUrnFromMeta = itemTraits?.urn ?? null
-  const { data: vrmBlocked } = useQuery({
-    queryKey: ['item-vrm', itemUrnFromMeta],
+  const { data: wearableTraits } = useQuery({
+    queryKey: ['item-wearable-traits', itemUrnFromMeta],
     enabled: !!itemUrnFromMeta && current.category === 'wearable',
     staleTime: 30 * 60_000,
     retry: false,
-    queryFn: () => fetchVrmExportBlocked(itemUrnFromMeta as string)
+    queryFn: () => fetchWearableTraits(itemUrnFromMeta as string)
   })
+  const vrmBlocked = wearableTraits?.vrmBlocked ?? null
+  const hides = wearableTraits?.hides ?? []
 
   /**
    * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
@@ -631,13 +635,20 @@ export function ItemDetail() {
   const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
   const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
   const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  // A discounted MANA listing re-prices its struck-through price at the same rate, or the strike would drift
+  // off the sale (and vanish once the rates diverge by more than the discount).
+  const liveCompareAt = listedManaWei && manaRate ? livePrices(current, manaRate).compareAtCredits : undefined
   // Also re-asserted when the price itself moves, not only when the rate does: hydration lands AFTER this
   // effect has already agreed with the seeded card, and it brings the server's snapshot back with it. The
   // setter is a no-op once they match, so re-running cannot loop.
   useEffect(() => {
     if (liveLegacyCredits == null) return
-    setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
-  }, [liveLegacyCredits, current.priceCredits])
+    setCurrent(prev =>
+      prev.priceCredits === liveLegacyCredits && prev.compareAtCredits === liveCompareAt
+        ? prev
+        : { ...prev, priceCredits: liveLegacyCredits, compareAtCredits: liveCompareAt }
+    )
+  }, [liveLegacyCredits, liveCompareAt, current.priceCredits, current.compareAtCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing
@@ -1331,7 +1342,7 @@ export function ItemDetail() {
                   row it was a third chip arguing with the number it describes. */}
               {onSale && current.compareAtCredits != null ? (
                 <S.DetailSaleTag
-                  pct={saleDiscountPct(current.compareAtCredits, current.priceCredits)}
+                  pct={saleBadgePct(current.compareAtCredits, current.priceCredits, current.coupon)}
                   size="lg"
                   testId="detail-sale-badge"
                 />
@@ -1377,14 +1388,14 @@ export function ItemDetail() {
                       to={rarityLink}
                       data-variant="rarity"
                       data-testid="detail-rarity-link"
-                      style={{ background: rarityColor(rarity) }}
+                      style={{ background: rarityCardPalette(rarity).label }}
                     >
                       {current.rarity}
                     </S.DetailChipLink>
                   </Tooltip>
                 ) : (
                   <Tooltip content={rarityDescription(current.rarity)}>
-                    <S.DetailChip data-variant="rarity" style={{ background: rarityColor(rarity) }}>
+                    <S.DetailChip data-variant="rarity" style={{ background: rarityCardPalette(rarity).label }}>
                       {current.rarity}
                     </S.DetailChip>
                   </Tooltip>
@@ -1507,40 +1518,50 @@ export function ItemDetail() {
               ) : null}
 
               {(!hidesCreator && (current.creator || creatorPending)) || collection?.name || collectionPending ? (
-                <S.Meta>
+                <S.Meta data-testid="detail-meta">
                   {hidesCreator ? null : current.creator ? (
-                    <S.MetaCol>
-                      <S.Label>{t('itemDetail.creator')}</S.Label>
-                      <S.DetailCreator address={current.creator} linkToProfile hidePrefix />
-                    </S.MetaCol>
+                    <S.DetailCreator address={current.creator} linkToProfile />
                   ) : creatorPending ? (
-                    <S.MetaCol>
-                      <S.Label>{t('itemDetail.creator')}</S.Label>
-                      <S.SkBadge aria-hidden data-testid="creator-loading">
-                        <S.SkAva />
-                        <S.SkName />
-                      </S.SkBadge>
-                    </S.MetaCol>
+                    <S.SkBadge aria-hidden data-testid="creator-loading">
+                      <S.SkAva />
+                      <S.SkName />
+                    </S.SkBadge>
                   ) : null}
                   {collection?.name ? (
-                    <S.MetaCol data-collection>
-                      <S.Label>{t('itemDetail.collection')}</S.Label>
-                      <S.DetailCollection
-                        contractAddress={current.contractAddress}
-                        name={collection.name}
-                        items={siblings}
-                      />
-                    </S.MetaCol>
+                    <S.DetailCollection
+                      contractAddress={current.contractAddress}
+                      name={collection.name}
+                      items={siblings}
+                      label={name => tNode('itemDetail.collectionBy', { name: () => name })}
+                    />
                   ) : collectionPending ? (
-                    <S.MetaCol data-collection>
-                      <S.Label>{t('itemDetail.collection')}</S.Label>
-                      <S.SkBadge aria-hidden data-testid="collection-loading">
-                        <S.SkAva />
-                        <S.SkName />
-                      </S.SkBadge>
-                    </S.MetaCol>
+                    <S.SkBadge aria-hidden data-testid="collection-loading">
+                      <S.SkAva />
+                      <S.SkName />
+                    </S.SkBadge>
                   ) : null}
                 </S.Meta>
+              ) : null}
+
+              {/* The categories this wearable keeps off the avatar, so a buyer knows what it will take off. */}
+              {hides.length ? (
+                <S.Hides data-testid="detail-hides">
+                  <S.Label>
+                    <Icon name="eye-off" size={20} />
+                    {t('itemDetail.hides')}
+                  </S.Label>
+                  <S.HidesList>
+                    {hides.map(category => {
+                      const icon = wearableSlotIcon(category)
+                      return (
+                        <S.DetailChip key={category} data-testid="detail-hides-chip">
+                          {icon ? <Icon name={icon} size={22} /> : null}
+                          {wearableSlotLabel(category)}
+                        </S.DetailChip>
+                      )
+                    })}
+                  </S.HidesList>
+                </S.Hides>
               ) : null}
 
               <S.Divider />
@@ -1726,7 +1747,7 @@ export function ItemDetail() {
                     {isMarket ? (
                       // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                       // (MarketCheckout) — never Add to cart / BuyModal.
-                      <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
+                      <S.DetailCta variant="primary" onClick={handleBuyNow} disabled={!canBuyMarket}>
                         <span>{t('assetCard.buyNow')}</span>
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
@@ -1806,7 +1827,7 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                        <S.DetailCta variant="primary" onClick={handleBuyNow} disabled={resolvingTrade}>
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
@@ -1826,7 +1847,7 @@ export function ItemDetail() {
                       // Sold-out primary with resellers (Figma 1524-298906): buy the cheapest resale.
                       <>
                         <S.DetailCta
-                          variant="purple"
+                          variant="primary"
                           onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
                         >
                           <span>{t('assetCard.buyNow')}</span>
@@ -1936,6 +1957,9 @@ export function ItemDetail() {
           }
         />
       )}
+
+      {/* Photos of people wearing it, in world. Renders nothing when there are none. */}
+      <PhotoReel item={current} />
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout
@@ -2119,12 +2143,8 @@ function ItemInfoSkeleton() {
         ))}
       </S.DescRow>
       <S.Meta>
-        {[0, 1].map(i => (
-          <S.MetaCol key={i} {...(i === 1 ? { 'data-collection': true } : {})}>
-            <S.SkelLabel className="skeleton" />
-            <S.SkelBadge />
-          </S.MetaCol>
-        ))}
+        <S.SkelBadge />
+        <S.SkelBadge />
       </S.Meta>
       <S.Divider />
       <S.SkelPrice className="skeleton" />

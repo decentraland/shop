@@ -8,15 +8,31 @@ import {
   fetchUserCreditOrders,
   creditOrderPill,
   resumeCreditOrder,
+  type CreditGift,
   type CreditOrder
 } from '~/lib/credits'
-import { detailRouteFor } from '~/lib/routes'
-import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
+import {
+  detailRouteFor,
+  isListingsSection,
+  LEGACY_VIEW_PARAM,
+  LISTINGS_SECTION,
+  LISTINGS_SECTION_PARAM
+} from '~/lib/routes'
+import {
+  fetchTradeDisplay,
+  fetchAssetDisplay,
+  fetchUserSales,
+  fetchUserTransfers,
+  type SaleRecord,
+  type TransferRecord
+} from '~/lib/api'
 import { foldOrderLines, purchaseOrderPill, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useImportable } from '~/hooks/useImportable'
+import { useCancelledTrades } from '~/hooks/useCancelledTrades'
+import { CancelledListings } from '~/components/CancelledListings'
 import { useListingCount } from '~/hooks/useListingCount'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -32,6 +48,7 @@ import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import signInIllustration from '~/assets/empty/signin-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { captureError } from '~/lib/monitoring'
 import { toast } from '~/store/toast'
 import * as S from './Activity.styles'
 
@@ -47,19 +64,9 @@ const PAGE_SIZE = 24
 
 const FILTERS: ActivityFilter[] = ['all', 'purchases', 'sales']
 
-/**
- * The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
- * bookmark and a reload all land on it — the feed is the default for everything else.
- *
- * `?section=listings` is the spelling to hand out: it says what the link opens, which matters because the
- * point of it is pasting it to creators. `?view=migrate` was the original and is still read, so the links
- * already in circulation (and the /import redirect) keep working — reading both costs one comparison,
- * while renaming outright would quietly 'work' by dropping people on the feed instead.
- */
-const SECTION_PARAM = 'section'
-const LISTINGS_SECTION = 'listings'
-const LEGACY_VIEW_PARAM = 'view'
-const LEGACY_MIGRATE_VIEW = 'migrate'
+// The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
+// bookmark and a reload all land on it — the feed is the default for everything else. See
+// `isListingsSection` for the two spellings it is read under.
 
 function formatDate(ms: number): string {
   try {
@@ -290,6 +297,59 @@ function ManaPurchaseCard({ sale }: { sale: SaleRecord }) {
   )
 }
 
+// One item the user sent to another account or received from one, outside a purchase.
+function TransferCard({ transfer }: { transfer: TransferRecord }) {
+  const { data: display, isLoading } = useQuery({
+    queryKey: ['asset-display', transfer.contractAddress, transfer.tokenId, transfer.itemId],
+    queryFn: () => fetchAssetDisplay(transfer.contractAddress, { tokenId: transfer.tokenId, itemId: transfer.itemId }),
+    enabled: !!transfer.contractAddress,
+    staleTime: 5 * 60_000
+  })
+
+  const sent = transfer.direction === 'sent'
+  const name = display?.name ?? t('activity.itemFallback')
+  const thumbnail = display?.thumbnail ?? ''
+  const to =
+    detailRouteFor({ contractAddress: transfer.contractAddress, tokenId: transfer.tokenId, itemId: transfer.itemId }) ??
+    undefined
+
+  const body = (
+    <>
+      {isLoading ? (
+        <S.ThumbSkeleton />
+      ) : (
+        <S.Thumb>{thumbnail ? <img src={thumbnail} alt={name} /> : <Icon name="offer" size={20} />}</S.Thumb>
+      )}
+      <S.LineInfo>
+        {isLoading ? <S.LineNamePlaceholder /> : <S.LineName title={name}>{name}</S.LineName>}
+        <S.LineMeta>
+          {t(sent ? 'activity.sentTo' : 'activity.receivedFrom', { account: shortAccount(transfer.counterparty) })}
+        </S.LineMeta>
+      </S.LineInfo>
+    </>
+  )
+
+  return (
+    <S.Card data-testid="activity-transfer" data-direction={transfer.direction}>
+      <S.CardHead>
+        <S.HeadLeft>
+          <S.DateText>{formatDate(transfer.createdAt)}</S.DateText>
+          <S.SubCount>{t(sent ? 'activity.transferSent' : 'activity.transferReceived')}</S.SubCount>
+        </S.HeadLeft>
+      </S.CardHead>
+      <S.Lines>
+        {to ? (
+          <LineLink to={to} data-link="true">
+            {body}
+          </LineLink>
+        ) : (
+          <S.Line>{body}</S.Line>
+        )}
+      </S.Lines>
+    </S.Card>
+  )
+}
+
 // One secondary sale the user made: the sold item + who bought it + what they earned (in indicative
 // credits at the current rate). Item metadata is resolved from the contract + token (sales carry no
 // tradeId), same fallback behavior as a purchase line.
@@ -483,6 +543,33 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   )
 }
 
+// Credits the player was given: by a studio out of its budget, or by Decentraland. Nothing was paid, so no
+// amount of money and no status pill: it landed in the balance the moment it was given.
+function GiftCard({ gift }: { gift: CreditGift }) {
+  return (
+    <S.Card data-testid="credit-gift">
+      <S.CardHead>
+        <S.CreditThumb>
+          <img src={creditsProduct} alt="" aria-hidden />
+        </S.CreditThumb>
+        <S.HeadLeft>
+          <S.DateText>{formatDate(gift.createdAt)}</S.DateText>
+          <S.SubCount>
+            {gift.studioName
+              ? t('activity.giftFromStudio', { studio: gift.studioName })
+              : t('activity.giftFromDecentraland')}
+          </S.SubCount>
+        </S.HeadLeft>
+        <S.HeadRight>
+          <S.Total data-kind="income">
+            +<CurrencyIcon className="ccy-mark" /> <Price credits={gift.credits} />
+          </S.Total>
+        </S.HeadRight>
+      </S.CardHead>
+    </S.Card>
+  )
+}
+
 function ActivityEmpty({ filter }: { filter: ActivityFilter }) {
   // All three tabs share the design's sale-tag panel; only the body line differs per tab.
   const body = {
@@ -508,16 +595,18 @@ export function Activity() {
   const { session, signIn } = useWallet()
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const [params, setParams] = useSearchParams()
-  const migrating =
-    params.get(SECTION_PARAM) === LISTINGS_SECTION || params.get(LEGACY_VIEW_PARAM) === LEGACY_MIGRATE_VIEW
+  const migrating = isListingsSection(params)
 
   useSeo({ title: migrating ? t('seo.import.title') : t('nav.activity'), noindex: true })
 
   // How many classic listings this seller could still move. Undefined until known — the badge renders
   // nothing at all until then, so it never flashes in or badges a zero.
-  const { count: importCount } = useImportable()
+  const { count: importCount, isError: importFailed } = useImportable()
   // …and how many listings they have at all, on either pricing.
-  const { count: listingCount } = useListingCount()
+  const { count: listingCount, isError: listingCountFailed } = useListingCount()
+  // Listings taken down by the marketplace upgrade, listed above the tool so they can be put back.
+  const cancelled = useCancelledTrades()
+  const cancelledCount = cancelled.count
 
   /**
    * The chip is about HAVING listings, not about having migratable ones. Gating it on the migratable count
@@ -533,9 +622,10 @@ export function Activity() {
    */
   // BOTH counts, not either: with "at least one known" the chip popped in when the second answer landed,
   // which is the flash the single-count version was written to avoid. They resolve together anyway — both
-  // queries gate on the same address.
-  const countsKnown = importCount !== undefined && listingCount !== undefined
-  const showMigrate = countsKnown && (importCount > 0 || listingCount > 0 || migrating)
+  // queries gate on the same address. A failed read counts as settled, or one error hides the chip for good.
+  const countsKnown = (importCount !== undefined || importFailed) && (listingCount !== undefined || listingCountFailed)
+  const showMigrate =
+    countsKnown && ((importCount ?? 0) > 0 || (listingCount ?? 0) > 0 || migrating || !!cancelledCount)
 
   // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
   // what the migrate panel is allowed to render.
@@ -580,6 +670,28 @@ export function Activity() {
     enabled: salesEnabled,
     staleTime: 60_000
   })
+  // Credits the player was given. They are neither purchases nor sales, so they show only under "All", and
+  // are read flat like the payouts: their list pages apart from the orders, so a gift does not depend on how
+  // far the orders have been scrolled. The newest 200 cover any player for a long time; paging is the follow-up.
+  const giftsEnabled = !!session && !migrating && filter === 'all'
+  const { data: gifts } = useQuery({
+    queryKey: ['credit-gifts', session?.address],
+    queryFn: () => fetchUserCreditOrders(session!.address, session!.identity, { first: 1 }).then(r => r.gifts),
+    enabled: giftsEnabled,
+    staleTime: 60_000
+  })
+  // Items sent to or received from other accounts. Neither purchases nor sales, so "All" only, read flat like
+  // the gifts. A failed read is reported and leaves them out: the rest of the feed does not depend on it.
+  const { data: transfers, isLoading: transfersLoading } = useQuery({
+    queryKey: ['transfers', session?.address],
+    queryFn: () =>
+      fetchUserTransfers(session!.identity).catch(error => {
+        captureError(error, { flow: 'activity_transfers' })
+        return []
+      }),
+    enabled: giftsEnabled,
+    staleTime: 60_000
+  })
   const payoutIndex = useMemo(() => indexPayouts(payouts), [payouts])
 
   // The oracle read is only needed to price sales in credits — skip it entirely on the purchases-only
@@ -607,6 +719,8 @@ export function Activity() {
       purchases: purchasesEnabled ? purchases.items : [],
       sales: salesEnabled ? sales.items : [],
       creditOrders: purchasesEnabled ? creditOrders.items : [],
+      creditGifts: giftsEnabled ? (gifts ?? []) : [],
+      transfers: giftsEnabled ? (transfers ?? []) : [],
       manaPurchases: purchasesEnabled ? manaPurchases.items : [],
       rate
     }),
@@ -615,7 +729,8 @@ export function Activity() {
 
   const isLoading =
     (purchasesEnabled && (purchases.isLoading || creditOrders.isLoading || manaPurchases.isLoading)) ||
-    (salesEnabled && sales.isLoading)
+    (salesEnabled && sales.isLoading) ||
+    (giftsEnabled && transfersLoading)
   const isFetchingNextPage =
     (purchasesEnabled &&
       (purchases.isFetchingNextPage || creditOrders.isFetchingNextPage || manaPurchases.isFetchingNextPage)) ||
@@ -638,13 +753,13 @@ export function Activity() {
     if (!migrating) return
     const q = new URLSearchParams(params)
     // Clear both spellings, or leaving via a legacy link would keep re-opening the section.
-    q.delete(SECTION_PARAM)
+    q.delete(LISTINGS_SECTION_PARAM)
     q.delete(LEGACY_VIEW_PARAM)
     setParams(q, { replace: true })
   }
   function openMigrate() {
     const q = new URLSearchParams(params)
-    q.set(SECTION_PARAM, LISTINGS_SECTION)
+    q.set(LISTINGS_SECTION_PARAM, LISTINGS_SECTION)
     q.delete(LEGACY_VIEW_PARAM)
     setParams(q, { replace: true })
   }
@@ -691,7 +806,21 @@ export function Activity() {
       </S.Tabs>
       {migrating ? (
         <Suspense fallback={<S.PanelFallback aria-busy="true" />}>
-          <ImportListings />
+          {cancelledCount ? (
+            <CancelledListings
+              trades={cancelled.trades}
+              total={cancelledCount}
+              hasNextPage={cancelled.hasNextPage}
+              isFetchingNextPage={cancelled.isFetchingNextPage}
+              isFetchNextPageError={cancelled.isFetchNextPageError}
+              onLoadMore={cancelled.fetchNextPage}
+              // The tool below stays reachable: past the list it loads on request only.
+              autoLoad={!importCount}
+            />
+          ) : null}
+          {/* Kept mounted so a run's re-check outlives its last row; only its "all set" card is hidden, which
+              would contradict the list above it. */}
+          <ImportListings hideWhenDone={!!cancelledCount} />
         </Suspense>
       ) : isLoading ? (
         <S.List>
@@ -709,8 +838,12 @@ export function Activity() {
                 <OrderCard key={entry.id} order={entry.order} />
               ) : entry.kind === 'credit' ? (
                 <CreditPurchaseCard key={entry.id} order={entry.order} />
+              ) : entry.kind === 'gift' ? (
+                <GiftCard key={entry.id} gift={entry.gift} />
               ) : entry.kind === 'mana-purchase' ? (
                 <ManaPurchaseCard key={entry.id} sale={entry.sale} />
+              ) : entry.kind === 'transfer' ? (
+                <TransferCard key={entry.id} transfer={entry.transfer} />
               ) : (
                 <SaleCard key={entry.id} sale={entry.sale} payout={payoutForSale(payoutIndex, entry.sale)} />
               )

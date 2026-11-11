@@ -284,5 +284,4 @@ export const Cta = styled(Button)`
   gap: 8px;
   width: 100%;
   min-height: 40px;
-  border-radius: 12px;
 `

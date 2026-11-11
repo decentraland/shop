@@ -3,89 +3,18 @@ import { ZERO_ADDRESS } from '~/lib/address'
 import {
   fetchCreatorPeggedPrimaryPrices,
   fetchPeggedPrimaryPrices,
-  fetchShopListingsRaw,
-  type CatalogItem
+  fetchUnified,
+  pickItemListing,
+  type CatalogItem,
+  type UnifiedListing
 } from '~/lib/api'
+import { toCatalogItem, type RawCollectionItem } from '~/lib/catalogItem'
 
 // Sibling items of the same collection — the "more from this collection" carousel — and a creator's
 // full storefront. Data source: GET /v3/catalog/items (same full-catalog semantics as the classic
 // /v1/items — ALL items, keyed by itemId, not the specific secondary tokens — but with a
 // server-computed, asset-type-aware `priceCredits` per item, so we never convert on the client).
 // When the user picks an item, its buyable trade is re-resolved via fetchTradeForItem (see ItemDetail).
-
-type RawCollectionItem = {
-  id: string
-  name: string
-  creator?: string
-  contractAddress: string
-  itemId?: string | null
-  category: string
-  rarity?: string
-  network: string
-  chainId: number
-  thumbnail?: string
-  // The canonical asset urn. /v3/catalog/items returns it on every row, and it is the ONLY thing that
-  // identifies a non-Polygon item to the 3D preview — see CatalogItem.urn.
-  urn?: string
-  // Server-computed whole credits. Trustworthy ONLY for a USD-pegged listing: for a MANA-denominated one
-  // it is converted with the SERVER's rate, which is not the rate checkout charges (see lib/pricing).
-  priceCredits?: number
-  // Mixed-unit price: USD wei when the row's listing is USD-pegged, MANA wei otherwise. `tradeId: null`
-  // with a price is unambiguous — a collection-store mint or a classic order, i.e. MANA.
-  price?: string | null
-  tradeId?: string | null
-  available?: string | number | null
-  isOnSale?: boolean
-  data?: {
-    wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
-    emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
-  }
-}
-
-function toGender(bodyShapes?: string[]): CatalogItem['gender'] {
-  if (!bodyShapes || bodyShapes.length === 0) return null
-  const male = bodyShapes.some(b => b.includes('Male'))
-  const female = bodyShapes.some(b => b.includes('Female'))
-  if (male && female) return 'unisex'
-  if (male) return 'male'
-  if (female) return 'female'
-  return null
-}
-
-function toCatalogItem(r: RawCollectionItem): CatalogItem {
-  return {
-    id: r.id,
-    name: r.name,
-    creator: r.creator ?? '',
-    contractAddress: r.contractAddress,
-    itemId: r.itemId ?? null,
-    urn: r.urn,
-    category: r.category,
-    wearableCategory: r.data?.wearable?.category ?? r.data?.emote?.category,
-    emoteLoop: r.data?.emote?.loop,
-    emoteHasSound: r.data?.emote?.hasSound,
-    emoteHasProps: r.data?.emote?.hasGeometry,
-    rarity: r.rarity ?? 'common',
-    isSmart: !!r.data?.wearable?.isSmart,
-    network: r.network,
-    chainId: r.chainId,
-    thumbnail: r.thumbnail ?? '',
-    priceCredits: r.priceCredits ?? 0,
-    /**
-     * A row with NO trade is priced in MANA — a collection-store mint or a classic order. Carrying it as
-     * `manaWei` is what lets `displayCredits` price it at the LIVE rate, like the browse grid does: this feed
-     * also reports a `priceCredits`, but it is converted with the SERVER's rate. Measured on production, a
-     * 20-MANA store mint arrived as 4 credits while the live rate makes it 14 — the number the grid showed
-     * and this page did not.
-     *
-     * Deliberately NOT labelled `acquisition: 'store'`: this feed cannot tell a store mint from a classic
-     * order, and mislabelling one would route it to the wrong purchase rail. The unified feed (which the
-     * item page and the cart read) does carry that discriminator.
-     */
-    ...(r.tradeId == null && r.isOnSale && r.price ? { manaWei: r.price, available: toAvailable(r.available) } : {}),
-    gender: toGender(r.data?.wearable?.bodyShapes)
-  }
-}
 
 export type CollectionSaleState = {
   isOnSale: boolean
@@ -99,6 +28,12 @@ export type CollectionSaleState = {
   manaWei?: string
   /** Absent for a collection-store mint, which is on sale with no trade behind it. */
   tradeId?: string
+  /**
+   * The marketplace a MANA-denominated TRADE was signed for. Absent for a collection-store mint, whose price
+   * lives on the collection and can never take a coupon; present, it is what says whether a creator's coupon
+   * can discount the listing (see saleableCollections).
+   */
+  manaTradeContract?: string
   /**
    * The sale a creator's coupon is running on this listing, when there is one: the price before the cut and
    * when it ends. Carried so the creator's OWN grids can draw the same strike-through and tag a buyer sees
@@ -164,7 +99,14 @@ function toSaleState(
         ...(peg.compareAtCredits != null ? { compareAtCredits: peg.compareAtCredits } : {}),
         ...(peg.saleEndsAt != null ? { saleEndsAt: peg.saleEndsAt } : {})
       }
-    : { isOnSale: true, priceCredits: row.priceCredits ?? 0, ...(row.price ? { manaWei: row.price } : {}) }
+    : {
+        isOnSale: true,
+        priceCredits: row.priceCredits ?? 0,
+        ...(row.price ? { manaWei: row.price } : {}),
+        ...(row.tradeId && row.tradeContractAddress
+          ? { manaTradeContract: row.tradeContractAddress.toLowerCase() }
+          : {})
+      }
 }
 
 /**
@@ -222,11 +164,6 @@ export async function fetchCreatorSaleState(creator: string): Promise<Record<str
     map[key] = toSaleState(r, pegged[key])
   }
   return map
-}
-
-function toAvailable(value: string | number | null | undefined): number | undefined {
-  const n = Number(value)
-  return Number.isFinite(n) && n > 0 ? n : undefined
 }
 
 export type CollectionItemsPage = { items: CatalogItem[]; total: number }
@@ -310,15 +247,27 @@ export type CatalogItemsFilters = {
   maxPriceCredits?: number
 }
 
+type RunningSale = Pick<
+  CatalogItem,
+  'priceCredits' | 'compareAtCredits' | 'coupon' | 'saleEndsAt' | 'manaWei' | 'listManaWei'
+>
+
 /**
  * Lay the running sales over rows this feed cannot carry them on.
  *
- * `/v3/catalog/items` has no coupon join — only `/v3/catalog/shop` does — so a creator's storefront and a
- * collection page showed the discounted PRICE with nothing marking it as a discount: no strike-through, no
- * tag, no end. The shop feed is asked for the same scope and its sale fields are copied across by item.
+ * `/v3/catalog/items` has no coupon join, so a creator's storefront and a collection page showed every item at
+ * its list price with nothing marking a discount. The unified feed is asked for the same scope's mint listings
+ * and, per item, the listing the item page and checkout would use (`pickItemListing`) lends its sale to the row.
+ * Unified rather than the shop feed: that one carries USD-pegged listings only, so a creator's discounted MANA
+ * listing never reached these pages. Picking with the same rule matters when an item has both kinds: a card
+ * must not advertise a sale on a listing the item page and checkout would not use.
+ *
+ * A MANA sale also brings its sale and list amounts, which the page re-prices at the live rate; the mapping has
+ * already dropped the sale when creator sales are off.
  *
  * Silent on failure and skipped when the scope is the whole catalogue: an overlay that cannot resolve must
- * leave the page exactly as it was, never take it down with it.
+ * leave the page exactly as it was, never take it down with it. One page of up to 1000 listings (the server's
+ * cap): items past it keep their list price.
  */
 async function withRunningSales(
   items: CatalogItem[],
@@ -327,19 +276,28 @@ async function withRunningSales(
   if (!scope.creator && !scope.contractAddress) return items
   if (!items.some(i => i.itemId != null)) return items
   try {
-    const { listings, creatorSalesLive } = await fetchShopListingsRaw({ ...scope, first: 200, listingType: 'primary' })
-    // The kill switch lives in the mapping this overlay skips, so it has to be honoured here or a flag
-    // turned off would leave the discount standing on exactly these two pages.
-    if (!creatorSalesLive) return items
-    const sales = new Map<string, { compareAtCredits: number; saleEndsAt?: number; priceCredits: number }>()
+    const { items: listings } = await fetchUnified({ ...scope, first: 1000, listingType: 'primary' })
+    const byItem = new Map<string, UnifiedListing[]>()
     for (const l of listings) {
-      if (l.itemId == null || l.compareAtCredits == null) continue
-      sales.set(`${l.contractAddress.toLowerCase()}-${l.itemId}`, {
-        compareAtCredits: l.compareAtCredits,
+      if (l.itemId == null) continue
+      const key = `${l.contractAddress.toLowerCase()}-${l.itemId}`
+      byItem.set(key, [...(byItem.get(key) ?? []), l])
+    }
+    const sales = new Map<string, RunningSale>()
+    for (const [key, group] of byItem) {
+      const l = pickItemListing(group)
+      if (!l || l.compareAtCredits == null) continue
+      sales.set(key, {
         priceCredits: l.priceCredits,
-        // SECONDS on the wire, milliseconds everywhere a CatalogItem is read. The mapping this overlay
-        // bypasses is where that conversion normally happens.
-        ...(l.saleEndsAt != null ? { saleEndsAt: l.saleEndsAt * 1000 } : {})
+        compareAtCredits: l.compareAtCredits,
+        // Carried for two readers: the badge takes the creator's own % off it, and the cart settles a line
+        // added from these pages through it, so the sale price shown is the one charged.
+        coupon: l.coupon,
+        saleEndsAt: l.saleEndsAt,
+        // Always written, even when absent: the catalogue row may carry a MANA store price, and a USD-pegged
+        // sale laid over it must not be re-priced from that amount.
+        manaWei: l.manaWei ?? undefined,
+        listManaWei: l.listManaWei
       })
     }
     if (sales.size === 0) return items

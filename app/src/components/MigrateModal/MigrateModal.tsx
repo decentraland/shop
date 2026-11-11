@@ -233,7 +233,7 @@ export function MigrateModal({
                 failure left the old listing standing, so there is nothing to do there. */}
             {unlisted > 0 ? (
               <Button
-                variant="purple"
+                variant="primary"
                 onClick={() => {
                   onDone({ listed: listedCount, failed: failures, cancelled })
                   onClose()

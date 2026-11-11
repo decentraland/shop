@@ -724,6 +724,35 @@ describe('NameBuyModal', () => {
       expect(sessionStorage.getItem(RESUME_BUY_KEY)).toBeNull()
     })
 
+    /**
+     * Leaving for the hosted checkout and coming back with the browser's own back button.
+     *
+     * The busy flag is deliberately never released once the redirect is under way — releasing it there
+     * re-enables BUY for the moment before the browser leaves, and a second click opens a second Checkout
+     * Session. But a bfcache restore brings the component back with its state intact, so the modal
+     * reappeared with every way out disabled: the ✕, CANCEL and BUY all read the same flag.
+     */
+    it('should come back usable when the browser restores the page', async () => {
+      // Never settles: the redirect is under way and the flag stays set, as it does in production.
+      createPackCheckout.mockReturnValue(new Promise(() => {}))
+      renderModal(67)
+
+      fireEvent.click(screen.getByTestId('name-buy-credits'))
+      await waitFor(() => expect(createPackCheckout).toHaveBeenCalledTimes(1))
+      expect(screen.getByTestId<HTMLButtonElement>('name-buy-credits').disabled).toBe(true)
+
+      // The bfcache restore, which is exactly what `persisted` distinguishes from a fresh load.
+      act(() => {
+        const e = new Event('pageshow') as Event & { persisted: boolean }
+        Object.defineProperty(e, 'persisted', { value: true })
+        window.dispatchEvent(e)
+      })
+
+      expect(screen.getByTestId<HTMLButtonElement>('name-buy-credits').disabled).toBe(false)
+      expect(screen.getByTestId<HTMLButtonElement>('name-topup-cancel').disabled).toBe(false)
+      expect(screen.getByRole('button', { name: /close/i })).toBeEnabled()
+    })
+
     // Closing does not cancel the checkout already in flight, so it must not be offered: the request
     // resolves a moment later and throws the buyer out to Stripe regardless.
     it('should refuse to be dismissed while the checkout is in flight', async () => {

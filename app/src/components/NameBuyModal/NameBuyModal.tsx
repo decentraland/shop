@@ -284,6 +284,26 @@ export function NameBuyModal({
    * return handler knows where to send them once the grant lands — and it is stashed BEFORE the request,
    * because the redirect can leave the page the moment it resolves.
    */
+  /**
+   * Coming BACK from the hosted checkout with the browser's own button.
+   *
+   * `topUpBusy` is deliberately never released once the redirect is under way — releasing it there re-enables
+   * BUY for the moment before the browser actually leaves, and a second click opens a second Checkout
+   * Session. That holds while the page is leaving, but the page can come back: a bfcache restore returns this
+   * component with its state exactly as it was, so the modal reappears with every way out disabled — the ✕,
+   * the scrim, Escape, CANCEL and BUY all read `busy`.
+   *
+   * `pageshow` with `persisted` is precisely that restore, and nothing else. A back that misses the cache
+   * reloads instead, which remounts this component with the flag already false.
+   */
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setTopUpBusy(false)
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
   async function buyCreditsForName() {
     if (!session || !activePack || topUpBusy) return
     setTopUpBusy(true)
@@ -406,7 +426,13 @@ export function NameBuyModal({
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
-      <S.Card role="dialog" aria-modal="true" aria-label={headTitle} onClick={e => e.stopPropagation()}>
+      <S.Card
+        data-surface="dark"
+        role="dialog"
+        aria-modal="true"
+        aria-label={headTitle}
+        onClick={e => e.stopPropagation()}
+      >
         {showHead && (
           <>
             <S.HeadRow>
@@ -416,7 +442,8 @@ export function NameBuyModal({
               </S.Close>
             </S.HeadRow>
             <S.Balance>
-              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+              <span data-label>{t('names.myCreditsBalance')}</span> <CurrencyIcon />{' '}
+              {balanceLabel(balance, balanceError)}
             </S.Balance>
             <S.Divider />
           </>
@@ -624,7 +651,8 @@ export function NameBuyModal({
               </S.Close>
             </S.HeadRow>
             <S.Balance>
-              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+              <span data-label>{t('names.myCreditsBalance')}</span> <CurrencyIcon />{' '}
+              {balanceLabel(balance, balanceError)}
             </S.Balance>
             <S.Divider />
 
@@ -672,7 +700,8 @@ export function NameBuyModal({
               </S.Close>
             </S.HeadRow>
             <S.Balance>
-              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+              <span data-label>{t('names.myCreditsBalance')}</span> <CurrencyIcon />{' '}
+              {balanceLabel(balance, balanceError)}
             </S.Balance>
             <S.Divider />
 

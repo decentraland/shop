@@ -95,3 +95,28 @@ export async function markNotificationsRead(identity: AuthIdentity, notification
     // on the next fetch.
   }
 }
+
+/**
+ * The people a notification names, keyed by lowercased address: friend requests carry the sender's name,
+ * tips and gifts only an address, and a rental only the tenant's.
+ */
+export function notificationPeople(items: ShopNotification[]): Map<string, string | undefined> {
+  const people = new Map<string, string | undefined>()
+  const add = (address: unknown, name?: unknown) => {
+    if (typeof address !== 'string' || address === '') return
+    const key = address.toLowerCase()
+    const known = typeof name === 'string' && name !== '' ? name : undefined
+    if (!people.has(key) || known) people.set(key, known ?? people.get(key))
+  }
+  for (const item of items) {
+    const metadata = (item.metadata ?? {}) as {
+      sender?: { address?: unknown; name?: unknown }
+      senderAddress?: unknown
+      tenant?: unknown
+    }
+    add(metadata.sender?.address, metadata.sender?.name)
+    add(metadata.senderAddress)
+    add(metadata.tenant)
+  }
+  return people
+}

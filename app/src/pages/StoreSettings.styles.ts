@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
+import { dark, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 import { Spinner } from '~/components/Spinner'
@@ -16,12 +17,9 @@ export const Loading = styled(Spinner)`
 // The store editor page. Uses the shared Field primitive (~/styles/field.styles); the label/textarea
 // tweaks below target its descendants.
 export const Root = styled.section`
-  max-width: 640px;
-  margin: 0 auto;
   padding: 8px 0 48px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
   color: ${colors.softWhite};
 
   & .field__label {
@@ -29,14 +27,47 @@ export const Root = styled.section`
     color: ${colors.softWhite};
   }
   & textarea {
-    background: ${colors.white};
-    border: 1px solid ${colors.lineStrong};
+    ${darkField}
     border-radius: 8px;
     padding: 10px 12px;
-    color: ${colors.text};
     font: inherit;
     resize: vertical;
     min-height: 88px;
+  }
+`
+
+/**
+ * The surface the whole page rests on, title included.
+ *
+ * LIGHTER than the page, not darker. Sampled either side of its edge in the design, the card is up to
+ * (+24, +16, +35) against the background at every height — the panels on the dashboard darken their
+ * surface, this one lifts it, and getting that backwards is what made the first attempt read wrong.
+ */
+export const Card = styled.div`
+  padding: 32px 0;
+  border-radius: ${radius.banner};
+  background: ${colors.cardLift};
+
+  ${media.maxWidth('mobile')} {
+    padding: 20px 0;
+  }
+`
+
+/**
+ * The column the form actually occupies: about 70% of the card, which is where the design puts it.
+ *
+ * The card is page-wide but a full-width text input is not a form, it is a ruler.
+ */
+export const Inner = styled.div`
+  max-width: 950px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  ${media.maxWidth('mobile')} {
+    padding: 0 16px;
   }
 `
 
@@ -97,14 +128,15 @@ export const Guest = styled.a`
 export const Prefixed = styled.div`
   display: flex;
   align-items: stretch;
-  border: 1px solid ${colors.lineStrong};
+  ${darkField}
   border-radius: 8px;
   overflow: hidden;
-  background: ${colors.white};
 
+  /* The wrapper is the field; the input inside drops Field's own skin so the raised fill isn't doubled. */
   & input {
     border: 0 !important;
     border-radius: 0 !important;
+    background: transparent !important;
     flex: 1;
     min-width: 0;
   }
@@ -114,11 +146,11 @@ export const Prefix = styled.span`
   display: flex;
   align-items: center;
   padding: 0 10px;
-  background: rgba(0, 0, 0, 0.04);
-  color: ${colors.muted};
+  background: ${dark.raised};
+  color: ${colors.glassText};
   font-size: 13px;
   white-space: nowrap;
-  border-right: 1px solid ${colors.lineStrong};
+  border-right: 1px solid ${dark.hairline};
 `
 
 export const Picker = styled.div`
@@ -177,22 +209,23 @@ export const Tile = styled.button`
     justify-content: center;
     gap: 6px;
     border-style: dashed;
-    color: ${colors.muted};
+    border-color: ${dark.focusEdge};
+    color: ${colors.glassText};
     font-size: 13px;
     font-weight: 700;
-    background: ${colors.white};
+    background: ${dark.raised};
   }
   &[data-variant='upload'] .ico {
     width: 22px;
     height: 22px;
-    background: ${colors.muted};
+    background: ${colors.glassText};
   }
   &[data-variant='upload']:hover {
-    border-color: ${colors.accent};
-    color: ${colors.accent};
+    border-color: ${colors.softWhite};
+    color: ${colors.softWhite};
   }
   &[data-variant='upload']:hover .ico {
-    background: ${colors.accent};
+    background: ${colors.softWhite};
   }
 `
 

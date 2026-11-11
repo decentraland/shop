@@ -14,6 +14,7 @@ interface ImportMetaEnv {
   readonly VITE_AUTH_URL?: string
   readonly VITE_BUILDER_SERVER_URL?: string
   readonly VITE_BUILDER_URL?: string
+  readonly VITE_CREATORS_URL?: string
   readonly VITE_CHAIN_ID?: string
   readonly VITE_CREDITS_SERVER_URL?: string
   readonly VITE_DCL_DEFAULT_ENV?: string
@@ -21,6 +22,8 @@ interface ImportMetaEnv {
   readonly VITE_ETHEREUM_RPC_URL?: string
   readonly VITE_GASLESS_CHECKOUT?: string
   readonly VITE_MARKETPLACE_SERVER_URL?: string
+  readonly VITE_CAMERA_REEL_URL?: string
+  readonly VITE_PLACES_API_URL?: string
   readonly VITE_MARKETPLACE_URL?: string
   readonly VITE_NOTIFICATIONS_SERVER_URL?: string
   readonly VITE_PEER_URL?: string
@@ -31,7 +34,6 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string
   readonly VITE_SENTRY_ENVIRONMENT?: string
   readonly VITE_SENTRY_RELEASE?: string
-  readonly VITE_SHOP_PRELAUNCH_LOCAL?: string
   readonly VITE_SHOP_SERVER_URL?: string
   readonly VITE_STRIPE_PK?: string
 }

@@ -103,19 +103,24 @@ async function fetchActiveEntities(urns: string[]): Promise<ActiveEntity[]> {
 }
 
 /**
- * Whether the creator blocked VRM export for this wearable — `blockVrmExport` on the entity's data, which no
- * marketplace-server endpoint carries (checked against production: the v1 item has no such field, the entity
- * does). The item page states it as a badge, as the marketplace does: it is a real restriction on what the
- * buyer can do with the item once they own it.
+ * What the item page states from the wearable's own Catalyst entity, in one read.
  *
- * Null when we could not find out, which the page treats as nothing to state — never a badge on a guess.
+ * - `vrmBlocked`: whether the creator blocked VRM export (`blockVrmExport`), which no marketplace-server
+ *   endpoint carries (the v1 item has no such field, the entity does). The page states it as a badge, as the
+ *   marketplace does: it is a real restriction on what the buyer can do with the item once they own it. Null
+ *   when we could not find out, which the page treats as nothing to state — never a badge on a guess.
+ * - `hides`: the categories it keeps off the avatar it is worn on — what it declares it hides plus what it
+ *   replaces, without its own category. Empty when it hides nothing or the entity could not be read.
  */
-export async function fetchVrmExportBlocked(urn: string): Promise<boolean | null> {
+export async function fetchWearableTraits(urn: string): Promise<{ vrmBlocked: boolean | null; hides: string[] }> {
   try {
     const data = (await fetchActiveEntities([urn]))[0]?.metadata?.data
-    return data ? !!data.blockVrmExport : null
+    if (!data) return { vrmBlocked: null, hides: [] }
+    const own: string | undefined = data.category
+    const hides = [...new Set([...(data.hides ?? []), ...(data.replaces ?? [])])].filter(c => c !== own)
+    return { vrmBlocked: !!data.blockVrmExport, hides }
   } catch {
-    return null
+    return { vrmBlocked: null, hides: [] }
   }
 }
 

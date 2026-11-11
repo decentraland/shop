@@ -22,6 +22,7 @@
   --muted-1: #5e5b67; /* gray-1: uppercase labels (price / stock) */
   --muted-2: #a09ba8;
   --line: #e6e4ea; /* subtle card border (approx 0.25px #a09ba8) */
+  --surface-hover: #f5f4f7; /* a row or field one step off white */
   --line-strong: #a09ba8; /* search field / defined borders */
   --media: #ecebed;
   --panel: #f5f5f5;
@@ -34,6 +35,7 @@
   --black-btn: #242129; /* add-to-cart bg */
   --soft-white: #fcfcfc;
   --dcl-red: #ff2d55;
+  --chart-compare: #8f7cf0;
   --sale-tag: #ffc9d5; /* Figma "Primary Base/Primary Light 2" — the card's sale tag */
   --sale-tag-ink: #ec303a;
   --ok: #1ea672;
@@ -41,11 +43,15 @@
   --amethyst: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
   --cerise: linear-gradient(135deg, #ff2d55 0%, #c640cd 100%); /* DCL/Gradients/Cerise — card hover border */
   --buy-btn: linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%); /* Figma "BUY Button" */
+  --progress: linear-gradient(90deg, #ff2d55 0%, #ffbc5b 100%);
+  --name-link: #a0abff; /* creator and collection names on the item page */
   --radius-card: 12px;
   --radius-chip: 4px;
   --radius-btn: 8px;
+  --radius-cta: 12px;
   --radius-pill: 50px;
   --radius-banner: 24px;
+  --radius-tile: 16px;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
      scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */
@@ -105,6 +111,11 @@ body {
       #32134c 100%
     )
     fixed;
+  /* Mirrors theme.colors.fieldBottomWashed: the #4b1a6b stop above with the standard 20% wash composited
+     in. It is what an opaque surface must be to sit on the field where the field is darkest. Kept beside
+     the gradient so the two move together. */
+  --field-bottom-washed: #3c1556;
+  --modal-violet: #4c147c;
   color: var(--text);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -140,6 +151,54 @@ body::before {
     animation: none;
   }
 }
+
+/* HALLOWEEN. The page field keeps the design's radial shape and geometry — every panel, card and band on
+   top of it was drawn against that falloff — and only moves its stops down into a darker, colder purple,
+   with a second layer banking warm light up from the bottom edge like a pumpkin sitting below the fold.
+   Two layers, so `fixed` is written per layer: in the multi-layer shorthand it does not apply to all. */
+:root[data-campaign-theme="halloween"]:not([data-campaign-field="plain"]) body {
+  background:
+    radial-gradient(
+        70% 46% at 50% 104%,
+        rgba(255, 141, 26, 0.38) 0%,
+        rgba(255, 92, 0, 0.13) 45%,
+        rgba(255, 92, 0, 0) 76%
+      )
+      fixed,
+    radial-gradient(61.64% 109.58% at 50% 54.49%, #5d2275 0%, #48195c 25%, #331143 50%, #200a2c 75%, #11041a 100%) fixed;
+}
+/* Only the sheet changes: position, repeat, size and the drift are inherited from the rule above, so the
+   two tiles stay interchangeable and a third season is one more image.
+
+   The opacity is NOT: this sheet's field is near-black and fully opaque, so at 0.03 it reads as a wash
+   with no glyphs in it. Raised until the bats and webs are legible, which the inverse vignette then keeps
+   to the rim — and a darkened rim is what a Halloween page wants anyway. */
+:root[data-campaign-theme="halloween"]:not([data-campaign-field="plain"]) body::before {
+  background-image: url("../images/background/DCL_LogoPattern_Halloween.png");
+  opacity: 0.12;
+}
+
+/* HOLIDAYS. The same radial geometry turned to a winter night: midnight blue instead of the Shop's purple,
+   with moonlight banked up from the bottom edge the way it comes off a field of snow, and a faint warm glow
+   at the top where the string of lights hangs from the nav. */
+:root[data-campaign-theme="holidays"]:not([data-campaign-field="plain"]) body {
+  background:
+    radial-gradient(
+        60% 40% at 50% 106%,
+        rgba(186, 220, 255, 0.3) 0%,
+        rgba(140, 186, 255, 0.1) 48%,
+        rgba(140, 186, 255, 0) 78%
+      )
+      fixed,
+    radial-gradient(70% 26% at 50% -4%, rgba(255, 196, 120, 0.14) 0%, rgba(255, 196, 120, 0) 70%) fixed,
+    radial-gradient(61.64% 109.58% at 50% 54.49%, #2c3577 0%, #222a64 25%, #19204f 50%, #10153a 75%, #080b22 100%) fixed;
+}
+/* Raised like the Halloween sheet, for the same reason: its field is near-black, so at the plain tile's
+   0.03 the trees and reindeer would not read. */
+:root[data-campaign-theme="holidays"]:not([data-campaign-field="plain"]) body::before {
+  background-image: url("../images/background/DCL_LogoPattern_Holidays.png");
+  opacity: 0.1;
+}
 /* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
    panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
    BAND behind the panels (Figma draws it as a rect over the artboard, not as a page background), which
@@ -159,6 +218,13 @@ a {
 button {
   font-family: inherit;
   cursor: pointer;
+}
+/* Chrome and Safari draw a blue clear button in every search field. It ignores our field colours and would
+   duplicate the clear button each field draws for itself. */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
 }
 h1,
 h2 {
@@ -243,15 +309,19 @@ h2 {
    white band between the two, which on an edge-to-edge banner reads as a gap rather than as breathing room.
    Dropped on the route instead of pulled up with a negative margin on the hero, so the value does not have
    to be restated per breakpoint (28px desktop, 16px mobile) and cannot drift out of sync with the padding
-   above. The hero owns the top edge here; every section below it keeps the gutter. */
-.page[data-route="/overview"] {
+   above. The hero owns the top edge here; every section below it keeps the gutter.
+
+   The event route joins it for the same reason and on the same terms: since the campaign banner was given
+   the hero's geometry, it is the same full-bleed strip opening the same way, and the shell's padding left
+   the same band under the tabs. */
+.page[data-route="/overview"],
+.page[data-route="/event"] {
   padding-top: 0;
 }
-/* The cart is the one route whose LAST section paints its own background (the white cross-sell band). The
-   min-height above is load-bearing — without it a short page's footer rides up above the fold — but its
-   surplus lands after that band and shows as a strip of gray between the cross-sell and the footer. Making
-   the route a flex column lets the band grow into the surplus instead, so the white reaches the footer.
-   See pages/Cart.styles.ts (Checkout / Upsell), which opt into growing. */
+/* The min-height above is load-bearing — without it a short page's footer rides up above the fold — but on
+   these two routes the surplus landed between the last section and the footer. Making the route a flex
+   column lets the last section grow into the surplus instead. See pages/Cart.styles.ts (Checkout / Upsell),
+   which opt into growing. */
 .page[data-route="/cart"],
 .page[data-route="/success"] {
   display: flex;

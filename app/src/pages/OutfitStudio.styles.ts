@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
+import { darkCard, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 const { colors, radius, media, z } = theme
@@ -203,8 +204,8 @@ export const ConfirmScrim = styled.div`
 
 export const ConfirmPanel = styled.div`
   position: relative;
-  background: ${colors.bg};
-  border-radius: ${radius.card};
+  ${darkCard}
+  border-radius: ${radius.modal};
   padding: 24px;
   max-width: 420px;
   width: 100%;
@@ -225,7 +226,12 @@ export const ConfirmActions = styled.div`
   margin-top: 6px;
 `
 
-export const Grid = styled.div`
+// A fieldset so `disabled` locks every control inside while a save runs.
+export const Grid = styled.fieldset`
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 32px;
@@ -319,8 +325,7 @@ export const ShapeBtn = styled.button`
 
   &[data-selected] {
     border-color: ${colors.softWhite};
-    background: ${colors.softWhite};
-    color: ${colors.text};
+    background: ${colors.glassStrong};
   }
 `
 
@@ -388,16 +393,14 @@ export const HexInput = styled.input`
   width: 88px;
   height: 26px;
   padding: 0 6px;
-  border: 1px solid ${colors.lineStrong};
+  ${darkField}
   border-radius: ${radius.chip};
-  background: ${colors.white};
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  color: ${colors.text};
   text-transform: lowercase;
 
   &[data-invalid] {
-    border-color: ${colors.errStrong};
+    border-color: ${colors.dclRed};
   }
 `
 
@@ -425,16 +428,21 @@ export const ImportRow = styled.div`
 export const NameInput = styled.input`
   height: 44px;
   padding: 0 14px;
-  border: 1px solid ${colors.lineStrong};
+  ${darkField}
   border-radius: ${radius.btn};
-  background: ${colors.white};
   font: inherit;
-  color: ${colors.text};
 
   &:focus {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: -1px;
   }
+`
+
+export const ResolveError = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 `
 
 export const Selected = styled.ul`
@@ -491,10 +499,25 @@ export const SelName = styled.span`
   text-overflow: ellipsis;
 `
 
-// On a phone the row has no width to spare, so the pill wraps onto its own line (order pushes it past
+// On a phone the row has no width to spare, so the tags wrap onto their own line (order pushes them past
 // the price and the remove button) rather than squeezing the item name to nothing.
-export const SelHint = styled.span`
+export const SelTags = styled.span`
   flex: none;
+  display: flex;
+  gap: 6px;
+
+  ${media.maxWidth('mobile')} {
+    order: 1;
+    flex-basis: calc(100% - 50px);
+    margin-left: 50px;
+    flex-wrap: wrap;
+  }
+`
+
+export const SelTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: ${radius.pill};
   border: 1px solid rgba(255, 255, 255, 0.45);
@@ -503,9 +526,10 @@ export const SelHint = styled.span`
   color: ${colors.softWhite};
   white-space: nowrap;
 
-  ${media.maxWidth('mobile')} {
-    order: 1;
-    margin-left: 50px;
+  &[data-variant='warning'] {
+    border-color: ${colors.promptAmber};
+    background: ${colors.promptAmber};
+    color: ${colors.text};
   }
 `
 

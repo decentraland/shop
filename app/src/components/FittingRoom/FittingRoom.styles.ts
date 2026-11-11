@@ -3,6 +3,7 @@ import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import { checkoutCtaCss } from '~/styles/cta.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 const { colors, radius, media, z } = theme
 
@@ -40,10 +41,9 @@ export const Panel = styled.div`
   width: 100%;
   max-width: 1000px;
   height: min(88vh, 720px);
-  background: ${colors.white};
+  ${darkCard}
   border-radius: ${radius.banner};
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(22, 21, 24, 0.3);
   animation: cart-pop-in 0.18s ease;
 
   @media (prefers-reduced-motion: reduce) {
@@ -64,14 +64,17 @@ export const Close = styled.button`
   height: 34px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  color: ${colors.text};
+  background: ${colors.glassFaint};
+  color: ${colors.softWhite};
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
   display: grid;
   place-items: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+
+  &:hover {
+    background: ${colors.glass};
+  }
 `
 
 // Violet gradient = the AnimatedBackground's resting look + the fallback while its WebGL chunk loads.
@@ -143,18 +146,19 @@ export const Side = styled.div`
   flex: none;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid ${colors.line};
+  border-left: 1px solid ${dark.hairline};
 
   ${media.maxWidth('md')} {
     width: 100%;
     border-left: 0;
-    border-top: 1px solid ${colors.line};
+    border-top: 1px solid ${dark.hairline};
     min-height: 0;
   }
 `
 
 export const Head = styled.div`
   padding: 20px 20px 12px;
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -186,7 +190,8 @@ export const Row = styled.div`
   border: 1px solid transparent;
 
   &[data-on] {
-    background: ${colors.rarityBg};
+    background: ${colors.glassFaint};
+    border-color: ${dark.hairline};
   }
   &[data-incompatible] {
     opacity: 0.5;
@@ -206,8 +211,8 @@ export const Toggle = styled.label`
   }
   & input:checked + [data-box] {
     cursor: pointer;
-    background: ${colors.accent};
-    border-color: ${colors.accent};
+    background: ${colors.softWhite};
+    border-color: ${colors.softWhite};
   }
   & input:checked + [data-box]::after {
     cursor: pointer;
@@ -222,8 +227,8 @@ export const Box = styled.span`
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  border: 2px solid ${colors.lineStrong};
-  background: ${colors.white};
+  border: 2px solid ${colors.glassRing};
+  background: transparent;
   display: grid;
   place-items: center;
   transition:
@@ -232,7 +237,7 @@ export const Box = styled.span`
 
   &::after {
     content: '✓';
-    color: ${colors.white};
+    color: ${colors.fieldBottomWashed};
     font-size: 14px;
     font-weight: 800;
     opacity: 0;
@@ -245,7 +250,7 @@ export const Thumb = styled.div`
   flex: none;
   border-radius: 10px;
   overflow: hidden;
-  background: ${colors.media};
+  background: ${dark.raised};
 
   & img {
     width: 100%;
@@ -277,8 +282,8 @@ export const Meta = styled.div`
 export const Conflict = styled.span`
   font-size: 10px;
   font-weight: 700;
-  color: ${colors.accent};
-  background: rgba(105, 31, 169, 0.12);
+  color: ${colors.nameLink};
+  background: ${colors.glassFaint};
   border-radius: 5px;
   padding: 1px 6px;
   text-transform: uppercase;
@@ -289,8 +294,8 @@ export const Conflict = styled.span`
 export const Incompat = styled.span`
   font-size: 10px;
   font-weight: 700;
-  color: #9a6100;
-  background: rgba(214, 158, 46, 0.18);
+  color: ${colors.flareAmber};
+  background: rgba(255, 188, 91, 0.12);
   border-radius: 5px;
   padding: 1px 6px;
   text-transform: uppercase;
@@ -304,21 +309,21 @@ export const Price = styled.div`
   gap: 4px;
   font-weight: 700;
   font-size: 14px;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   flex: none;
 `
 
 export const Diamond = styled(CurrencyIcon)`
   width: 13px;
   height: 13px;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 `
 
 export const Remove = styled.button`
   flex: none;
   border: 0;
   background: none;
-  color: ${colors.text};
+  color: ${colors.glassText};
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;
@@ -329,8 +334,8 @@ export const Remove = styled.button`
     background 0.12s ease;
 
   &:hover {
-    color: ${colors.dclRed};
-    background: rgba(255, 45, 85, 0.1);
+    color: ${dark.errorText};
+    background: rgba(255, 45, 85, 0.16);
   }
 `
 
@@ -341,7 +346,7 @@ export const Foot = styled.div`
   flex-direction: column;
   gap: 12px;
   padding: 14px 20px;
-  border-top: 1px solid ${colors.line};
+  border-top: 0.5px solid ${dark.rule};
 `
 
 export const Total = styled.div`
@@ -350,7 +355,11 @@ export const Total = styled.div`
   justify-content: space-between;
   gap: 8px;
   font-size: 14px;
-  color: ${colors.text2};
+  color: ${colors.glassText};
+
+  & strong {
+    color: ${colors.softWhite};
+  }
 
   /* The credit mark sits inline with the figure, so it takes the text's own colour and rides its baseline
      rather than the line box's top. */

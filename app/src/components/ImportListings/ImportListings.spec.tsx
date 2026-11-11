@@ -73,12 +73,12 @@ const ITEMS = [
   item({ oldTradeId: 'old-3', name: 'Comet Boots', suggestedCredits: 60 })
 ]
 
-function renderTool() {
+function renderTool(props: { hideWhenDone?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ImportListings />
+        <ImportListings {...props} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -232,6 +232,40 @@ describe('when the seller has nothing left to move', () => {
   })
 })
 
+describe('when the tool is told to hide its all-set state', () => {
+  describe('and nothing is left to move', () => {
+    beforeEach(() => {
+      useImportable.mockReturnValue({ items: [], count: 0, isLoading: false })
+      renderTool({ hideWhenDone: true })
+    })
+
+    it('should not show the all-set card', () => {
+      expect(screen.queryByTestId('import-empty')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and the rows are still loading', () => {
+    beforeEach(() => {
+      useImportable.mockReturnValue({ items: [], count: undefined, isLoading: true })
+      renderTool({ hideWhenDone: true })
+    })
+
+    it('should not show the tool yet', () => {
+      expect(screen.queryByTestId('import-progress')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('and rows are left to move', () => {
+    beforeEach(() => {
+      renderTool({ hideWhenDone: true })
+    })
+
+    it('should show the tool', () => {
+      expect(screen.getByTestId('import-count')).toHaveTextContent('3')
+    })
+  })
+})
+
 /**
  * The server builds this feed from a materialized view on a 30s debounce, so asking it again the instant a
  * migration is signed gets the state from before the signature. That refetch is what kept re-adding the
@@ -286,6 +320,19 @@ describe('when a migration lands ahead of the server view', () => {
     // Asking on the way out is the bug: the answer is still pre-signature, so it undoes the prune above.
     expect(invalidate).not.toHaveBeenCalledWith(IMPORTABLE)
     expect(asked()).toBe(0)
+  })
+
+  describe('and the run lists every queued item', () => {
+    let invalidate: ReturnType<typeof renderWithCache>['invalidate']
+
+    beforeEach(() => {
+      invalidate = renderWithCache().invalidate
+      run('finish clean')
+    })
+
+    it('should refresh the listings taken down by the store upgrade', () => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['cancelled-trades'] })
+    })
   })
 
   // A decline is the seller saying no, not a migration. Those listings are still live, and pruning them

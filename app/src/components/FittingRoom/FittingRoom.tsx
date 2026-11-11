@@ -218,7 +218,7 @@ export function FittingRoom() {
                       <Icon
                         name={SLOT_ICON[wearable ? slotRegion(item) : 'item']}
                         size={16}
-                        color={theme.colors.muted}
+                        color={theme.colors.glassText}
                         title={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}
                         role="img"
                         aria-label={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}

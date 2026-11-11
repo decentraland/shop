@@ -8,8 +8,13 @@ import { SUBCAT_MAP } from '~/lib/categories'
 function renderFilter(props: Partial<Parameters<typeof CategoryFilter>[0]> = {}) {
   const onCategory = vi.fn()
   const onSub = vi.fn()
-  render(<CategoryFilter category="wearable" subCategory={null} onCategory={onCategory} onSub={onSub} {...props} />)
-  return { onCategory, onSub }
+  const filter = (next: Partial<Parameters<typeof CategoryFilter>[0]>) => (
+    <CategoryFilter category="wearable" subCategory={null} onCategory={onCategory} onSub={onSub} {...props} {...next} />
+  )
+  const view = render(filter({}))
+  // the same sidebar, its filter changed from outside (a facet, a URL, Back)
+  const rerenderWith = (next: Partial<Parameters<typeof CategoryFilter>[0]>) => view.rerender(filter(next))
+  return { onCategory, onSub, rerenderWith }
 }
 
 // Anchored: an unanchored /head/i also matches "Top Head".
@@ -18,10 +23,11 @@ const row = (name: string) => screen.getByRole('button', { name: new RegExp(`^${
 /**
  * Whether a row's own children are expanded. The accordion collapses with `grid-template-rows: 0fr`
  * rather than unmounting, so the children stay in the DOM either way and presence proves nothing — the
- * `data-open` flag on that row's OWN container is the real signal. Scoped with a downward query, because
- * `closest()` would climb past it to the Wearables accordion, which is open the whole time.
+ * `data-open` flag on that row's OWN container (`data-subs`, its direct sibling) is the real signal. Scoped to
+ * that one child, because `closest()` would climb to the Wearables accordion and a looser downward query
+ * would find a nested open one (Accessories under a folded Wearables).
  */
-const isExpanded = (name: string) => !!row(name).parentElement?.querySelector('[data-open]')
+const isExpanded = (name: string) => !!row(name).parentElement?.querySelector(':scope > [data-subs][data-open]')
 
 describe('the wearables category filter', () => {
   it('should show the second-level categories with Wearables open', () => {
@@ -130,6 +136,62 @@ describe('the wearables category filter', () => {
  * The sidebar is only useful if every key it can emit resolves to a server filter, and if the parents
  * mean the union of their children — otherwise picking Head would return less than the rows beneath it.
  */
+describe('a category reached by URL', () => {
+  it('should start with a third-level key unfolded and marked, as a shared link or a search facet lands on it', () => {
+    renderFilter({ category: 'wearable', subCategory: 'Hat' })
+
+    expect(isExpanded('Accessories')).toBe(true)
+    expect(row('Hat')).toHaveAttribute('data-active')
+    expect(row('Accessories')).not.toHaveAttribute('data-active')
+  })
+
+  it('should start with Emotes open for an emote category', () => {
+    renderFilter({ category: 'emote', subCategory: 'Dance' })
+
+    expect(isExpanded('Emotes')).toBe(true)
+    expect(row('Dance')).toHaveAttribute('data-active')
+  })
+})
+
+describe('a filter changed while the sidebar is mounted', () => {
+  it('should open Wearables and the parent of a leaf when a facet lands on it from the whole catalogue', () => {
+    const { rerenderWith } = renderFilter({ category: 'all', subCategory: null })
+    expect(isExpanded('Wearables')).toBe(false)
+
+    rerenderWith({ category: 'wearable', subCategory: 'Hat' })
+
+    expect(isExpanded('Wearables')).toBe(true)
+    expect(isExpanded('Accessories')).toBe(true)
+    expect(row('Hat')).toHaveAttribute('data-active')
+  })
+
+  it('should open Emotes when the filter moves from a wearable leaf to an emote category', () => {
+    const { rerenderWith } = renderFilter({ category: 'wearable', subCategory: 'Hat' })
+
+    rerenderWith({ category: 'emote', subCategory: 'Dance' })
+
+    expect(isExpanded('Emotes')).toBe(true)
+    expect(row('Dance')).toHaveAttribute('data-active')
+  })
+
+  it('should leave a section folded by hand alone until the filter next changes', async () => {
+    const user = userEvent.setup()
+    const { rerenderWith } = renderFilter({ category: 'wearable', subCategory: 'Hat' })
+    expect(isExpanded('Wearables')).toBe(true)
+
+    await user.click(row('Wearables'))
+    expect(isExpanded('Wearables')).toBe(false)
+
+    // a rerender that changes nothing about the filter keeps it folded
+    rerenderWith({ category: 'wearable', subCategory: 'Hat' })
+    expect(isExpanded('Wearables')).toBe(false)
+
+    // the next external change opens what it needs
+    rerenderWith({ category: 'wearable', subCategory: 'Feet' })
+    expect(isExpanded('Wearables')).toBe(true)
+  })
+})
+
 describe('the sub-category to on-chain category mapping', () => {
   it('should map every third-level key', () => {
     const thirdLevel = [

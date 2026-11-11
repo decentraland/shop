@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, afterEach } from 'vitest'
-import { t, setActiveLocale, MESSAGES } from './i18n'
+import { parse, TYPE, type MessageFormatElement } from '@formatjs/icu-messageformat-parser'
+import { t, setActiveLocale, MESSAGES, LOCALES } from './i18n'
 
 afterEach(() => setActiveLocale('en')) // don't leak locale between tests
 
@@ -32,15 +33,52 @@ describe('i18n', () => {
 
   // Parity guard: every locale must define exactly the same set of keys, so a string added in one
   // language can never ship missing in another (it would silently fall back to the raw key id).
-  it('has identical key sets across all locales (en/es parity)', () => {
-    const enKeys = Object.keys(MESSAGES.en).sort()
-    const esKeys = Object.keys(MESSAGES.es).sort()
-    const missingInEs = enKeys.filter(k => !(k in MESSAGES.es))
-    const missingInEn = esKeys.filter(k => !(k in MESSAGES.en))
-    expect(missingInEs, `keys missing in es: ${missingInEs.join(', ')}`).toEqual([])
-    expect(missingInEn, `keys missing in en: ${missingInEn.join(', ')}`).toEqual([])
+  it.each(LOCALES.filter(l => l !== 'en'))('has the same key set as en in %s', locale => {
+    const missing = Object.keys(MESSAGES.en).filter(k => !(k in MESSAGES[locale]))
+    const extra = Object.keys(MESSAGES[locale]).filter(k => !(k in MESSAGES.en))
+    expect(missing, `keys missing in ${locale}: ${missing.join(', ')}`).toEqual([])
+    expect(extra, `keys only in ${locale}: ${extra.join(', ')}`).toEqual([])
+  })
+
+  // A translation may leave out a value the sentence reads fine without, but must not ask for one the
+  // code never passes (it renders the raw `{name}`), and must keep every tag: `tNode` hangs an element
+  // on each one, and a dropped tag silently loses it.
+  it.each(LOCALES.filter(l => l !== 'en'))('asks only for values and tags en provides in %s', locale => {
+    const broken = Object.entries(MESSAGES.en)
+      .filter(([k]) => k in MESSAGES[locale])
+      .filter(([k, m]) => {
+        const source = argumentsOf(m)
+        const target = argumentsOf(MESSAGES[locale][k])
+        const tags = (set: Set<string>) =>
+          [...set]
+            .filter(n => n.startsWith('<'))
+            .sort()
+            .join()
+        return [...target].some(n => !source.has(n)) || tags(source) !== tags(target)
+      })
+      .map(([k]) => k)
+    expect(broken).toEqual([])
   })
 })
+
+function argumentsOf(message: string): Set<string> {
+  const names = new Set<string>()
+  const walk = (nodes: MessageFormatElement[]) => {
+    for (const node of nodes) {
+      if (node.type === TYPE.tag) {
+        names.add(`<${node.value}>`)
+        walk(node.children)
+      } else if (node.type !== TYPE.literal && 'value' in node && typeof node.value === 'string') {
+        names.add(node.value)
+      }
+      if (node.type === TYPE.plural || node.type === TYPE.select) {
+        for (const option of Object.values(node.options)) walk(option.value)
+      }
+    }
+  }
+  walk(parse(message))
+  return names
+}
 
 /**
  * The web2-first rule is a HARD one (CONVENTIONS.md), and until now nothing enforced it — which is
@@ -57,9 +95,15 @@ describe('web2-first copy rule', () => {
     ['chain', /\bchains?\b/i],
     ['network', /\bnetworks?\b/i],
     ['red (network)', /\b(la|una|de la) red\b/i],
+    ['rede (network)', /\b(a|uma|da|na) rede\b/i],
+    ['Netzwerk', /\bnetzwerk\w*/i],
     ['wallet', /\bwallets?\b/i],
+    ['carteira', /\bcarteiras?\b/i],
+    ['Geldbörse', /\b(geldbörse|brieftasche)\w*/i],
     ['MetaMask', /\bmetamask\b/i],
     ['gas', /\bgas\b/i],
+    ['gás', /(^|[^\p{L}])gás($|[^\p{L}])/iu],
+    ['Gasgebühr', /\bgas(gebühr|kosten)\w*/i],
     ['MANA', /\bMANA\b/],
     ['token', /\btokens?\b/i],
     ['mint', /\bmint(ed|ing)?\b/i],
@@ -74,27 +118,15 @@ describe('web2-first copy rule', () => {
    * This list may only ever SHRINK. New copy cannot join it: the test below fails for any key outside it,
    * and fails again if a key in it stops offending without being removed.
    *
-   * SEVEN deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
+   * THREE deliberate exceptions have been granted since, all on Juanma's call, all in the creator's own
    * surfaces:
    *
    * `filter.priceMana`, the My Creations price filter. It names the same thing the pricing banner above it
    * already names to the same person — a creator who is paid in MANA and has to find the listings still
    * priced in it — and "Classic pricing" alone made them guess which of the two labels meant the same thing.
    *
-   * `creatorSale.reviewClassicWhy`, the tooltip on a discount review row the discount cannot reach. It has to
-   * answer "why is this one excluded", and the answer IS the pricing rail: the item is quoted in MANA, so
-   * there is no fixed credit price for a percentage to come off. Saying it any other way would leave the
-   * creator without the one fact that explains the exclusion.
-   *
-   * `creatorSale.blockedBody`, shown when a collection's listings are ALL priced in MANA and a discount
-   * therefore has nothing to re-price. The whole message exists to name that currency: the creator opened
-   * this to run a discount and the answer is which rail their listings are on.
-   *
-   * `myStore.attnClassic`, its tooltip `myStore.attnClassicHint`, and `myStore.manaUnit`, in the creator's
-   * store dashboard. The first two are the row that points at the listings a discount cannot reach and the
-   * explanation behind it, which is the same fact `creatorSale.reviewClassicWhy` exists to state; the last
-   * labels the earnings figure, and creators ARE paid in MANA — calling that total anything else would
-   * misreport what they were paid.
+   * `myStore.manaUnit`, in the creator's store dashboard. It labels the earnings figure, and creators ARE
+   * paid in MANA — calling that total anything else would misreport what they were paid.
    *
    * `currency.polygonMana`, the tooltip on the MANA mark. It never introduces the word anywhere new: the
    * mark only appears beside an amount ALREADY denominated in MANA, and what it answers is which mana —
@@ -118,8 +150,6 @@ describe('web2-first copy rule', () => {
     'buyModal.methodCombined',
     'buyModal.methodMana',
     'buyModal.notEnoughMana',
-    'creatorSale.blockedBody',
-    'creatorSale.reviewClassicWhy',
     'errors.walletUnauthorized',
     'errors.wrongNetwork',
     'faq.sellers.mustSwitchA',
@@ -137,8 +167,6 @@ describe('web2-first copy rule', () => {
     'manaPricingBanner.lead',
     'migrate.phaseConfirmingCancel',
     'currency.polygonMana',
-    'myStore.attnClassic',
-    'myStore.attnClassicHint',
     'myStore.manaUnit',
     'network.confirmInWallet',
     'network.current',
@@ -155,7 +183,7 @@ describe('web2-first copy rule', () => {
    */
   const visibleCopy = (message: string) => message.replace(/\{[^}]*\}/g, ' ')
 
-  function offencesIn(locale: 'en' | 'es'): Map<string, string> {
+  function offencesIn(locale: (typeof LOCALES)[number]): Map<string, string> {
     const found = new Map<string, string>()
     for (const [key, message] of Object.entries(MESSAGES[locale])) {
       for (const [label, pattern] of BANNED) {
@@ -165,7 +193,7 @@ describe('web2-first copy rule', () => {
     return found
   }
 
-  it.each(['en', 'es'] as const)('has no NEW banned web3 jargon in %s copy', locale => {
+  it.each(LOCALES)('has no NEW banned web3 jargon in %s copy', locale => {
     const fresh = [...offencesIn(locale)].filter(([key]) => !BASELINE.has(key)).map(([k, v]) => `${k} → ${v}`)
 
     expect(fresh).toEqual([])
@@ -174,7 +202,7 @@ describe('web2-first copy rule', () => {
   // Without this the baseline rots: a string someone cleans up would stay whitelisted forever, and the
   // next violation on that key would sail through.
   it('has no stale baseline entries', () => {
-    const offending = new Set([...offencesIn('en').keys(), ...offencesIn('es').keys()])
+    const offending = new Set(LOCALES.flatMap(locale => [...offencesIn(locale).keys()]))
     const stale = [...BASELINE].filter(key => !offending.has(key))
 
     expect(stale).toEqual([])

@@ -36,8 +36,30 @@ afterEach(() => {
 })
 
 describe('usePreviewActive', () => {
-  it('starts active so an above-the-fold preview mounts immediately', () => {
-    const { result } = renderHook(() => usePreviewActive<HTMLDivElement>())
+  // The point of the whole hook: a preview that is not on screen costs nothing. The home page's promo
+  // tiles sit ~2000px down, and starting active let them request a 3.8MB Babylon bundle each before the
+  // observer could say otherwise.
+  it('starts inactive, so a preview below the fold never boots an engine on load', () => {
+    const el = document.createElement('div')
+    const { result } = renderHook(() => {
+      const api = usePreviewActive<HTMLDivElement>()
+      api.ref.current = el
+      return api
+    })
+    expect(result.current.active).toBe(false)
+    act(() => ioInstances[0].trigger(true))
+    expect(result.current.active).toBe(true)
+  })
+
+  // Not being able to answer "is this on screen?" must not mean a permanently blank preview box.
+  it('mounts anyway when IntersectionObserver is unavailable', () => {
+    vi.stubGlobal('IntersectionObserver', undefined)
+    const el = document.createElement('div')
+    const { result } = renderHook(() => {
+      const api = usePreviewActive<HTMLDivElement>()
+      api.ref.current = el
+      return api
+    })
     expect(result.current.active).toBe(true)
   })
 
@@ -50,6 +72,7 @@ describe('usePreviewActive', () => {
       return api
     })
     expect(ioInstances).toHaveLength(1)
+    act(() => ioInstances[0].trigger(true))
     act(() => ioInstances[0].trigger(false))
     expect(result.current.active).toBe(false)
     act(() => ioInstances[0].trigger(true))
@@ -60,7 +83,13 @@ describe('usePreviewActive', () => {
   // was the visible cost — while a hidden tab's render loop is already clamped by the browser, so there was
   // nothing to save. Only scrolling away unmounts.
   it('stays active while the tab is hidden, so returning to it does not reload the scene', () => {
-    const { result } = renderHook(() => usePreviewActive<HTMLDivElement>())
+    const el = document.createElement('div')
+    const { result } = renderHook(() => {
+      const api = usePreviewActive<HTMLDivElement>()
+      api.ref.current = el
+      return api
+    })
+    act(() => ioInstances[0].trigger(true))
     act(() => setVisibility('hidden'))
     expect(result.current.active).toBe(true)
     act(() => setVisibility('visible'))

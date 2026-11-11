@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { displayCredits } from '~/lib/mana-convert'
+import { livePrices, type LivePriced } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 
 /**
@@ -8,8 +8,8 @@ import { useManaRate } from '~/hooks/useManaRate'
  * A row that sells through a trade is quoted in USD and its `priceCredits` is the server's authoritative
  * figure. A row with NO trade is MANA-denominated: it carries `manaWei`, and its credit price is a live
  * conversion that drifts from any stored number — measured on production, a 20-MANA mint arrived as 4
- * credits where the live rate made it 14. `displayCredits` encodes that rule, and rows without `manaWei`
- * pass through it untouched.
+ * credits where the live rate made it 14. `livePrices` encodes that rule, re-pricing a discounted row's
+ * struck-through price at the same rate, and rows without `manaWei` pass through it untouched.
  *
  * Exists as a hook because the rule kept being forgotten one surface at a time: every grid that renders
  * `item.priceCredits` straight from a mixed-denomination feed shows the stale number, and nothing objects.
@@ -19,13 +19,13 @@ import { useManaRate } from '~/hooks/useManaRate'
  * without one: a card reads `priceCredits > 0` as "for sale", so a zero would flash NOT FOR SALE across
  * every MANA row until the oracle answered. The oracle is only consulted when some row needs it.
  */
-export function useLivePricedItems<T extends { priceCredits: number; manaWei?: string | null }>(items: T[]): T[] {
+export function useLivePricedItems<T extends LivePriced>(items: T[]): T[] {
   const hasMana = useMemo(() => items.some(item => !!item.manaWei), [items])
   const { data: rate } = useManaRate(hasMana)
 
   return useMemo(() => {
     // Identity when nothing needs converting, so a grid of USD-quoted rows keeps its array reference.
     if (!hasMana) return items
-    return items.map(item => (item.manaWei && rate ? { ...item, priceCredits: displayCredits(item, rate) } : item))
+    return items.map(item => (item.manaWei && rate ? { ...item, ...livePrices(item, rate) } : item))
   }, [items, rate, hasMana])
 }

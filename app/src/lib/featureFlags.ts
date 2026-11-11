@@ -53,6 +53,12 @@ export enum FeatureFlag {
    */
   SHOP_CREATOR_SALES = 'shop-creator-sales',
   /**
+   * Whether the catalogue is asked to discount classic MANA-priced listings too, not only Credits ones. Read
+   * only while SHOP_CREATOR_SALES is on, which stays the one switch that takes every discount away, including
+   * from cart lines already holding a coupon. A catalogue server without the opt-in ignores it.
+   */
+  SHOP_LEGACY_COUPONS = 'shop-legacy-coupons',
+  /**
    * Whether the home page shows the personalised "Suggested for you" rail.
    *
    * OFF by default. The rail is judged against Trending on click-through, so it ships dark and is
@@ -68,21 +74,10 @@ export enum FeatureFlag {
    *
    * Reads an address-list VARIANT to roll out gradually: with one, only those addresses get the dashboard
    * and everyone else keeps today's My Items; without one, the flag alone answers and it is on for all.
-   * An empty list therefore means "no restriction", not "nobody" — the opposite of the pre-launch gate,
-   * because this flag opens a surface rather than closing the Shop.
+   * An empty list therefore means "no restriction", not "nobody": this flag opens a surface, so an
+   * unset list is "everyone", never "no one".
    */
   SHOP_MY_STORE = 'shop-my-store',
-  /**
-   * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
-   * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
-   *
-   * Cosmetic by construction. This bundle is static and the APIs behind it are public, so a check here is a
-   * curtain, not a lock — what actually refuses a purchase is the same flag read server-side by
-   * credits-server on /credits/authorize, against the signed-fetch address. Read under the SAME key and
-   * variant as that check so one list drives both and they cannot drift apart.
-   */
-  SHOP_PRELAUNCH = 'shop-prelaunch',
-
   /**
    * Address-list variant of accounts that see the outfit-authoring studio. COSMETIC: the real
    * gate is shop-server's OUTFIT_CREATORS allowlist, enforced against the signed-fetch address.
@@ -115,8 +110,8 @@ export enum FeatureFlag {
    * free public read against the registrar on Ethereum and keeps working either way, so a closed feature
    * still answers "is this name taken?" and points at the classic marketplace, which can sell one today.
    *
-   * Cosmetic here, like the pre-launch gate: this bundle is static and the endpoint behind it is public, so
-   * what actually refuses a registration is the same flag read server-side by credits-server on
+   * Cosmetic here: this bundle is static and the endpoint behind it is public, so what actually refuses a
+   * registration is the same flag read server-side by credits-server on
    * /credits-name-route. Read under the SAME key so one flip drives both and they cannot drift apart.
    *
    * Registering leaves Polygon — the credit is spent there and the mint happens on Ethereum behind a bridge
@@ -135,8 +130,28 @@ export enum FeatureFlag {
    *
    * Fails closed like every other accessor here, and there it matches the product default: no flag, no
    * event.
+   *
+   * Its VARIANT payload carries two things, parsed by `parseCampaignVariant`: the seasonal theme to wear,
+   * and optionally the accounts to show the event to while it is still being reviewed. A payload with no
+   * address list restricts nobody, so turning the flag on with `halloween` ships to everyone as before.
+   *
+   * Which means DISABLING the variant while the flag stays on does not pause a restricted preview — it
+   * publishes it, because a disabled variant is dropped on the way in and reads here as "no list". To take
+   * a preview down, turn the FLAG off.
+   *
+   * And a payload naming a theme this build cannot paint — a typo, or a season whose CSS has not shipped —
+   * hides the event from everybody rather than showing it unthemed. On a flag that also decides WHO sees
+   * the event, a payload we cannot act on is likelier to be a restriction gone wrong than a deliberate
+   * launch, so it is read as the former.
    */
-  SHOP_CAMPAIGN = 'shop-campaign'
+  SHOP_CAMPAIGN = 'shop-campaign',
+
+  /**
+   * Whether the Shop tells an account about the listings and offers taken down when the older marketplace
+   * versions were retired, and lists them so they can be put back up. Off hides the banner and the list.
+   * Shared with the marketplace and the Builder, so one switch turns the banner on everywhere.
+   */
+  CANCELLED_ORDERS_BANNER = 'cancelled-orders-banner'
 }
 
 /** The application whose flag file carries the flags above. */
@@ -224,10 +239,13 @@ async function getSnapshot(): Promise<Snapshot> {
  * exclude must therefore check that the FLAG is on separately; an empty result on its own is not permission
  * to hide anything.
  *
- * Mirrors credits-server's parseAddressListVariant so one flag drives both sides.
+ * Reads the same payloads as credits-server's parseAddressListVariant, so one flag drives both sides, but
+ * is no longer character-for-character the same: whitespace separates here too. That only ever finds MORE
+ * addresses in a payload both would accept, so the two cannot disagree about letting somebody in — only
+ * about a list typed across lines, which this one honours and credits-server still drops.
  */
 export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]> {
-  const override = devVariantOverrideFor(flag)
+  const override = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
   if (override !== undefined) return parseAddressList(override)
   try {
     const value = (await getSnapshot()).variants[flagKey(flag)]
@@ -238,16 +256,95 @@ export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]
   }
 }
 
-function parseAddressList(value: string): string[] {
+/**
+ * A flag and its variant payload, read from ONE snapshot.
+ *
+ * Calling {@link getIsFeatureEnabled} and reading the payload separately is not the same thing: that takes
+ * the snapshot twice, so a cache expiry between the two can answer "on" from the fresh copy and `null`
+ * from a failed refetch. A caller whose payload RESTRICTS something then reads that as "nothing was
+ * restricted" and opens the feature to everyone — the one failure direction an allowlist must not have.
+ *
+ * Fails closed as a pair, like every other accessor here.
+ */
+export async function getFlagWithVariant(flag: FeatureFlag): Promise<{ enabled: boolean; variant: string | null }> {
+  const flagOverride = devOverrideFor(flag) ?? queryFlagOverrideFor(flag)
+  const variantOverride = devVariantOverrideFor(flag) ?? queryOverrideFor(flag, 'ffv')
+  if (flagOverride !== undefined && variantOverride !== undefined) {
+    return { enabled: flagOverride, variant: variantOverride || null }
+  }
+
+  try {
+    const snapshot = await getSnapshot()
+    const key = flagKey(flag)
+    return {
+      enabled: flagOverride ?? snapshot.flags[key] === true,
+      variant: variantOverride !== undefined ? variantOverride || null : snapshot.variants[key] || null
+    }
+  } catch {
+    // An override that names the PAYLOAD is still an answer, so it is honoured. One that names only the flag
+    // is not: reporting "on" with an unknown payload is the single combination that publishes a restricted
+    // campaign, and the promise above is that this pair never produces it.
+    if (variantOverride !== undefined) return { enabled: flagOverride ?? false, variant: variantOverride || null }
+    return { enabled: false, variant: null }
+  }
+}
+
+/**
+ * The addresses in a list separated by commas or whitespace, lowercased, trimmed and de-duplicated.
+ *
+ * Anything that is not an address is dropped rather than rejected, so one stray word cannot cost a list its
+ * other entries. A list that yields NOTHING returns `[]`, which every caller here reads as "no list"; a
+ * caller for which an empty list would instead mean "nobody" has to tell the two apart itself.
+ *
+ * Not `;`: the variant overrides separate their own ENTRIES on it, so an address written after one would be
+ * torn off into a malformed override and dropped.
+ */
+export function parseAddressList(value: string): string[] {
   return Array.from(
     new Set(
       value
-        .replace(/\n/g, '')
-        .split(',')
+        // Newlines separate as well as commas: a dashboard field is pasted into by hand, and a list split
+        // across lines with no commas used to glue into one 84-character token and vanish whole.
+        .split(/[\s,]+/)
         .map(address => address.toLowerCase().trim())
         .filter(address => /^0x[0-9a-f]{40}$/.test(address))
     )
   )
+}
+
+/**
+ * A flag forced from the query string, on preview deployments only.
+ *
+ * `?ff=shop-my-store:true` for a boolean, `?ffv=shop-my-store:0xabc…,0xdef…` for a variant payload — the
+ * same syntax as the `VITE_FEATURE_FLAG*_OVERRIDES` vars, so there is one thing to learn. Entries are
+ * separated by ',' for booleans and ';' for variants, whose payload is itself a comma-separated list.
+ *
+ * The build-time overrides cannot serve a preview deploy: they are `VITE_*` vars baked in at build, and a
+ * Vercel preview is built by plain `npm run build`. Without a query override a flag-gated page cannot be
+ * shown to a reviewer at all — `dapps-shop-my-store` is absent from both flag files, so /my-store redirects
+ * home on every deployment there is.
+ *
+ * Gated on {@link config.previewHost}, which reads the HOSTNAME rather than the resolved environment, so no
+ * query string can flip a flag on the live Shop or on staging.
+ */
+function queryOverrideFor(flag: FeatureFlag, param: 'ff' | 'ffv'): string | undefined {
+  if (!config.previewHost || typeof window === 'undefined') return undefined
+  const raw = new URLSearchParams(window.location.search).get(param)
+  if (!raw) return undefined
+
+  for (const entry of raw.split(param === 'ffv' ? ';' : ',')) {
+    if (entry.trim().length === 0) continue
+    const separator = entry.indexOf(':')
+    // Warned about rather than dropped: the audience here is somebody pasting a long URL, who has less
+    // chance of spotting the typo than the developer editing .env.local.
+    if (separator === -1) {
+      console.warn(`Ignoring ?${param} override "${entry}": expected "<flag>:<value>"`)
+      continue
+    }
+    if (entry.slice(0, separator).trim() !== String(flag)) continue
+    return entry.slice(separator + 1).trim()
+  }
+  return undefined
 }
 
 /**
@@ -282,6 +379,12 @@ function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
   return undefined
 }
 
+/** The boolean form of {@link queryOverrideFor}; an unrecognised value falls through to the real flag. */
+function queryFlagOverrideFor(flag: FeatureFlag): boolean | undefined {
+  const value = queryOverrideFor(flag, 'ff')
+  return value === 'true' ? true : value === 'false' ? false : undefined
+}
+
 /**
  * Whether a flag is on. FAILS CLOSED — an unreachable flag service, a malformed body or an absent flag all
  * resolve to `false`.
@@ -292,7 +395,7 @@ function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
  * to credit the seller for them.
  */
 export async function getIsFeatureEnabled(flag: FeatureFlag): Promise<boolean> {
-  const override = devOverrideFor(flag)
+  const override = devOverrideFor(flag) ?? queryFlagOverrideFor(flag)
   if (override !== undefined) return override
   try {
     const flags = await getFeatureFlags()

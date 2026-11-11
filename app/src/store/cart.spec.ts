@@ -188,18 +188,18 @@ describe('when changing a line quantity', () => {
   it('increment/decrement move a PRIMARY line within [1, stock]', () => {
     useCart.setState({ items: [{ ...item({ available: 3 }), quantity: 1 }] })
 
-    useCart.getState().increment('t1')
+    useCart.getState().increment('t1', 'popover')
     expect(useCart.getState().items[0].quantity).toBe(2)
-    useCart.getState().increment('t1')
-    useCart.getState().increment('t1') // capped at 3
+    useCart.getState().increment('t1', 'popover')
+    useCart.getState().increment('t1', 'popover') // capped at 3
     expect(useCart.getState().items[0].quantity).toBe(3)
-    useCart.getState().decrement('t1')
+    useCart.getState().decrement('t1', 'popover')
     expect(useCart.getState().items[0].quantity).toBe(2)
   })
 
   it('decrement never drops below 1 (removal is a separate action)', () => {
     useCart.setState({ items: [{ ...item({ available: 3 }), quantity: 1 }] })
-    useCart.getState().decrement('t1')
+    useCart.getState().decrement('t1', 'popover')
     expect(useCart.getState().items[0].quantity).toBe(1)
   })
 
@@ -211,8 +211,61 @@ describe('when changing a line quantity', () => {
     expect(useCart.getState().items[0].quantity).toBe(1)
 
     useCart.setState({ items: [{ ...item({ itemId: null, tokenId: '9' }), quantity: 1 }] })
-    useCart.getState().increment('t1')
+    useCart.getState().increment('t1', 'popover')
     expect(useCart.getState().items[0].quantity).toBe(1) // secondary locked at 1
+  })
+})
+
+describe('when a stepper tap changes a line quantity', () => {
+  it('should track each increase with the new quantity and cart value', () => {
+    useCart.setState({ items: [{ ...item({ available: 30 }), quantity: 1 }] })
+
+    useCart.getState().increment('t1', 'popover')
+    useCart.getState().increment('t1', 'popover')
+
+    expect(trackMock).toHaveBeenCalledTimes(2)
+    expect(trackMock).toHaveBeenLastCalledWith('Shop Changed Cart Quantity', {
+      item_id: '5',
+      contract_address: '0xabc',
+      price_credits: 20,
+      price_usd: 2,
+      category: 'wearable',
+      direction: 'increase',
+      surface: 'popover',
+      quantity: 3,
+      cart_size: 1,
+      cart_value_usd: 6
+    })
+  })
+
+  it('should track a decrease from the cart page', () => {
+    useCart.setState({ items: [{ ...item({ available: 30 }), quantity: 3 }] })
+
+    useCart.getState().decrement('t1', 'cart_page')
+
+    expect(trackMock).toHaveBeenCalledTimes(1)
+    expect(trackMock).toHaveBeenCalledWith(
+      'Shop Changed Cart Quantity',
+      expect.objectContaining({ direction: 'decrease', surface: 'cart_page', quantity: 2 })
+    )
+  })
+
+  it.each([
+    ['an increase at the stock cap', { available: 2 }, 2, 'increment'],
+    ['a decrease at 1', { available: 2 }, 1, 'decrement'],
+    ['an increase on a secondary line', { itemId: null, tokenId: '9' }, 1, 'increment']
+  ] as const)('should not track %s', (_label, over, quantity, action) => {
+    useCart.setState({ items: [{ ...item(over), quantity }] })
+
+    useCart.getState()[action]('t1', 'popover')
+
+    expect(trackMock).not.toHaveBeenCalled()
+  })
+
+  it('should not track a tap on a line that is not in the cart', () => {
+    useCart.getState().increment('missing', 'popover')
+
+    expect(trackMock).not.toHaveBeenCalled()
   })
 })
 

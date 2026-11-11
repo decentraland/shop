@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { onDark } from '~/styles/surface'
 
 const { colors, radius } = theme
 
@@ -20,6 +21,10 @@ export const Step = styled.span`
   color: ${colors.text2};
   text-transform: capitalize;
   white-space: nowrap;
+
+  ${onDark} {
+    color: ${colors.gray5};
+  }
 `
 
 export const Scroll = styled.div`
@@ -36,6 +41,10 @@ export const Scroll = styled.div`
   width: 100%;
   scrollbar-width: thin;
   scrollbar-color: #a2a2a2 ${colors.media};
+
+  ${onDark} {
+    scrollbar-color: ${colors.glassStrong} transparent;
+  }
 
   &::-webkit-scrollbar {
     width: 8px;
@@ -56,6 +65,10 @@ export const QtyTag = styled.span`
   font-size: 13px;
   font-weight: 600;
   color: ${colors.muted};
+
+  ${onDark} {
+    color: ${colors.gray4};
+  }
 `
 
 // Payment-rail chooser: the basket total above the rail rows.
@@ -76,6 +89,13 @@ export const ChooseTotal = styled.div`
     font-weight: 700;
     color: ${colors.text};
   }
+
+  ${onDark} {
+    color: ${colors.gray4};
+  }
+  ${onDark} strong {
+    color: ${colors.softWhite};
+  }
 `
 
 /* Same amber notice as the PDP's payment step — one explanation, one look, wherever the buyer meets it. */
@@ -88,4 +108,8 @@ export const HeldNotice = styled.p`
   font-size: 14px;
   line-height: 1.334;
   color: ${theme.colors.text2};
+
+  ${onDark} {
+    color: ${theme.colors.softWhite};
+  }
 `

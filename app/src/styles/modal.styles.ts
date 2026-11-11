@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 const { colors, radius, z } = theme
 
@@ -31,8 +32,8 @@ export const Backdrop = styled.div`
 
 // data-success / data-failure center the layout for an outcome view (a confirmation or a failure report).
 export const Modal = styled.div`
-  background: ${colors.white};
-  border-radius: ${radius.card};
+  ${darkCard}
+  border-radius: ${radius.modal};
   padding: 24px;
   width: min(420px, 92vw);
   margin: auto;
@@ -67,7 +68,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 
   & > h2 {
     margin: 0;
@@ -81,7 +82,7 @@ export const LinkBtn = styled.button`
   cursor: pointer;
   font: inherit;
   font-weight: 600;
-  color: ${colors.accent};
+  color: ${colors.nameLink};
   text-decoration: underline;
 
   &:disabled {
@@ -90,17 +91,8 @@ export const LinkBtn = styled.button`
   }
 `
 
-export const Img = styled.img`
-  width: 140px;
-  height: 140px;
-  object-fit: contain;
-  align-self: center;
-  background: ${colors.media};
-  border-radius: 10px;
-`
-
 // Pinned to the bottom of the (scrollable) modal so the primary action stays reachable when the content
-// above it outgrows a short screen. The white fill hides whatever scrolls underneath.
+// above it outgrows a short screen. The card's own fill hides whatever scrolls underneath.
 export const Actions = styled.div`
   position: sticky;
   bottom: 0;
@@ -109,7 +101,7 @@ export const Actions = styled.div`
   gap: 10px;
   margin-top: 6px;
   padding-top: 8px;
-  background: ${colors.white};
+  background: ${colors.fieldBottomWashed};
 
   > button {
     flex: 1;
@@ -133,10 +125,4 @@ export const SuccessCheck = styled.div`
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
-`
-
-export const SuccessName = styled.p`
-  font-weight: 700;
-  font-size: 16px;
-  margin: 2px 0 0;
 `

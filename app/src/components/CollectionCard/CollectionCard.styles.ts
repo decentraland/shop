@@ -33,7 +33,7 @@ export const Card = styled.article`
     ${ringLit};
   }
   &:focus-visible::after {
-    ${ringHover};
+    ${ringHover()};
   }
 
   // The swap is a pointer affordance only: keyboard focus must not hide the creator row, whose profile
@@ -47,7 +47,7 @@ export const Card = styled.article`
       z-index: 1;
     }
     &:hover::after {
-      ${ringHover};
+      ${ringHover()};
     }
     &:hover [data-view] {
       visibility: visible;

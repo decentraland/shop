@@ -63,6 +63,68 @@ export function displayCredits(
   return manaWeiToCredits(row.manaWei, rate) ?? 0
 }
 
+/**
+ * The smallest MANA list amount a rate coupon sells for `saleWei`, so a discounted MANA row's struck-through
+ * price can be re-priced at the same live rate as its sale. Display only.
+ */
+export function listManaWeiFromSale(saleWei: string, discountPpm: number): string | null {
+  if (!Number.isInteger(discountPpm) || discountPpm <= 0 || discountPpm >= 1_000_000) return null
+  let sale: bigint
+  try {
+    sale = BigInt(saleWei)
+  } catch {
+    return null
+  }
+  if (sale <= 0n) return sale === 0n ? '0' : null
+  // The contract charges list - floor(list * ppm / 1e6), so the amounts charging `sale` are
+  // ((sale - 1) / (1 - p), sale / (1 - p)]: the smallest is one past the floor of the open end.
+  return (((sale - 1n) * 1_000_000n) / BigInt(1_000_000 - discountPpm) + 1n).toString()
+}
+
+/**
+ * A listing's MANA price with the creator's discount applied — what the marketplace will really pull.
+ *
+ * A trade is signed at the LIST price and the coupon lowers it at settlement, so every consumer of the raw
+ * figure is wrong for an item on sale: the button quotes more MANA than the buyer pays, the rail is hidden
+ * from someone whose balance covers the real price, and the mixed rail's MANA leg is scaled up by the same
+ * factor. They all read this instead so there is one number.
+ *
+ * Rounded UP, because the figure also sizes the allowance, and an allowance a wei short of what `accept`
+ * pulls reverts the purchase.
+ */
+export function discountedManaWei(listWei: bigint, coupon?: { discount: number }): bigint {
+  if (!coupon) return listWei
+  return listWei - (listWei * BigInt(coupon.discount)) / 1_000_000n
+}
+
+export type LivePriced = {
+  manaWei?: string | null
+  listManaWei?: string
+  priceCredits: number
+  compareAtCredits?: number | null
+  coupon?: { discountType: number; discount: number } | null
+}
+
+/**
+ * A row's credit price and struck-through list price, both at the live rate. USD-quoted rows pass through; a
+ * MANA row under a rate coupon re-prices its compare-at from the exact list amount the catalogue sends (or,
+ * without one, the smallest the sale could come from), so the pair moves together.
+ */
+export function livePrices(
+  row: LivePriced,
+  rate: ManaRate | undefined
+): { priceCredits: number; compareAtCredits?: number } {
+  const listed = row.compareAtCredits ?? undefined
+  if (!row.manaWei) return { priceCredits: row.priceCredits, compareAtCredits: listed }
+  const priceCredits = displayCredits(row, rate)
+  // A coupon only rides a shown sale, so it, not a compare-at read back from an earlier re-price, says there is
+  // a strike to price.
+  if (!rate || !row.coupon || row.coupon.discountType !== 1) return { priceCredits, compareAtCredits: listed }
+  const listWei = row.listManaWei ?? listManaWeiFromSale(row.manaWei, row.coupon.discount)
+  const compareAt = listWei ? manaWeiToCredits(listWei, rate) : null
+  return { priceCredits, compareAtCredits: compareAt != null && compareAt > priceCredits ? compareAt : undefined }
+}
+
 // MANA wei → USD cents, rounded UP. Used to size the credits-server authorize amount for a legacy
 // purchase (the server then locks MANA at its own oracle read + signs the fixed maxCreditedValue).
 export function manaWeiToUsdCents(manaWei: string, rate: ManaRate): number {

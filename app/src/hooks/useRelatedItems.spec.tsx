@@ -5,6 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useRelatedItems } from './useRelatedItems'
 
+// The catalogue reads the creator-sales flags before it asks for a rail; stubbed so the only request these
+// specs see is the rail's own.
+vi.mock('~/lib/featureFlags', () => ({
+  getIsFeatureEnabled: vi.fn(async () => false),
+  FeatureFlag: { SHOP_CREATOR_SALES: 'shop-creator-sales', SHOP_LEGACY_COUPONS: 'shop-legacy-coupons' }
+}))
+
 /**
  * The PDP's similar-items read.
  *

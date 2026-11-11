@@ -58,14 +58,14 @@ export function NewPricingModal({
           <S.InfoText>{t('newPricing.infoBody')}</S.InfoText>
         </S.Info>
 
-        <CreditRate align="center" />
+        <CreditRate align="center" tone="on-dark" />
 
         <S.Foot>
           <S.Ctas>
-            <S.Secondary onClick={() => onClose(optOut)} data-testid="new-pricing-later">
+            <S.Secondary variant="outline" onClick={() => onClose(optOut)} data-testid="new-pricing-later">
               {t('newPricing.later')}
             </S.Secondary>
-            <S.Primary onClick={() => onConfirm(optOut)} data-testid="new-pricing-confirm">
+            <S.Primary variant="primary" onClick={() => onConfirm(optOut)} data-testid="new-pricing-confirm">
               {t('newPricing.confirm')}
             </S.Primary>
           </S.Ctas>

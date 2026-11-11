@@ -4,6 +4,7 @@ import { config } from '~/config'
 import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { slotOf } from '~/lib/outfit'
 import { isOwnListing } from '~/lib/ownership'
+import { shuffle } from '~/lib/shuffle'
 
 // Outfits: curated shoppable sets of wearables, served by shop-server. Reads are public; authoring
 // is ADR-44 signed-fetch gated by the server's OUTFIT_CREATORS allowlist. Items are referenced by
@@ -320,6 +321,12 @@ export function isBuyableFromCreator(item: CatalogItem): boolean {
   return item.hasPrimaryListing === true && (item.available ?? 0) > 0
 }
 
+/** Why an item fails {@link isBuyableFromCreator}, or null when it passes. */
+export function creatorSaleBlocker(item: CatalogItem): 'sold_out' | 'not_for_sale' | null {
+  if (isBuyableFromCreator(item)) return null
+  return typeof item.available === 'number' && item.available <= 0 ? 'sold_out' : 'not_for_sale'
+}
+
 /**
  * One listing's identity, comparable ACROSS feeds. The shop feeds key a row by its trade id
  * (`shopListingToItem` sets `id: l.tradeId`) while the /v2 catalog keys it by `contract-itemId`, so
@@ -512,4 +519,20 @@ export function splitOutfitItems(
     }
   }
   return split
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+const RECENCY_BUCKETS_MS = [7, 21, 60, 365].map(days => days * DAY_MS)
+
+/** Shuffled, but newer age buckets first, so a fresh drop leads while every visit still varies. */
+export function orderOutfitsByRecency<T extends Pick<Outfit, 'createdAt'>>(
+  outfits: readonly T[],
+  now = Date.now()
+): T[] {
+  const bucket = (o: T) => {
+    const i = RECENCY_BUCKETS_MS.findIndex(limit => now - o.createdAt < limit)
+    return i === -1 ? RECENCY_BUCKETS_MS.length : i
+  }
+  // Array.prototype.sort is stable, so the shuffle survives within each bucket.
+  return shuffle(outfits).sort((a, b) => bucket(a) - bucket(b))
 }

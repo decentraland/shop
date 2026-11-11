@@ -1,194 +1,133 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://market.test', peerUrl: 'http://peer.test' } }))
 
-import { fetchCollectionSuggestions, fetchCreatorSuggestions } from '~/lib/search'
+import { fetchSuggestions, EMPTY_SUGGESTIONS } from '~/lib/search'
 
-// A fetch stub that routes by URL: collections / ens-names / accounts / per-address profiles.
-function mockFetch(routes: {
-  collections?: unknown[]
-  collectionsStatus?: number
-  ensNames?: Array<{ name: string; owner: string }>
-  accounts?: Array<{ address: string; collections?: number }>
-  profiles?: Record<string, { name?: string; face?: string } | null>
-}) {
-  const fetchMock = vi.fn(async (url: string) => {
-    if (url.includes('/v1/collections')) {
-      const status = routes.collectionsStatus ?? 200
-      return { ok: status === 200, status, json: async () => ({ data: routes.collections ?? [] }) }
-    }
-    if (url.includes('/v1/nfts')) {
-      return { ok: true, status: 200, json: async () => ({ data: (routes.ensNames ?? []).map(n => ({ nft: n })) }) }
-    }
-    if (url.includes('/v1/accounts')) {
-      return { ok: true, status: 200, json: async () => ({ data: routes.accounts ?? [] }) }
-    }
-    if (url.includes('/lambdas/profiles/')) {
-      const address = url.split('/lambdas/profiles/')[1]
-      const p = routes.profiles?.[address]
-      if (p === null || p === undefined) return { ok: false, status: 404, json: async () => ({}) }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ avatars: [{ name: p.name, avatar: { snapshots: { face256: p.face } } }] })
-      }
-    }
-    return { ok: true, status: 200, json: async () => ({}) }
-  })
+function mockFetch(body: unknown, status = 200) {
+  const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+    ok: status === 200,
+    status,
+    json: async () => body
+  }))
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
 
-beforeEach(() => {
-  vi.unstubAllGlobals()
-  vi.clearAllMocks()
-})
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('when fetching collection suggestions', () => {
-  it('should call /v1/collections with the search term and a small page', async () => {
-    const fetchMock = mockFetch({ collections: [] })
+describe('when fetching suggestions', () => {
+  it('should ask the one endpoint with the trimmed query and each section size, abortable by the caller', async () => {
+    const fetchMock = mockFetch({ items: { data: [], total: 0 }, collections: { data: [] }, creators: { data: [] } })
+    const controller = new AbortController()
 
-    await fetchCollectionSuggestions('dragon')
+    await fetchSuggestions('  galaxy ', { items: 3, collections: 2, creators: 1 }, { signal: controller.signal })
 
-    const url = new URL(fetchMock.mock.calls[0][0])
-    expect(url.origin + url.pathname).toBe('http://market.test/v1/collections')
-    expect(url.searchParams.get('search')).toBe('dragon')
-    expect(url.searchParams.get('first')).toBe('4')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1]).toEqual({ signal: controller.signal })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('/v3/catalog/suggest?')
+    expect(url).toContain('search=galaxy')
+    expect(url).toContain('items=3')
+    expect(url).toContain('collections=2')
+    expect(url).toContain('creators=1')
   })
 
-  it('should map matching collections to name + contract + creator', async () => {
-    mockFetch({ collections: [{ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' }] })
-
-    const hits = await fetchCollectionSuggestions('dragon')
-
-    expect(hits).toEqual([{ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' }])
-  })
-
-  it('should drop rows missing a contract or name', async () => {
+  it('should map the three sections, keeping the creator names the server resolved', async () => {
     mockFetch({
-      collections: [
-        { contractAddress: '0xabc', name: 'Good', creator: '0x1' },
-        { contractAddress: '', name: 'No contract', creator: '0x2' },
-        { contractAddress: '0xdef', name: '', creator: '0x3' }
-      ]
+      items: {
+        data: [
+          {
+            id: '0xabc-0',
+            name: 'Galaxy Hat',
+            creator: '0xAAA',
+            creatorName: 'Galaxy Studio',
+            contractAddress: '0xabc',
+            itemId: '0',
+            category: 'wearable',
+            rarity: 'epic',
+            network: 'MATIC',
+            chainId: 80002,
+            thumbnail: 'http://img/hat.png',
+            data: { wearable: { category: 'hat', bodyShapes: ['BaseMale'] } }
+          },
+          {
+            id: '0xabc-1',
+            name: 'Nameless Hat',
+            creator: '0xbbb',
+            creatorName: null,
+            contractAddress: '0xabc',
+            itemId: '1',
+            thumbnail: ''
+          }
+        ],
+        total: 42
+      },
+      collections: {
+        data: [
+          {
+            contractAddress: '0xcoll',
+            name: 'Galaxy Collection',
+            creator: '0xAAA',
+            creatorName: 'Galaxy Studio',
+            items: 2,
+            sales: 1
+          }
+        ]
+      },
+      creators: { data: [{ address: '0xAAA', name: 'Galaxy Studio', face: null }] }
     })
 
-    const hits = await fetchCollectionSuggestions('x')
+    const result = await fetchSuggestions('galaxy')
 
-    expect(hits.map(h => h.name)).toEqual(['Good'])
+    expect(result.items.map(item => [item.name, item.creatorName, item.wearableCategory])).toEqual([
+      ['Galaxy Hat', 'Galaxy Studio', 'hat'],
+      ['Nameless Hat', null, undefined]
+    ])
+    expect(result.total).toEqual(42)
+    expect(result.collections).toEqual([
+      {
+        contractAddress: '0xcoll',
+        name: 'Galaxy Collection',
+        creator: '0xAAA',
+        creatorName: 'Galaxy Studio',
+        items: 2,
+        sales: 1
+      }
+    ])
+    expect(result.creators).toEqual([{ address: '0xaaa', name: 'Galaxy Studio', face: undefined }])
   })
 
-  it('and the response is not ok it should throw with the status', async () => {
-    mockFetch({ collectionsStatus: 503 })
-
-    await expect(fetchCollectionSuggestions('dragon')).rejects.toThrow('fetchCollectionSuggestions 503')
-  })
-})
-
-describe('when fetching creator suggestions by name', () => {
-  it('should search names, gate on sellers, and resolve profiles', async () => {
-    const fetchMock = mockFetch({
-      ensNames: [
-        { name: 'DragonSmith', owner: '0xAAA' },
-        { name: 'DragonKing', owner: '0xBBB' }
-      ],
-      accounts: [
-        { address: '0xaaa', collections: 3 }, // seller → kept
-        { address: '0xbbb', collections: 0 } // not a seller → dropped
-      ],
-      profiles: { '0xaaa': { name: 'DragonSmith Studio', face: 'http://img/a.png' } }
-    })
-
-    const hits = await fetchCreatorSuggestions('dragon')
-
-    expect(hits).toEqual([{ address: '0xaaa', name: 'DragonSmith Studio', face: 'http://img/a.png' }])
-    // Name search hit /v1/nfts?category=ens, seller gate hit /v1/accounts.
-    const urls = fetchMock.mock.calls.map(c => String(c[0]))
-    expect(urls.some(u => u.includes('/v1/nfts') && u.includes('category=ens') && u.includes('search=dragon'))).toBe(
-      true
-    )
-    expect(urls.some(u => u.includes('/v1/accounts'))).toBe(true)
-  })
-
-  it('should fall back to the matched name when the profile has no name', async () => {
+  it('should drop collections and creators missing an address or a name', async () => {
     mockFetch({
-      ensNames: [{ name: 'DragonWear', owner: '0xAAA' }],
-      accounts: [{ address: '0xaaa', collections: 1 }],
-      profiles: { '0xaaa': null } // no profile
+      items: { data: [], total: 0 },
+      collections: {
+        data: [
+          { contractAddress: '', name: 'Nameless' },
+          { contractAddress: '0x1', name: '' }
+        ]
+      },
+      creators: { data: [{ address: '', name: 'Nobody' }, { address: '0x2' }] }
     })
 
-    const hits = await fetchCreatorSuggestions('dragon')
+    const result = await fetchSuggestions('x y')
 
-    expect(hits).toEqual([{ address: '0xaaa', name: 'DragonWear', face: undefined }])
+    expect(result.collections).toEqual([])
+    expect(result.creators).toEqual([])
   })
 
-  it('should dedupe owners and keep the first matched name per owner', async () => {
-    mockFetch({
-      ensNames: [
-        { name: 'DragonOne', owner: '0xAAA' },
-        { name: 'DragonTwo', owner: '0xAAA' } // same owner, second name ignored
-      ],
-      accounts: [{ address: '0xaaa', collections: 2 }],
-      profiles: { '0xaaa': null }
-    })
-
-    const hits = await fetchCreatorSuggestions('dragon')
-
-    expect(hits).toEqual([{ address: '0xaaa', name: 'DragonOne', face: undefined }])
-  })
-
-  it('should return empty for a blank query without any fetch', async () => {
+  it('should answer empty sections for a blank query without any fetch', async () => {
     const fetchMock = mockFetch({})
 
-    const hits = await fetchCreatorSuggestions('   ')
-
-    expect(hits).toEqual([])
+    expect(await fetchSuggestions('   ')).toEqual(EMPTY_SUGGESTIONS)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('should return empty when no names match', async () => {
-    mockFetch({ ensNames: [] })
+  it('and the response is not ok it should throw with the status', async () => {
+    mockFetch({}, 503)
 
-    const hits = await fetchCreatorSuggestions('zzz')
-
-    expect(hits).toEqual([])
-  })
-
-  it('should return empty when no matched owner is a seller', async () => {
-    mockFetch({
-      ensNames: [{ name: 'DragonX', owner: '0xAAA' }],
-      accounts: [{ address: '0xaaa', collections: 0 }]
-    })
-
-    const hits = await fetchCreatorSuggestions('dragon')
-
-    expect(hits).toEqual([])
-  })
-
-  it('should cap the number of returned creators', async () => {
-    mockFetch({
-      ensNames: [
-        { name: 'D1', owner: '0x1' },
-        { name: 'D2', owner: '0x2' },
-        { name: 'D3', owner: '0x3' },
-        { name: 'D4', owner: '0x4' },
-        { name: 'D5', owner: '0x5' }
-      ],
-      accounts: [
-        { address: '0x1', collections: 1 },
-        { address: '0x2', collections: 1 },
-        { address: '0x3', collections: 1 },
-        { address: '0x4', collections: 1 },
-        { address: '0x5', collections: 1 }
-      ],
-      profiles: {}
-    })
-
-    const hits = await fetchCreatorSuggestions('d', 2)
-
-    expect(hits).toHaveLength(2)
+    await expect(fetchSuggestions('galaxy')).rejects.toThrow('fetchSuggestions 503')
   })
 })

@@ -3,9 +3,6 @@ import { breakpoints } from '~/styles/theme'
 
 // Benchmark: Unity ~2.8s at ~300Mbps vs ~15.7s at ~4Mbps — require a comfortable link for the big bundle.
 export const UNITY_MIN_MBPS = 10
-// navigator.connection.downlink is a coarse browser estimate, capped differently than a real transfer,
-// so it gets its own lower, non-comparable bar.
-export const UNITY_MIN_DOWNLINK_MBPS = 4
 export const UNITY_MIN_DEVICE_MEMORY = 4 // in GB
 
 // A hi-DPI screen renders Unity at full devicePixelRatio (there's no DPR cap yet), which is GPU-heavy.
@@ -13,9 +10,6 @@ export const UNITY_MIN_DEVICE_MEMORY = 4 // in GB
 // fall back to Babylon — so a Retina/4K laptop with a middling GPU doesn't get full-DPR Unity.
 export const UNITY_MIN_DPR = 2
 export const UNITY_HIDPI_MIN_HW_CONCURRENCY = 8 // need at least this many cores to pair with a hi-DPI screen
-
-// Transfers smaller than this are dominated by latency/slow-start and skew the throughput estimate.
-const MIN_SAMPLE_BYTES = 30_000
 
 export type RendererReason =
   | 'mobile'
@@ -30,7 +24,7 @@ export type RendererReason =
 
 export type RendererDecision = { renderer: PreviewRenderer; reason: RendererReason }
 
-type NavigatorConnection = { downlink?: number; saveData?: boolean }
+type NavigatorConnection = { saveData?: boolean }
 
 /**
  * Returns the navigator.connection object, if available.
@@ -72,26 +66,12 @@ function isMobile(): boolean {
   return window.matchMedia(`(max-width: ${breakpoints.mobile}px)`).matches
 }
 
-// Peak downlink (Mbps) from same-origin assets already fetched, so no extra request. transferSize is 0
-// for cache hits and cross-origin-without-TAO (both dropped); parallel loads only depress a sample, so
-// the max is the least-contended estimate. null when nothing usable has loaded yet.
-function measuredMbps(): number | null {
-  if (typeof performance === 'undefined' || typeof performance.getEntriesByType !== 'function') return null
-  let best: number | null = null
-  for (const e of performance.getEntriesByType('resource') as PerformanceResourceTiming[]) {
-    if (e.transferSize >= MIN_SAMPLE_BYTES && e.duration > 0) {
-      const mbps = (e.transferSize * 8) / 1e6 / (e.duration / 1000)
-      if (best === null || mbps > best) best = mbps
-    }
-  }
-  return best
-}
-
 /**
  * Chooses the item-preview renderer. Prefers Unity (higher fidelity), degrading to Babylon on mobile,
- * data-saver, a slow link, or low memory; unknown signals stay optimistic.
+ * data-saver, a slow link, or low memory; unknown signals stay optimistic. `measuredMbps` is the
+ * `lib/connectionSpeed` probe result, `null` when it has not run or could not.
  */
-export function pickRenderer(): RendererDecision {
+export function pickRenderer(measuredMbps: number | null = null): RendererDecision {
   const babylon = (reason: RendererReason): RendererDecision => ({ renderer: PreviewRenderer.BABYLON, reason })
 
   // `VITE_PREVIEW_RENDERER=babylon` forces the lightweight preview; 'unity' (or unset) runs the
@@ -106,16 +86,8 @@ export function pickRenderer(): RendererDecision {
 
   if (isMobile()) return babylon('mobile')
 
-  const conn = connection()
-  if (conn?.saveData) return babylon('save-data')
-
-  // A real transfer measurement wins; only fall back to the browser's downlink estimate when we have none.
-  const measured = measuredMbps()
-  const downlink = conn?.downlink
-  if (measured !== null && measured < UNITY_MIN_MBPS) return babylon('slow-connection')
-  else if (measured === null && typeof downlink === 'number' && downlink > 0 && downlink < UNITY_MIN_DOWNLINK_MBPS) {
-    return babylon('slow-connection')
-  }
+  if (connection()?.saveData) return babylon('save-data')
+  if (measuredMbps !== null && measuredMbps < UNITY_MIN_MBPS) return babylon('slow-connection')
 
   const mem = deviceMemory()
   if (mem !== undefined && mem < UNITY_MIN_DEVICE_MEMORY) return babylon('low-device-memory')
@@ -129,6 +101,5 @@ export function pickRenderer(): RendererDecision {
     return babylon('gpu-capability')
   }
 
-  const hasReading = measured !== null || typeof downlink === 'number'
-  return { renderer: PreviewRenderer.UNITY, reason: hasReading ? 'connection-ok' : 'optimistic-default' }
+  return { renderer: PreviewRenderer.UNITY, reason: measuredMbps !== null ? 'connection-ok' : 'optimistic-default' }
 }

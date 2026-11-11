@@ -64,11 +64,18 @@ export type SalesSummary = {
   resales: number
   /** MANA wei. */
   earnedWei: string
-  byCollection: { contractAddress: string; sold: number; earnedWei: string }[]
+  /**
+   * Earnings in USD at each sale's day rate, as a decimal string, and how many sales had no rate. Absent from
+   * a server that predates the daily rates.
+   */
+  earnedUsd?: string
+  unpricedSales?: number
+  byCollection: { contractAddress: string; sold: number; earnedWei: string; earnedUsd?: string }[]
   /** First sales per item over its WHOLE life, not the window — what says how many copies were issued. */
   byItem: { contractAddress: string; itemId: string; soldLifetime: number }[]
   /** Resales of items this address CREATED, by anyone. Traded, not paid out. */
-  royalties: { resales: number; volumeWei: string }
+  /** `royaltiesWei` is what those resales actually paid, from each trade's royalty cut; absent on an older server. */
+  royalties: { resales: number; volumeWei: string; royaltiesWei?: string }
 }
 
 export async function fetchSalesSummary(filters: {
@@ -91,6 +98,12 @@ export async function fetchSalesSummary(filters: {
 export type SalesFilters = {
   /** Omitted when the question is about an item rather than about one account's sales. */
   seller?: string
+  /**
+   * A creator's own sales: first sales of the items they created, whoever they paid out to, and the resales
+   * they made. Use this rather than `seller` for a store: a first sale's `seller` is the wallet it paid out
+   * to, so a creator who routed proceeds elsewhere would lose those sales.
+   */
+  creator?: string
   contractAddress?: string
   itemId?: string
   /** The feed filters by kind server-side, so a count per kind is one request and never an approximation. */
@@ -105,6 +118,7 @@ export type SalesFilters = {
 function toQuery(filters: SalesFilters): URLSearchParams {
   const qs = new URLSearchParams()
   if (filters.seller) qs.set('seller', filters.seller)
+  if (filters.creator) qs.set('creator', filters.creator)
   if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
   if (filters.itemId != null) qs.set('itemId', filters.itemId)
   if (filters.type) qs.set('type', filters.type)
@@ -124,7 +138,16 @@ async function get(filters: SalesFilters): Promise<{ data: SaleRow[]; total: num
     throw new Error(`fetchSales ${res.status}`)
   }
   const json = (await res.json()) as { data?: SaleRow[]; total?: number }
-  return { data: json.data ?? [], total: json.total ?? 0 }
+  const data = json.data ?? []
+  if (filters.creator) {
+    const creator = filters.creator.toLowerCase()
+    // A creator's resales are always their own, so one by anybody else means a server that predates the
+    // filter dropped it and answered with every sale on the platform.
+    if (data.some(row => row.type !== 'mint' && row.seller.toLowerCase() !== creator)) {
+      throw new Error('fetchSales: the server ignored the creator filter')
+    }
+  }
+  return { data, total: json.total ?? 0 }
 }
 
 /** How many sales match, without fetching one. `first=1` because only `total` is read. */
@@ -169,4 +192,40 @@ export async function fetchSellerSales(
     if (page.data.length < first || rows.length >= total) break
   }
   return { rows, total, truncated: total > rows.length }
+}
+
+/** One resale of a creator's item and the royalty it paid, from /v1/sales/royalties. Amounts are MANA wei. */
+export type RoyaltyRow = {
+  id: string
+  /** Milliseconds. */
+  timestamp: number
+  contractAddress: string
+  itemId: string | null
+  tokenId: string
+  priceWei: string
+  royaltyWei: string
+  /** Who received the royalty: the item's beneficiary when one is set, else the creator. Null when not recorded. */
+  collector: string | null
+  buyer: string
+  seller: string
+}
+
+/** A page of a creator's resales, newest first, with how many there are in the window and their royalty total. */
+export async function fetchRoyalties(filters: {
+  creator: string
+  from?: number
+  to?: number
+  first: number
+  skip: number
+}): Promise<{ data: RoyaltyRow[]; total: number; royaltiesWei: string }> {
+  const qs = new URLSearchParams({ creator: filters.creator, first: String(filters.first), skip: String(filters.skip) })
+  if (filters.from != null) qs.set('from', String(filters.from))
+  if (filters.to != null) qs.set('to', String(filters.to))
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/sales/royalties?${qs.toString()}`)
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new Error(`fetchRoyalties ${res.status}`)
+  }
+  const json = (await res.json()) as { data?: RoyaltyRow[]; total?: number; royaltiesWei?: string }
+  return { data: json.data ?? [], total: json.total ?? 0, royaltiesWei: json.royaltiesWei ?? '0' }
 }

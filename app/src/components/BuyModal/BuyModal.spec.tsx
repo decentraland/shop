@@ -33,6 +33,11 @@ const session = {
 }
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
 
+// The real Amoy V2 marketplace, the one the trade fixture names. Hoisted with the mock that answers for it.
+const { MARKETPLACE_ADDRESS } = vi.hoisted(() => ({
+  MARKETPLACE_ADDRESS: '0x1b67d0e31eeb6b52d8eeed71d3616c2f5b33b8e7'
+}))
+
 // The completed state fires the confetti, which lazy-loads lottie-web — a canvas/rAF runtime that throws on
 // import under jsdom, taking the Suspense subtree (and the CTAs asserted below) with it.
 vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
@@ -43,6 +48,9 @@ vi.mock('decentraland-ui2', () => ({
 }))
 
 // decentraland-transactions ships an ESM directory import vitest's resolver cannot follow.
+// The marketplace entry answers consistently in both directions: the review refuses a trade whose address is
+// not what the registry deploys for its name on that chain, so a mock that named one address and returned
+// another would report every purchase as no longer for sale.
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
     CreditsManager: 'CreditsManager',
@@ -50,8 +58,14 @@ vi.mock('decentraland-transactions', () => ({
     OffChainMarketplaceV3: 'OffChainMarketplaceV3',
     OffChainMarketplaceV2: 'OffChainMarketplaceV2'
   },
-  getContractName: () => 'DecentralandMarketplacePolygon',
-  getContract: (name: string) => ({ address: `0x${name}`, name, version: '1', abi: [] })
+  getContractName: (address: string) =>
+    address?.toLowerCase() === MARKETPLACE_ADDRESS ? 'OffChainMarketplaceV2' : 'DecentralandMarketplacePolygon',
+  getContract: (name: string) => ({
+    address: name === 'OffChainMarketplaceV2' ? MARKETPLACE_ADDRESS : `0x${name}`,
+    name,
+    version: '1',
+    abi: []
+  })
 }))
 
 // Plenty of credits and no MANA: the credits rail is the only one on the table, so `resume` confirms it.
@@ -231,7 +245,7 @@ beforeEach(() => {
   resolveLiveTrade.mockResolvedValue({
     id: 'trade-1',
     chainId: 80002,
-    contract: '0xmarket',
+    contract: MARKETPLACE_ADDRESS,
     signer: '0xseller',
     received: [{ assetType: 2, amount: (2700n * 10n ** 16n).toString() }]
   })

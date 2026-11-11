@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
-import { COLLECTION, unifiedListings } from './fixtures'
+import { COLLECTION, CREATOR_ADDRESS, unifiedListings } from './fixtures'
 
 /**
  * The browse feed with the first item on sale: 270 struck through, 189 to pay, ending a day out.
@@ -135,6 +135,29 @@ describe('the Deals filter on the browse grid', () => {
 
     await waitForText(page, 'Nebula Jacket')
     expect(page.url()).not.toContain('deals=true')
+  })
+})
+
+describe('the Deals filter on a creator and on a collection', () => {
+  it.each([
+    ['creator', `/items/creator/${CREATOR_ADDRESS}`, 'creator-grid'],
+    ['collection', `/collection/${COLLECTION}`, 'grid']
+  ])('narrows the %s page to what is discounted, and says so in the URL', async (_, path, grid) => {
+    app = await launchApp({ path, creatorSales: true, fixtures: { unifiedListings: unifiedListingsOnSale } })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    await toggleDeals(page)
+
+    await page.waitForFunction(
+      testId => {
+        const text = (document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null)?.innerText ?? ''
+        return text.includes('Galaxy Hat') && !text.includes('Nebula Jacket')
+      },
+      { timeout: 15000 },
+      grid
+    )
+    expect(page.url()).toContain('deals=true')
   })
 })
 

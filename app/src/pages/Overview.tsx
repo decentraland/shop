@@ -26,6 +26,8 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
 // 90 KB here against 1.09 MB as a PNG.
 import { useCampaignHero } from '~/hooks/useCampaignHero'
+import { useCampaign } from '~/hooks/useCampaign'
+import { useRunningCampaign } from '~/hooks/useRunningCampaign'
 import { track } from '~/lib/analytics'
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
 import heroBannerMobile from '~/assets/overview/hero-credits-mobile.webp'
@@ -208,15 +210,46 @@ export function Overview() {
   // resolves (the flag is part of the query key). That order matters: the wrong way round shows a row of
   // resales for a moment on a Shop that does not sell them.
   const secondarySales = useSecondarySales()
+  // While a seasonal event runs, its items lead the page and Trending steps aside. The rail reads the same
+  // selection the event tab's grid does (collections unioned with loose items, on sale only), so "View all"
+  // lands on exactly what the rail previewed, in the grid's default order.
+  const runningCampaign = useRunningCampaign()
+  const { isPending: campaignPending } = useCampaign()
+  const eventContracts = runningCampaign?.contracts ?? []
+  const eventItemIds = runningCampaign?.items ?? []
+  // An event whose selection resolved to nothing must not query: an absent collection filter reads as the
+  // whole catalogue server-side, which would headline the event over everything in the Shop.
+  const eventSelects = eventContracts.length > 0 || eventItemIds.length > 0
+  const { data: eventData, isLoading: eventFetching } = useQuery({
+    queryKey: ['overview-event', eventContracts, eventItemIds, secondarySales],
+    queryFn: () =>
+      fetchShopItems({
+        first: 12,
+        sortBy: 'newest',
+        onSale: true,
+        contractAddresses: eventContracts.length ? eventContracts : undefined,
+        itemIds: eventItemIds.length ? eventItemIds : undefined,
+        listingType: secondarySales ? undefined : 'primary'
+      }),
+    enabled: !!runningCampaign && !runningCampaign.contractsPending && eventSelects
+  })
+  const eventItems = useLivePricedItems(eventData?.items ?? [])
+  const eventLoading = !!runningCampaign?.contractsPending || eventFetching
+  // An event with nothing on sale yet (or whose feed failed) leaves the top slot to Trending rather than empty.
+  const showEvent = !!runningCampaign && (eventLoading || eventItems.length > 0)
+
   const { data: trending, isLoading: trendingLoading } = useQuery({
     queryKey: ['overview-trending', secondarySales],
-    queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' })
+    queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' }),
+    enabled: !showEvent
   })
   const trendingItems = useLivePricedItems(trending ?? [])
 
   // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
   // which is the normal state — the Shop's own art, headline and credits CTA below are what render.
   const campaignHero = useCampaignHero(CAMPAIGN_HERO_SLOT)
+  // Empty on purpose when a campaign ships artwork that carries its own headline; see the render below.
+  const heroTitle = campaignHero ? campaignHero.title : t('overview.heroTitle')
 
   function renderHeroCta() {
     // Hidden inside the iOS web view, where the Shop may not sell credits at all. That covers a campaign's
@@ -236,7 +269,7 @@ export function Overview() {
         <S.HeroCta
           as="a"
           href={campaignHero.cta.href}
-          variant="purple"
+          variant="primary"
           data-testid="hero-campaign-cta"
           onClick={() =>
             track('Shop Clicked Banner', {
@@ -252,7 +285,7 @@ export function Overview() {
     }
 
     return (
-      <S.HeroCta as={Link} to="/credits" variant="purple" data-testid="hero-credits-cta">
+      <S.HeroCta as={Link} to="/credits" variant="primary" data-testid="hero-credits-cta">
         <CurrencyIcon size={18} />
         {t('overview.heroCta')}
       </S.HeroCta>
@@ -280,33 +313,36 @@ export function Overview() {
     enabled: creatorSalesEnabled
   })
   /**
-   * NOT through `useLivePricedItems`, unlike the rails above, and deliberately.
-   *
-   * A discounted row's `priceCredits` and `compareAtCredits` are one pair, both computed by the server from
-   * the same USD figure. Re-converting only the first at the live MANA rate leaves the second as it was, and
-   * a sale price that no longer undercuts its own compare-at stops reading as a sale at all — the card drops
-   * its badge, its strike-through and its countdown, and simply shows a price.
-   *
-   * There is also nothing to convert: the catalogue joins coupons on the NATIVE branch only (legacy and
-   * CollectionStore rows are built with `withCoupons: false`), so a row that carries a discount is
-   * USD-pegged by construction and has no `manaWei` to re-price.
+   * Through `useLivePricedItems` like the rails above. A discounted MANA row carries its SALE amount, and the
+   * hook re-prices it and its struck-through price at the same live rate, so the pair stays a sale; a
+   * USD-pegged row has no `manaWei` and passes through untouched.
    */
-  const dealItems = deals?.items ?? []
+  const dealItems = useLivePricedItems(deals?.items ?? [])
 
   return (
     <S.Overview className="overview">
-      <S.Hero>
+      <S.Hero
+        // The blurred filler beside the artwork reads its URL from here; see Overview.styles.ts.
+        style={{ ['--banner-art' as string]: `url(${campaignHero?.desktopImage ?? heroBanner})` }}
+      >
         {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
             wide banner — the mobile frame is a different composition, not a resize. */}
         <picture>
           <source media="(max-width: 768px)" srcSet={campaignHero?.mobileImage ?? heroBannerMobile} />
-          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden />
+          {/* This is the page's LCP element, and the build-time preload in vite.config.ts switches on the
+              SAME `(max-width: 768px)` query this <source> does. Change the breakpoint here and change it
+              there, or a phone preloads an image it never shows. */}
+          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden fetchpriority="high" />
         </picture>
         {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
-          <S.HeroTitle data-testid="hero-title">{campaignHero?.title || t('overview.heroTitle')}</S.HeroTitle>
+          {/* A campaign that ships NO title has its headline in the artwork — seasonal banners carry it as
+              lettering, not as a font we could set — so nothing is drawn over it. The Shop's own default
+              is for when there is no campaign at all, not for one that deliberately left the field blank;
+              falling back to it there stamped "A New Way to Shop" across a campaign's own wordmark. */}
+          {heroTitle ? <S.HeroTitle data-testid="hero-title">{heroTitle}</S.HeroTitle> : null}
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
               sending the click to browse would leave the buyer one step short of what it advertises.
               Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
@@ -315,6 +351,29 @@ export function Overview() {
           {renderHeroCta()}
         </S.HeroInner>
       </S.Hero>
+
+      {showEvent && runningCampaign ? (
+        <Carousel
+          title={runningCampaign.label}
+          items={eventItems}
+          loading={eventLoading}
+          source="event"
+          viewAllTo="/event"
+          testId="event-rail"
+        />
+      ) : // Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
+      // it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales
+      // has nothing to rank, and an empty rail titled Trending is worse than no rail. Its placeholders also
+      // hold the slot while the event flag is still answering, so an event rail takes their place in-step.
+      campaignPending || trendingLoading || trendingItems.length > 0 ? (
+        <Carousel
+          title={t('overview.trendingProducts')}
+          items={trendingItems}
+          loading={campaignPending || trendingLoading}
+          source="trending"
+          testId="trending-rail"
+        />
+      ) : null}
 
       {dealItems.length >= MIN_DEALS ? (
         <Carousel
@@ -327,32 +386,16 @@ export function Overview() {
         />
       ) : null}
 
-      {/* Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
-          it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales
-          (or an environment with none) has nothing to rank, and an empty rail titled Trending is worse than
-          no rail, so it disappears rather than falling back to something that is not trending. Gating it on
-          the listings query instead would tie it to a different feed's emptiness. */}
-      {trendingLoading || trendingItems.length > 0 ? (
-        <Carousel
-          title={t('overview.trendingProducts')}
-          items={trendingItems}
-          loading={trendingLoading}
-          source="trending"
-        />
-      ) : null}
-
-      {/* "Suggested for you" sits directly under Trending: the two answer opposite questions — what
-          everyone is buying, and what THIS visitor is likely to want — so they read as a pair, and a
-          visitor the Shop knows nothing about simply sees Trending alone. The row owns its own query,
-          its own flag and its own visibility; it renders nothing unless the server both personalised
-          the answer and returned enough of it. */}
-      <SuggestedForYouRow />
-
-      {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
-          Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings
-          branch below on purpose — it self-fetches from the outfit feed, so on an environment with no
-          shop-server the section is simply absent rather than gated on a query it does not use. */}
+      {/* "Buy the Look" sits right under Trending, per the section order design settled on: Trending →
+          Buy the Look → Suggested for you → New Creations → the promo tiles → creators. Outside the
+          listings branch below on purpose — it self-fetches from the outfit feed, so on an environment
+          with no shop-server the section is simply absent rather than gated on a query it does not use. */}
       <OutfitsRow />
+
+      {/* Under the outfits rather than above them, so a tall personal rail does not push the outfits down
+          the page. The row owns its own query, its own flag and its own visibility; it renders nothing
+          unless the server both personalised the answer and returned enough of it. */}
+      <SuggestedForYouRow />
 
       {isLoading || items.length > 0 ? (
         <>

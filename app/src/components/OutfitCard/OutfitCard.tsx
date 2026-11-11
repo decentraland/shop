@@ -63,7 +63,7 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
         </S.TopRow>
         {availability === 'error' ? null : (
           <S.Cta
-            variant="white"
+            variant="glass"
             data-testid="outfit-card-cta"
             onClick={onAdd}
             disabled={isAdding || split.purchasable.length === 0}

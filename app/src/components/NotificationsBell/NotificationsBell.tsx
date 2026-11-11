@@ -2,16 +2,28 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FunctionCompone
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { NotificationComponentByType } from 'decentraland-ui2/dist/components/Notifications/utils'
 import { Icon } from '~/components/Icon'
+import { ItemDiscountedNotification } from '~/components/ItemDiscountedNotification'
 import { useWallet } from '~/store/wallet'
 import { useLocale } from '~/store/locale'
-import { fetchNotifications, markNotificationsRead, type ShopNotification } from '~/lib/notifications'
+import {
+  fetchNotifications,
+  markNotificationsRead,
+  notificationPeople,
+  type ShopNotification
+} from '~/lib/notifications'
+import { fetchProfiles } from '~/lib/profile'
 import { shortAddress } from '~/lib/address'
 import { t, type Locale } from '~/intl/i18n'
 import * as S from './NotificationsBell.styles'
 
+// ui2 ships its notification copy in these languages only, and indexes it by locale without a fallback —
+// a Shop locale outside the set would crash the row, so it reads English instead.
+type NotificationLocale = 'en' | 'es'
+const toNotificationLocale = (locale: Locale): NotificationLocale => (locale === 'es' ? 'es' : 'en')
+
 type NotificationRow = FunctionComponent<{
   notification: ShopNotification
-  locale: Locale
+  locale: NotificationLocale
   renderProfile: (address: string) => string
 }>
 
@@ -19,7 +31,11 @@ type NotificationRow = FunctionComponent<{
 // build (the same typing hole lib/notifications documents), which un-types every consumer. Narrowed here
 // to the props actually passed, and keyed by plain string because the service can send a type we have no
 // renderer for.
-const ROWS = NotificationComponentByType as unknown as Record<string, NotificationRow | undefined>
+const ROWS: Record<string, NotificationRow | undefined> = {
+  ...(NotificationComponentByType as unknown as Record<string, NotificationRow | undefined>),
+  // Shop-only until ui2 ships a renderer for it.
+  item_discounted: ItemDiscountedNotification
+}
 
 // The DCL notifications bell for the global navbar (rendered into the ui2 Navbar's `notificationSlot`).
 // Address/identity-based: it reads the connected session's notifications from the push-notifications
@@ -50,6 +66,26 @@ export function NotificationsBell() {
   // sort on the value actually rendered.
   const items = useMemo(() => [...fetched].sort((a, b) => b.timestamp - a.timestamp), [fetched])
   const unreadCount = items.filter(n => !n.read).length
+
+  // ui2's rows show whatever renderProfile returns ahead of any name the notification itself carries, so
+  // returning a bare address here would hide the sender's name everywhere.
+  const people = useMemo(() => notificationPeople(items), [items])
+  const addresses = useMemo(() => [...people.keys()].sort(), [people])
+  const { data: profiles } = useQuery({
+    queryKey: ['notification-profiles', addresses],
+    enabled: isOpen && addresses.length > 0,
+    staleTime: 5 * 60_000,
+    // A new sender arriving on a poll changes the key; keep the names already shown until the new batch lands.
+    placeholderData: previous => previous,
+    queryFn: () => fetchProfiles(addresses)
+  })
+  const renderProfile = useCallback(
+    (address: string) => {
+      const key = address.toLowerCase()
+      return profiles?.get(key)?.name || people.get(key) || shortAddress(address)
+    },
+    [people, profiles]
+  )
 
   // Unread notifications are marked read when the panel CLOSES, same as the marketplace. It matters more
   // here than there: the unread dot is now the only thing that separates a new notification from an old
@@ -129,7 +165,7 @@ export function NotificationsBell() {
               if (!Component) return null
               return (
                 <S.Item key={n.id} data-testid="notification-item" data-unread={!n.read}>
-                  <Component notification={n} locale={locale} renderProfile={shortAddress} />
+                  <Component notification={n} locale={toNotificationLocale(locale)} renderProfile={renderProfile} />
                 </S.Item>
               )
             })}

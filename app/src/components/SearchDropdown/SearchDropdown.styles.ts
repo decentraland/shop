@@ -1,10 +1,20 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CollectionThumb } from '~/components/CollectionThumb'
+import { dark, darkCard } from '~/styles/darkSurface'
 
 const { colors, radius, media } = theme
 
-const hover = '#f5f4f7'
+const hover = colors.glassFaint
+
+// The keyboard's row looks like the hovered one, plus a ring: hover alone would leave a keyboard user with
+// no way to tell where they are once the pointer rests on another row.
+const active = `
+  &[data-active] {
+    background: ${hover};
+    box-shadow: inset 0 0 0 2px ${colors.softWhite};
+  }
+`
 
 // Anchored to the search box (NavBar's Search wrapper is position: relative), left-aligned under the
 // input. Three sections can stack tall, so the whole panel caps its height and scrolls as one.
@@ -14,10 +24,8 @@ export const Pop = styled.div`
   left: 0;
   right: 0;
   z-index: 60;
-  background: ${colors.white};
-  border: 1px solid ${colors.line};
+  ${darkCard}
   border-radius: ${radius.card};
-  box-shadow: 0 14px 36px rgba(20, 20, 30, 0.18);
   padding: 8px;
   animation: cart-pop-in 0.16s ease;
   max-height: min(70vh, 560px);
@@ -52,6 +60,59 @@ export const Pop = styled.div`
   }
 `
 
+// The listbox proper: its options live in groups; it has no chrome of its own.
+export const Listbox = styled.div`
+  display: block;
+`
+
+export const Group = styled.div`
+  display: block;
+`
+
+// Recent searches beside their removal controls: the options on the left, the × buttons on the right,
+// row for row — the buttons are not options, so they cannot live inside the listbox.
+export const RecentArea = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+`
+
+export const RemoveList = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  & li {
+    height: 40px;
+    display: flex;
+    align-items: center;
+  }
+`
+
+// The popular searches, as chips that wrap.
+export const Chips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 10px 10px;
+`
+
+export const Chip = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid ${dark.hairline};
+  border-radius: ${radius.pill};
+  background: ${dark.raised};
+  color: ${colors.softWhite};
+  font-size: 14px;
+  cursor: pointer;
+
+  &:hover {
+    background: ${hover};
+  }
+  ${active}
+`
+
 export const SectionHead = styled.div`
   display: flex;
   align-items: center;
@@ -61,13 +122,13 @@ export const SectionHead = styled.div`
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: ${colors.muted};
+  color: ${colors.glassText};
 `
 
 export const Clear = styled.button`
   background: none;
   border: 0;
-  color: ${colors.accent};
+  color: ${colors.nameLink};
   font-weight: 600;
   font-size: 12px;
   cursor: pointer;
@@ -89,12 +150,14 @@ export const Row = styled.button`
   border: 0;
   padding: 8px 10px;
   border-radius: 10px;
+  color: ${colors.softWhite};
   text-align: left;
   cursor: pointer;
 
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 // `data-variant`: round (creator avatar) / icon (neutral collection fallback tile).
@@ -102,7 +165,7 @@ export const Thumb = styled.span`
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: ${colors.media};
+  background: ${dark.raised};
   overflow: hidden;
 
   & img {
@@ -124,7 +187,7 @@ export const Thumb = styled.span`
   &[data-variant='icon'] .ico {
     width: 18px;
     height: 18px;
-    color: ${colors.muted};
+    color: ${colors.glassText};
   }
 `
 
@@ -150,12 +213,19 @@ export const Name = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  /* What the query matched: weight, not a highlighter, so the row's own colours stay as they are. */
+  & mark {
+    background: none;
+    color: inherit;
+    font-weight: 700;
+  }
 `
 
 export const Sub = styled.span`
   min-width: 0;
   font-size: 12px;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -182,50 +252,50 @@ export const SeeAll = styled.button`
   margin-bottom: -8px;
   padding: 10px 10px 18px;
   border: 0;
-  border-top: 1px solid ${colors.line};
-  background: ${colors.white};
-  color: ${colors.accent};
+  border-top: 1px solid ${dark.hairline};
+  background: ${colors.fieldBottomWashed};
+  color: ${colors.nameLink};
   font-weight: 700;
   font-size: 13px;
   text-align: center;
   cursor: pointer;
 
-  &:hover {
-    background: ${hover};
+  ${active}
+  /* Rows scroll under this bar, so its hover has to stay opaque: the glass laid over the card's own colour. */
+  &:hover,
+  &[data-active] {
+    background: linear-gradient(${hover}, ${hover}), ${colors.fieldBottomWashed};
   }
 `
 
 export const Empty = styled.p`
   padding: 16px 10px;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-size: 14px;
   text-align: center;
 `
 
-export const Recent = styled.li`
-  display: flex;
-  align-items: center;
-`
-
 export const RecentBtn = styled.button`
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 10px;
   background: none;
   border: 0;
-  padding: 9px 10px;
+  padding: 0 10px;
   border-radius: 10px;
   text-align: left;
   font-size: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
   overflow: hidden;
 
   &:hover {
     background: ${hover};
   }
+  ${active}
 `
 
 export const RecentText = styled.span`
@@ -235,17 +305,34 @@ export const RecentText = styled.span`
   white-space: nowrap;
 `
 
+// Visually hidden, read by screen readers: how many suggestions the last answer holds.
+export const Live = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+`
+
 export const RecentRemove = styled.button`
-  flex: 0 0 auto;
   background: none;
   border: 0;
-  color: ${colors.muted};
+  color: ${colors.glassText};
   font-size: 16px;
   line-height: 1;
   padding: 6px 10px;
   cursor: pointer;
 
   &:hover {
-    color: ${colors.text};
+    color: ${colors.softWhite};
   }
+`
+
+// A rarity facet's mark: its colour, nothing else.
+export const RarityDot = styled.span`
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
 `

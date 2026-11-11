@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateCancelledTrades } from '~/hooks/useCancelledTrades'
 import { Network } from '@dcl/schemas'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -193,6 +194,7 @@ export function SellModal({
       })
       toast.success(t(edit ? 'listingEdit.toastUpdated' : 'sellModal.toastOnSale', { name: asset.name }))
       void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
+      invalidateCancelledTrades(queryClient)
       // Let the PDP show the new price at once and optimistically patch its own money/manage caches.
       onListed?.(priceValue, created.id)
     } catch (e) {
@@ -216,6 +218,7 @@ export function SellModal({
     return (
       <S.Scrim onClick={onClose} role="presentation">
         <S.Card
+          data-surface="dark"
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -236,8 +239,12 @@ export function SellModal({
             </S.SuccessText>
           </S.SuccessBanner>
           <S.Actions>
-            <S.OutlineBtn onClick={goToMyItems}>{t('sellModal.myItems')}</S.OutlineBtn>
-            <S.PurpleBtn onClick={onClose}>{t('getCredits.done')}</S.PurpleBtn>
+            <S.ActionBtn variant="outline" onClick={goToMyItems}>
+              {t('sellModal.myItems')}
+            </S.ActionBtn>
+            <S.ActionBtn variant="primary" onClick={onClose}>
+              {t('getCredits.done')}
+            </S.ActionBtn>
           </S.Actions>
         </S.Card>
       </S.Scrim>
@@ -270,6 +277,7 @@ export function SellModal({
     return (
       <S.Scrim role="presentation">
         <S.Card
+          data-surface="dark"
           onClick={e => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -291,6 +299,7 @@ export function SellModal({
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
       <S.Card
+        data-surface="dark"
         data-testid="modal"
         onClick={e => e.stopPropagation()}
         role="dialog"
@@ -376,6 +385,7 @@ export function SellModal({
         <ErrorNotice message={error} />
 
         <S.PrimaryBtn
+          variant="primary"
           onClick={() => void handleSubmit()}
           disabled={busy || unchanged || cancelFailed === 'pending' || !priceValid || !dateValid}
           data-testid="list-submit"

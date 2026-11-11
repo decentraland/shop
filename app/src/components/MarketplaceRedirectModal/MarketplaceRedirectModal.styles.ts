@@ -1,9 +1,10 @@
 import styled from '@emotion/styled'
+import { dark, darkCard } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
 const { colors, font, radius, z } = theme
 
-// Mirrors the modal shell shared by the New-pricing / Issue / Sell / Primary-list modals (white 16px card,
+// Mirrors the modal shell shared by the New-pricing / Issue / Sell / Primary-list modals (dark 16px card,
 // header with a close, a callout block, two ctas) rather than importing from them, per the convention
 // those files set. Figma 2230:113615.
 
@@ -25,9 +26,8 @@ export const Card = styled.div`
   max-height: 100%;
   overflow-y: auto;
   padding: 12px 16px 16px;
+  ${darkCard}
   border-radius: ${radius.modal};
-  background: ${colors.white};
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -45,7 +45,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -53,7 +53,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -67,7 +67,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   .ico {
     width: 100%;
@@ -80,17 +80,18 @@ export const Close = styled.button`
     inset: -11px;
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
 
-// The lilac callout, CENTRED and with taller vertical padding than the shell's other blocks — this one is
+// The callout, lilac-edged and CENTRED and with taller vertical padding than the shell's other blocks — this one is
 // carrying an illustration rather than a paragraph, so the design gives it the room.
 export const Info = styled.div`
   padding: 24px 16px;
   border-radius: ${radius.modal};
-  background: ${colors.promptLilac};
+  border: 1px solid rgba(160, 171, 255, 0.4);
+  background: ${dark.raised};
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -116,7 +117,7 @@ export const InfoTitle = styled.h3`
   font-weight: 700;
   font-size: 20px;
   line-height: 1.334;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 `
 
 export const InfoText = styled.p`
@@ -124,7 +125,7 @@ export const InfoText = styled.p`
   font-weight: 400;
   font-size: 16px;
   line-height: 1.334;
-  color: ${colors.text2};
+  color: ${colors.glassText};
 `
 
 export const Ctas = styled.div`
@@ -155,20 +156,20 @@ const cta = `
     color 0.15s ease;
 
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
 
-// The dismissal: a 0.5px dark hairline and a dark label, same as the shell's other secondary.
+// The dismissal: a 0.5px light hairline and a light label, same as the shell's other secondary.
 export const Secondary = styled.button`
   ${cta};
-  border: 0.5px solid ${colors.text};
-  background: ${colors.white};
-  color: ${colors.text2};
+  border: 0.5px solid ${colors.softWhite};
+  background: transparent;
+  color: ${colors.softWhite};
 
   &:hover {
-    background: ${colors.panel};
+    background: ${colors.glassFaint};
   }
 `
 

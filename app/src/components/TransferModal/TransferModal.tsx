@@ -109,7 +109,9 @@ export function TransferModal({
               <S.SuccessText>{t('transfer.successBody', { name: item.name })}</S.SuccessText>
             </S.SuccessBanner>
             <S.Actions>
-              <S.PrimaryBtn onClick={onClose}>{t('getCredits.done')}</S.PrimaryBtn>
+              <S.ActionBtn variant="primary" onClick={onClose}>
+                {t('getCredits.done')}
+              </S.ActionBtn>
             </S.Actions>
           </>
         ) : (
@@ -140,12 +142,12 @@ export function TransferModal({
             <ErrorNotice message={error} />
 
             <S.Actions>
-              <S.OutlineBtn onClick={onClose} disabled={busy}>
+              <S.ActionBtn variant="outline" onClick={onClose} disabled={busy}>
                 {t('sellModal.cancel')}
-              </S.OutlineBtn>
-              <S.PrimaryBtn onClick={() => void submit()} disabled={!canSubmit}>
+              </S.ActionBtn>
+              <S.ActionBtn variant="primary" onClick={() => void submit()} disabled={!canSubmit}>
                 {busy ? t('transfer.transferring') : t('transfer.transfer')}
-              </S.PrimaryBtn>
+              </S.ActionBtn>
             </S.Actions>
           </>
         )}

@@ -12,7 +12,9 @@ import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-c
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { manaRateQueryOptions, type ManaRate } from '~/lib/mana-rate'
 import { CreatorName } from '~/components/CreatorName'
+import { CategoryFlap } from '~/components/CategoryFlap'
 import { CreditPackPicker } from '~/components/CreditPackPicker'
+import { rarityTileStyle } from '~/lib/rarity'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { recordCouponUse } from '~/store/couponUses'
@@ -1102,12 +1104,18 @@ export function BuyModal({
       data-testid="buy-modal"
     >
       <M.Scrim onClick={busy ? undefined : onClose} aria-hidden />
-      <M.Card data-tall={phase === 'processing' || phase === 'loading' || undefined}>
+      <M.Card data-surface="dark" data-tall={phase === 'processing' || phase === 'loading' || undefined}>
         {methodMode ? (
           <PaymentMethodStep
             asset={{
               name: item.name,
-              thumb: item.thumbnail ? <img src={item.thumbnail} alt="" /> : null,
+              thumb: (
+                <>
+                  <CategoryFlap item={item} size="sm" testId="payment-flap" />
+                  {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
+                </>
+              ),
+              tileStyle: rarityTileStyle(item.rarity),
               caption: item.creator ? <CreatorName address={item.creator} /> : null
             }}
             priceCredits={priceCredits}
@@ -1198,7 +1206,7 @@ export function BuyModal({
                       {t('buyModal.cancel')}
                     </M.Btn>
                     <M.Btn
-                      data-variant="purple"
+                      data-variant="ruby"
                       data-testid="switch-and-retry"
                       onClick={() => void switchAndRetry(retryChain)}
                     >
@@ -1209,7 +1217,7 @@ export function BuyModal({
                   /* Nothing to retry WITH while the reservation is still unwinding — the copy above says to
                      come back once the balance is whole, so offering it here would only fail again. */
                   <M.Ctas>
-                    <M.Btn data-variant="purple" data-full onClick={onClose}>
+                    <M.Btn data-variant="ruby" data-full onClick={onClose}>
                       {t('cartCheckout.gotIt')}
                     </M.Btn>
                   </M.Ctas>
@@ -1218,7 +1226,7 @@ export function BuyModal({
                     <M.Btn data-variant="outline" onClick={onClose}>
                       {t('buyModal.cancel')}
                     </M.Btn>
-                    <M.Btn data-variant="purple" onClick={retry}>
+                    <M.Btn data-variant="ruby" onClick={retry}>
                       {t('cartCheckout.tryAgain')}
                     </M.Btn>
                   </M.Ctas>
@@ -1391,7 +1399,10 @@ export function BuyModal({
 function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: number }) {
   return (
     <M.Asset>
-      <M.AssetThumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</M.AssetThumb>
+      <M.AssetThumb style={rarityTileStyle(item.rarity)}>
+        <CategoryFlap item={item} size="sm" testId="buy-modal-flap" />
+        {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
+      </M.AssetThumb>
       <M.AssetInfo>
         <div>
           <M.AssetName title={item.name}>{item.name || t('buyModal.itemFallback')}</M.AssetName>

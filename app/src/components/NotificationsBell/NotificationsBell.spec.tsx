@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ShopNotification } from '~/lib/notifications'
+import { useLocale } from '~/store/locale'
 
 const session = {
   address: '0xabc0000000000000000000000000000000000abc',
@@ -20,20 +21,63 @@ vi.mock('~/store/wallet', () => ({
 
 const fetchNotifications = vi.fn()
 const markNotificationsRead = vi.fn()
-vi.mock('~/lib/notifications', () => ({
+vi.mock('~/lib/notifications', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/notifications')>()),
   fetchNotifications: (...args: unknown[]) => fetchNotifications(...args),
   markNotificationsRead: (...args: unknown[]) => markNotificationsRead(...args)
+}))
+
+const fetchProfiles = vi.fn()
+vi.mock('~/lib/profile', () => ({
+  fetchProfiles: (...args: unknown[]) => fetchProfiles(...args)
 }))
 
 // The rows are decentraland-ui2's per-type renderers (MUI). Stubbed here so this spec is about the
 // PANEL — its list, its order and its unread state — and doesn't need a MUI theme provider. The real
 // renderers are driven in e2e/notifications.e2e.ts.
 vi.mock('decentraland-ui2/dist/components/Notifications/utils', () => {
-  const Row = ({ notification }: { notification: ShopNotification }) => (
-    <div data-testid={`row-${notification.id}`}>{String((notification.metadata as { nftName: string }).nftName)}</div>
+  const Row = ({ notification, locale }: { notification: ShopNotification; locale: string }) => (
+    <div data-testid={`row-${notification.id}`} data-locale={locale}>
+      {String((notification.metadata as { nftName: string }).nftName)}
+    </div>
   )
-  return { NotificationComponentByType: { item_sold: Row, royalties_earned: Row } }
+  const PersonRow = ({
+    notification,
+    renderProfile
+  }: {
+    notification: ShopNotification
+    renderProfile: (address: string) => string
+  }) => (
+    <div data-testid={`row-${notification.id}`}>
+      {renderProfile((notification.metadata as { senderAddress: string }).senderAddress)}
+    </div>
+  )
+  const FriendRow = ({
+    notification,
+    renderProfile
+  }: {
+    notification: ShopNotification
+    renderProfile: (address: string) => string
+  }) => (
+    <div data-testid={`row-${notification.id}`}>
+      {renderProfile((notification.metadata as { sender: { address: string } }).sender.address)}
+    </div>
+  )
+  return {
+    NotificationComponentByType: {
+      item_sold: Row,
+      royalties_earned: Row,
+      tip_received: PersonRow,
+      social_service_friendship_request: FriendRow
+    }
+  }
 })
+
+vi.mock('~/components/ItemDiscountedNotification', () => ({
+  ItemDiscountedNotification: ({ notification }: { notification: ShopNotification }) => (
+    <div data-testid={`discount-row-${notification.id}`} />
+  )
+}))
 
 import { NotificationsBell } from './NotificationsBell'
 
@@ -63,9 +107,11 @@ function renderBell() {
 }
 
 beforeEach(() => {
+  useLocale.setState({ locale: 'en' })
   walletState = { session }
   fetchNotifications.mockReset().mockResolvedValue([])
   markNotificationsRead.mockReset().mockResolvedValue(undefined)
+  fetchProfiles.mockReset().mockResolvedValue(new Map())
 })
 
 describe('NotificationsBell', () => {
@@ -102,6 +148,14 @@ describe('NotificationsBell', () => {
       expect(screen.queryByText(/previous/i)).toBeNull()
     })
 
+    it('renders favorite discount notifications with the shop row, which ui2 has no renderer for', async () => {
+      fetchNotifications.mockResolvedValue([notification('deal', { type: 'item_discounted' })])
+      renderBell()
+      await userEvent.click(await screen.findByTestId('notifications-bell'))
+
+      expect(await screen.findByTestId('discount-row-deal')).toBeTruthy()
+    })
+
     it('marks unread rows and leaves read ones alone', async () => {
       fetchNotifications.mockResolvedValue([
         notification('unread-a', { timestamp: 3_000, read: false }),
@@ -125,6 +179,64 @@ describe('NotificationsBell', () => {
 
       expect(await screen.findAllByTestId('notification-item')).toHaveLength(1)
       expect(screen.getByTestId('row-known')).toBeTruthy()
+    })
+
+    // ui2 indexes its copy by locale with no fallback, so a locale it lacks would crash the row.
+    it.each([
+      ['es', 'es'],
+      ['pt', 'en'],
+      ['de', 'en']
+    ] as const)('renders the rows in a language ui2 has copy for (%s → %s)', async (shop, rendered) => {
+      useLocale.setState({ locale: shop })
+      fetchNotifications.mockResolvedValue([notification('only')])
+      renderBell()
+      await userEvent.click(await screen.findByTestId('notifications-bell'))
+
+      expect((await screen.findByTestId('row-only')).getAttribute('data-locale')).toBe(rendered)
+    })
+
+    describe('and a notification names another person', () => {
+      const sender = '0xDEF0000000000000000000000000000000000DEF'
+      const tip = () => notification('tip', { type: 'tip_received', metadata: { senderAddress: sender } })
+
+      it('shows their profile name', async () => {
+        fetchNotifications.mockResolvedValue([tip()])
+        fetchProfiles.mockResolvedValue(new Map([[sender.toLowerCase(), { name: 'goldboss' }]]))
+        renderBell()
+        await userEvent.click(await screen.findByTestId('notifications-bell'))
+
+        await waitFor(() => expect(screen.getByTestId('row-tip')).toHaveTextContent('goldboss'))
+        expect(fetchProfiles).toHaveBeenCalledWith([sender.toLowerCase()])
+      })
+
+      it('uses the name the notification carries when they have no profile', async () => {
+        fetchNotifications.mockResolvedValue([
+          notification('friend', {
+            type: 'social_service_friendship_request',
+            metadata: { sender: { address: sender, name: 'Axel Galewind' } }
+          })
+        ])
+        renderBell()
+        await userEvent.click(await screen.findByTestId('notifications-bell'))
+
+        await waitFor(() => expect(fetchProfiles).toHaveBeenCalled())
+        expect(screen.getByTestId('row-friend')).toHaveTextContent('Axel Galewind')
+      })
+
+      it('falls back to the short address when nothing names them', async () => {
+        fetchNotifications.mockResolvedValue([tip()])
+        fetchProfiles.mockResolvedValue(new Map([[sender.toLowerCase(), { name: 'goldboss' }]]))
+        renderBell()
+        await userEvent.click(await screen.findByTestId('notifications-bell'))
+        await waitFor(() => expect(screen.getByTestId('row-tip')).toHaveTextContent('goldboss'))
+        cleanup()
+
+        fetchProfiles.mockResolvedValue(new Map())
+        renderBell()
+        await userEvent.click(await screen.findByTestId('notifications-bell'))
+        await waitFor(() => expect(fetchProfiles).toHaveBeenCalledTimes(2))
+        expect(screen.getByTestId('row-tip')).toHaveTextContent('0xDEF0…0DEF')
+      })
     })
 
     it('shows the empty state when the service has nothing', async () => {

@@ -112,8 +112,8 @@ describe('useOutfitCreatorAccess', () => {
     expect(result.current).toBe('denied')
   })
 
-  // FAILS CLOSED, the opposite of useShopPrelaunch: showing the studio is the positive condition
-  // here, so an outage hides it. Harmless — shop-server refuses the writes regardless.
+  // FAILS CLOSED: showing the studio is the positive condition here, so an outage hides it. Harmless —
+  // shop-server refuses the writes regardless.
   it('should deny when the flag service is unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
     useWallet.setState({ session: { address: CREATOR }, restored: true } as never)
@@ -244,6 +244,44 @@ describe('useOutfitCart', () => {
     expect(line.acquisition).toBe('store')
     expect(line.tradeId).toBe('trade-9')
     expect(line.available).toBe(5)
+  })
+
+  it('should expose no items until the rate can price them', async () => {
+    vi.mocked(fetchCatalogByIds).mockResolvedValue([{ ...DISPLAY_ROW, manaWei: '1000000000000000000' }])
+    const settled = manaRate.data
+    manaRate.data = undefined as unknown as typeof settled
+    manaRate.isLoading = true
+    try {
+      const { result, rerender } = renderHook(useHarness, { wrapper })
+      await waitFor(() => expect(fetchCatalogByIds).toHaveBeenCalled())
+      await new Promise(r => setTimeout(r, 0))
+      expect(result.current.resolution.byKey.size).toBe(0)
+      expect(result.current.resolution.missing.size).toBe(0)
+      expect(result.current.resolution.isLoading).toBe(true)
+
+      manaRate.data = settled
+      manaRate.isLoading = false
+      rerender()
+      await waitFor(() => expect(result.current.resolution.byKey.size).toBe(1))
+      expect([...result.current.resolution.byKey.values()][0].priceCredits).toBeGreaterThan(0)
+    } finally {
+      manaRate.data = settled
+      manaRate.isLoading = false
+    }
+  })
+
+  it('should show a credit-priced item without waiting for the rate', async () => {
+    const settled = manaRate.data
+    manaRate.data = undefined as unknown as typeof settled
+    manaRate.isLoading = true
+    try {
+      const { result } = renderHook(useHarness, { wrapper })
+      await waitFor(() => expect(result.current.resolution.byKey.size).toBe(1))
+      expect(result.current.resolution.isLoading).toBe(false)
+    } finally {
+      manaRate.data = settled
+      manaRate.isLoading = false
+    }
   })
 
   it('should add nothing when the listing read fails — an outage is not a sell-out', async () => {

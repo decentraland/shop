@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+import { canHover } from '~/lib/hover'
 import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
@@ -12,10 +13,25 @@ import { avatarShape, isCompatible } from '~/lib/bodyShape'
 import { RING_INSET } from '~/styles/card.styles'
 import { theme } from '~/styles/theme'
 
-// The corner left once the hover stroke has taken its bite out of the card's own radius.
-const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_INSET
+// How far the preview stays inside the artwork tile: clear of both the card's hover stroke and the tile's
+// own 1.5px rarity border, which runs round all four sides. Whole pixels, see `wrapStyle`.
+const EDGE_INSET = Math.max(RING_INSET, 2)
+const TILE_RADIUS = Number.parseFloat(theme.radius.tile)
+const INNER_RADIUS = TILE_RADIUS - EDGE_INSET
 if (process.env.NODE_ENV !== 'production' && Number.isNaN(INNER_RADIUS)) {
-  throw new Error(`INNER_RADIUS is NaN — theme.radius.card ("${theme.radius.card}") is not a numeric string`)
+  throw new Error(`INNER_RADIUS is NaN — theme.radius.tile ("${theme.radius.tile}") is not a numeric string`)
+}
+
+/** The preview's clip: the whole tile minus the heart's corner (a step) and the flap's corner (a diagonal). */
+export function previewClip(
+  notch: { left: number; bottom: number } | null,
+  flap: { width: number; height: number } | null
+): string | undefined {
+  if (!notch && !flap) return undefined
+  const topLeft = flap ? `${flap.width}px 0` : '0 0'
+  const topRight = notch ? `${notch.left}px 0, ${notch.left}px ${notch.bottom}px, 100% ${notch.bottom}px` : '100% 0'
+  const left = flap ? `, 0 ${flap.height}px` : ''
+  return `polygon(${topLeft}, ${topRight}, 100% 100%, 0 100%${left})`
 }
 
 const Wrap = styled.div`
@@ -87,7 +103,7 @@ export function HoverPreviewLayer() {
   const address = useWallet(s => s.session?.address)
   const { data: avatar } = useProfile(address)
 
-  // Defer mounting the iframe to browser idle so warming never competes with the initial page render.
+  // Defer mounting the iframe so warming never competes with the initial page render (see the effect).
   const [mounted, setMounted] = useState(false)
   const [booted, setBooted] = useState(false) // engine up (first default-avatar LOAD seen)
   const bootedRef = useRef(false)
@@ -99,19 +115,66 @@ export function HoverPreviewLayer() {
   // draws can come out above it: without the cut the preview covers the heart exactly while the shopper
   // is hovering to reach it.
   const [notch, setNotch] = useState<{ left: number; bottom: number } | null>(null)
+  // The category flap's box in the same frame: the corner it covers is cut away too, along its diagonal.
+  const [flap, setFlap] = useState<{ width: number; height: number } | null>(null)
   // The pose is drawn ONCE per hover and held for it: the UPDATE effect re-runs on boot/avatar changes
   // too, and re-rolling there would snap the avatar into a different animation mid-hover. Keyed on the
   // store's hover token, which bumps on show() and ignores re-entering the same card.
   const poseRef = useRef({ token: -1, emote: HOVER_POSES[0] })
 
+  // Warm the engine only where the feature can be reached, and only once the page it is speculating on
+  // has finished loading.
+  //
+  // The pointer check is not a device check for its own sake: a card's hover handler bails out unless
+  // `(hover: hover)` matches (AssetCard `onEnter`, same `canHover`), so on a touch device this engine can
+  // never be asked for anything — and it was still pulling ~1.2MB of Babylon on every phone load.
+  //
+  // Waiting for `load` is not a delay picked to move a metric either. The idle callback used to run on its
+  // own with `timeout: 3000`, and on a page whose main thread is busy — which is precisely when this
+  // fires — the timeout is what wins, so the warm-up landed in the middle of the initial load and took
+  // bandwidth from the content the visitor actually asked for. Idle after `load` is the same speculation,
+  // in the window it belongs to.
+  //
+  // This is SPECULATION ONLY. Real demand does not come through here — see the effect below, which is
+  // what keeps the wait off the visitor.
   useEffect(() => {
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(() => setMounted(true), { timeout: 3000 })
-      return () => window.cancelIdleCallback(id)
+    if (!canHover()) return
+    let idle: number | undefined
+    const warm = () => {
+      idle =
+        typeof window.requestIdleCallback === 'function'
+          ? window.requestIdleCallback(() => setMounted(true), { timeout: 2000 })
+          : window.setTimeout(() => setMounted(true), 200)
     }
-    const id = window.setTimeout(() => setMounted(true), 1500)
-    return () => window.clearTimeout(id)
+    const cancel = () => {
+      if (idle === undefined) return
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle)
+      else window.clearTimeout(idle)
+    }
+    // `load` has no replay: a component mounted after it would wait for an event that already fired.
+    if (document.readyState === 'complete') {
+      warm()
+      return cancel
+    }
+    window.addEventListener('load', warm, { once: true })
+    return () => {
+      window.removeEventListener('load', warm)
+      cancel()
+    }
   }, [])
+
+  // A hover jumps the queue above, and must: the warm-up is speculation and waits for `load`, but a page
+  // can sit in `interactive` for seconds behind one slow non-critical resource with the first row of cards
+  // already on screen and hoverable. Making someone wait on an unrelated download AFTER they asked for the
+  // feature is the one cost the deferral must not have.
+  //
+  // It is also what covers a pointer that gains hover after mount. `canHover()` above is read once, in an
+  // effect with no dependencies, while a card re-checks it on every enter — so a mouse attached to a
+  // touch device would leave the card asking a layer that had decided, permanently, not to exist.
+  // Demand is the source of truth; the warm-up only tries to be early.
+  useEffect(() => {
+    if (item) setMounted(true)
+  }, [item])
 
   // Being suspended tears the iframe down, so the next one boots a fresh engine. Forget the boot, or
   // that engine's first LOAD — the default avatar — is read as the answer to a hover and reveals a bare
@@ -128,12 +191,14 @@ export function HoverPreviewLayer() {
     if (!anchor) {
       setRect(null)
       setNotch(null)
+      setFlap(null)
       return
     }
     let raf = 0
     // Measured rather than derived: the button's width follows its save count and the hovered card is
     // scaled, so the box it actually occupies is the only reliable one.
     const favEl = anchor.parentElement?.querySelector('[data-testid="card-fav"]') ?? null
+    const flapEl = anchor.querySelector('[data-testid="card-flap"]')
     const update = () => {
       const anchorRect = anchor.getBoundingClientRect()
       setRect(anchorRect)
@@ -141,8 +206,17 @@ export function HoverPreviewLayer() {
       setNotch(
         fav
           ? {
-              left: fav.left - (Math.round(anchorRect.left) + RING_INSET) - NOTCH_PAD,
-              bottom: fav.bottom - (Math.round(anchorRect.top) + RING_INSET) + NOTCH_PAD
+              left: fav.left - (Math.round(anchorRect.left) + EDGE_INSET) - NOTCH_PAD,
+              bottom: fav.bottom - (Math.round(anchorRect.top) + EDGE_INSET) + NOTCH_PAD
+            }
+          : null
+      )
+      const flapRect = flapEl?.getBoundingClientRect()
+      setFlap(
+        flapRect
+          ? {
+              width: flapRect.right - (Math.round(anchorRect.left) + EDGE_INSET) + NOTCH_PAD,
+              height: flapRect.bottom - (Math.round(anchorRect.top) + EDGE_INSET) + NOTCH_PAD
             }
           : null
       )
@@ -251,23 +325,21 @@ export function HoverPreviewLayer() {
          *
          * Rounding it to the card's radius was not enough: that arc is concentric with the stroke's OUTER
          * edge, so around the corner the layer still crossed the band. It has to stop at the stroke's inner
-         * edge — inset by the stroke's width on the three sides the stroke covers (the bottom meets the
-         * footer), with the matching inner radius.
+         * edge, and now also inside the artwork tile's own rarity border, which runs round all four sides —
+         * so it is inset on every side (EDGE_INSET), with the matching inner radius.
          *
          * The offsets are whole pixels because `getBoundingClientRect` reports fractions (the grid divides
          * the row by three), and a fixed box holding an iframe at a fractional offset gets its own
          * composited layer whose edges Chrome antialiases — the same bright half-pixel, by another route.
          */
-        left: Math.round(rect.left) + RING_INSET,
-        top: Math.round(rect.top) + RING_INSET,
-        width: Math.round(rect.width) - RING_INSET * 2,
-        height: Math.round(rect.height) - RING_INSET,
-        borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
+        left: Math.round(rect.left) + EDGE_INSET,
+        top: Math.round(rect.top) + EDGE_INSET,
+        width: Math.round(rect.width) - EDGE_INSET * 2,
+        height: Math.round(rect.height) - EDGE_INSET * 2,
+        borderRadius: INNER_RADIUS,
         overflow: 'hidden',
         zIndex: 5,
-        clipPath: notch
-          ? `polygon(0 0, ${notch.left}px 0, ${notch.left}px ${notch.bottom}px, 100% ${notch.bottom}px, 100% 100%, 0 100%)`
-          : undefined,
+        clipPath: previewClip(notch, flap),
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,
         transition: 'opacity .25s ease'

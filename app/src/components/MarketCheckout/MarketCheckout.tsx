@@ -16,6 +16,8 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { getMarketplaceForTrade } from '~/lib/marketplace'
+import { readTradeManaPriceWei } from '~/lib/mana'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
 import { isRejection } from '~/lib/errors'
@@ -137,8 +139,8 @@ export function MarketCheckout({
     }
   }, [])
 
-  // The listing's price, before anything has been checked. Identical to what the quote below settles on
-  // (both are ceil(cents / 10)); it is shown as indicative only because the listing may turn out to be gone.
+  // The listing's price, before anything has been checked: indicative only, because the listing may turn out
+  // to be gone and the quote below prices the signed trade itself.
   const approxCredits = usdCentsToCredits(manaWeiToUsdCents(listing.manaWei, rate))
 
   // Step 1 on open: resolve the trade and price it. NOTHING is reserved here — see `confirm`.
@@ -154,8 +156,15 @@ export function MarketCheckout({
       try {
         const trade = await fetchTrade(listing.tradeId)
         if (!trade) throw new Error('not found')
+        // Same gate the cart's review applies: the rails settle a trade on the marketplace its address
+        // names on its own chain, so a pair the registry does not deploy has nowhere to settle. Reads as
+        // sold or removed, before anything is quoted or reserved.
+        if (!getMarketplaceForTrade(trade)) throw new Error('not found')
         if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
-        const usdCents = manaWeiToUsdCents(listing.manaWei, rate)
+        // Priced off the SIGNED trade, not the catalogue's `manaWei`: this checkout settles through plain
+        // `accept`, which charges the trade's list amount. A catalogue row under a creator coupon reports the
+        // sale amount instead, and authorizing that would under-cap a purchase that pulls the list price.
+        const usdCents = manaWeiToUsdCents((await readTradeManaPriceWei(trade)).toString(), rate)
         // Guard against a malformed manaWei / bad rate sizing a $0 authorize (manaWeiToUsdCents
         // returns 0 on parse failure) — never offer a free purchase.
         if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
@@ -529,7 +538,7 @@ export function MarketCheckout({
               explained dead end rather than a silent one — and the button stops promising a way out it
               cannot deliver. */}
           <S.ActionBtn
-            variant="purple"
+            variant="primary"
             onClick={() => void confirm()}
             disabled={busy || !quote || (needsMoreCredits && isIapMode())}
           >

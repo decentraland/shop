@@ -1,0 +1,116 @@
+import styled from '@emotion/styled'
+import { Dropdown } from '~/components/Dropdown'
+import { theme } from '~/styles/theme'
+
+/** Title on the left, filters on the right, as in the page header; below the title when they do not fit. */
+export const Head = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+`
+
+export const Controls = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+
+  ${theme.media.maxWidth('mobile')} {
+    justify-content: flex-start;
+  }
+`
+
+export const Metric = styled.div`
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: ${theme.radius.pill};
+  background: rgba(0, 0, 0, 0.22);
+`
+
+export const MetricBtn = styled.button`
+  border: 0;
+  cursor: pointer;
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: ${theme.radius.pill};
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(252, 252, 252, 0.62);
+  background: transparent;
+
+  &:hover {
+    color: ${theme.colors.softWhite};
+  }
+  &[aria-pressed='true'] {
+    background: ${theme.colors.softWhite};
+    color: ${theme.colors.text};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.softWhite};
+    outline-offset: 2px;
+  }
+`
+
+export const Select = styled(Dropdown)`
+  > button {
+    gap: 16px;
+  }
+`
+
+export const Totals = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-family: ${theme.font.sans};
+`
+
+export const Total = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  b {
+    font-size: 22px;
+    font-weight: 700;
+    color: ${theme.colors.white};
+  }
+  span {
+    font-size: 12px;
+    color: ${theme.colors.gray4};
+  }
+  small {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  /* The tiles' own delta colours, so a rise reads the same wherever it is shown. */
+  small[data-dir='up'] {
+    color: ${theme.colors.successBorder};
+  }
+  small[data-dir='down'] {
+    color: #ff6b6b;
+  }
+`
+
+export const Note = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  color: ${theme.colors.gray4};
+`
+
+export const Frame = styled.div`
+  transition: opacity 0.15s ease;
+
+  &[data-fetching] {
+    opacity: 0.55;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`

@@ -83,11 +83,11 @@ vi.mock('~/lib/collections', () => ({
     creator: '0x1dec5f50cb1467f505bb3ddfd408805114406b10'
   })
 }))
-const { fetchItemVideoUrl, fetchVrmExportBlocked } = vi.hoisted(() => ({
+const { fetchItemVideoUrl, fetchWearableTraits } = vi.hoisted(() => ({
   fetchItemVideoUrl: vi.fn(),
-  fetchVrmExportBlocked: vi.fn()
+  fetchWearableTraits: vi.fn()
 }))
-vi.mock('~/lib/wearable-rules', () => ({ fetchVrmExportBlocked }))
+vi.mock('~/lib/wearable-rules', () => ({ fetchWearableTraits }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]), fetchItemVideoUrl }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [], isFetched: true }) }))
 // $0.068 per MANA at 8 decimals: the rate that prices the 35-MANA mint at the 24 credits its card showed.
@@ -164,7 +164,7 @@ beforeEach(() => {
   fetchTradeForItem.mockResolvedValue(null)
   fetchItemMeta.mockResolvedValue(null)
   fetchItemVideoUrl.mockResolvedValue(null)
-  fetchVrmExportBlocked.mockResolvedValue(false)
+  fetchWearableTraits.mockResolvedValue({ vrmBlocked: false, hides: [] })
 })
 
 describe('ItemDetail — a store mint reached from a card that cannot say it is one', () => {

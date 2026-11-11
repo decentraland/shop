@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { ProviderType } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
@@ -41,6 +41,7 @@ vi.mock('~/store/wallet', () => ({
 }))
 
 const { useAccountWatcher } = await import('~/hooks/useAccountWatcher')
+const { setUnsavedChanges } = await import('~/lib/unsavedChanges')
 
 const reload = vi.fn()
 
@@ -71,6 +72,20 @@ describe('when the wallet switches to a different account', () => {
     listener?.([B.toUpperCase()])
 
     expect(reloadFor).toHaveBeenCalledWith(B)
+  })
+})
+
+describe('when the switch would drop unsaved edits', () => {
+  afterEach(() => setUnsavedChanges(null))
+
+  it('should leave the cart and the page alone if the user cancels', () => {
+    setUnsavedChanges('Discard?')
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderHook(() => useAccountWatcher())
+    listener?.([B])
+
+    expect(reloadFor).not.toHaveBeenCalled()
+    expect(reload).not.toHaveBeenCalled()
   })
 })
 

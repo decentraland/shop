@@ -25,7 +25,10 @@ const CLI_SOURCE = readFileSync(resolve(process.cwd(), '../tools/migrate-listing
 /** The ordered candidate list the CLI resolves "latest" from. */
 function cliVersionOrder(): string[] {
   const match = CLI_SOURCE.match(/const OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES = \[([^\]]+)\]/)
-  expect(match, 'OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES not found — the CLI table was restructured, update this guard').toBeTruthy()
+  expect(
+    match,
+    'OFF_CHAIN_MARKETPLACE_CONTRACT_NAMES not found — the CLI table was restructured, update this guard'
+  ).toBeTruthy()
   return [...(match as RegExpMatchArray)[1].matchAll(/ContractName\.(\w+)/g)].map(name => name[1])
 }
 
@@ -33,7 +36,9 @@ function cliVersionOrder(): string[] {
 function cliAddresses(constName: string): Map<number, string> {
   const block = CLI_SOURCE.match(new RegExp(`const ${constName}[^{]*\\{([\\s\\S]*?)\\n\\}`))
   expect(block, `${constName} not found — the CLI table was restructured, update this guard`).toBeTruthy()
-  const entries = [...(block as RegExpMatchArray)[1].matchAll(/\[ChainId\.(\w+)\]:\s*\{\s*address:\s*'(0x[0-9a-fA-F]{40})'/g)]
+  const entries = [
+    ...(block as RegExpMatchArray)[1].matchAll(/\[ChainId\.(\w+)\]:\s*\{\s*address:\s*'(0x[0-9a-fA-F]{40})'/g)
+  ]
   expect(entries.length, `${constName} has no parseable entries`).toBeGreaterThan(0)
   return new Map(entries.map(entry => [ChainId[entry[1] as keyof typeof ChainId] as number, entry[2].toLowerCase()]))
 }
@@ -62,7 +67,11 @@ describe.each([ChainId.MATIC_MAINNET, ChainId.MATIC_AMOY, ChainId.ETHEREUM_MAINN
       const appLatest = getLatestOffChainMarketplaceContract(chainId).address.toLowerCase()
       const order = cliVersionOrder()
       const cliLatest = order
-        .map(name => cliAddresses(name === 'OffChainMarketplaceV3' ? 'OFFCHAIN_MARKETPLACE_V3' : 'OFFCHAIN_MARKETPLACE_V2').get(chainId))
+        .map(name =>
+          cliAddresses(name === 'OffChainMarketplaceV3' ? 'OFFCHAIN_MARKETPLACE_V3' : 'OFFCHAIN_MARKETPLACE_V2').get(
+            chainId
+          )
+        )
         .find(Boolean)
 
       expect(cliLatest).toBe(appLatest)

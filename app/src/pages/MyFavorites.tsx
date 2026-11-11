@@ -5,7 +5,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { useManaRate } from '~/hooks/useManaRate'
-import { displayCredits } from '~/lib/mana-convert'
+import { livePrices } from '~/lib/mana-convert'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { Grid } from '~/styles/grid.styles'
@@ -35,10 +35,7 @@ export function MyFavorites() {
   // at the live rate — the same rule the browse grid applies to any MANA-priced card.
   const { data: rate, isPending: ratePending, isError: rateError } = useManaRate()
   const hasManaItems = stored.some(item => !!item.manaWei)
-  const items = useMemo(
-    () => stored.map(item => ({ ...item, priceCredits: displayCredits(item, rate) })),
-    [stored, rate]
-  )
+  const items = useMemo(() => stored.map(item => ({ ...item, ...livePrices(item, rate) })), [stored, rate])
 
   const exclude = useMemo(
     () =>
@@ -75,7 +72,9 @@ export function MyFavorites() {
         {/* An empty page with a button is the one place the rail costs nothing to show: there is no
             content for it to compete with, and someone with no favourites still has a cart, a history and
             a wallet to be read from. It hides itself when even that comes up empty. */}
-        <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" />
+        <S.Suggested>
+          <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" />
+        </S.Suggested>
       </S.Empty>
     )
   }
@@ -103,7 +102,9 @@ export function MyFavorites() {
       {/* Under the list rather than over it: what the reader came for is their own saved items, and the
           rail is what to do next. */}
       {!loading ? (
-        <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" exclude={exclude} />
+        <S.Suggested>
+          <SuggestedForYouRow title={t('myFavorites.suggestedTitle')} surface="favorites" exclude={exclude} />
+        </S.Suggested>
       ) : null}
     </section>
   )

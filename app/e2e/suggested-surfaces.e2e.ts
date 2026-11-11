@@ -117,6 +117,16 @@ describe('the space the cart rail occupies', () => {
     expect(await page.$('[data-testid="cart-personal-upsell"]')).toBeNull()
   })
 
+  it('falls back to its own row when leaving the trending rows out leaves too few to show', async () => {
+    // Five rows, two of them trending: three are left, under the minimum, so the personal rail hides. The
+    // page has to see the same three and bring back its upsell, or the cart is left with neither.
+    app = await openCart({ suggestedForYou: true, suggested: { count: 5, trending: 2 } })
+    const { page } = app
+    await waitForText(page, 'You might also like')
+
+    expect(await page.$('[data-testid="cart-personal-upsell"]')).toBeNull()
+  })
+
   it('keeps the space while the answer is still coming, so the rail does not push the page down', async () => {
     app = await launchApp({ suggestedForYou: true, delays: { '/v3/catalog/suggested': 4000 }, path: '/' })
     const { page } = app
@@ -127,5 +137,23 @@ describe('the space the cart rail occupies', () => {
 
     await page.waitForSelector('[data-testid="cart-personal-upsell"]', { timeout: 15000 })
     expect(await page.$('[data-testid="suggested-row-skeleton"]')).not.toBeNull()
+  })
+})
+
+describe('the favourites rail and the list above it', () => {
+  it('keeps its distance from whatever it follows, in both states of the page', async () => {
+    app = await launchApp({ suggestedForYou: true, path: '/my-favorites' })
+    const { page } = app
+    await page.waitForSelector('[data-testid="suggested-row"]', { timeout: 15000 })
+
+    // `Row.Root` carries a bottom margin and no top one — on the home page the row above supplies that
+    // space, and here there is none, so the heading lands against the last line of cards without it.
+    const gap = await page.evaluate(() => {
+      const rail = document.querySelector('[data-testid="suggested-row"]')
+      const above = rail?.parentElement?.previousElementSibling
+      if (!rail || !above) return -1
+      return Math.round(rail.getBoundingClientRect().top - above.getBoundingClientRect().bottom)
+    })
+    expect(gap).toBeGreaterThanOrEqual(24)
   })
 })

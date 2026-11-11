@@ -1,9 +1,10 @@
 import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
+import { dark, darkCard, darkField } from '~/styles/darkSurface'
 import { theme } from '~/styles/theme'
 
-// Primary (creator mint) publish modal — same visual language as SellModal.styles.ts (white rounded
-// card, header + close, asset card, framed price field with credits glyph + USD hint, purple full-width
-// CTA, green success screen). Kept self-contained (mirrors the shared pieces) rather than importing from
+// Primary (creator mint) publish modal — same visual language as SellModal.styles.ts (dark card, header +
+// close, asset card, framed price field with credits glyph + USD hint, full-width primary CTA, success screen). Kept self-contained (mirrors the shared pieces) rather than importing from
 // SellModal so the two modals stay decoupled; the primary-specific bits (readiness Note, availability
 // SuccessDetail) live only here.
 
@@ -23,10 +24,9 @@ export const Card = styled.div`
   max-width: 100%;
   max-height: 92vh;
   overflow-y: auto;
-  background: ${theme.colors.white};
-  border-radius: 16px;
+  ${darkCard}
+  border-radius: ${theme.radius.modal};
   padding: 12px 16px 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -38,7 +38,7 @@ export const Head = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${theme.colors.gray4};
+  border-bottom: 0.5px solid ${dark.rule};
 `
 
 export const Title = styled.h2`
@@ -47,7 +47,7 @@ export const Title = styled.h2`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.6;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const Close = styled.button`
@@ -59,7 +59,7 @@ export const Close = styled.button`
   border: 0;
   background: none;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   .ico {
     width: 18px;
@@ -70,7 +70,7 @@ export const Close = styled.button`
     cursor: default;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${dark.focusEdge};
     outline-offset: 2px;
   }
 `
@@ -81,7 +81,7 @@ export const Subtitle = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   text-align: left;
 `
 
@@ -99,8 +99,8 @@ export const Thumb = styled.div`
   width: 180px;
   height: 180px;
   border-radius: 16px;
-  background: ${theme.colors.media};
-  border: 1px solid ${theme.colors.gray4};
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   overflow: hidden;
 
   img {
@@ -136,7 +136,7 @@ export const AssetName = styled.p`
   font-weight: 600;
   font-size: 20px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const AssetBy = styled.p`
@@ -144,7 +144,7 @@ export const AssetBy = styled.p`
   font-family: ${theme.font.sans};
   font-size: 10px;
   line-height: 1.43;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 // Single full-width Price field.
@@ -157,7 +157,7 @@ export const Field = styled.label`
 export const FieldLabel = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
 // The framed input row (price glyph + number + USD hint).
@@ -168,22 +168,13 @@ export const InputBox = styled.div`
   gap: 4px;
   height: 42px;
   padding: 0 8px;
-  border: 0.5px solid ${theme.colors.text};
   border-radius: 8px;
-  background: ${theme.colors.white};
-
-  &:focus-within {
-    border-color: ${theme.colors.magenta};
-  }
-  &[aria-invalid='true'] {
-    border-color: ${theme.colors.err};
-  }
+  ${darkField}
 
   .ccy {
     flex: none;
     width: 22px;
     height: 22px;
-    color: ${theme.colors.rarity};
   }
 `
 
@@ -195,10 +186,10 @@ export const PriceInput = styled.input`
   background: transparent;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &::placeholder {
-    color: ${theme.colors.muted2};
+    color: ${theme.colors.gray4};
   }
   /* Strip the number spinners — the glyph + USD hint carry the affordance. */
   &::-webkit-outer-spin-button,
@@ -216,7 +207,7 @@ export const UsdHint = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 10px;
-  color: ${theme.colors.muted2};
+  color: ${theme.colors.glassText};
 `
 
 // Muted helper notes below the field — the whole-credits pricing note and the readiness note.
@@ -225,48 +216,22 @@ export const Note = styled.p`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1.5;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
 `
 
-// Full-width primary action (Put on sale) — solid purple, matching SellModal's PrimaryBtn.
-export const PrimaryBtn = styled.button`
+export const PrimaryBtn = styled(Button)`
   width: 100%;
   height: 48px;
-  border: 0;
   border-radius: 16px;
-  cursor: pointer;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.white};
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover:not(:disabled) {
-    background: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-  &:disabled {
-    cursor: not-allowed;
-    background: rgba(105, 31, 169, 0.2);
-    color: ${theme.colors.white};
-  }
 `
 
 export const Status = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.glassText};
   text-align: center;
 `
-
-// ---- Success state (mirrors SellModal's green banner) --------------------------------------------
 
 export const SuccessBanner = styled.div`
   display: flex;
@@ -275,7 +240,8 @@ export const SuccessBanner = styled.div`
   gap: 16px;
   padding: 24px 16px;
   border-radius: 16px;
-  background: rgba(193, 238, 207, 0.5);
+  background: ${dark.raised};
+  border: 1px solid ${dark.hairline};
   text-align: center;
 `
 
@@ -299,7 +265,7 @@ export const SuccessText = styled.p`
   font-family: ${theme.font.sans};
   font-size: 20px;
   line-height: 1.334;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
 
   b {
     font-weight: 700;
@@ -315,7 +281,7 @@ export const SuccessDetail = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.glassText};
 
   strong {
     display: inline-flex;
@@ -326,7 +292,7 @@ export const SuccessDetail = styled.p`
   .ccy-mark {
     width: 18px;
     height: 18px;
-    color: ${theme.colors.rarity};
+    color: ${theme.colors.softWhite};
   }
 `
 
@@ -339,52 +305,8 @@ export const Actions = styled.div`
   }
 `
 
-// Purple-outline secondary (Done).
-export const OutlineBtn = styled.button`
+export const ActionBtn = styled(Button)`
   flex: 1 1 0;
   height: 48px;
-  border: 2px solid ${theme.colors.accent};
   border-radius: 12px;
-  background: transparent;
-  color: ${theme.colors.accent};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover {
-    background: rgba(105, 31, 169, 0.06);
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-`
-
-// Solid purple primary (View in Shop).
-export const PurpleBtn = styled.button`
-  flex: 1 1 0;
-  height: 48px;
-  border: 0;
-  border-radius: 12px;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.softWhite};
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 13px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-
-  &:hover {
-    background: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
 `

@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmptyState } from '~/components/EmptyState'
 import { fetchCollection, fetchCatalogItems } from '~/lib/collections'
+import { fetchShopItems, type CatalogItem } from '~/lib/api'
+import { useCreatorSalesEnabled } from '~/hooks/useCreatorSalesEnabled'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { useLivePricedItems } from '~/hooks/useLivePricedItems'
 import { AssetCard } from '~/components/AssetCard'
 import { CollectionHero } from '~/components/CollectionHero'
 import { CollectionCreatorCard } from '~/components/CollectionCreatorCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
-import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
+import { FilterBar, type FilterChip, DEALS_SORTS, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -36,11 +39,16 @@ const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
 export function Collection() {
   const { contractAddress } = useParams<{ contractAddress: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   // In the URL, so a refresh or a shared link keeps the filters.
   //
   // 'all' (Shop All): a collection is whatever the creator put in it, so opening on Wearables hid the
   // emotes — and showed an empty grid for an emote-only collection.
+  //
+  // Deals opens ranked by discount, the way the browse grid does, and only while creator sales are on.
+  const creatorSalesEnabled = useCreatorSalesEnabled()
+  const dealsRequested = creatorSalesEnabled && searchParams.get('deals') === 'true'
   const filterDefaults = useMemo(
     () => ({
       category: 'all',
@@ -50,12 +58,15 @@ export function Collection() {
       priceMin: '',
       priceMax: '',
       smart: false,
-      sort: 'newest'
+      deals: false,
+      sort: dealsRequested ? 'discount' : 'newest'
     }),
-    []
+    [dealsRequested]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { category, subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  const deals = creatorSalesEnabled && filterState.deals
+  const secondarySales = useSecondarySales()
   // Validated on read — the URL is user-editable and an unknown status must not reach the query.
   const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
     ? (filterState.status as FilterStatus)
@@ -83,7 +94,8 @@ export function Collection() {
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
-  const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
+  const sortOptions = deals ? DEALS_SORTS : SORTS
+  const sortBy = (sortOptions.find(s => s.key === sort) ?? sortOptions[0]).server
   const filters = {
     contractAddress,
     category,
@@ -96,6 +108,21 @@ export function Collection() {
     isOnSale: status === 'all' ? undefined : status === 'on_sale',
     sortBy
   }
+  // Deals reads the Shop's own listings feed, the only one that knows which listings a creator is
+  // discounting right now; the full catalogue this page otherwise reads has no notion of it.
+  const dealFilters = {
+    contractAddress,
+    category,
+    rarities: rarities.length ? rarities : undefined,
+    wearableCategories,
+    minPriceCredits: min,
+    maxPriceCredits: max,
+    isSmart: smart || undefined,
+    sortBy,
+    onSale: true,
+    discounted: true,
+    listingType: secondarySales ? undefined : ('primary' as const)
+  }
 
   const {
     items: rawItems,
@@ -106,9 +133,14 @@ export function Collection() {
     isFetchingNextPage,
     isFetchNextPageError,
     fetchNextPage
-  } = useInfiniteGrid(['collection-page', filters], skip => fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }), {
-    enabled: !!contractAddress
-  })
+  } = useInfiniteGrid<CatalogItem>(
+    deals ? ['collection-deals', dealFilters] : ['collection-page', filters],
+    skip =>
+      deals
+        ? fetchShopItems({ ...dealFilters, first: PAGE_SIZE, skip })
+        : fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }),
+    { enabled: !!contractAddress }
+  )
 
   // /v3/catalog/items is mixed-denomination: the same grid the browse page prices at the live rate.
   const items = useLivePricedItems(rawItems)
@@ -156,6 +188,9 @@ export function Collection() {
   for (const r of RARITIES)
     if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
+  // Clearing it drops the discount sort too, which would otherwise rank a grid where nothing is discounted.
+  if (deals)
+    chips.push({ key: 'deals', label: t('filter.deals'), onRemove: () => setFilters({ deals: false, sort: 'newest' }) })
   if (status !== 'all')
     chips.push({
       key: 'status',
@@ -215,6 +250,10 @@ export function Collection() {
                 onStatus={setStatus}
                 smart={smart}
                 onSmart={v => setFilters({ smart: v })}
+                deals={deals}
+                onDeals={
+                  creatorSalesEnabled ? v => setFilters({ deals: v, sort: v ? 'discount' : 'newest' }) : undefined
+                }
                 hideNames
               />
             </A.SidebarScroll>
@@ -230,6 +269,7 @@ export function Collection() {
         <A.Main>
           <FilterBar
             sort={sort}
+            sortOptions={sortOptions}
             onSort={v => setFilters({ sort: v })}
             total={total}
             loading={isLoading}

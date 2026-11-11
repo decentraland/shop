@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { Button } from '~/components/Button'
+import { CategoryFlap } from '~/components/CategoryFlap'
 import { Confetti } from '~/components/Confetti'
 import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import styled from '@emotion/styled'
@@ -11,6 +12,7 @@ import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
 import { fetchOwnsItem } from '~/lib/api'
 import { formatCredits, CURRENCY } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
+import { rarityTileStyle } from '~/lib/rarity'
 import { myItemsRouteFor } from '~/lib/routes'
 import { JUMP_URL, backpackDeepLink } from '~/lib/jump'
 import { useSeo } from '~/hooks/useSeo'
@@ -291,7 +293,7 @@ export function Success() {
               </S.Sub>
               {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
               <S.Actions>
-                <SuccessBtn variant="purple" onClick={() => navigate('/activity')}>
+                <SuccessBtn variant="primary" onClick={() => navigate('/activity')}>
                   {t('success.viewActivity')}
                 </SuccessBtn>
                 <SuccessBtn variant="ghost" onClick={() => navigate('/items')}>
@@ -305,7 +307,7 @@ export function Success() {
               <S.Sub>{t('success.failedBody')}</S.Sub>
               {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
               <S.Actions>
-                <SuccessBtn variant="purple" onClick={() => navigate('/items')}>
+                <SuccessBtn variant="primary" onClick={() => navigate('/items')}>
                   {t('success.backToShop')}
                 </SuccessBtn>
               </S.Actions>
@@ -371,7 +373,8 @@ export function Success() {
               <S.ListRow key={item.id}>
                 {i > 0 ? <S.Divider aria-hidden /> : null}
                 <S.Row>
-                  <S.RowThumb data-thumb>
+                  <S.RowThumb data-thumb style={rarityTileStyle(item.rarity)}>
+                    <CategoryFlap item={item} size="sm" testId="success-flap" />
                     {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
                     <S.RowCheck aria-hidden>
                       <CheckMark />
@@ -403,7 +406,7 @@ export function Success() {
               orphaned blank one behind when the app takes over (Figma 2703:399357 Cart). */}
           {isIapMode() ? (
             <>
-              <S.Cta data-variant="ghost" onClick={() => navigate('/overview')}>
+              <S.Cta data-variant="glass" onClick={() => navigate('/overview')}>
                 {t('success.done')}
               </S.Cta>
               <S.CtaLink data-variant="ruby" href={backpackDeepLink(items)}>
@@ -412,7 +415,7 @@ export function Success() {
             </>
           ) : (
             <>
-              <S.Cta data-variant="ghost" onClick={() => navigate(myItemsRouteFor(items.map(i => i.category)))}>
+              <S.Cta data-variant="glass" onClick={() => navigate(myItemsRouteFor(items.map(i => i.category)))}>
                 {t('success.myAssets')}
               </S.Cta>
               <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
