@@ -3,19 +3,11 @@
 // components call `track`/`identify`/`trackPage`, never window.analytics directly.
 //
 // - No-ops (logs to console in dev) when VITE_SEGMENT_WRITE_KEY is empty, so local/dev never sends.
-// - No-ops for crawlers, so bot traffic never enters the funnel.
-// - analytics.js is served from a first-party proxy (config.segmentAnalyticsUrl) behind the
-//   `segment-proxy` flag, because ad blockers drop cdn.segment.com and take a large share of real
-//   users' events with it. Flag off → Segment's CDN, so a broken proxy is one flag flip away from fixed.
 // - Injects the common context props on every event (address, is_signed_in, session_id, network, app_env).
 // - Event names/props are INTERNAL (precise); nothing here is user-facing, so no web2/web3 copy rules apply.
 // - Never emit PII, secrets, or .env values. Wallet addresses are pseudonymous public ids (allowed).
 import { ProviderType } from '@dcl/schemas'
-import { isbot } from 'isbot'
-import { configureAnalyticsSnippet, installAnalyticsSnippet } from 'decentraland-dapps/dist/modules/analytics/snippet'
 import { config } from '~/config'
-import { FeatureFlag, getIsFeatureEnabled } from '~/lib/featureFlags'
-import { captureError } from '~/lib/monitoring'
 import { useWallet } from '~/store/wallet'
 import type { CatalogItem } from '~/lib/api'
 
@@ -29,10 +21,7 @@ type SegmentApi = {
   ready?: (callback: () => void) => void
   user?: () => { anonymousId?: () => string | undefined } | undefined
   load?: (writeKey: string) => void
-  // Set by Segment's snippet (`invoked`, `_writeKey`) and by the real analytics.js (`initialize`).
   invoked?: boolean
-  initialize?: () => void
-  _writeKey?: string
 }
 
 // A per-page-load id so funnel steps from one visit stitch together (not a wallet/tx concept).
@@ -42,41 +31,21 @@ const SESSION_ID =
 const NETWORK = config.chainId === 80002 ? 'amoy' : 'polygon'
 const APP_ENV = config.chainId === 80002 ? 'dev' : 'prod'
 
-// Crawlers would otherwise pollute every funnel metric with views nobody made. Resolved once per page
-// load rather than per event: the user agent cannot change under us and the match is a sizeable regex.
-const IS_BOT = typeof navigator !== 'undefined' && isbot(navigator.userAgent)
-
-// True from `initAnalytics` deciding to load until `load` has run. Deciding takes a flag read, and the
-// snippet stub is the right destination meanwhile: it queues every call and replays it once analytics.js
-// arrives, so the first page view is not lost to the wait.
-let loadPending = false
-
 function segment(): SegmentApi | undefined {
-  if (IS_BOT) return undefined
-  const a = (window as unknown as { analytics?: SegmentApi }).analytics
-  if (!a) return undefined
-  // FRAGILE: reads three analytics.js internals (`invoked`, `_writeKey`, `initialize`). Importing the
-  // Segment snippet installs a stub that queues calls until `load` runs. With no write key `load` never
-  // runs, so that queue is never flushed — report it as "no analytics" so events keep falling through to
-  // the dev console instead of piling up in an array. Re-check this on any decentraland-dapps upgrade
-  // that moves the snippet (dist/modules/analytics/snippet) to a new analytics.js major.
-  const stubAwaitingLoad = !!a.invoked && !a._writeKey && typeof a.initialize !== 'function'
-  return stubAwaitingLoad && !loadPending ? undefined : a
+  return (window as unknown as { analytics?: SegmentApi }).analytics
 }
 
-/** Segment's anonymous id, or undefined before analytics.js has loaded (and for bots). */
+/** Segment's anonymous id, or undefined before analytics.js has loaded. */
 export function anonymousId(): string | undefined {
   const user = segment()?.user?.()
   return typeof user?.anonymousId === 'function' ? user.anonymousId() : undefined
 }
 
-// Callbacks handed over before `initAnalytics` ran. React fires a child's effect before its parent's, so
-// the Intercom widget asks to be told about the anonymous id before App has loaded analytics.js — without
-// this buffer that request would be dropped and the conversation would never carry an `anon_id`. Set to
-// null once analytics has started (or been ruled out), after which callbacks go straight to Segment.
+// React fires a child's effect before its parent's, so a component can ask for the anonymous id before
+// App has called `initAnalytics`. Those callbacks wait here; null once analytics started or was ruled out.
 let pendingReady: (() => void)[] | null = []
 
-/** Runs `callback` once analytics.js has loaded. Never runs when analytics is off or the visitor is a bot. */
+/** Runs `callback` once analytics.js has loaded. Never runs when analytics is off. */
 export function onAnalyticsReady(callback: () => void): void {
   const a = segment()
   if (a?.ready) {
@@ -235,61 +204,58 @@ export function isUserRejection(e: unknown): boolean {
   return errorCode(e) === 'user_rejected'
 }
 
-/**
- * The first-party proxy url when the `segment-proxy` flag says to use it, else undefined for
- * Segment's CDN. The flag is only read when a proxy is configured at all, and any failure reading it
- * counts as off: the CDN is the path known to work, so it is where every doubt resolves.
- */
-async function proxyAnalyticsUrl(): Promise<string | undefined> {
-  const url = config.segmentAnalyticsUrl
-  if (!url) return undefined
-  try {
-    return (await getIsFeatureEnabled(FeatureFlag.SEGMENT_PROXY)) ? url : undefined
-  } catch (e) {
-    captureError(e, { flow: 'analytics', step: 'read_proxy_flag' })
-    return undefined
+// Standard Segment analytics.js loader (dependency-free). Only runs when a write key is configured.
+function loadSegment(writeKey: string): void {
+  const w = window as unknown as { analytics?: SegmentApi & Props }
+  if (w.analytics && (w.analytics as SegmentApi).invoked) return
+  const analytics: SegmentApi & { methods?: string[]; factory?: (m: string) => unknown; push?: unknown } & Props =
+    (w.analytics as never) || ([] as never)
+  analytics.invoked = true
+  analytics.methods = [
+    'track',
+    'identify',
+    'page',
+    'group',
+    'alias',
+    'ready',
+    'on',
+    'once',
+    'off',
+    'reset',
+    'setAnonymousId'
+  ]
+  analytics.factory =
+    (method: string) =>
+    (...args: unknown[]) => {
+      ;(analytics as unknown as { push: (a: unknown[]) => void }).push([method, ...args])
+      return analytics
+    }
+  for (const method of analytics.methods) {
+    ;(analytics as unknown as Props)[method] = analytics.factory(method)
   }
-}
-
-/**
- * Loads analytics.js through `decentraland-dapps`' snippet, from the first-party proxy or Segment's CDN.
- *
- * Setting only the script src is not enough for the proxy: analytics.js resolves its SETTINGS endpoint
- * from `analytics._cdn`, and that request goes to Segment's CDN — and gets blocked — unless `_cdn` names
- * the proxy origin too. `configureAnalyticsSnippet` does both, and ignores a url that is not valid https,
- * so a broken proxy url falls back to Segment's CDN rather than losing tracking altogether.
- */
-async function loadSegment(writeKey: string): Promise<void> {
-  try {
-    configureAnalyticsSnippet({ analyticsUrl: await proxyAnalyticsUrl() })
-    // Importing the snippet module already installed the stub; installing it twice logs an error.
-    const w = window as unknown as { analytics?: SegmentApi }
-    if (!w.analytics?.invoked) installAnalyticsSnippet()
-    w.analytics?.load?.(writeKey)
-    w.analytics?.page()
-  } finally {
-    loadPending = false
+  analytics.load = (key: string) => {
+    const script = document.createElement('script')
+    script.async = true
+    script.src = `https://cdn.segment.com/analytics.js/v1/${encodeURIComponent(key)}/analytics.min.js`
+    document.head.appendChild(script)
   }
+  w.analytics = analytics
+  analytics.load(writeKey)
+  ;(analytics as SegmentApi).page()
 }
 
 let initialized = false
 export function initAnalytics(): void {
   if (initialized) return
   initialized = true
-  if (IS_BOT) {
-    pendingReady = null
-    return
-  }
   const writeKey = config.segmentWriteKey
   if (!writeKey) {
     if (import.meta.env.DEV) console.debug('[analytics] no VITE_SEGMENT_WRITE_KEY → events log to console only')
     pendingReady = null
     return
   }
-  loadPending = true
+  loadSegment(writeKey)
   const waiting = pendingReady ?? []
   pendingReady = null
-  const a = segment()
-  for (const callback of waiting) a?.ready?.(callback)
-  void loadSegment(writeKey).catch(e => captureError(e, { flow: 'analytics', step: 'load' }))
+  for (const callback of waiting) segment()?.ready?.(callback)
 }

@@ -136,19 +136,7 @@ export enum FeatureFlag {
    * Fails closed like every other accessor here, and there it matches the product default: no flag, no
    * event.
    */
-  SHOP_CAMPAIGN = 'shop-campaign',
-
-  /**
-   * Whether analytics.js is loaded from Decentraland's first-party proxy (`SEGMENT_ANALYTICS_URL`) instead
-   * of `cdn.segment.com`. The proxy exists because ad blockers drop Segment's CDN, but a proxy that
-   * misbehaves loses EVERY event, not just the ad-blocked ones, and that shows up in prod as a metrics
-   * hole nobody can backfill. Off (or absent, or unreachable) means the CDN, the path that is known to
-   * work, so the proxy is switched on deliberately and switched off without a deploy.
-   *
-   * No app prefix in the key on purpose: the builder and the other dapps read the same
-   * `dapps-segment-proxy`, so one flip moves all of them.
-   */
-  SEGMENT_PROXY = 'segment-proxy'
+  SHOP_CAMPAIGN = 'shop-campaign'
 }
 
 /** The application whose flag file carries the flags above. */

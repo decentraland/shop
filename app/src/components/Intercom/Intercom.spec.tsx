@@ -31,8 +31,6 @@ describe('intercomData', () => {
 describe('Intercom', () => {
   async function renderWith(intercomAppId: string) {
     const widget = vi.fn((_props: { appId: string; data: Record<string, string> }) => null)
-    // The analytics module installs Segment's snippet on import; clear it so the re-import is a first one.
-    ;(window as unknown as { analytics?: unknown }).analytics = undefined
     vi.resetModules()
     vi.doMock('~/config', () => ({ config: { intercomAppId, chainId: 80002, segmentWriteKey: '' } }))
     vi.doMock('decentraland-dapps/dist/components/Intercom', () => ({ default: widget }))
