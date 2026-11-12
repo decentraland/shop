@@ -33,11 +33,6 @@ export function intercomData({ address, providerType, anonId }: IntercomIdentity
   return data
 }
 
-// The dapps widget never talks to Intercom on mobile (same check), so there is no session to keep there.
-function isMobile(): boolean {
-  return /Mobi|Android/i.test(navigator.userAgent)
-}
-
 // Persisted, not kept in memory: an account switch in the wallet reloads the page, so the account a
 // support session belongs to has to outlive the page load to be compared against the next one.
 function readOwner(): string | null {
@@ -79,7 +74,7 @@ export default function IntercomLauncher({ appId }: { appId: string }) {
   // The account Intercom's session belongs to. Attaching an account to an anonymous session is a plain
   // sign-in; any other change means the session has to end, or the widget's `update`, which merges,
   // would hand the previous account's attributes and conversations to whoever comes next.
-  const [owner, setOwner] = useState(() => (isMobile() ? null : readOwner()))
+  const [owner, setOwner] = useState(readOwner)
   const stale = owner !== null && owner !== wallet
 
   useEffect(() => {
@@ -89,7 +84,7 @@ export default function IntercomLauncher({ appId }: { appId: string }) {
 
   useEffect(() => {
     // Before the restore settles a null session only means "not looked yet".
-    if (!restored || isMobile() || owner === wallet) return
+    if (!restored || owner === wallet) return
     const adopt = () => {
       writeOwner(wallet)
       setOwner(wallet)
@@ -102,7 +97,8 @@ export default function IntercomLauncher({ appId }: { appId: string }) {
     const freshAnonId = anonymousId()
     void restartSession(appId, intercomData({ address: wallet, providerType, anonId: freshAnonId })).then(() => {
       if (cancelled) return
-      setAnonId(freshAnonId)
+      // Segment may have become ready, and set the id, while the restart waited on Intercom's script.
+      setAnonId(current => freshAnonId ?? current)
       adopt()
     })
     return () => {

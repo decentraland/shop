@@ -35,7 +35,7 @@ describe('intercomData', () => {
 // Runs the real dapps widget against a stubbed `window.Intercom`, so the order of the commands Intercom
 // receives is the one production sends.
 describe('Intercom', () => {
-  let anonId: string
+  let anonId: string | undefined
   let client: ReturnType<typeof vi.fn<(command: string, payload?: Record<string, unknown>) => void>>
   // The module reset gives the component its own copy of the store, so the spec has to drive that one.
   let setSession: (session: Session | null) => void
@@ -68,7 +68,11 @@ describe('Intercom', () => {
     vi.doMock('~/config', () => ({ config: { intercomAppId, chainId: 80002, segmentWriteKey: '' } }))
     vi.doMock('~/lib/analytics', () => ({
       anonymousId: () => anonId,
-      onAnalyticsReady: (callback: () => void) => void setTimeout(callback, 0)
+      // Like Segment's `ready`: asynchronous, and only once there is an id to read.
+      onAnalyticsReady: (callback: () => void) => {
+        const poll = () => void setTimeout(() => (anonId ? callback() : poll()), 0)
+        poll()
+      }
     }))
     const { useWallet } = await import('~/store/wallet')
     useWallet.setState({ session: signedIn, restored })
@@ -97,6 +101,39 @@ describe('Intercom', () => {
 
     window.dispatchEvent(new Event('load'))
     await waitFor(() => expect(commands()).toContain('update'))
+  })
+
+  it('never starts the support widget on a phone', async () => {
+    const userAgent = navigator.userAgent
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (iPhone) Mobile/15E148' })
+    try {
+      await renderWith('app-123')
+      await settle()
+      expect(client).not.toHaveBeenCalled()
+      expect(document.querySelector('script[src*="intercom"]')).toBeNull()
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, value: userAgent })
+    }
+  })
+
+  it('keeps the anonymous id when analytics becomes ready while a stale session is being ended', async () => {
+    localStorage.setItem(OWNER_KEY, '0xaaa')
+    anonId = undefined
+    ;(window as unknown as { Intercom?: unknown }).Intercom = undefined
+    await renderWith('app-123')
+    // The restart has read a missing id and is now waiting on Intercom's script.
+    const script = await waitFor(() => {
+      const node = document.querySelector('script[src*="intercom"]')
+      expect(node).not.toBeNull()
+      return node
+    })
+
+    anonId = 'anon-1'
+    await settle()
+    ;(window as unknown as { Intercom?: unknown }).Intercom = client
+    script?.dispatchEvent(new Event('load'))
+
+    await waitFor(() => expect(updates().at(-1)).toEqual({ app_id: 'app-123', anon_id: 'anon-1' }))
   })
 
   it('holds the support widget back until the session is known', async () => {
