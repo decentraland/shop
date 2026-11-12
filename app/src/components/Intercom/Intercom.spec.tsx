@@ -3,25 +3,15 @@ import { render, cleanup, waitFor, act } from '@testing-library/react'
 import type { Session } from '~/lib/auth'
 import { intercomData } from './IntercomLauncher'
 
-type WidgetProps = { appId: string; data: Record<string, string> }
+const OWNER_KEY = 'shop:intercom_wallet'
 
 function setReadyState(state: DocumentReadyState) {
   Object.defineProperty(document, 'readyState', { configurable: true, get: () => state })
 }
 
-function setIntercom(client: unknown) {
-  ;(window as unknown as { Intercom?: unknown }).Intercom = client
-}
+const session = (address: string) => ({ address, providerType: 'injected' }) as unknown as Session
 
-afterEach(() => {
-  cleanup()
-  vi.doUnmock('~/config')
-  vi.doUnmock('~/lib/analytics')
-  vi.doUnmock('decentraland-dapps/dist/components/Intercom')
-  vi.resetModules()
-  setReadyState('complete')
-  setIntercom(undefined)
-})
+const settle = () => new Promise(resolve => setTimeout(resolve, 30))
 
 describe('intercomData', () => {
   it('sends the signed-in account lowercased, with the sign-in method', () => {
@@ -42,83 +32,143 @@ describe('intercomData', () => {
   })
 })
 
+// Runs the real dapps widget against a stubbed `window.Intercom`, so the order of the commands Intercom
+// receives is the one production sends.
 describe('Intercom', () => {
   let anonId: string
+  let client: ReturnType<typeof vi.fn<(command: string, payload?: Record<string, unknown>) => void>>
   // The module reset gives the component its own copy of the store, so the spec has to drive that one.
   let setSession: (session: Session | null) => void
 
+  const commands = () => client.mock.calls.map(call => call[0])
+  const updates = () => client.mock.calls.filter(call => call[0] === 'update').map(call => call[1])
+
   beforeEach(() => {
     anonId = 'anon-1'
+    client = vi.fn()
+    ;(window as unknown as { Intercom?: unknown }).Intercom = client
+    localStorage.clear()
   })
 
-  async function renderWith(intercomAppId: string) {
-    const widget = vi.fn((_props: WidgetProps) => null)
+  afterEach(() => {
+    cleanup()
+    vi.doUnmock('~/config')
+    vi.doUnmock('~/lib/analytics')
+    vi.resetModules()
+    setReadyState('complete')
+    ;(window as unknown as { Intercom?: unknown }).Intercom = undefined
+    localStorage.clear()
+  })
+
+  async function renderWith(
+    intercomAppId: string,
+    { restored = true, signedIn = null as Session | null }: { restored?: boolean; signedIn?: Session | null } = {}
+  ) {
     vi.resetModules()
     vi.doMock('~/config', () => ({ config: { intercomAppId, chainId: 80002, segmentWriteKey: '' } }))
     vi.doMock('~/lib/analytics', () => ({
       anonymousId: () => anonId,
-      onAnalyticsReady: (callback: () => void) => callback()
+      onAnalyticsReady: (callback: () => void) => void setTimeout(callback, 0)
     }))
-    vi.doMock('decentraland-dapps/dist/components/Intercom', () => ({ default: widget }))
     const { useWallet } = await import('~/store/wallet')
-    setSession = session => act(() => useWallet.setState({ session }))
+    useWallet.setState({ session: signedIn, restored })
+    setSession = next => act(() => useWallet.setState({ session: next, restored: true }))
     const { Intercom } = await import('./Intercom')
     render(<Intercom />)
-    return widget
   }
 
-  const lastData = (widget: { mock: { calls: [WidgetProps][] } }) => widget.mock.calls.at(-1)?.[0].data
-
-  const signIn = (address: string) => setSession({ address, providerType: 'injected' } as unknown as Session)
-
-  it('does not mount the support widget when no app id is configured', async () => {
-    const widget = await renderWith('')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(widget).not.toHaveBeenCalled()
+  it('does not start the support widget when no app id is configured', async () => {
+    await renderWith('')
+    await settle()
+    expect(client).not.toHaveBeenCalled()
   })
 
-  it('mounts the support widget with the configured app id once the page is idle', async () => {
-    const widget = await renderWith('app-123')
-    await waitFor(() => expect(widget).toHaveBeenCalled())
-    expect(widget.mock.calls[0][0]).toMatchObject({ appId: 'app-123' })
+  it('starts the support widget with the configured app id once the page is idle', async () => {
+    await renderWith('app-123')
+    await waitFor(() => expect(updates()).toContainEqual({ app_id: 'app-123', anon_id: 'anon-1' }))
+    expect(commands()).not.toContain('shutdown')
   })
 
   it('holds the support widget back while the page is still loading', async () => {
     setReadyState('loading')
-    const widget = await renderWith('app-123')
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(widget).not.toHaveBeenCalled()
+    await renderWith('app-123')
+    await settle()
+    expect(client).not.toHaveBeenCalled()
 
     window.dispatchEvent(new Event('load'))
-    await waitFor(() => expect(widget).toHaveBeenCalled())
+    await waitFor(() => expect(commands()).toContain('update'))
+  })
+
+  it('holds the support widget back until the session is known', async () => {
+    localStorage.setItem(OWNER_KEY, '0xaaa')
+    await renderWith('app-123', { restored: false })
+    await settle()
+    expect(client).not.toHaveBeenCalled()
+  })
+
+  describe('when a visitor signs in', () => {
+    it('attaches the account to the running support session and remembers it', async () => {
+      await renderWith('app-123')
+      await waitFor(() => expect(commands()).toContain('update'))
+
+      setSession(session('0xABC'))
+
+      await waitFor(() => expect(updates().at(-1)).toMatchObject({ Wallet: '0xabc', 'Wallet type': 'injected' }))
+      expect(commands()).not.toContain('shutdown')
+      expect(localStorage.getItem(OWNER_KEY)).toBe('0xabc')
+    })
   })
 
   describe('when the account signs out', () => {
-    it('starts a fresh support session, so the next visitor does not inherit the conversation', async () => {
-      const client = vi.fn()
-      setIntercom(client)
-      const widget = await renderWith('app-123')
-      await waitFor(() => expect(widget).toHaveBeenCalled())
-      signIn('0xABC')
-      await waitFor(() => expect(lastData(widget)).toMatchObject({ Wallet: '0xabc' }))
-      expect(client).not.toHaveBeenCalled()
+    it('starts an empty support session under the new anonymous id', async () => {
+      await renderWith('app-123', { signedIn: session('0xABC') })
+      await waitFor(() => expect(updates().at(-1)).toMatchObject({ Wallet: '0xabc', anon_id: 'anon-1' }))
+      client.mockClear()
 
       anonId = 'anon-2'
       setSession(null)
 
-      await waitFor(() => expect(client).toHaveBeenCalledWith('shutdown'))
-      expect(client).toHaveBeenLastCalledWith('boot', { app_id: 'app-123', alignment: 'right', anon_id: 'anon-2' })
+      await waitFor(() => expect(updates().at(-1)).toEqual({ app_id: 'app-123', anon_id: 'anon-2' }))
+      const boot = commands().lastIndexOf('boot')
+      expect(commands().lastIndexOf('shutdown')).toBeLessThan(boot)
+      expect(client.mock.calls[boot][1]).toEqual({ app_id: 'app-123', alignment: 'right', anon_id: 'anon-2' })
+      // Nothing the signed-out account owned reaches the new session.
+      for (const [, payload] of client.mock.calls.slice(boot)) {
+        expect(payload ?? {}).not.toHaveProperty('Wallet')
+        expect(payload ?? {}).not.toMatchObject({ anon_id: 'anon-1' })
+      }
+      expect(localStorage.getItem(OWNER_KEY)).toBeNull()
+    })
+  })
+
+  describe('when the page loads with a support session left by another account', () => {
+    beforeEach(() => {
+      localStorage.setItem(OWNER_KEY, '0xaaa')
     })
 
-    it('sends the new anonymous id instead of the signed-out one', async () => {
-      const widget = await renderWith('app-123')
-      await waitFor(() => expect(lastData(widget)).toEqual({ anon_id: 'anon-1' }))
-      signIn('0xABC')
+    it('ends that session before sending anything about the account now signed in', async () => {
+      await renderWith('app-123', { signedIn: session('0xBBB') })
 
-      anonId = 'anon-2'
-      setSession(null)
+      await waitFor(() => expect(updates().at(-1)).toMatchObject({ Wallet: '0xbbb' }))
+      expect(commands().slice(0, 2)).toEqual(['shutdown', 'boot'])
+      expect(client.mock.calls[1][1]).toMatchObject({ app_id: 'app-123', Wallet: '0xbbb' })
+      expect(localStorage.getItem(OWNER_KEY)).toBe('0xbbb')
+    })
 
-      await waitFor(() => expect(lastData(widget)).toEqual({ anon_id: 'anon-2' }))
+    it('ends that session for a visitor who is signed out', async () => {
+      await renderWith('app-123')
+
+      await waitFor(() => expect(commands()).toContain('update'))
+      expect(commands().slice(0, 2)).toEqual(['shutdown', 'boot'])
+      expect(client.mock.calls[1][1]).not.toHaveProperty('Wallet')
+      expect(localStorage.getItem(OWNER_KEY)).toBeNull()
+    })
+
+    it('keeps the session when the same account comes back', async () => {
+      await renderWith('app-123', { signedIn: session('0xAAA') })
+
+      await waitFor(() => expect(updates().at(-1)).toMatchObject({ Wallet: '0xaaa' }))
+      expect(commands()).not.toContain('shutdown')
     })
   })
 })

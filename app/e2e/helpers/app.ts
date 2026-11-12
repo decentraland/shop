@@ -32,6 +32,8 @@ export function hermeticViteEnv(extra: Record<string, string> = {}): Record<stri
     // The resolved 'dev' config ships a real Stripe publishable key, but the mocks don't cover
     // Stripe's hosted redirect — an empty key keeps isMockPayments() true.
     VITE_STRIPE_PK: '',
+    // The resolved config ships the real support workspace id; e2e must never open a session in it.
+    VITE_INTERCOM_APP_ID: '',
     // No shop-server unless a spec asks for one (outfits.e2e.ts): the notify-me and
     // secondary-sales specs assert the feature is dark when it is unconfigured.
     VITE_SHOP_SERVER_URL: '',
