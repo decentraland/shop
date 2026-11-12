@@ -29,8 +29,9 @@ export default defineConfig({
     // resolver can't follow; inlining it routes the dep through Vite's resolver, which can.
     // decentraland-transactions has the same shape — its ESM entry re-exports a DIRECTORY — which is why
     // every spec touching it has had to mock it. Inlining lets the lockstep guard use the real registry,
-    // which is the one thing a mock cannot stand in for.
-    server: { deps: { inline: ['@dcl/ui-env', 'decentraland-transactions'] } },
+    // which is the one thing a mock cannot stand in for. decentraland-dapps ships extensionless imports
+    // inside its own dist too (components/Intercom/index.js → './Intercom').
+    server: { deps: { inline: ['@dcl/ui-env', 'decentraland-transactions', 'decentraland-dapps'] } },
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html'],

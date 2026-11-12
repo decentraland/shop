@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { ProviderType } from '@dcl/schemas'
 import {
   track,
@@ -311,5 +311,77 @@ describe('initAnalytics', () => {
     vi.doUnmock('~/config')
     vi.resetModules()
     ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  })
+})
+
+describe('analytics identity for the support widget', () => {
+  async function loadAnalytics(segmentWriteKey: string) {
+    vi.resetModules()
+    vi.doMock('~/config', () => ({
+      config: { segmentWriteKey, chainId: 80002, network: 'polygon', appEnv: 'test' }
+    }))
+    return import('./analytics')
+  }
+
+  // The loader's stub is an array of queued [method, ...args] calls until analytics.js replays them.
+  function queuedCalls() {
+    return (window as unknown as { analytics: unknown[][] }).analytics
+  }
+
+  let appendChild: { mockRestore: () => void }
+
+  beforeEach(() => {
+    appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation(n => n)
+  })
+
+  afterEach(() => {
+    appendChild.mockRestore()
+    vi.doUnmock('~/config')
+    vi.resetModules()
+    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  })
+
+  it('hands a listener registered before analytics started over to Segment once it starts', async () => {
+    const mod = await loadAnalytics('wk_test')
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+
+    mod.initAnalytics()
+
+    expect(queuedCalls().some(call => call[0] === 'ready' && call[1] === listener)).toBe(true)
+  })
+
+  it('hands a listener registered after analytics started straight to Segment', async () => {
+    const mod = await loadAnalytics('wk_test')
+    mod.initAnalytics()
+    const listener = vi.fn()
+
+    mod.onAnalyticsReady(listener)
+
+    expect(queuedCalls().some(call => call[0] === 'ready' && call[1] === listener)).toBe(true)
+  })
+
+  it('never calls a listener when analytics is off, and reports no id', async () => {
+    const mod = await loadAnalytics('')
+    const listener = vi.fn()
+    mod.onAnalyticsReady(listener)
+
+    mod.initAnalytics()
+    mod.onAnalyticsReady(listener)
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(mod.anonymousId()).toBeUndefined()
+  })
+
+  it('reports the anonymous id once analytics.js has loaded', async () => {
+    const mod = await loadAnalytics('wk_test')
+    ;(window as unknown as { analytics?: unknown }).analytics = {
+      track: vi.fn(),
+      identify: vi.fn(),
+      page: vi.fn(),
+      user: () => ({ anonymousId: () => 'anon-42' })
+    }
+
+    expect(mod.anonymousId()).toBe('anon-42')
   })
 })

@@ -11,6 +11,7 @@ import { FittingRoom } from '~/components/FittingRoom'
 import { DiscountsAnnouncementHost } from '~/components/DiscountsAnnouncementHost'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
+import { Intercom } from '~/components/Intercom'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useCampaignThemeAttribute } from '~/hooks/useCampaignTheme'
@@ -214,6 +215,10 @@ export function App() {
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />
+      {/* Support launcher — isolated so a third-party widget can never white-screen the shop. */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <Intercom />
+      </Sentry.ErrorBoundary>
       {/* Boundaried like the decorations below: a failed read or chunk must never take the shell with it. */}
       <Sentry.ErrorBoundary fallback={<></>}>
         <DiscountsAnnouncementHost />

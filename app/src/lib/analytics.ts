@@ -18,6 +18,8 @@ type SegmentApi = {
   identify: (id: string, traits?: Props) => void
   page: (name?: string, props?: Props) => void
   reset?: () => void
+  ready?: (callback: () => void) => void
+  user?: () => { anonymousId?: () => string | undefined } | undefined
   load?: (writeKey: string) => void
   invoked?: boolean
 }
@@ -31,6 +33,26 @@ const APP_ENV = config.chainId === 80002 ? 'dev' : 'prod'
 
 function segment(): SegmentApi | undefined {
   return (window as unknown as { analytics?: SegmentApi }).analytics
+}
+
+/** Segment's anonymous id, or undefined before analytics.js has loaded. */
+export function anonymousId(): string | undefined {
+  const user = segment()?.user?.()
+  return typeof user?.anonymousId === 'function' ? user.anonymousId() : undefined
+}
+
+// React fires a child's effect before its parent's, so a component can ask for the anonymous id before
+// App has called `initAnalytics`. Those callbacks wait here; null once analytics started or was ruled out.
+let pendingReady: (() => void)[] | null = []
+
+/** Runs `callback` once analytics.js has loaded. Never runs when analytics is off. */
+export function onAnalyticsReady(callback: () => void): void {
+  const a = segment()
+  if (a?.ready) {
+    a.ready(callback)
+    return
+  }
+  pendingReady?.push(callback)
 }
 
 // Context props stamped on every event. Reads the wallet store imperatively so pre-/post-login events
@@ -229,7 +251,11 @@ export function initAnalytics(): void {
   const writeKey = config.segmentWriteKey
   if (!writeKey) {
     if (import.meta.env.DEV) console.debug('[analytics] no VITE_SEGMENT_WRITE_KEY → events log to console only')
+    pendingReady = null
     return
   }
   loadSegment(writeKey)
+  const waiting = pendingReady ?? []
+  pendingReady = null
+  for (const callback of waiting) segment()?.ready?.(callback)
 }
