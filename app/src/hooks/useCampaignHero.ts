@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { ContentfulLocale } from '@dcl/schemas'
 
 import { useCampaign } from '~/hooks/useCampaign'
+import { useCampaignTheme } from '~/hooks/useCampaignTheme'
+import { campaignHeroArt } from '~/lib/campaignArt'
 import { assetUrl, localized, toContentfulLocale } from '~/lib/contentful'
 import { useLocale } from '~/store/locale'
 
@@ -32,12 +34,29 @@ export type CampaignHero = {
  * Fields the hero has no room for are deliberately ignored: the rich-text body, the alignment fields, the
  * logo, and `mobileTitle` (this hero has shown one headline at both sizes since it was built). An editor
  * filling those in Contentful will not see them here.
+ *
+ * A theme that ships its own artwork in the bundle (see `campaignHeroArt`) wins over the CMS on every slot,
+ * so a seasonal banner can go out with the flag alone and come down with it.
  */
 export function useCampaignHero(slot: string): CampaignHero | null {
   const locale = useLocale(s => s.locale)
+  const theme = useCampaignTheme()
   const { campaign } = useCampaign()
 
   return useMemo(() => {
+    const art = campaignHeroArt(theme, locale)
+    if (art) {
+      // The headline is lettering inside the artwork, and the art leaves no clear space for a button.
+      return {
+        title: '',
+        desktopImage: art.desktop,
+        mobileImage: art.mobile,
+        cta: null,
+        bannerId: `theme-${theme}`,
+        campaignName: campaign?.name ?? null
+      }
+    }
+
     const banner = campaign?.banners[slot]
     if (!banner || !campaign) return null
 
@@ -69,5 +88,5 @@ export function useCampaignHero(slot: string): CampaignHero | null {
       bannerId: banner.id,
       campaignName: campaign.name
     }
-  }, [campaign, slot, locale])
+  }, [campaign, slot, locale, theme])
 }
