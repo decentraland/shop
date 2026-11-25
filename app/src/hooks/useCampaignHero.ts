@@ -2,12 +2,17 @@ import { useMemo } from 'react'
 import { ContentfulLocale } from '@dcl/schemas'
 
 import { useCampaign } from '~/hooks/useCampaign'
+import { useCampaignTheme } from '~/hooks/useCampaignTheme'
+import { campaignHeroArt } from '~/lib/campaignArt'
+import { t } from '~/intl/i18n'
 import { assetUrl, localized, toContentfulLocale } from '~/lib/contentful'
 import { useLocale } from '~/store/locale'
 
 export type CampaignHero = {
   /** Headline, in the reader's language. */
   title: string
+  /** The headline is lettering inside the artwork, so `title` is for assistive tech only and is not drawn. */
+  titleInArt: boolean
   /** The wide artwork, and the phone composition. */
   desktopImage: string
   mobileImage: string
@@ -32,12 +37,31 @@ export type CampaignHero = {
  * Fields the hero has no room for are deliberately ignored: the rich-text body, the alignment fields, the
  * logo, and `mobileTitle` (this hero has shown one headline at both sizes since it was built). An editor
  * filling those in Contentful will not see them here.
+ *
+ * A theme that ships its own artwork in the bundle (see `campaignHeroArt`) wins over the CMS on every slot,
+ * so a seasonal banner can go out with the flag alone and come down with it. While it shows, the slot's CMS
+ * entry is ignored entirely, its CTA and that CTA's click tracking included.
  */
 export function useCampaignHero(slot: string): CampaignHero | null {
   const locale = useLocale(s => s.locale)
+  const theme = useCampaignTheme()
   const { campaign } = useCampaign()
 
   return useMemo(() => {
+    const art = campaignHeroArt(theme, locale)
+    if (art) {
+      // The art leaves no clear space for a button.
+      return {
+        title: t(art.headlineKey),
+        titleInArt: true,
+        desktopImage: art.desktop,
+        mobileImage: art.mobile,
+        cta: null,
+        bannerId: `theme-${theme}`,
+        campaignName: campaign?.name ?? null
+      }
+    }
+
     const banner = campaign?.banners[slot]
     if (!banner || !campaign) return null
 
@@ -63,11 +87,12 @@ export function useCampaignHero(slot: string): CampaignHero | null {
 
     return {
       title: localized(banner.desktopTitle, contentfulLocale) ?? '',
+      titleInArt: false,
       desktopImage,
       mobileImage,
       cta: wantsButton && href && label ? { href, label } : null,
       bannerId: banner.id,
       campaignName: campaign.name
     }
-  }, [campaign, slot, locale])
+  }, [campaign, slot, locale, theme])
 }

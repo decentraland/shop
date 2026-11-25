@@ -11,6 +11,8 @@ const { useCampaign, useCampaignContracts } = vi.hoisted(() => ({
 }))
 vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
 vi.mock('~/hooks/useCampaignContracts', () => ({ useCampaignContracts }))
+// The banner reads the theme through the real flag hook, which the `useCampaign` mock above leaves out.
+vi.mock('~/hooks/useCampaignTheme', () => ({ useCampaignTheme: () => null }))
 
 // The grid is stubbed down to the props it is given: which collections it is pinned to, and the three
 // defaults this page has to override, are the whole of what this page decides.

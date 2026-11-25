@@ -6,7 +6,11 @@ import type { Campaign } from '~/lib/contentful'
 const { useCampaign } = vi.hoisted(() => ({ useCampaign: vi.fn() }))
 vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
 
+const { useCampaignTheme } = vi.hoisted(() => ({ useCampaignTheme: vi.fn() }))
+vi.mock('~/hooks/useCampaignTheme', () => ({ useCampaignTheme }))
+
 import { useCampaignHero } from './useCampaignHero'
+import { campaignHeroArt } from '~/lib/campaignArt'
 import { useLocale } from '~/store/locale'
 
 const SLOT = 'marketplaceHomepageBanner'
@@ -62,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useLocale.setState({ locale: 'en' })
   withCampaign(undefined)
+  useCampaignTheme.mockReturnValue(null)
 })
 
 describe('useCampaignHero', () => {
@@ -79,6 +84,7 @@ describe('useCampaignHero', () => {
 
       expect(hero).toMatchObject({
         title: 'Halloween is here',
+        titleInArt: false,
         desktopImage: 'https://cms-images.decentraland.org/wide.png',
         mobileImage: 'https://cms-images.decentraland.org/square.png',
         bannerId: 'banner-1',
@@ -188,6 +194,53 @@ describe('useCampaignHero', () => {
       withCampaign(aCampaign(overrides))
 
       expect(renderHook(() => useCampaignHero(SLOT)).result.current?.cta).toBeNull()
+    })
+  })
+
+  describe('when the theme ships its own artwork', () => {
+    beforeEach(() => {
+      useCampaignTheme.mockReturnValue('holidays')
+    })
+
+    it('should take the hero over with it, even with no campaign in the CMS', () => {
+      const hero = renderHook(() => useCampaignHero(SLOT)).result.current
+
+      expect(hero).toMatchObject({
+        title: 'Jolly Days: get your backpack ready',
+        titleInArt: true,
+        desktopImage: campaignHeroArt('holidays', 'en')?.desktop,
+        mobileImage: campaignHeroArt('holidays', 'en')?.mobile,
+        cta: null
+      })
+    })
+
+    it('should serve the artwork drawn in the language the reader picked', () => {
+      useLocale.setState({ locale: 'de' })
+
+      const hero = renderHook(() => useCampaignHero(SLOT)).result.current
+
+      expect(hero?.desktopImage).toBe(campaignHeroArt('holidays', 'de')?.desktop)
+      expect(hero?.mobileImage).toBe(campaignHeroArt('holidays', 'de')?.mobile)
+    })
+
+    it('should win over the banner the CMS holds for the same slot', () => {
+      withCampaign(aCampaign())
+
+      const hero = renderHook(() => useCampaignHero(SLOT)).result.current
+
+      expect(hero?.desktopImage).toBe(campaignHeroArt('holidays', 'en')?.desktop)
+      expect(hero?.campaignName).toBe('Halloween 2026')
+    })
+  })
+
+  describe('when the theme ships no artwork of its own', () => {
+    it('should keep reading the CMS banner', () => {
+      useCampaignTheme.mockReturnValue('halloween')
+      withCampaign(aCampaign())
+
+      expect(renderHook(() => useCampaignHero(SLOT)).result.current?.desktopImage).toBe(
+        'https://cms-images.decentraland.org/wide.png'
+      )
     })
   })
 })

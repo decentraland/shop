@@ -342,7 +342,11 @@ export function Overview() {
               lettering, not as a font we could set — so nothing is drawn over it. The Shop's own default
               is for when there is no campaign at all, not for one that deliberately left the field blank;
               falling back to it there stamped "A New Way to Shop" across a campaign's own wordmark. */}
-          {heroTitle ? <S.HeroTitle data-testid="hero-title">{heroTitle}</S.HeroTitle> : null}
+          {heroTitle ? (
+            <S.HeroTitle data-testid="hero-title" data-visually-hidden={campaignHero?.titleInArt || undefined}>
+              {heroTitle}
+            </S.HeroTitle>
+          ) : null}
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
               sending the click to browse would leave the buyer one step short of what it advertises.
               Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most

@@ -619,6 +619,22 @@ describe('the home hero', () => {
       expect(screen.queryByTestId('hero-title')).toBeNull()
     })
 
+    it('should keep a headline lettered into the artwork for screen readers without drawing it again', () => {
+      useCampaignHero.mockReturnValue({ ...campaignHero, title: 'Jolly Days', titleInArt: true } as never)
+      renderOverview()
+
+      const title = screen.getByTestId('hero-title')
+      expect(title.tagName).toBe('H1')
+      expect(title.textContent).toBe('Jolly Days')
+      expect(title).toHaveAttribute('data-visually-hidden')
+    })
+
+    it('should draw a headline the artwork does not carry', () => {
+      renderOverview()
+
+      expect(screen.getByTestId('hero-title')).not.toHaveAttribute('data-visually-hidden')
+    })
+
     it('should paint the campaign artwork at both sizes', () => {
       const { container } = renderOverview()
 
