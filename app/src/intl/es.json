@@ -1747,5 +1747,8 @@
       "itemFallback": "Artículo sin nombre",
       "elsewhereAria": "{action}: {name} (abre el Marketplace de Decentraland en una pestaña nueva)"
     }
+  },
+  "campaign": {
+    "holidaysHeadline": "Jolly Days: ¡prepara tu mochila!"
   }
 }

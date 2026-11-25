@@ -48,6 +48,15 @@ describe('CampaignBanner', () => {
     expect(queryByTestId('campaign-banner-title')).toBeNull()
   })
 
+  it('should keep a headline lettered into the artwork for screen readers without drawing it again', () => {
+    useCampaignHero.mockReturnValue({ ...banner, title: 'Jolly Days', titleInArt: true })
+
+    const { getByTestId } = render(<CampaignBanner slot={SLOT} />)
+
+    expect(getByTestId('campaign-banner-title').textContent).toBe('Jolly Days')
+    expect(getByTestId('campaign-banner-title')).toHaveAttribute('data-visually-hidden')
+  })
+
   it('should show the campaign headline and artwork', () => {
     const { getByTestId, container } = render(<CampaignBanner slot={SLOT} />)
 

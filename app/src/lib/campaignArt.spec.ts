@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { LOCALES } from '~/intl/i18n'
+import { LOCALES, setActiveLocale, t } from '~/intl/i18n'
 import { campaignHeroArt } from './campaignArt'
 
 describe('campaignHeroArt', () => {
@@ -14,6 +14,18 @@ describe('campaignHeroArt', () => {
       })
       expect(new Set(art.map(pair => pair?.desktop)).size).toBe(LOCALES.length)
       expect(new Set(art.map(pair => pair?.mobile)).size).toBe(LOCALES.length)
+    })
+
+    it('should name a headline that is translated in every language', () => {
+      const key = campaignHeroArt('holidays', 'en')!.headlineKey
+      const headlines = LOCALES.map(locale => {
+        setActiveLocale(locale)
+        return t(key)
+      })
+      setActiveLocale('en')
+
+      headlines.forEach(headline => expect(headline).not.toBe(key))
+      expect(new Set(headlines).size).toBe(LOCALES.length)
     })
   })
 

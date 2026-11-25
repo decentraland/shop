@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { Button } from '~/components/Button'
+import { visuallyHidden } from '~/styles/a11y'
 import { theme } from '~/styles/theme'
 
 const { colors, media, radius } = theme
@@ -145,6 +146,10 @@ export const Title = styled.h2`
   font-size: clamp(22px, 2.6vw, 34px);
   font-weight: 700;
   line-height: 1.235;
+
+  &[data-visually-hidden] {
+    ${visuallyHidden}
+  }
 `
 
 export const Cta = styled(Button)`

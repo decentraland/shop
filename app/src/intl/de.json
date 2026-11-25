@@ -1747,5 +1747,8 @@
       "itemFallback": "Unbenannter Artikel",
       "elsewhereAria": "{action}: {name} (öffnet den Decentraland Marketplace in einem neuen Tab)"
     }
+  },
+  "campaign": {
+    "holidaysHeadline": "Jolly Days: mach deinen Rucksack bereit"
   }
 }

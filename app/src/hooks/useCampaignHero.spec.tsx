@@ -84,6 +84,7 @@ describe('useCampaignHero', () => {
 
       expect(hero).toMatchObject({
         title: 'Halloween is here',
+        titleInArt: false,
         desktopImage: 'https://cms-images.decentraland.org/wide.png',
         mobileImage: 'https://cms-images.decentraland.org/square.png',
         bannerId: 'banner-1',
@@ -205,7 +206,8 @@ describe('useCampaignHero', () => {
       const hero = renderHook(() => useCampaignHero(SLOT)).result.current
 
       expect(hero).toMatchObject({
-        title: '',
+        title: 'Jolly Days: get your backpack ready',
+        titleInArt: true,
         desktopImage: campaignHeroArt('holidays', 'en')?.desktop,
         mobileImage: campaignHeroArt('holidays', 'en')?.mobile,
         cta: null

@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { creditsCtaCss } from '~/styles/cta.styles'
 import { railGutter } from '~/styles/card.styles'
+import { visuallyHidden } from '~/styles/a11y'
 import { Button } from '~/components/Button'
 
 const { colors, media } = theme
@@ -239,6 +240,10 @@ export const HeroTitle = styled.h1`
   /* Figma 2004:322552: the phone headline is a fixed 32, larger than the clamp's floor. */
   ${media.maxWidth('mobile')} {
     font-size: 32px;
+  }
+
+  &[data-visually-hidden] {
+    ${visuallyHidden}
   }
 `
 
