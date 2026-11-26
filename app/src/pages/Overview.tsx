@@ -265,11 +265,16 @@ export function Overview() {
   }, [heroWaiting])
   const heroPending = heroWaiting && !heroWaitOver
   // The chosen art stays behind the placeholder until it has loaded: the browser would otherwise show an
-  // empty box while a seasonal image several times the size of the Shop's own comes down.
-  const [heroArtLoaded, setHeroArtLoaded] = useState(false)
+  // empty box while a seasonal image several times the size of the Shop's own comes down. Tracked per src,
+  // so art that changes later (a campaign answering past the cap, a flag refetch) is held back the same way
+  // instead of the old image lingering until the new one decodes.
+  const heroSrc = campaignHero?.desktopImage ?? heroBanner
+  const [loadedHeroSrc, setLoadedHeroSrc] = useState<string | null>(null)
+  const heroArtLoaded = loadedHeroSrc === heroSrc
+  const markHeroLoaded = (img: HTMLImageElement) => setLoadedHeroSrc(img.getAttribute('src'))
   const heroArtRef = useCallback((img: HTMLImageElement | null) => {
     // Already decoded (back on the home page within the session): shown on the first paint, with no flash.
-    if (img?.complete && img.naturalWidth > 0) setHeroArtLoaded(true)
+    if (img?.complete && img.naturalWidth > 0) setLoadedHeroSrc(img.getAttribute('src'))
   }, [])
   // Empty on purpose when a campaign ships artwork that carries its own headline; see the render below.
   const heroTitle = campaignHero ? campaignHero.title : t('overview.heroTitle')
@@ -348,9 +353,7 @@ export function Overview() {
         data-testid="hero"
         data-loading={heroPending || !heroArtLoaded || undefined}
         // The blurred filler beside the artwork reads its URL from here; see Overview.styles.ts.
-        style={
-          heroPending ? undefined : { ['--banner-art' as string]: `url(${campaignHero?.desktopImage ?? heroBanner})` }
-        }
+        style={heroPending ? undefined : { ['--banner-art' as string]: `url(${heroSrc})` }}
       >
         {heroPending ? null : (
           <>
@@ -363,13 +366,13 @@ export function Overview() {
                   there, or a phone preloads an image it never shows. */}
               <S.HeroBg
                 ref={heroArtRef}
-                src={campaignHero?.desktopImage ?? heroBanner}
+                src={heroSrc}
                 alt=""
                 aria-hidden
                 fetchpriority="high"
-                onLoad={() => setHeroArtLoaded(true)}
+                onLoad={e => markHeroLoaded(e.currentTarget)}
                 // A broken image ends the wait too, leaving the plain backdrop rather than a shimmer forever.
-                onError={() => setHeroArtLoaded(true)}
+                onError={e => markHeroLoaded(e.currentTarget)}
               />
             </picture>
             {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a

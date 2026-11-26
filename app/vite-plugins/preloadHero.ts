@@ -24,9 +24,9 @@ import { HOME_PATHS } from '../src/lib/homePath'
 // WIDE art — which the page then replaces with the phone composition, downloading both. Anchored here it
 // reads the real width, and it is still ahead of every script and stylesheet the document loads.
 //
-// A running CAMPAIGN replaces the hero art from the CMS, and this still preloads the bundled default.
-// That is correct rather than wasteful: the campaign is resolved by two chained async reads (a feature
-// flag, then Contentful), so the default is what the page renders first in every case, campaign or not.
+// A running CAMPAIGN replaces the hero art, and this still preloads the bundled default. The static page
+// cannot know the flag, and the default is what shows on most loads. During a campaign the hero waits on a
+// placeholder instead and the default is never drawn, so the preload is spent; that is the accepted cost.
 const PRELOADED_HERO = {
   desktop: 'src/assets/overview/hero-credits-outfits.webp',
   mobile: 'src/assets/overview/hero-credits-mobile.webp'

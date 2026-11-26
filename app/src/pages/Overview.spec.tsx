@@ -700,6 +700,32 @@ describe('the home hero', () => {
 
         expect(screen.getByTestId('hero-title').textContent).toBe('A New Way to Shop')
         expect(screen.getByTestId('hero-credits-cta')).toBeInTheDocument()
+        // Its art is mounted and held only until it has loaded, like any other.
+        expect(screen.getByTestId('hero')).toHaveAttribute('data-loading')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('should hold a campaign that answers past the cap until ITS art has loaded, not keep showing the old one', () => {
+      vi.useFakeTimers()
+      try {
+        const { container, again } = renderOverview()
+        act(() => {
+          vi.advanceTimersByTime(3_000)
+        })
+        fireEvent.load(container.querySelector('picture img')!)
+        const hero = screen.getByTestId('hero')
+        expect(hero).not.toHaveAttribute('data-loading')
+
+        useCampaignHero.mockReturnValue(campaignHero as never)
+        useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
+        again()
+
+        expect(container.querySelector('picture img')).toHaveAttribute('src', campaignHero.desktopImage)
+        expect(hero).toHaveAttribute('data-loading')
+        fireEvent.load(container.querySelector('picture img')!)
+        expect(hero).not.toHaveAttribute('data-loading')
       } finally {
         vi.useRealTimers()
       }

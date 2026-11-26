@@ -166,6 +166,10 @@ export const Hero = styled.section`
       filter: blur(32px);
       pointer-events: none;
       transition: opacity 0.2s ease;
+
+      @media (prefers-reduced-motion: reduce) {
+        transition: none;
+      }
     }
     &::before {
       left: -6%;
