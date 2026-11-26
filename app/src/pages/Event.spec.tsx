@@ -5,14 +5,25 @@ import { ContentfulLocale } from '@dcl/schemas'
 import type { Campaign } from '~/lib/contentful'
 import type { AssetsProps } from '~/pages/Assets'
 
-const { useCampaign, useCampaignContracts } = vi.hoisted(() => ({
+const { useCampaign, useCampaignFlag, useCampaignContracts, useCampaignTheme } = vi.hoisted(() => ({
   useCampaign: vi.fn(),
-  useCampaignContracts: vi.fn()
+  useCampaignFlag: vi.fn(),
+  useCampaignContracts: vi.fn(),
+  useCampaignTheme: vi.fn()
 }))
-vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
+vi.mock('~/hooks/useCampaign', () => ({ useCampaign, useCampaignFlag }))
 vi.mock('~/hooks/useCampaignContracts', () => ({ useCampaignContracts }))
-// The banner reads the theme through the real flag hook, which the `useCampaign` mock above leaves out.
-vi.mock('~/hooks/useCampaignTheme', () => ({ useCampaignTheme: () => null }))
+vi.mock('~/hooks/useCampaignTheme', () => ({ useCampaignTheme }))
+
+// A fixture rather than the real list, so the spec does not change every time the season's selection does.
+const THEME_EVENT = {
+  labelKey: 'campaign.holidaysTab',
+  collections: ['0x1110000000000000000000000000000000000001'],
+  items: ['0x2220000000000000000000000000000000000002-7']
+}
+vi.mock('~/lib/campaignEvent', () => ({
+  campaignThemeEvent: (theme: string | null) => (theme === 'holidays' ? THEME_EVENT : null)
+}))
 
 // The grid is stubbed down to the props it is given: which collections it is pinned to, and the three
 // defaults this page has to override, are the whole of what this page decides.
@@ -58,6 +69,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   useCampaign.mockReturnValue({ campaign: aCampaign(), isPending: false, isError: false })
   useCampaignContracts.mockReturnValue({ contracts: [A, B], isPending: false, isError: false })
+  useCampaignFlag.mockReturnValue({ enabled: true, isPending: false, theme: null })
+  useCampaignTheme.mockReturnValue(null)
 })
 
 describe('the event page', () => {
@@ -143,6 +156,51 @@ describe('the event page', () => {
       renderEvent()
 
       expect(assetsProps.mock.calls[0][0].contracts).toEqual([])
+    })
+  })
+
+  describe('when the theme ships an event of its own', () => {
+    beforeEach(() => {
+      useCampaignTheme.mockReturnValue('holidays')
+      useCampaignContracts.mockReturnValue({ contracts: THEME_EVENT.collections, isPending: false, isError: false })
+    })
+
+    it('should pin the grid to its selection and title the page after it, not after the cms campaign', () => {
+      renderEvent()
+
+      const props = assetsProps.mock.calls[0][0]
+      expect(props.contracts).toEqual(THEME_EVENT.collections)
+      expect(props.itemIds).toEqual(THEME_EVENT.items)
+      expect(props.seo).toMatchObject({ title: 'Jolly Days', noindex: true })
+    })
+
+    it('should stay up with no cms campaign at all', () => {
+      useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
+
+      const { getByTestId, queryByTestId } = renderEvent()
+
+      expect(getByTestId('grid')).toBeInTheDocument()
+      expect(queryByTestId('items')).not.toBeInTheDocument()
+    })
+
+    it('should not wait on the cms once the flag has brought the event', () => {
+      useCampaign.mockReturnValue({ campaign: undefined, isPending: true, isError: false })
+
+      const { getByTestId } = renderEvent()
+
+      expect(getByTestId('grid')).toBeInTheDocument()
+    })
+  })
+
+  describe('while only the flag is still answering, with no cms to wait on', () => {
+    it('should wait rather than bounce the visitor away', () => {
+      useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
+      useCampaignFlag.mockReturnValue({ enabled: false, isPending: true, theme: null })
+
+      const { queryByTestId } = renderEvent()
+
+      expect(queryByTestId('items')).not.toBeInTheDocument()
+      expect(queryByTestId('grid')).not.toBeInTheDocument()
     })
   })
 })
