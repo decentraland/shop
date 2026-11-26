@@ -754,6 +754,19 @@ describe('the home hero', () => {
       expect(hero).not.toHaveAttribute('data-loading')
     })
 
+    it('should not take a hero already on screen back to the placeholder when a campaign turns on later', () => {
+      const { container, again } = renderOverview()
+      fireEvent.load(container.querySelector('picture img')!)
+
+      // The flag flips on mid-session and the CMS read starts, with nothing to show from it yet.
+      useCampaign.mockReturnValue({ campaign: undefined, isPending: true, isError: false })
+      again()
+
+      expect(screen.getByTestId('hero')).not.toHaveAttribute('data-loading')
+      expect(screen.getByTestId('hero-title').textContent).toBe('A New Way to Shop')
+      expect(screen.getByTestId('hero-credits-cta')).toBeInTheDocument()
+    })
+
     it('should drop the placeholder when the image fails, rather than shimmer forever', () => {
       const { container } = renderOverview()
 

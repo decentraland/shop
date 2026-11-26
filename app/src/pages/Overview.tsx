@@ -256,14 +256,19 @@ export function Overview() {
   // is read on its own as well because `useCampaign` reports nothing pending where no CMS is configured, and
   // a theme payload brings art there all the same.
   const { isPending: flagPending } = useCampaignFlag()
-  const [heroWaitOver, setHeroWaitOver] = useState(false)
+  const [heroDecided, setHeroDecided] = useState(false)
   const heroWaiting = (flagPending || campaignPending) && !campaignHero
   useEffect(() => {
-    if (!heroWaiting) return
-    const timer = setTimeout(() => setHeroWaitOver(true), HERO_WAIT_MS)
+    // Only the first answer is waited on. A hero already on screen is not taken down again when the flag
+    // turns on mid-session; the new art swaps in place, behind the placeholder only while it loads.
+    if (!heroWaiting) {
+      setHeroDecided(true)
+      return
+    }
+    const timer = setTimeout(() => setHeroDecided(true), HERO_WAIT_MS)
     return () => clearTimeout(timer)
   }, [heroWaiting])
-  const heroPending = heroWaiting && !heroWaitOver
+  const heroPending = heroWaiting && !heroDecided
   // The chosen art stays behind the placeholder until it has loaded: the browser would otherwise show an
   // empty box while a seasonal image several times the size of the Shop's own comes down. Tracked per src,
   // so art that changes later (a campaign answering past the cap, a flag refetch) is held back the same way
