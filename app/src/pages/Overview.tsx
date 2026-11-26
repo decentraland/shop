@@ -26,7 +26,7 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
 // 90 KB here against 1.09 MB as a PNG.
 import { useCampaignHero } from '~/hooks/useCampaignHero'
-import { useCampaign } from '~/hooks/useCampaign'
+import { useCampaign, useCampaignFlag } from '~/hooks/useCampaign'
 import { useRunningCampaign } from '~/hooks/useRunningCampaign'
 import { track } from '~/lib/analytics'
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
@@ -37,6 +37,9 @@ import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
+// How long the hero holds its placeholder for a campaign answer. The flag read gives up at 3s on its own, the
+// CMS read has no limit, and a stalled CMS must not leave the home page without its headline and CTA.
+const HERO_WAIT_MS = 3_000
 // Fewer live sales than this and the Best Deals rail stays hidden: two cards do not make a rail.
 const MIN_DEALS = 3
 
@@ -248,6 +251,36 @@ export function Overview() {
   // A running campaign takes the hero over: same markup, same styles, contents from the CMS. Absent —
   // which is the normal state — the Shop's own art, headline and credits CTA below are what render.
   const campaignHero = useCampaignHero(CAMPAIGN_HERO_SLOT)
+  // Held on a placeholder until the campaign has answered, or the Shop's own art paints first and is swapped
+  // out a beat later. Bundled theme art waits on the flag alone; a CMS banner waits on the CMS too. The flag
+  // is read on its own as well because `useCampaign` reports nothing pending where no CMS is configured, and
+  // a theme payload brings art there all the same.
+  const { isPending: flagPending } = useCampaignFlag()
+  const [heroDecided, setHeroDecided] = useState(false)
+  const heroWaiting = (flagPending || campaignPending) && !campaignHero
+  useEffect(() => {
+    // Only the first answer is waited on. A hero already on screen is not taken down again when the flag
+    // turns on mid-session; the new art swaps in place, behind the placeholder only while it loads.
+    if (!heroWaiting) {
+      setHeroDecided(true)
+      return
+    }
+    const timer = setTimeout(() => setHeroDecided(true), HERO_WAIT_MS)
+    return () => clearTimeout(timer)
+  }, [heroWaiting])
+  const heroPending = heroWaiting && !heroDecided
+  // The chosen art stays behind the placeholder until it has loaded: the browser would otherwise show an
+  // empty box while a seasonal image several times the size of the Shop's own comes down. Tracked per src,
+  // so art that changes later (a campaign answering past the cap, a flag refetch) is held back the same way
+  // instead of the old image lingering until the new one decodes.
+  const heroSrc = campaignHero?.desktopImage ?? heroBanner
+  const [loadedHeroSrc, setLoadedHeroSrc] = useState<string | null>(null)
+  const heroArtLoaded = loadedHeroSrc === heroSrc
+  const markHeroLoaded = (img: HTMLImageElement) => setLoadedHeroSrc(img.getAttribute('src'))
+  const heroArtRef = useCallback((img: HTMLImageElement | null) => {
+    // Already decoded (back on the home page within the session): shown on the first paint, with no flash.
+    if (img?.complete && img.naturalWidth > 0) setLoadedHeroSrc(img.getAttribute('src'))
+  }, [])
   // Empty on purpose when a campaign ships artwork that carries its own headline; see the render below.
   const heroTitle = campaignHero ? campaignHero.title : t('overview.heroTitle')
 
@@ -322,38 +355,53 @@ export function Overview() {
   return (
     <S.Overview className="overview">
       <S.Hero
+        data-testid="hero"
+        data-loading={heroPending || !heroArtLoaded || undefined}
         // The blurred filler beside the artwork reads its URL from here; see Overview.styles.ts.
-        style={{ ['--banner-art' as string]: `url(${campaignHero?.desktopImage ?? heroBanner})` }}
+        style={heroPending ? undefined : { ['--banner-art' as string]: `url(${heroSrc})` }}
       >
-        {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
-            wide banner — the mobile frame is a different composition, not a resize. */}
-        <picture>
-          <source media="(max-width: 768px)" srcSet={campaignHero?.mobileImage ?? heroBannerMobile} />
-          {/* This is the page's LCP element, and the build-time preload in vite.config.ts switches on the
-              SAME `(max-width: 768px)` query this <source> does. Change the breakpoint here and change it
-              there, or a phone preloads an image it never shows. */}
-          <S.HeroBg src={campaignHero?.desktopImage ?? heroBanner} alt="" aria-hidden fetchpriority="high" />
-        </picture>
-        {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
-            multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
-            one on top and took the left half of the image to near-black. */}
-        <S.HeroInner>
-          {/* A campaign that ships NO title has its headline in the artwork — seasonal banners carry it as
-              lettering, not as a font we could set — so nothing is drawn over it. The Shop's own default
-              is for when there is no campaign at all, not for one that deliberately left the field blank;
-              falling back to it there stamped "A New Way to Shop" across a campaign's own wordmark. */}
-          {heroTitle ? (
-            <S.HeroTitle data-testid="hero-title" data-visually-hidden={campaignHero?.titleInArt || undefined}>
-              {heroTitle}
-            </S.HeroTitle>
-          ) : null}
-          {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
-              sending the click to browse would leave the buyer one step short of what it advertises.
-              Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
-              prominent offer in the app, so it is the one that most has to go. The banner's own title is
-              generic ("A New Way to Shop"), so it still reads as a banner without it. */}
-          {renderHeroCta()}
-        </S.HeroInner>
+        {heroPending ? null : (
+          <>
+            {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
+                wide banner — the mobile frame is a different composition, not a resize. */}
+            <picture>
+              <source media="(max-width: 768px)" srcSet={campaignHero?.mobileImage ?? heroBannerMobile} />
+              {/* This is the page's LCP element, and the build-time preload in vite.config.ts switches on the
+                  SAME `(max-width: 768px)` query this <source> does. Change the breakpoint here and change it
+                  there, or a phone preloads an image it never shows. */}
+              <S.HeroBg
+                ref={heroArtRef}
+                src={heroSrc}
+                alt=""
+                aria-hidden
+                fetchpriority="high"
+                onLoad={e => markHeroLoaded(e.currentTarget)}
+                // A broken image ends the wait too, leaving the plain backdrop rather than a shimmer forever.
+                onError={e => markHeroLoaded(e.currentTarget)}
+              />
+            </picture>
+            {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
+                multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
+                one on top and took the left half of the image to near-black. */}
+            <S.HeroInner>
+              {/* A campaign that ships NO title has its headline in the artwork — seasonal banners carry it as
+                  lettering, not as a font we could set — so nothing is drawn over it. The Shop's own default
+                  is for when there is no campaign at all, not for one that deliberately left the field blank;
+                  falling back to it there stamped "A New Way to Shop" across a campaign's own wordmark. */}
+              {heroTitle ? (
+                <S.HeroTitle data-testid="hero-title" data-visually-hidden={campaignHero?.titleInArt || undefined}>
+                  {heroTitle}
+                </S.HeroTitle>
+              ) : null}
+              {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
+                  sending the click to browse would leave the buyer one step short of what it advertises.
+                  Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
+                  prominent offer in the app, so it is the one that most has to go. The banner's own title is
+                  generic ("A New Way to Shop"), so it still reads as a banner without it. */}
+              {renderHeroCta()}
+            </S.HeroInner>
+          </>
+        )}
       </S.Hero>
 
       {showEvent && runningCampaign ? (

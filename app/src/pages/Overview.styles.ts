@@ -105,7 +105,23 @@ export const Hero = styled.section`
   max-height: 300px;
   margin-bottom: 50px;
   overflow: hidden;
-  background: #14161b;
+
+  /* The shared skeleton shimmer, on the page field like every other placeholder. The art and its fillers
+     are held invisible until loaded, then fade in over the field. */
+  &[data-loading] {
+    background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite linear;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+  &[data-loading] img,
+  &[data-loading]::before,
+  &[data-loading]::after {
+    opacity: 0;
+  }
 
   /* The ONLY full-bleed element on the page: it spans the window while every other section keeps the
      .page gutter. Two things have to be undone, not one — the 54px side padding AND the 1760px
@@ -149,6 +165,11 @@ export const Hero = styled.section`
       background-size: 600% 100%;
       filter: blur(32px);
       pointer-events: none;
+      transition: opacity 0.2s ease;
+
+      @media (prefers-reduced-motion: reduce) {
+        transition: none;
+      }
     }
     &::before {
       left: -6%;
@@ -194,6 +215,14 @@ export const HeroBg = styled.img<{ fetchpriority?: 'high' | 'low' | 'auto' }>`
   height: 100%;
   object-fit: cover;
   object-position: center right;
+  /* The dark backdrop belongs to the image rather than the section so it fades in WITH the art. On the
+     section it showed the moment the placeholder ended, a dark frame between the shimmer and the art. */
+  background: #14161b;
+  transition: opacity 0.2s ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 
   /* Never drawn above its native width, and centred. Below the cap this is inert: the image already is
      the strip. */
