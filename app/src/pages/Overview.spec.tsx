@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { UnifiedListing } from '~/lib/api'
@@ -49,12 +49,13 @@ vi.mock('~/hooks/useCampaignHero', () => ({ useCampaignHero }))
 // The seasonal event, which takes the top rail over from Trending while it runs. How "running" is decided
 // is `useRunningCampaign`'s own spec; here it is just an answer.
 type Running = { label: string; contracts: string[]; items: string[]; contractsPending: boolean }
-const { useRunningCampaign, useCampaign } = vi.hoisted(() => ({
+const { useRunningCampaign, useCampaign, useCampaignFlag } = vi.hoisted(() => ({
   useRunningCampaign: vi.fn((): Running | null => null),
-  useCampaign: vi.fn(() => ({ campaign: undefined, isPending: false, isError: false }))
+  useCampaign: vi.fn(() => ({ campaign: undefined, isPending: false, isError: false })),
+  useCampaignFlag: vi.fn(() => ({ enabled: false, isPending: false, theme: null as string | null }))
 }))
 vi.mock('~/hooks/useRunningCampaign', () => ({ useRunningCampaign }))
-vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
+vi.mock('~/hooks/useCampaign', () => ({ useCampaign, useCampaignFlag }))
 
 // AssetCard stays REAL — the credit price it renders is one of the things under test, and a stub card would
 // make the placeholder-to-card counts meaningless too. These are the seams it reaches through that do not
@@ -179,6 +180,7 @@ beforeEach(() => {
   useCampaignHero.mockReturnValue(null)
   useRunningCampaign.mockReturnValue(null)
   useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
+  useCampaignFlag.mockReturnValue({ enabled: false, isPending: false, theme: null })
   useSecondarySales.mockReturnValue(false)
   useCreatorSalesEnabled.mockReturnValue(true)
   fetchTrendingItems.mockResolvedValue([])
@@ -660,6 +662,78 @@ describe('the home hero', () => {
 
       expect(screen.queryByTestId('hero-campaign-cta')).not.toBeInTheDocument()
       expect(screen.queryByTestId('hero-credits-cta')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('when the campaign has not answered yet', () => {
+    beforeEach(() => {
+      useCampaign.mockReturnValue({ campaign: undefined, isPending: true, isError: false })
+    })
+
+    it("should hold a placeholder rather than paint the Shop's own hero and swap it out", () => {
+      const { container } = renderOverview()
+
+      expect(screen.getByTestId('hero')).toHaveAttribute('data-loading')
+      expect(container.querySelector('picture')).toBeNull()
+      expect(screen.queryByTestId('hero-title')).toBeNull()
+      expect(screen.queryByTestId('hero-credits-cta')).toBeNull()
+    })
+
+    it('should not wait on the CMS once the theme has settled on art of its own', () => {
+      useCampaignHero.mockReturnValue({ ...campaignHero, title: 'Jolly Days', titleInArt: true, cta: null } as never)
+
+      const { container } = renderOverview()
+
+      expect(container.querySelector('picture img')).toHaveAttribute('src', campaignHero.desktopImage)
+      expect(screen.getByTestId('hero-title').textContent).toBe('Jolly Days')
+    })
+
+    it("should give up after a while and show the Shop's own hero, so a stalled CMS cannot hide its CTA", () => {
+      vi.useFakeTimers()
+      try {
+        renderOverview()
+        expect(screen.queryByTestId('hero-credits-cta')).toBeNull()
+
+        act(() => {
+          vi.advanceTimersByTime(3_000)
+        })
+
+        expect(screen.getByTestId('hero-title').textContent).toBe('A New Way to Shop')
+        expect(screen.getByTestId('hero-credits-cta')).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('when only the flag is still answering, with no CMS to wait on', () => {
+    it('should hold the placeholder all the same, since a theme payload brings art of its own', () => {
+      useCampaignFlag.mockReturnValue({ enabled: false, isPending: true, theme: null })
+
+      renderOverview()
+
+      expect(screen.getByTestId('hero')).toHaveAttribute('data-loading')
+      expect(screen.queryByTestId('hero-title')).toBeNull()
+    })
+  })
+
+  describe('when the artwork is chosen', () => {
+    it('should keep the placeholder until the image has loaded', () => {
+      const { container } = renderOverview()
+      const hero = screen.getByTestId('hero')
+      expect(hero).toHaveAttribute('data-loading')
+
+      fireEvent.load(container.querySelector('picture img')!)
+
+      expect(hero).not.toHaveAttribute('data-loading')
+    })
+
+    it('should drop the placeholder when the image fails, rather than shimmer forever', () => {
+      const { container } = renderOverview()
+
+      fireEvent.error(container.querySelector('picture img')!)
+
+      expect(screen.getByTestId('hero')).not.toHaveAttribute('data-loading')
     })
   })
 })
