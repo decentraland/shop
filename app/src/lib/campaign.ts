@@ -69,12 +69,20 @@ export async function fetchCampaignContracts(tags: string[]): Promise<string[]> 
 }
 
 /**
- * Whether an item's collection is part of the event.
+ * Whether an item is part of the event: its whole collection is, or the event names the item on its own.
  *
- * `contracts` is expected already lowercased, which is what `fetchCampaignContracts` guarantees; only the
- * address being tested is normalised here, since it comes from a feed that spells them either way.
+ * `contracts` and `items` are expected already lowercased, which is what `fetchCampaignContracts` and the
+ * list parsers guarantee; only the address being tested is normalised here, since it comes from a feed that
+ * spells them either way.
  */
-export function isInCampaign(contracts: string[], contractAddress: string | undefined | null): boolean {
+export function isInCampaign(
+  contracts: string[],
+  contractAddress: string | undefined | null,
+  items: string[] = [],
+  itemId?: string | null
+): boolean {
   if (!contractAddress) return false
-  return contracts.includes(contractAddress.toLowerCase())
+  const contract = contractAddress.toLowerCase()
+  if (contracts.includes(contract)) return true
+  return !!itemId && items.includes(`${contract}-${itemId}`)
 }
