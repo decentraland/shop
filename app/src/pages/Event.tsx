@@ -1,10 +1,8 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { useCampaign } from '~/hooks/useCampaign'
-import { useCampaignContracts } from '~/hooks/useCampaignContracts'
-import { localized, toContentfulLocale } from '~/lib/contentful'
-import { useLocale } from '~/store/locale'
+import { useCampaign, useCampaignFlag } from '~/hooks/useCampaign'
+import { useRunningCampaign } from '~/hooks/useRunningCampaign'
 import { Assets } from '~/pages/Assets'
 import { CampaignBanner } from '~/components/CampaignBanner'
 import { t } from '~/intl/i18n'
@@ -24,27 +22,28 @@ import { t } from '~/intl/i18n'
  * - NAMEs, dropped. A NAME is a separate purchase and can never belong to a collection set — and without
  *   dropping it, `?category=names` would render the NAMEs page inside the event.
  *
- * When the campaign ends the entry is unpublished, this page's reason to exist goes with it, and anyone
- * standing here (or arriving from a shared link) is sent to the ordinary grid.
+ * The page exists exactly when the nav tab does: both read `useRunningCampaign`, so a theme's own event
+ * and a CMS campaign reach it the same way. When the event ends, this page's reason to exist goes with it,
+ * and anyone standing here (or arriving from a shared link) is sent to the ordinary grid.
  */
 // The slot the Marketplace uses above its own campaign grid.
 const CAMPAIGN_BANNER_SLOT = 'marketplaceCampaignCollectiblesBanner'
 
 export function Event() {
   const navigate = useNavigate()
-  const locale = useLocale(s => s.locale)
-  const { campaign, isPending: campaignPending } = useCampaign()
-  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
+  const running = useRunningCampaign()
+  const { isPending: flagPending } = useCampaignFlag()
+  const { isPending: campaignPending } = useCampaign()
 
-  const gone = !campaignPending && !campaign?.mainTag
+  // Only once both answers are in: the flag, which can bring an event of its own, and the CMS. Bouncing on a
+  // half answer would send every visitor off the page on a cold load.
+  const gone = !running && !flagPending && !campaignPending
 
   useEffect(() => {
-    // Only once the answer is actually known. `isPending` covers the feature-flag read as well as the CMS
-    // one, which is what stops this bouncing every visitor off the page on a cold load.
     if (gone) navigate('/items', { replace: true })
   }, [gone, navigate])
 
-  if (campaignPending || contractsPending || gone) {
+  if (!running || running.contractsPending) {
     return (
       <div className="page-loading" aria-busy="true">
         <span className="spinner" aria-hidden />
@@ -52,19 +51,17 @@ export function Event() {
     )
   }
 
-  const name = localized(campaign?.tabName, toContentfulLocale(locale)) ?? campaign?.name ?? ''
-
   return (
     <>
       {/* The same slot the Marketplace puts above its own campaign grid, so the two stay in step. */}
       <CampaignBanner slot={CAMPAIGN_BANNER_SLOT} />
       <Assets
-        contracts={contracts}
-        itemIds={campaign?.items}
+        contracts={running.contracts}
+        itemIds={running.items}
         hideNames
         lockStatus="on_sale"
         seo={{
-          title: name || t('seo.collectibles.title'),
+          title: running.label,
           description: t('seo.collectibles.description'),
           // Live for a few weeks a year and gone the rest of it, so it is kept out of the index rather
           // than left to go stale there — and out of public/sitemap.xml, whose header forbids noindex URLs.

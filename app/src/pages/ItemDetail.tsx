@@ -144,15 +144,15 @@ export function ItemDetail() {
   // Sanitised once, here, because eight consumers below key their lookups off these three (see
   // `routeSegment` for what the in-world client's links do to them).
   const contractAddress = routeSegment(rawContractAddress)
-  // The running seasonal event, when this item's collection is in it. Read from the ROUTE's address rather
-  // than from the loaded item so the chip is right from the first paint, and does not appear late.
-  const eventBadge = useCampaignBadge(contractAddress)
   const routeItemId = routeSegment(rawItemId)
   const routeTokenId = routeSegment(rawTokenId)
   const isTokenRoute = !!routeTokenId
   // The itemId this page is about: the route itemId, or decoded from the token (itemId = tokenId >> 216).
   // Both routes fetch the generic item data (name, resales, siblings, description) by this itemId.
   const pageItemId = routeItemId ?? itemIdFromTokenId(routeTokenId) ?? null
+  // The running seasonal event, when this item or its collection is in it. Read from the ROUTE rather than
+  // from the loaded item so the chip is right from the first paint, and does not appear late.
+  const eventBadge = useCampaignBadge(contractAddress, pageItemId)
   const location = useLocation() as {
     pathname: string
     state?: {

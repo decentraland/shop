@@ -1,10 +1,13 @@
 import { useCampaign } from '~/hooks/useCampaign'
 import { useCampaignContracts } from '~/hooks/useCampaignContracts'
+import { useCampaignTheme } from '~/hooks/useCampaignTheme'
+import { campaignThemeEvent } from '~/lib/campaignEvent'
 import { localized, toContentfulLocale } from '~/lib/contentful'
+import { t } from '~/intl/i18n'
 import { useLocale } from '~/store/locale'
 
 export type RunningCampaign = {
-  /** What the event is called, in the reader's language. CMS content, so it never goes through `t()`. */
+  /** What the event is called, in the reader's language: the CMS tab name, or a theme's own translated one. */
   label: string
   /** The collections it selected, lowercased. MAY BE EMPTY while nobody has tagged any yet. */
   contracts: string[]
@@ -14,10 +17,16 @@ export type RunningCampaign = {
   contractsPending: boolean
 }
 
+const NO_TAGS: string[] = []
+
 /**
  * The seasonal event that is actually running, or `null`.
  *
- * Two conditions: a campaign entry that names a tag, and a name to put on screen.
+ * A theme that ships its own event in the bundle (see `campaignThemeEvent`) is that event, whatever the CMS
+ * says: its name, collections and items replace the campaign entry's outright, tags included, so a stale
+ * entry cannot widen the selection or rename the tab.
+ *
+ * Otherwise two conditions: a campaign entry that names a tag, and a name to put on screen.
  *
  * It deliberately does NOT wait for the tag to resolve to a collection. That condition was here, on the
  * reasoning that a tab onto an empty grid is worse than no tab, and it was wrong twice over: it made the
@@ -33,8 +42,16 @@ export type RunningCampaign = {
  */
 export function useRunningCampaign(): RunningCampaign | null {
   const locale = useLocale(s => s.locale)
+  const themeEvent = campaignThemeEvent(useCampaignTheme())
   const { campaign } = useCampaign()
-  const { contracts, isPending: contractsPending } = useCampaignContracts(campaign?.tags ?? [], campaign?.collections)
+  const { contracts, isPending: contractsPending } = useCampaignContracts(
+    themeEvent ? NO_TAGS : (campaign?.tags ?? NO_TAGS),
+    themeEvent ? themeEvent.collections : campaign?.collections
+  )
+
+  if (themeEvent) {
+    return { label: t(themeEvent.labelKey), contracts, items: themeEvent.items, contractsPending }
+  }
 
   if (!campaign?.mainTag) return null
 

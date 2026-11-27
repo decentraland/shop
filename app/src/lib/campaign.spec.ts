@@ -94,5 +94,14 @@ describe('campaign', () => {
       expect(isInCampaign([A], undefined)).toBe(false)
       expect(isInCampaign([], A)).toBe(false)
     })
+
+    it('should match an item the event names on its own, in whatever casing its address arrives', () => {
+      expect(isInCampaign([], B.toUpperCase().replace('0X', '0x'), [`${B}-3`], '3')).toBe(true)
+    })
+
+    it('should not match a sibling of an item the event names, nor an item with no id', () => {
+      expect(isInCampaign([], B, [`${B}-3`], '4')).toBe(false)
+      expect(isInCampaign([], B, [`${B}-3`], null)).toBe(false)
+    })
   })
 })

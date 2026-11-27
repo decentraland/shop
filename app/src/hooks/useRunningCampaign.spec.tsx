@@ -10,6 +10,19 @@ const { useCampaign, useCampaignContracts } = vi.hoisted(() => ({
 vi.mock('~/hooks/useCampaign', () => ({ useCampaign }))
 vi.mock('~/hooks/useCampaignContracts', () => ({ useCampaignContracts }))
 
+const { useCampaignTheme } = vi.hoisted(() => ({ useCampaignTheme: vi.fn() }))
+vi.mock('~/hooks/useCampaignTheme', () => ({ useCampaignTheme }))
+
+// A fixture rather than the real list, so the spec does not change every time the season's selection does.
+const THEME_EVENT = {
+  labelKey: 'campaign.holidaysTab',
+  collections: ['0x1110000000000000000000000000000000000001'],
+  items: ['0x2220000000000000000000000000000000000002-7']
+}
+vi.mock('~/lib/campaignEvent', () => ({
+  campaignThemeEvent: (theme: string | null) => (theme === 'holidays' ? THEME_EVENT : null)
+}))
+
 import { useRunningCampaign } from './useRunningCampaign'
 import { useLocale } from '~/store/locale'
 
@@ -37,6 +50,7 @@ beforeEach(() => {
   useLocale.setState({ locale: 'en' })
   useCampaign.mockReturnValue({ campaign: aCampaign(), isPending: false, isError: false })
   useCampaignContracts.mockReturnValue({ contracts: [A], isPending: false, isError: false })
+  useCampaignTheme.mockReturnValue(null)
 })
 
 describe('useRunningCampaign', () => {
@@ -104,5 +118,28 @@ describe('useRunningCampaign', () => {
     label()
 
     expect(useCampaignContracts).toHaveBeenCalledWith(['halloween'], named)
+  })
+
+  describe('when the theme ships an event of its own', () => {
+    beforeEach(() => {
+      useCampaignTheme.mockReturnValue('holidays')
+    })
+
+    it('should name it with its own translated label rather than the cms tab name', () => {
+      expect(label()).toBe('Jolly Days')
+    })
+
+    it('should select its own collections and items, and none of the cms campaign’s tags', () => {
+      const running = campaignOf()
+
+      expect(useCampaignContracts).toHaveBeenCalledWith([], THEME_EVENT.collections)
+      expect(running?.items).toEqual(THEME_EVENT.items)
+    })
+
+    it('should run with no cms campaign at all', () => {
+      useCampaign.mockReturnValue({ campaign: undefined, isPending: false, isError: false })
+
+      expect(label()).toBe('Jolly Days')
+    })
   })
 })
