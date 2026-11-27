@@ -9,7 +9,12 @@ import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import { NameBuyModal } from './NameBuyModal'
 // Resolves to the MOCKED module below, which is what makes the modal's `instanceof` check meaningful here:
 // both sides get the same class object.
-import { NameNotRegisteredError, NameRouteCostTooHighError, NameSettlementUnknownError } from '~/lib/names'
+import {
+  NameNotRegisteredError,
+  NameRouteCostTooHighError,
+  NameRouteExpiredError,
+  NameSettlementUnknownError
+} from '~/lib/names'
 
 /**
  * The NAME purchase modal — the last step of a CROSS-CHAIN money path, and the layer that decides what the
@@ -51,8 +56,16 @@ vi.mock('~/lib/names', () => {
       this.name = 'NameNotRegisteredError'
     }
   }
+  class NameRouteExpiredError extends Error {
+    constructor() {
+      // Raw wording again, so the assertions below cannot pass by echoing the error's own message.
+      super('RAW_ROUTE_EXPIRED_INTERNAL')
+      this.name = 'NameRouteExpiredError'
+    }
+  }
   return {
     NameRouteCostTooHighError,
+    NameRouteExpiredError,
     NameNotRegisteredError,
     NameSettlementUnknownError,
     registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a),
@@ -509,6 +522,27 @@ describe('NameBuyModal', () => {
       // including one who has never heard of a network fee, and neither kind can act on the number that
       // caused it — the only actionable part is "later".
       expect(screen.queryByText(/network|gas|bridge/i)).toBeNull()
+    })
+
+    /**
+     * The opposite advice to the cost guard, from the same family of failure. The quote ran out, nothing was
+     * charged and the reservation is already released, so retrying IS the fix — and it is the only error on
+     * this screen that both says so and keeps the button that does it.
+     */
+    it('should offer an immediate retry when the quote expired', async () => {
+      registerNameWithUsdCredits.mockRejectedValue(new NameRouteExpiredError())
+      renderModal(67)
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(screen.getByText(/nothing was charged/i)).toBeTruthy())
+      // The retry button is the point: unlike the failures where the credit is gone or may be, this one is
+      // safe to repeat, and the buyer must not be sent away from a purchase a second click completes.
+      expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+      expect(screen.queryByText(/RAW_ROUTE_EXPIRED_INTERNAL/)).toBeNull()
+      // Same rule as the cost copy: never name the machinery the buyer cannot act on.
+      expect(screen.queryByText(/network|gas|bridge|quote/i)).toBeNull()
     })
 
     it('should show the failure message for any other error', async () => {
