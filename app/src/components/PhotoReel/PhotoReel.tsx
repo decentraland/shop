@@ -14,6 +14,7 @@ import { fetchLiveScenes, sceneKey } from '~/lib/places'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import type { CatalogItem } from '~/lib/api'
 import { fetchItemReel, reelKey, type ReelPhoto } from '~/lib/reel'
+import { tileFocus } from '~/lib/reelFraming'
 import * as S from './PhotoReel.styles'
 
 // A stable empty array, so react-query's `undefined` default does not hand the component a new one on
@@ -289,7 +290,12 @@ export function PhotoReel({ item }: { item: Pick<CatalogItem, 'contractAddress' 
                 onClick={() => openPhoto(i)}
                 aria-label={t('photoReel.openAria', { name: wearer.name, place: photo.place })}
               >
-                <S.Thumb src={photo.thumbnailUrl} alt="" loading="lazy" />
+                <S.Thumb
+                  src={photo.thumbnailUrl}
+                  alt=""
+                  loading="lazy"
+                  style={{ objectPosition: tileFocus(photo.wearerRect) }}
+                />
                 {/* Plain text here: this sits inside the button that opens the photo, and links inside a
                   button are neither valid nor operable. The profile and the place links are in the
                   open photo. */}
