@@ -70,8 +70,33 @@ export function signInRedirect(): void {
   window.location.replace(`${config.authUrl}/login?redirectTo=${redirectTo}`)
 }
 
+// How decentraland-connect remembers the last sign-in, and the prefix thirdweb stores its auth token under.
+// Read here only to answer "is there anything to restore?" before paying to find out.
+const CONNECTION_STORAGE_KEY = 'decentraland-connect-storage-key'
+const THIRDWEB_AUTH_TOKEN_PREFIX = 'walletToken-'
+
+/**
+ * False only when the last sign-in was thirdweb and no thirdweb token is left — a restore that cannot succeed,
+ * but whose connector still builds a ~600 KB embedded-wallet iframe before finding that out.
+ */
+function mayRestore(): boolean {
+  try {
+    const stored = localStorage.getItem(CONNECTION_STORAGE_KEY)
+    const providerType = stored ? (JSON.parse(stored) as { providerType?: string }).providerType : undefined
+    if (providerType !== ProviderType.THIRDWEB) return true
+    for (let i = 0; i < localStorage.length; i++) {
+      if (localStorage.key(i)?.startsWith(THIRDWEB_AUTH_TOKEN_PREFIX)) return true
+    }
+    return false
+  } catch {
+    // Unreadable or malformed storage: let the connection library make the call, as it always did.
+    return true
+  }
+}
+
 export async function restoreSession(): Promise<Session | null> {
   try {
+    if (!mayRestore()) return null
     const connection = await getConnection()
     const res = await connection.tryPreviousConnection()
     if (!res.account || !localStorageGetIdentity(res.account.toLowerCase())) return null
