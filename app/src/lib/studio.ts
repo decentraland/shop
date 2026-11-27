@@ -94,21 +94,29 @@ const SETTLED_REFUSAL_CODES = [...STUDIO_STOP_CODES, ...ROW_REFUSAL_CODES]
 
 const DEFAULT_RETRY_AFTER_SECONDS = 10
 
+/** The hex SHA-256 of `text`'s UTF-8 bytes. */
+export async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
 async function send(
   path: string,
   identity: AuthIdentity,
   init: { method?: string; body?: unknown } = {}
 ): Promise<{ status: number; body: unknown }> {
   const method = init.method ?? 'GET'
+  // A signature proves the route and the time, not the body: a write signs the hash of the exact bytes it sends, so a
+  // captured request cannot be replayed with another recipient or amount. A server that does not check it ignores it.
+  const payload = init.body !== undefined ? JSON.stringify(init.body) : undefined
+  const metadata = method !== 'GET' ? { bodySha256: await sha256Hex(payload ?? '') } : {}
   let res: Response
   try {
     res = await signedFetch(`${config.creditsServerUrl}${path}`, {
       method,
       identity,
-      metadata: {},
-      ...(init.body !== undefined
-        ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(init.body) }
-        : {})
+      metadata,
+      ...(payload !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: payload } : {})
     })
   } catch (error) {
     if (method !== 'GET') throw new StudioUnknownResultError()
