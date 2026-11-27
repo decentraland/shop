@@ -17,6 +17,7 @@ import {
   ROW_REFUSAL_CODES,
   runGiftBatch,
   saveBatchProgress,
+  sha256Hex,
   startGiftBatch,
   uniqueGifts,
   stopBatch,
@@ -59,6 +60,23 @@ describe('when the studio page talks to the credits server', () => {
       reason: 'Top player',
       idempotencyKey: 'key-1'
     })
+  })
+
+  it('should sign the hash of the exact body it sends with a gift', async () => {
+    fetchMock.mockResolvedValueOnce(answer(201, { replayed: false }))
+
+    await giftFromStudio(STUDIO, { account: ACCOUNT_A, credits: 10, reason: 'Top player', key: 'key-1' }, identity)
+
+    const init = fetchMock.mock.calls[0][1]
+    expect(init?.metadata).toEqual({ bodySha256: await sha256Hex(init?.body as string) })
+  })
+
+  it('should sign no body hash on a read', async () => {
+    fetchMock.mockResolvedValueOnce(answer(200, { studios: [], grantLimits: { maxGrantCents: null } }))
+
+    await getMyStudios(identity)
+
+    expect(fetchMock.mock.calls[0][1]?.metadata).toEqual({})
   })
 
   it('should read a 200 as a gift already made and a 201 as a new one when the body cannot be read', async () => {
@@ -130,6 +148,13 @@ describe('when the studio page talks to the credits server', () => {
     fetchMock.mockResolvedValueOnce(answer(200, { studios: [], grantLimits: { maxGrantCents: 50000 } }))
 
     await expect(getMyStudios(identity)).resolves.toEqual({ studios: [], limits: { maxGrantCents: 50000 } })
+  })
+})
+
+describe('when a body is hashed', () => {
+  it('should give the hex SHA-256 of its UTF-8 bytes', async () => {
+    // sha256("abc"), the FIPS 180-2 test vector.
+    expect(await sha256Hex('abc')).toEqual('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
   })
 })
 
