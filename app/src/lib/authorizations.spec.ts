@@ -46,7 +46,18 @@ vi.mock('decentraland-transactions', () => ({
   ErrorCode: { USER_DENIED: 'user_denied', UNKNOWN: 'unknown' }
 }))
 
-vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost:9999' } }))
+// Mirrors the REAL config shape, not just the field this spec first needed: `setAuthorization` now compares
+// `auth.chainId` against the settlement chain to decide whether a relayed rail exists, and a mock missing
+// `chainId` answers `undefined` — which reads as "not relayable" and silently routes every case here down
+// the direct-transaction path they were not written for.
+vi.mock('~/config', () => ({
+  config: {
+    rpcUrl: 'http://localhost:9999',
+    chainId: 80002,
+    ethereumChainId: 11155111,
+    ethereumRpcUrl: 'http://localhost:8888'
+  }
+}))
 
 /**
  * WHO the buyer is now decides whether the gas-paying fallback is offered at all, so the suites below have to
@@ -575,5 +586,54 @@ describe('the meta-tx provider shim (keeps the gasless tx off the wallet current
       'eth_getCode',
       expect.anything()
     )
+  })
+})
+
+/**
+ * A contract's chain and the RPC it is queried over must agree.
+ *
+ * MANA is deployed on both Polygon and Ethereum at DIFFERENT addresses, so reading the L1 one over the
+ * Polygon RPC hits an address that holds no contract there: `allowance` comes back as `0x`, which ethers
+ * cannot decode and reports as a revert. The buyer then sees a generic purchase failure on a retry button
+ * that can never work, because nothing about the attempt was retryable.
+ *
+ * This is the bug `readManaBalancesWei` already carries a comment about, arrived at from the other side —
+ * there it answered a silent 0 instead of failing.
+ */
+describe('when the authorization lives on another chain', () => {
+  beforeEach(() => {
+    jsonRpcProviderCtor.mockClear()
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from(0))
+  })
+
+  it('should read an Ethereum allowance over the Ethereum RPC', async () => {
+    await getAuthorizationStatus({ ...allowanceAuth, chainId: ChainId.ETHEREUM_SEPOLIA }, OWNER, 10n ** 18n)
+
+    expect(jsonRpcProviderCtor).toHaveBeenCalledWith('http://localhost:8888')
+    expect(jsonRpcProviderCtor).not.toHaveBeenCalledWith('http://localhost:9999')
+  })
+
+  it('should keep reading a Polygon allowance over the Polygon RPC', async () => {
+    await getAuthorizationStatus(allowanceAuth, OWNER, 10n ** 18n)
+
+    expect(jsonRpcProviderCtor).toHaveBeenCalledWith('http://localhost:9999')
+  })
+
+  /**
+   * The relayer only submits on the settlement chain, so an L1 grant has no relayed rail. Reaching for it
+   * anyway costs the buyer a signature prompt for a transaction that cannot be posted.
+   */
+  it('should not try to relay a grant on a chain the relayer does not serve', async () => {
+    // A wallet already on Ethereum, so the direct rail is reachable and the assertion is about the RELAY
+    // not being attempted rather than about the chain guard.
+    const send = vi.fn(async (m: string) => (m === 'eth_chainId' ? hexChain(ChainId.ETHEREUM_SEPOLIA) : undefined))
+    const signer = makeSigner({
+      provider: { send, getNetwork: vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_SEPOLIA }) }
+    })
+
+    await setAuthorization({ auth: { ...allowanceAuth, chainId: ChainId.ETHEREUM_SEPOLIA }, signer, active: true })
+
+    expect(sendMetaTransactionMock).not.toHaveBeenCalled()
+    expect(approveMock).toHaveBeenCalled()
   })
 })
